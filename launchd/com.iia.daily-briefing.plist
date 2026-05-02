@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.iia.daily-briefing</string>
+
+    <!-- caffeinate -is: prevent idle + system sleep DURING execution (AC power) -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/caffeinate</string>
+        <string>-is</string>
+        <string>/Users/edward.song/.local/bin/uv</string>
+        <string>run</string>
+        <string>/Users/edward.song/Desktop/Stock/scripts/daily_briefing.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/edward.song/Desktop/Stock</string>
+
+    <!-- 07:30 weekdays — if Mac is asleep, runs on next wake -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>7</integer>
+        <key>Minute</key>
+        <integer>30</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/edward.song/Desktop/Stock/logs/daily_briefing.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/edward.song/Desktop/Stock/logs/daily_briefing_err.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/edward.song/.local/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/edward.song</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>

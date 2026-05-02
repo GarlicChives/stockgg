@@ -1,0 +1,82 @@
+
+==================================================
+  MacroMicro
+==================================================
+Incremental: fetching after 2026-04-30
+Collecting blog articles...
+  Found 6 blog articles
+Collecting monthly reports & EDM...
+  Found 2 reports
+
+3 new items to fetch (skipping 5 existing)
+  [blog] 部落格 (128 chars)
+  [blog] 部落格 (123 chars)
+  [edm] MacroMicro 財經M平方 (5699 chars)
+
+Done. 3 new articles saved.
+
+==================================================
+  Vocus 韭菜王
+==================================================
+Incremental: fetching after 2026-05-01
+Collecting article URLs from index...
+  Scroll stopped at 70 articles (scroll 8)
+Collected 70 unique article URLs from index
+10 new articles to fetch (skipping 60 existing)
+  [2025-12-17] 12月FMS：經理人現金水位再創3.3%歷史新低，科技股倉位出現大幅回補 (3387 chars)
+  [2026-05-02] GOOG 1Q26財報：積壓訂單QoQ翻倍成長，證明已不是廣告公司、正成為一家真正AI公司 (3294 chars)
+  [2025-12-17] 總經分析：11月非農繼續驗證美國經濟溫和放緩，支持Fed 2026年可能降息3碼上下 (4074 chars)
+  [2025-12-16] CIEN FY4Q25財報：積壓訂單再創歷史新高，Scale-across新市場的主要受惠者 (2453 chars)
+  [2026-03-13] AVAV FY2Q26財報：政府關門帶來短期逆風，高毛利產品FY2H26下半年交貨預計改善利潤率 (2749 chars)
+  [2025-12-13] AVGO FY4Q25財報：CoWoS供給限制FY26 AI營收指引低於BuySide預期，更多上修驚喜將發生在FY27 (4089 chars)
+  [2025-12-12] ORCL FY2Q26財報：Abilene交付延遲導致財報低於預期，cRPO大幅加速至40%打開FY27營收能見度 (3825 chars)
+  [2025-12-11] Fed 12月會議：降息並啟動RMP購債，展望2026年繼續管理降息預期至僅降息一碼 (4548 chars)
+  [2025-12-10] 個股動態：AWS 2025年會5大重點觀察，AI策略整合大幅提升+Trn3/4動態更新 (4170 chars)
+  [2025-12-06] CRWD FY3Q26財報：指引僅合於預期似乎保守，AI-Agent所需資安中樞平台帶來長期TAM拓展機會 (3928 chars)
+
+Done. 10 new articles saved (0 skipped as too old).
+
+==================================================
+  StatementDog
+==================================================
+Incremental: fetching after 2026-04-30
+Collecting report list (cutoff: 2026-04-30)...
+  Page 1: 20 reports, 1 within lookback
+  Page 2: 11 reports, 0 within lookback
+Found 1 reports within lookback
+0 new reports to fetch (skipping 1 existing)
+
+Done. 0 new reports saved.
+
+==================================================
+  InvestAnchors
+==================================================
+Incremental mode: fetching articles after 2026-12-30
+Collecting article list (cutoff: 2026-12-30)...
+  Page 1: 34 rows, 32 within lookback
+  Page 2: 32 rows, 30 within lookback
+  Page 3: 32 rows, 30 within lookback
+  Page 4: 32 rows, 30 within lookback
+  Page 5: 2 rows, 0 within lookback
+  All articles on page 5 older than cutoff, stopping.
+Found 62 articles to process
+1 new articles to fetch (skipping 61 existing)
+  Fetched: FED維持觀望態度，內部意見分歧加劇 (3584 chars)
+
+Done. 1 new articles saved to database.
+
+==================================================
+  PressPlay
+==================================================
+Incremental: fetching after 2026-04-19
+Collecting article list from timelines/v2 API...
+Timelines API: [POST] https://og-web.pressplay.cc/member/timelines/v2
+  POST body: {"project_id":"EFB905DAF7B44F479552E5F5D955A137","date":{"end":"2026-04-30","start":"2021-06-01"},"reward_ids":["public","1556A910B870E9ADBDCA0E5E4338C95C"],"tags":[],"categories":[],"keyword":"","sor
+  Page 1: 12 articles
+Collected 3 articles within 6-month window
+0 new articles to fetch (skipping 3 existing)
+
+Done. 0 new articles saved (0 failed/empty).
+
+
+All crawlers done. 14 new articles saved.

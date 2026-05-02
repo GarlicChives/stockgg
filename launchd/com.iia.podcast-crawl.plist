@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.iia.podcast-crawl</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/caffeinate</string>
+        <string>-is</string>
+        <string>/Users/edward.song/.local/bin/uv</string>
+        <string>run</string>
+        <string>/Users/edward.song/Desktop/Stock/src/crawlers/podcasts.py</string>
+        <string>--incremental</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/edward.song/Desktop/Stock</string>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>6</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/edward.song/Desktop/Stock/logs/podcast_crawl.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/edward.song/Desktop/Stock/logs/podcast_crawl_err.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/edward.song/.local/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/edward.song</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>
