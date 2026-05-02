@@ -114,14 +114,15 @@ async def store_snapshots(conn, snapshots: dict[str, dict], fear_greed: float | 
         count += 1
 
     if fear_greed is not None:
-        today = date.today()
+        # Use the same date as the trading data so MAX(snapshot_date) stays consistent
+        trading_date = next(iter(snapshots.values()))["snapshot_date"] if snapshots else date.today()
         await conn.execute(
             """INSERT INTO market_snapshots
                (snapshot_date, market, symbol, close_price, change_pct, volume, extra)
                VALUES ($1,'INDICATOR','FEAR_GREED',$2,NULL,NULL,$3)
                ON CONFLICT (snapshot_date, market, symbol) DO UPDATE
                SET close_price=$2""",
-            today, fear_greed, json.dumps({"name": "Fear & Greed"}),
+            trading_date, fear_greed, json.dumps({"name": "Fear & Greed"}),
         )
         count += 1
 

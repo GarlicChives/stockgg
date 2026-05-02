@@ -61,34 +61,48 @@ async def generate():
         "SELECT report_date, raw_response FROM analysis_reports ORDER BY report_date DESC LIMIT 1"
     )
 
-    # Market snapshots
-    snap_date = await conn.fetchval("SELECT MAX(snapshot_date) FROM market_snapshots")
+    # Market snapshots — each symbol uses its own latest non-null trading day
     snaps: dict = {}
-    if snap_date:
-        for row in await conn.fetch(
-            "SELECT symbol, close_price, change_pct, extra FROM market_snapshots WHERE snapshot_date=$1",
-            snap_date,
-        ):
-            name = json.loads(row["extra"] or "{}").get("name", row["symbol"])
-            snaps[row["symbol"]] = {
-                "name": name,
-                "close": float(row["close_price"] or 0),
-                "chg": float(row["change_pct"]) if row["change_pct"] is not None else None,
-            }
+    snap_dates: dict = {}
+    for row in await conn.fetch("""
+        SELECT DISTINCT ON (symbol)
+            symbol, close_price, change_pct, snapshot_date, extra
+        FROM market_snapshots
+        WHERE close_price IS NOT NULL
+        ORDER BY symbol, snapshot_date DESC
+    """):
+        name = json.loads(row["extra"] or "{}").get("name", row["symbol"])
+        snaps[row["symbol"]] = {
+            "name": name,
+            "close": float(row["close_price"] or 0),
+            "chg": float(row["change_pct"]) if row["change_pct"] is not None else None,
+        }
+        snap_dates[row["symbol"]] = row["snapshot_date"]
 
-    # Rankings
-    rank_date = await conn.fetchval("SELECT MAX(rank_date) FROM trading_rankings")
+    # Use the latest date of the key US index as the section header date
+    snap_date = snap_dates.get("^GSPC") or snap_dates.get("^IXIC") or (
+        max(snap_dates.values()) if snap_dates else None
+    )
+
+    # Rankings — US and TW may have different latest dates
+    us_rank_date = await conn.fetchval(
+        "SELECT MAX(rank_date) FROM trading_rankings WHERE market='US'"
+    )
+    tw_rank_date = await conn.fetchval(
+        "SELECT MAX(rank_date) FROM trading_rankings WHERE market='TW'"
+    )
     us_ranks, tw_ranks = [], []
-    if rank_date:
+    if us_rank_date:
         us_ranks = [dict(r) for r in await conn.fetch(
             "SELECT rank, ticker, name, trading_value, change_pct "
             "FROM trading_rankings WHERE rank_date=$1 AND market='US' ORDER BY rank LIMIT 30",
-            rank_date,
+            us_rank_date,
         )]
+    if tw_rank_date:
         tw_ranks = [dict(r) for r in await conn.fetch(
             "SELECT rank, ticker, name, trading_value, change_pct, is_limit_up_30m "
             "FROM trading_rankings WHERE rank_date=$1 AND market='TW' ORDER BY rank LIMIT 30",
-            rank_date,
+            tw_rank_date,
         )]
 
     await conn.close()
@@ -235,14 +249,14 @@ footer{{text-align:center;color:var(--muted);font-size:.78rem;padding:1.75rem 1r
 
 <div class="ranks">
   <div class="card">
-    <div class="sec">美股 成交值前 30（{str(rank_date) if rank_date else "—"}）</div>
+    <div class="sec">美股 成交值前 30（{str(us_rank_date) if us_rank_date else "—"}）</div>
     <table>
       <thead><tr><th>#</th><th>代號</th><th>名稱</th><th style="text-align:right">成交值</th><th style="text-align:right">漲跌</th></tr></thead>
       <tbody>{''.join(us_rows) or '<tr><td colspan="5" style="color:var(--muted)">尚無資料</td></tr>'}</tbody>
     </table>
   </div>
   <div class="card">
-    <div class="sec">台股 成交值前 30（{str(rank_date) if rank_date else "—"}）</div>
+    <div class="sec">台股 成交值前 30（{str(tw_rank_date) if tw_rank_date else "—"}）</div>
     <table>
       <thead><tr><th>#</th><th>代號</th><th>名稱</th><th style="text-align:right">成交值</th><th style="text-align:right">漲跌</th></tr></thead>
       <tbody>{''.join(tw_rows) or '<tr><td colspan="5" style="color:var(--muted)">尚無資料</td></tr>'}</tbody>
