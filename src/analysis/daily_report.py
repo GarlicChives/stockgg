@@ -26,7 +26,7 @@ GEMINI_BASE  = "https://generativelanguage.googleapis.com/v1beta/models"
 
 
 def _gemini_http(api_key: str, model: str, prompt: str,
-                 temperature: float = 0.3, max_tokens: int = 3000) -> str:
+                 temperature: float = 0.3, max_tokens: int = 8192) -> str:
     """Call Gemini REST API directly — avoids SDK version issues."""
     url = f"{GEMINI_BASE}/{model}:generateContent?key={api_key}"
     payload = json.dumps({
@@ -38,7 +38,13 @@ def _gemini_http(api_key: str, model: str, prompt: str,
     )
     with urllib.request.urlopen(req, timeout=120) as r:
         data = json.loads(r.read())
-    return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+    # Gemini 2.5 Flash is a thinking model — parts may include thought traces
+    # (thought=True). Collect only the actual response parts.
+    parts = data["candidates"][0]["content"]["parts"]
+    text = "".join(
+        p["text"] for p in parts if "text" in p and not p.get("thought", False)
+    ).strip()
+    return text or "".join(p.get("text", "") for p in parts).strip()
 REPORT_LOOKBACK_DAYS = 7
 # Per article: prefer refined (~800 chars) over raw (truncated to 800 chars)
 # Keeps total context lean — Gemini Flash free tier is 1M tokens/day but
