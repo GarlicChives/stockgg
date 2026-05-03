@@ -234,8 +234,8 @@ keyword 必須是「單一字串」（非陣列），代表此主題最獨特、
 ❌ "散熱"（液冷氣冷都中）、"記憶體"（太廣）、"AI"（到處都有）
 
 【股票標的】
-tw_stocks：{"code":"2330","name":"台積電"}，不限文章中出現者，請補全同族群重要台股
-us_stocks：{"ticker":"NVDA","name":"Nvidia"}，同上
+tw_stocks：{{"code":"2330","name":"台積電"}}，不限文章中出現者，請補全同族群重要台股
+us_stocks：{{"ticker":"NVDA","name":"Nvidia"}}，同上
 
 === 內容 ===
 {content}
