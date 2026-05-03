@@ -33,9 +33,9 @@ PODCAST_SOURCES = [
     "podcast_stock_barrel",
     "podcast_zhaohua",
 ]
-MAX_PER_SOURCE = 3    # max episodes per source to attempt per run
+MAX_PER_SOURCE = 5    # episodes per source per run (paid tier, no strict quota)
 LOOKBACK_DAYS  = 30   # only process episodes from the last N days
-CALL_DELAY     = 15   # seconds between Gemini calls
+CALL_DELAY     = 2    # seconds between calls (courtesy buffer, paid tier)
 
 
 async def find_incomplete(conn) -> list[dict]:

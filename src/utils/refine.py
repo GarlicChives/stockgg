@@ -54,11 +54,11 @@ TAGS 從 macro/international/stock/supply_chain 選，逗號分隔。
 若整集內容完全無投資分析（純廣告/閒聊/問答），只輸出：NONE"""
 
 _VALID_TAGS = {"macro", "international", "stock", "supply_chain"}
-OLLAMA_MODEL = "qwen2.5:7b"
-GEMINI_MODEL = "gemini-2.5-flash"
-GEMINI_BASE  = "https://generativelanguage.googleapis.com/v1beta/models"
+OLLAMA_MODEL    = "qwen2.5:7b"
+GEMINI_MODEL    = "gemini-2.5-flash-lite"   # refinement: lite is cheaper & sufficient
+GEMINI_BASE     = "https://generativelanguage.googleapis.com/v1beta/models"
 CONTENT_TRUNCATE = 4000
-PODCAST_TRUNCATE = 16000     # Gemini handles longer context well
+PODCAST_TRUNCATE = 16000
 
 
 def _ollama_running() -> bool:
@@ -126,7 +126,6 @@ def _gemini_refine(api_key: str, title: str, raw: str,
         "generationConfig": {
             "temperature": 0,
             "maxOutputTokens": 8000,
-            "thinkingConfig": {"thinkingBudget": 0},
         },
     }).encode()
     req = urllib.request.Request(
