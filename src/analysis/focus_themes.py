@@ -14,7 +14,7 @@ from pathlib import Path
 
 DICT_FILE    = Path(__file__).resolve().parents[2] / "data" / "theme_dictionary.json"
 PRIMARY_DAYS = 7
-MIN_SCORE    = 1.5   # minimum weighted keyword score to link a stock to a theme
+MIN_SCORE    = 1.0   # minimum weighted occurrence count (keyword must appear at least once in a primary article)
 MIN_FOCAL    = 1     # minimum focal stocks for a cluster to appear
 
 
@@ -68,13 +68,14 @@ def _load_themes() -> list[dict]:
 
 # ── Scoring ───────────────────────────────────────────────────────────────────
 
-def _score_articles(articles: list[dict], keywords: list[str]) -> tuple[float, int]:
+def _score_articles(articles: list[dict], keyword: str) -> tuple[float, int]:
     """
-    Weighted keyword match across article list.
-    Returns (total_weighted_score, primary_article_count).
+    Count occurrences of a single precise keyword across article list.
+    Primary window (≤7 days) × weight 2; secondary (8-60 days) × weight 1.
+    Returns (weighted_occurrence_total, primary_article_count_with_match).
     """
     cutoff_primary = date.today() - timedelta(days=PRIMARY_DAYS)
-    kw_lower = [k.lower() for k in keywords]
+    kw = keyword.lower()
     total_score = 0.0
     primary_count = 0
 
@@ -91,9 +92,9 @@ def _score_articles(articles: list[dict], keywords: list[str]) -> tuple[float, i
             + " "
             + (art.get("title") or "")
         ).lower()
-        matches = sum(1 for kw in kw_lower if kw in text)
-        if matches:
-            total_score += matches * weight
+        count = text.count(kw)
+        if count:
+            total_score += count * weight
             if is_primary:
                 primary_count += 1
 
@@ -123,7 +124,10 @@ def detect_clusters(
     for ticker in focal_tickers:
         ticker_scores[ticker] = {}
         for theme in themes:
-            score, primary = _score_articles(ticker_arts[ticker], theme["keywords"])
+            keyword = theme.get("keyword", "")
+            if not keyword:
+                continue
+            score, primary = _score_articles(ticker_arts[ticker], keyword)
             if score >= MIN_SCORE:
                 ticker_scores[ticker][theme["id"]] = (score, primary)
 

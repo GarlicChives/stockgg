@@ -87,6 +87,19 @@ async def main():
         print("── Step 5: Market Notes skipped (no GOOGLE_API_KEY) ──")
         print()
 
+    if api_key:
+        print("── Step 5.5: Theme Dictionary (Incremental Append) ──")
+        proc = subprocess.run(
+            [sys.executable, str(Path(__file__).resolve().parent / "build_theme_dictionary.py")],
+            cwd=Path(__file__).resolve().parents[1],
+            capture_output=True, text=True,
+        )
+        print((proc.stdout or proc.stderr).strip())
+        print()
+    else:
+        print("── Step 5.5: Theme Dictionary skipped (no GOOGLE_API_KEY) ──")
+        print()
+
     print("── Step 6: Cleanup Old Data (>180 days) ──")
     conn = await asyncpg.connect(os.environ["DATABASE_URL"])
     try:
