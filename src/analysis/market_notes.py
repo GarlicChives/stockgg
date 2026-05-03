@@ -34,7 +34,8 @@ SOURCE_NAMES = {
     "podcast_macromicro":  "財經M平方 podcast",
     "podcast_chives_grad": "韭菜畢業班",
     "podcast_stock_barrel":"股海飯桶",
-    "podcast_zhaohua":     "兆華與股惑仔",
+    "podcast_zhaohua":        "兆華與股惑仔",
+    "podcast_statementdog":   "財報狗 podcast",
 }
 
 
