@@ -11,59 +11,226 @@
   --up:#26a69a; --down:#ef5350; --accent:#6c8ef5;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.65;font-size:15px}
+body{background:var(--bg);color:var(--text);
+      font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+      line-height:1.65;font-size:15px}
 a{color:var(--accent)}
+button{cursor:pointer;border:none;outline:none}
 
-header{background:var(--card);border-bottom:1px solid var(--border);padding:1.1rem 1.5rem}
+/* ── Ticker tape ── */
+.tape{position:sticky;top:0;z-index:200;
+       background:var(--card);border-bottom:1px solid var(--border);
+       height:30px;overflow:hidden;display:flex;align-items:center;
+       white-space:nowrap}
+.tape-track{display:inline-block;animation:tape-scroll 90s linear infinite;
+             padding-left:50%;will-change:transform}
+.tape-item{display:inline-block;padding:0 .5rem;font-size:.8rem;color:var(--muted)}
+.tape-item b{color:var(--text)}
+.tape-up{color:var(--up)} .tape-down{color:var(--down)}
+@keyframes tape-scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+
+/* ── Direction badge (fixed) ── */
+.dir-badge{position:fixed;top:6px;right:10px;z-index:300;
+            background:rgba(26,29,38,.92);border:1px solid var(--border);
+            border-radius:8px;padding:.3rem .65rem;
+            display:flex;gap:.65rem;align-items:center;
+            font-size:.72rem;backdrop-filter:blur(4px)}
+.dir-label{color:var(--muted)}
+.dir-val{font-weight:700;font-size:.78rem}
+.dir-bull{color:var(--up)} .dir-bear{color:var(--down)} .dir-neu{color:var(--muted)}
+
+/* ── Header ── */
+header{background:var(--card);border-bottom:1px solid var(--border);
+        padding:1rem 1.5rem}
 header h1{font-size:1.25rem;font-weight:700;color:var(--accent)}
-header p{color:var(--muted);font-size:0.82rem;margin-top:0.15rem}
+header p{color:var(--muted);font-size:.82rem;margin-top:.15rem}
 
-.wrap{max-width:1080px;margin:0 auto;padding:1.5rem 1.25rem}
+/* ── Tabs ── */
+.wrap{max-width:1120px;margin:0 auto;padding:1.25rem 1.1rem}
+.tabs{display:flex;gap:.4rem;margin-bottom:1.1rem;
+       border-bottom:1px solid var(--border);padding-bottom:.55rem}
+.tab-btn{background:transparent;color:var(--muted);padding:.42rem .9rem;
+          border-radius:6px;font-size:.88rem;font-weight:500;transition:.15s}
+.tab-btn:hover{background:var(--card);color:var(--text)}
+.tab-btn.active{background:var(--accent);color:#fff}
+.tab-pane{display:none}
+.tab-pane.active{display:block}
 
-.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:1.25rem 1.4rem;margin-bottom:1.25rem}
-.sec{font-size:0.7rem;font-weight:700;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.9rem}
+/* ── Card ── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;
+       padding:1.2rem 1.35rem;margin-bottom:1.1rem}
+.sec{font-size:.7rem;font-weight:700;color:var(--accent);letter-spacing:.1em;
+      text-transform:uppercase;margin-bottom:.85rem}
+.section-hdr{font-size:.75rem;font-weight:700;color:var(--accent);letter-spacing:.08em;
+              text-transform:uppercase;margin:1rem 0 .65rem}
 
-/* Market grid */
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:.65rem}
-.market-item{background:#12151f;border-radius:8px;padding:.65rem .75rem}
-.market-item .label{font-size:.7rem;color:var(--muted)}
-.market-item .value{font-size:1.05rem;font-weight:700;margin:.15rem 0}
-.market-item .change{font-size:.8rem}
+/* ── Market grid (tab 1) ── */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(115px,1fr));gap:.6rem}
+.market-item{background:#12151f;border-radius:8px;padding:.6rem .7rem}
+.market-item .label{font-size:.68rem;color:var(--muted)}
+.market-item .value{font-size:1rem;font-weight:700;margin:.12rem 0}
+.market-item .change{font-size:.78rem}
 
-/* Report */
-.report h2{color:var(--accent);font-size:1rem;font-weight:600;margin:1.2rem 0 .55rem;padding-bottom:.35rem;border-bottom:1px solid var(--border)}
-.report h3{color:#a0b0cc;font-size:.93rem;font-weight:600;margin:.95rem 0 .4rem}
-.report p{margin-bottom:.6rem;font-size:.92rem;color:var(--text)}
-.report ul{padding-left:1.3rem;margin-bottom:.6rem}
-.report li{margin-bottom:.28rem;font-size:.92rem}
+/* ── Report ── */
+.report h2{color:var(--accent);font-size:.98rem;font-weight:600;
+            margin:1.1rem 0 .5rem;padding-bottom:.3rem;
+            border-bottom:1px solid var(--border)}
+.report h3{color:#a0b0cc;font-size:.9rem;font-weight:600;margin:.9rem 0 .35rem}
+.report p{margin-bottom:.55rem;font-size:.9rem}
+.report ul{padding-left:1.3rem;margin-bottom:.55rem}
+.report li{margin-bottom:.25rem;font-size:.9rem}
 .report strong{color:#c0cfe0}
 
-/* Rankings */
-.ranks{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem}
+/* ── Rankings ── */
+.ranks{display:grid;grid-template-columns:1fr 1fr;gap:1.1rem}
 @media(max-width:680px){.ranks{grid-template-columns:1fr}}
 table{width:100%;border-collapse:collapse}
-th{color:var(--muted);font-weight:500;font-size:.72rem;text-align:left;padding:.3rem .45rem;border-bottom:1px solid var(--border)}
-td{padding:.28rem .45rem;border-bottom:1px solid rgba(42,46,64,.5);font-size:.82rem}
-td.rank{color:var(--muted);width:1.8rem}
+th{color:var(--muted);font-weight:500;font-size:.7rem;text-align:left;
+    padding:.28rem .4rem;border-bottom:1px solid var(--border)}
+td{padding:.25rem .4rem;border-bottom:1px solid rgba(42,46,64,.4);font-size:.8rem}
+td.rank{color:var(--muted);width:1.6rem}
 td.ticker{font-weight:600}
 td.num{text-align:right}
 tr:last-child td{border-bottom:none}
+.board-badge{font-size:.55rem;font-weight:600;padding:.1rem .3rem;
+              border-radius:3px;margin-left:.3rem;vertical-align:middle}
+.board-sm{font-size:.55rem;font-weight:600;padding:.05rem .25rem;
+           border-radius:3px;margin-left:.2rem;vertical-align:middle}
+.twse{background:#1a2a3a;color:#6c8ef5}
+.tpex{background:#1a2e24;color:#26a69a}
+
+/* ── Focus stocks (tab 2) ── */
+.focus-themes{display:flex;flex-direction:column;gap:.85rem;margin-bottom:1rem}
+.focus-theme{background:#12151f;border-radius:10px;padding:1rem 1.1rem;
+              border-left:3px solid var(--accent)}
+.theme-top{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;margin-bottom:.45rem}
+.theme-ttl{font-size:.95rem;font-weight:700}
+.sent-badge{font-size:.65rem;font-weight:700;padding:.15rem .45rem;border-radius:4px}
+.sent-bull{background:#1a3a2a;color:#4caf82}
+.sent-bear{background:#2a1a1a;color:#b05050}
+.sent-neu{background:#1e2235;color:var(--muted)}
+.src-note{font-size:.72rem;color:var(--muted)}
+.theme-summary{font-size:.85rem;color:#b0bfcf;margin:.35rem 0}
+.kp-list{font-size:.82rem;padding-left:1.2rem;color:#b0bfcf;margin:.35rem 0}
+.kp-list li{margin-bottom:.2rem}
+.focus-chips{display:flex;flex-wrap:wrap;gap:.35rem;margin:.45rem 0}
+.focus-chip{background:#1e2235;border-left:2px solid #555;font-size:.78rem;
+             font-weight:600;padding:.18rem .45rem;border-radius:5px}
+.focus-chip-match{background:#1a2a3a;border-left:2px solid var(--accent);
+                   font-size:.78rem;font-weight:700;padding:.18rem .45rem;border-radius:5px;
+                   color:var(--accent)}
+.theme-arts{margin-top:.4rem}
+
+/* ── Stock grid ── */
+.stock-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:.7rem}
+.stock-card{background:#12151f;border-radius:9px;padding:.8rem .9rem}
+.sc-head{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;margin-bottom:.35rem}
+.sc-ticker{font-size:.9rem;font-weight:800}
+.mkt-badge{font-size:.55rem;font-weight:700;padding:.1rem .3rem;border-radius:3px}
+.mkt-us{background:#1a2a3a;color:#6c8ef5}
+.mkt-tw{background:#1a2e24;color:#26a69a}
+.sc-name{font-size:.75rem;color:var(--muted);margin-left:auto}
+.sc-meta{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;font-size:.8rem}
+.sc-pct{font-weight:700}
+.sc-val{color:var(--muted)}
+.sc-rank{color:var(--muted);font-size:.72rem}
+.vol-tag{font-size:.62rem;font-weight:600;padding:.1rem .3rem;border-radius:3px}
+.vol-hot{background:#2a1a1a;color:#ef5350}
+.vol-high{background:#2a2a14;color:#c8a840}
+.vol-mid{background:#1e2235;color:var(--muted)}
+.limit-up-badge{font-size:.62rem;font-weight:700;padding:.1rem .3rem;
+                 border-radius:3px;background:#2a1a3a;color:#cf6ef5}
+.arts-btn{display:block;width:100%;margin-top:.5rem;background:#1e2235;
+           color:var(--muted);font-size:.75rem;padding:.3rem .5rem;
+           border-radius:5px;text-align:left;transition:.15s}
+.arts-btn:hover{background:#252a3d;color:var(--text)}
+.no-art{display:block;font-size:.72rem;color:var(--muted);margin-top:.4rem}
+.arts-panel{margin-top:.5rem}
+.arts-panel.hidden{display:none}
+.art-item{background:#0f1117;border-radius:6px;padding:.5rem .65rem;
+           margin-bottom:.4rem;font-size:.78rem}
+.art-meta{font-weight:600;color:#a0b8d0;margin-bottom:.25rem}
+.art-snip{color:var(--muted);line-height:1.5}
+
+/* ── Cross-source topics (tab 3) ── */
+.topics-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
+              gap:.85rem;margin-bottom:1.25rem}
+.topic-card{background:#12151f;border-radius:10px;padding:1rem 1.1rem;
+             border-left:3px solid var(--up)}
+.topic-head{display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem;flex-wrap:wrap}
+.topic-name{font-size:.9rem;font-weight:700}
+.src-row{display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.4rem}
+.src-tag{font-size:.65rem;padding:.15rem .4rem;background:#1e2235;
+          border-radius:4px;color:var(--muted)}
+.topic-sum{font-size:.84rem;color:#b0bfcf;margin:.35rem 0}
+.tk-row{display:flex;flex-wrap:wrap;gap:.3rem;margin:.35rem 0}
+.tk-chip{font-size:.75rem;font-weight:600;padding:.15rem .4rem;
+          background:#1e2235;border-radius:4px}
+.topic-arts{margin-top:.4rem;font-size:.75rem}
+.art-ref{color:var(--muted);margin:.2rem 0;line-height:1.4}
+
+/* ── Podcast notes (tab 3) ── */
+.pod-source{background:var(--card);border:1px solid var(--border);
+             border-radius:10px;margin-bottom:.75rem}
+.pod-src-hdr{padding:.75rem 1rem;cursor:pointer;display:flex;
+              align-items:center;gap:.5rem;user-select:none}
+.pod-src-hdr:hover{background:#1e2235;border-radius:10px}
+.pod-src-arrow{font-size:.75rem;color:var(--muted);transition:.2s;width:1rem}
+.pod-src-name{font-weight:700;font-size:.9rem}
+.ep-cnt{font-size:.72rem;color:var(--muted);margin-left:auto}
+.pod-episodes{padding:.5rem 1rem 1rem}
+.pod-episodes.hidden{display:none}
+.ep-block{border-top:1px solid var(--border);padding:.5rem 0}
+.ep-hdr{display:flex;align-items:baseline;gap:.5rem;cursor:pointer;
+         padding:.3rem 0;user-select:none}
+.ep-hdr:hover .ep-title{color:var(--accent)}
+.ep-arrow{font-size:.7rem;color:var(--muted);width:.9rem;transition:.2s}
+.ep-title{font-size:.85rem;font-weight:600;flex:1}
+.ep-date{font-size:.72rem;color:var(--muted);white-space:nowrap}
+.ep-body{margin:.5rem 0 .5rem .9rem;
+          font-size:.82rem;color:#b0bfcf;line-height:1.7}
+.ep-body.hidden{display:none}
+.pod-content{white-space:pre-wrap;font-size:.8rem;color:#b0bfcf;line-height:1.7}
+.pod-raw{white-space:pre-wrap;font-family:inherit;font-size:.8rem;
+          color:#b0bfcf;line-height:1.75;overflow-wrap:break-word;margin:0}
+.muted-note{color:var(--muted);font-size:.85rem;padding:.5rem 0}
 
 .up{color:var(--up)} .down{color:var(--down)} .neutral{color:var(--muted)}
-
-footer{text-align:center;color:var(--muted);font-size:.78rem;padding:1.75rem 1rem;border-top:1px solid var(--border);margin-top:.5rem}
+footer{text-align:center;color:var(--muted);font-size:.75rem;
+        padding:1.5rem 1rem;border-top:1px solid var(--border);margin-top:.5rem}
 </style>
 </head>
 <body>
+
+<!-- Ticker tape -->
+<div class="tape"><div class="tape-track"><span class="tape-item">S&amp;P 500&nbsp;<b>7,230</b>&nbsp;<span class="tape-up">▲0.29%</span></span>&ensp;·&ensp;<span class="tape-item">NASDAQ&nbsp;<b>25,114</b>&nbsp;<span class="tape-up">▲0.89%</span></span>&ensp;·&ensp;<span class="tape-item">SOX&nbsp;<b>10,595</b>&nbsp;<span class="tape-up">▲0.87%</span></span>&ensp;·&ensp;<span class="tape-item">日經 N225&nbsp;<b>59,513</b>&nbsp;<span class="tape-up">▲0.38%</span></span>&ensp;·&ensp;<span class="tape-item">台股 TWII&nbsp;<b>38,927</b>&nbsp;<span class="tape-down">▼0.96%</span></span>&ensp;·&ensp;<span class="tape-item">VIX&nbsp;<b>16.99</b></span>&ensp;·&ensp;<span class="tape-item">10Y 殖利率&nbsp;<b>4.38</b></span>&ensp;·&ensp;<span class="tape-item">DXY&nbsp;<b>98</b>&nbsp;<span class="tape-up">▲0.13%</span></span>&ensp;·&ensp;<span class="tape-item">恐慌貪婪&nbsp;<b>66.60</b></span>&ensp;&ensp;&ensp;&ensp;<span class="tape-item">S&amp;P 500&nbsp;<b>7,230</b>&nbsp;<span class="tape-up">▲0.29%</span></span>&ensp;·&ensp;<span class="tape-item">NASDAQ&nbsp;<b>25,114</b>&nbsp;<span class="tape-up">▲0.89%</span></span>&ensp;·&ensp;<span class="tape-item">SOX&nbsp;<b>10,595</b>&nbsp;<span class="tape-up">▲0.87%</span></span>&ensp;·&ensp;<span class="tape-item">日經 N225&nbsp;<b>59,513</b>&nbsp;<span class="tape-up">▲0.38%</span></span>&ensp;·&ensp;<span class="tape-item">台股 TWII&nbsp;<b>38,927</b>&nbsp;<span class="tape-down">▼0.96%</span></span>&ensp;·&ensp;<span class="tape-item">VIX&nbsp;<b>16.99</b></span>&ensp;·&ensp;<span class="tape-item">10Y 殖利率&nbsp;<b>4.38</b></span>&ensp;·&ensp;<span class="tape-item">DXY&nbsp;<b>98</b>&nbsp;<span class="tape-up">▲0.13%</span></span>&ensp;·&ensp;<span class="tape-item">恐慌貪婪&nbsp;<b>66.60</b></span></div></div>
+
+<!-- Direction badge (fixed) -->
+<div class="dir-badge">
+  <span class="dir-label">短期</span>
+  <span class="dir-val dir-bull">偏多</span>
+  <span class="dir-label" style="margin-left:.2rem">中期</span>
+  <span class="dir-val dir-bull">偏多</span>
+</div>
+
 <header>
   <h1>IIA 投資情報</h1>
-  <p>報告日期：2026/05/02　·　資料更新：2026-05-02 15:54 UTC</p>
+  <p>報告日期：2026/05/02　·　資料更新：2026-05-03 03:08 UTC</p>
 </header>
-<div class="wrap">
 
-<div class="card">
-  <div class="sec">市場指標（2026-05-01）</div>
-  <div class="grid">
+<div class="wrap">
+  <!-- Tab navigation -->
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="market"   onclick="showTab('market')">市場行情</button>
+    <button class="tab-btn"        data-tab="focus"    onclick="showTab('focus')">焦點股</button>
+    <button class="tab-btn"        data-tab="notes"    onclick="showTab('notes')">股市筆記</button>
+  </nav>
+
+  <!-- Tab 1: 市場行情 -->
+  <div id="tab-market" class="tab-pane active">
+    <div class="card">
+      <div class="sec">市場指標（2026-05-01）</div>
+      <div class="grid">
         <div class="market-item">
           <div class="label">S&amp;P 500</div>
           <div class="value">7,230</div>
@@ -75,7 +242,7 @@ footer{text-align:center;color:var(--muted);font-size:.78rem;padding:1.75rem 1re
           <div class="change up">+0.89%</div>
         </div>
         <div class="market-item">
-          <div class="label">SOX 半導體</div>
+          <div class="label">SOX</div>
           <div class="value">10,595</div>
           <div class="change up">+0.87%</div>
         </div>
@@ -100,21 +267,19 @@ footer{text-align:center;color:var(--muted);font-size:.78rem;padding:1.75rem 1re
           
         </div>
         <div class="market-item">
-          <div class="label">DXY 美元</div>
+          <div class="label">DXY</div>
           <div class="value">98</div>
           <div class="change up">+0.13%</div>
         </div>
         <div class="market-item">
-          <div class="label">恐慌貪婪指數</div>
+          <div class="label">恐慌貪婪</div>
           <div class="value">66.60</div>
           
         </div></div>
-</div>
-
-<div class="card">
-  <div class="sec">每日分析報告</div>
-  <div class="report"><p>好的，各位投資夥伴早安。以下是2026年5月2日的每日投資簡報：</p>
-<h2>總經近況</h2>
+    </div>
+    <div class="card">
+      <div class="sec">每日分析報告（2026/05/02）</div>
+      <div class="report"><h2>總經近況</h2>
 聯準會(FED)維持利率不變，但內部意見分歧加劇，顯示貨幣政策路徑仍具不確定性。中東地緣政治風險對市場影響逐步淡化，但油價與美債殖利率仍是觀察川普底線的關鍵。台灣景氣受惠於AI需求持續擴張，出口動能強勁。
 <h2>國際股市</h2>
 今日美股主要指數因數據未更新顯示為N/A，但根據成交值排行與近期文章判斷，市場情緒偏向樂觀，恐慌貪婪指數維持在67（貪婪）。科技巨頭與半導體類股表現強勁，顯示AI題材仍是市場主軸。
@@ -150,26 +315,1242 @@ footer{text-align:center;color:var(--muted);font-size:.78rem;padding:1.75rem 1re
 1.  <strong>聯準會官員談話：</strong> 關注近期FED會議中持鷹派立場的委員是否發表言論，以及對未來貨幣政策路徑的進一步闡述，可能影響市場對降息時程的預期。
 2.  <strong>中東局勢與油價走勢：</strong> 持續追蹤中東地緣政治發展，特別是國際原油價格是否逼近川普所設定的100-110美元/桶紅線，這將是影響全球通膨與FED政策的重要變數。
 3.  <strong>台灣外銷訂單數據：</strong> 經濟部預估2026年4月外銷訂單金額將維持高速成長，實際數據的公布將進一步驗證台灣經濟的韌性與AI需求帶來的動能。</div>
+    </div>
+    <div class="ranks">
+      <div class="card">
+        <div class="sec">美股 成交值前 30（2026-05-02）</div>
+        <table>
+          <thead><tr><th>#</th><th>代號</th><th>名稱</th>
+            <th style="text-align:right">成交值</th>
+            <th style="text-align:right">漲跌</th></tr></thead>
+          <tbody><tr><td class="rank">1</td><td class="ticker">NVDA</td><td class="name">NVIDIA Cor</td><td class="num">$25.2B</td><td class="num down">-0.56%</td></tr><tr><td class="rank">2</td><td class="ticker">TSLA</td><td class="name">Tesla, Inc</td><td class="num">$25.2B</td><td class="num up">+2.41%</td></tr><tr><td class="rank">3</td><td class="ticker">MU</td><td class="name">Micron Tec</td><td class="num">$21.7B</td><td class="num up">+4.84%</td></tr><tr><td class="rank">4</td><td class="ticker">AAPL</td><td class="name">Apple Inc.</td><td class="num">$21.3B</td><td class="num up">+3.24%</td></tr><tr><td class="rank">5</td><td class="ticker">INTC</td><td class="name">Intel Corp</td><td class="num">$15.6B</td><td class="num up">+5.44%</td></tr><tr><td class="rank">6</td><td class="ticker">AMZN</td><td class="name">Amazon.com</td><td class="num">$13.1B</td><td class="num up">+1.21%</td></tr><tr><td class="rank">7</td><td class="ticker">AMD</td><td class="name">Advanced M</td><td class="num">$11.4B</td><td class="num up">+1.71%</td></tr><tr><td class="rank">8</td><td class="ticker">PLTR</td><td class="name">Palantir T</td><td class="num">$4.8B</td><td class="num up">+3.57%</td></tr><tr><td class="rank">9</td><td class="ticker">RBLX</td><td class="name">Roblox Cor</td><td class="num">$2.4B</td><td class="num down">-18.33%</td></tr><tr><td class="rank">10</td><td class="ticker">NOK</td><td class="name">Nokia Corp</td><td class="num">$1.8B</td><td class="num up">+3.02%</td></tr><tr><td class="rank">11</td><td class="ticker">SOFI</td><td class="name">SoFi Techn</td><td class="num">$1.3B</td><td class="num up">+2.05%</td></tr><tr><td class="rank">12</td><td class="ticker">RIVN</td><td class="name">Rivian Aut</td><td class="num">$0.8B</td><td class="num down">-8.41%</td></tr><tr><td class="rank">13</td><td class="ticker">CMCSA</td><td class="name">Comcast Co</td><td class="num">$0.8B</td><td class="num up">+0.55%</td></tr><tr><td class="rank">14</td><td class="ticker">SOUN</td><td class="name">SoundHound</td><td class="num">$0.6B</td><td class="num up">+20.10%</td></tr><tr><td class="rank">15</td><td class="ticker">RIOT</td><td class="name">Riot Platf</td><td class="num">$0.6B</td><td class="num up">+7.31%</td></tr><tr><td class="rank">16</td><td class="ticker">NCLH</td><td class="name">Norwegian </td><td class="num">$0.6B</td><td class="num up">+3.47%</td></tr><tr><td class="rank">17</td><td class="ticker">MARA</td><td class="name">MARA Holdi</td><td class="num">$0.6B</td><td class="num down">-4.42%</td></tr><tr><td class="rank">18</td><td class="ticker">AAL</td><td class="name">American A</td><td class="num">$0.6B</td><td class="num up">+1.11%</td></tr><tr><td class="rank">19</td><td class="ticker">F</td><td class="name">Ford Motor</td><td class="num">$0.5B</td><td class="num down">-1.66%</td></tr><tr><td class="rank">20</td><td class="ticker">OWL</td><td class="name">Blue Owl C</td><td class="num">$0.5B</td><td class="num up">+2.36%</td></tr><tr><td class="rank">21</td><td class="ticker">ONDS</td><td class="name">Ondas Inc</td><td class="num">$0.5B</td><td class="num up">+2.79%</td></tr><tr><td class="rank">22</td><td class="ticker">GRAB</td><td class="name">Grab Holdi</td><td class="num">$0.4B</td><td class="num down">-3.93%</td></tr><tr><td class="rank">23</td><td class="ticker">NIO</td><td class="name">NIO Inc.</td><td class="num">$0.4B</td><td class="num down">-7.51%</td></tr><tr><td class="rank">24</td><td class="ticker">PATH</td><td class="name">UiPath, In</td><td class="num">$0.3B</td><td class="num up">+3.59%</td></tr><tr><td class="rank">25</td><td class="ticker">SNAP</td><td class="name">Snap Inc.</td><td class="num">$0.2B</td><td class="num up">+3.62%</td></tr><tr><td class="rank">26</td><td class="ticker">RIG</td><td class="name">Transocean</td><td class="num">$0.2B</td><td class="num up">+0.29%</td></tr><tr><td class="rank">27</td><td class="ticker">ACHR</td><td class="name">Archer Avi</td><td class="num">$0.2B</td><td class="num up">+2.26%</td></tr><tr><td class="rank">28</td><td class="ticker">AUR</td><td class="name">Aurora Inn</td><td class="num">$0.2B</td><td class="num up">+4.25%</td></tr><tr><td class="rank">29</td><td class="ticker">BTG</td><td class="name">B2Gold Cor</td><td class="num">$0.1B</td><td class="num down">-3.11%</td></tr><tr><td class="rank">30</td><td class="ticker">PLUG</td><td class="name">Plug Power</td><td class="num">$0.1B</td><td class="num down">-0.64%</td></tr></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="sec">台股 成交值前 30（上市+上櫃）（2026-05-01）</div>
+        <table>
+          <thead><tr><th>#</th><th>代號</th><th>名稱</th>
+            <th style="text-align:right">成交值</th>
+            <th style="text-align:right">漲跌</th></tr></thead>
+          <tbody><tr><td class="rank">1</td><td class="ticker">2330</td><td class="name">台積電<span class="board-badge twse">TWSE</span></td><td class="num">1291億</td><td class="num down">-2.06%</td></tr><tr><td class="rank">2</td><td class="ticker">2337</td><td class="name">旺宏<span class="board-badge twse">TWSE</span></td><td class="num">475億</td><td class="num down">-7.78%</td></tr><tr><td class="rank">3</td><td class="ticker">2454</td><td class="name">聯發科<span class="board-badge twse">TWSE</span></td><td class="num">460億</td><td class="num up">+1.36%</td></tr><tr><td class="rank">4</td><td class="ticker">2308</td><td class="name">台達電<span class="board-badge twse">TWSE</span></td><td class="num">310億</td><td class="num up">+0.00%</td></tr><tr><td class="rank">5</td><td class="ticker">3037</td><td class="name">欣興<span class="board-badge twse">TWSE</span></td><td class="num">296億</td><td class="num up">+9.96%</td></tr><tr><td class="rank">6</td><td class="ticker">2408</td><td class="name">南亞科<span class="board-badge twse">TWSE</span></td><td class="num">281億</td><td class="num down">-8.30%</td></tr><tr><td class="rank">7</td><td class="ticker">3189</td><td class="name">景碩<span class="board-badge twse">TWSE</span></td><td class="num">264億</td><td class="num up">+3.94%</td></tr><tr><td class="rank">8</td><td class="ticker">2303</td><td class="name">聯電<span class="board-badge twse">TWSE</span></td><td class="num">261億</td><td class="num up">+3.76%</td></tr><tr><td class="rank">9</td><td class="ticker">2449</td><td class="name">京元電子<span class="board-badge twse">TWSE</span></td><td class="num">217億</td><td class="num up">+6.70%</td></tr><tr><td class="rank">10</td><td class="ticker">8046</td><td class="name">南電<span class="board-badge twse">TWSE</span></td><td class="num">204億</td><td class="num up">+9.72%</td></tr><tr><td class="rank">11</td><td class="ticker">4958</td><td class="name">臻鼎-KY<span class="board-badge twse">TWSE</span></td><td class="num">191億</td><td class="num up">+9.92%</td></tr><tr><td class="rank">12</td><td class="ticker">2313</td><td class="name">華通<span class="board-badge twse">TWSE</span></td><td class="num">190億</td><td class="num up">+6.30%</td></tr><tr><td class="rank">13</td><td class="ticker">3711</td><td class="name">日月光投控<span class="board-badge twse">TWSE</span></td><td class="num">180億</td><td class="num down">-2.15%</td></tr><tr><td class="rank">14</td><td class="ticker">2317</td><td class="name">鴻海<span class="board-badge twse">TWSE</span></td><td class="num">165億</td><td class="num down">-2.44%</td></tr><tr><td class="rank">15</td><td class="ticker">2383</td><td class="name">台光電<span class="board-badge twse">TWSE</span></td><td class="num">159億</td><td class="num up">+2.36%</td></tr><tr><td class="rank">16</td><td class="ticker">3661</td><td class="name">世芯-KY<span class="board-badge twse">TWSE</span></td><td class="num">120億</td><td class="num up">+3.25%</td></tr><tr><td class="rank">17</td><td class="ticker">2327</td><td class="name">國巨*<span class="board-badge twse">TWSE</span></td><td class="num">115億</td><td class="num down">-1.55%</td></tr><tr><td class="rank">18</td><td class="ticker">00981A</td><td class="name">主動統一台股增長<span class="board-badge twse">TWSE</span></td><td class="num">114億</td><td class="num up">+1.95%</td></tr><tr><td class="rank">19</td><td class="ticker">2344</td><td class="name">華邦電<span class="board-badge twse">TWSE</span></td><td class="num">105億</td><td class="num down">-3.13%</td></tr><tr><td class="rank">20</td><td class="ticker">6669</td><td class="name">緯穎<span class="board-badge twse">TWSE</span></td><td class="num">104億</td><td class="num down">-3.51%</td></tr><tr><td class="rank">21</td><td class="ticker">2301</td><td class="name">光寶科<span class="board-badge twse">TWSE</span></td><td class="num">98億</td><td class="num down">-3.49%</td></tr><tr><td class="rank">22</td><td class="ticker">3017</td><td class="name">奇鋐<span class="board-badge twse">TWSE</span></td><td class="num">97億</td><td class="num up">+0.00%</td></tr><tr><td class="rank">23</td><td class="ticker">1303</td><td class="name">南亞<span class="board-badge twse">TWSE</span></td><td class="num">91億</td><td class="num down">-2.18%</td></tr><tr><td class="rank">24</td><td class="ticker">2486</td><td class="name">一詮<span class="board-badge twse">TWSE</span></td><td class="num">86億</td><td class="num up">+6.71%</td></tr><tr><td class="rank">25</td><td class="ticker">2345</td><td class="name">智邦<span class="board-badge twse">TWSE</span></td><td class="num">86億</td><td class="num up">+3.17%</td></tr><tr><td class="rank">26</td><td class="ticker">1802</td><td class="name">台玻<span class="board-badge twse">TWSE</span></td><td class="num">86億</td><td class="num up">+1.21%</td></tr><tr><td class="rank">27</td><td class="ticker">2360</td><td class="name">致茂<span class="board-badge twse">TWSE</span></td><td class="num">85億</td><td class="num up">+3.16%</td></tr><tr><td class="rank">28</td><td class="ticker">2455</td><td class="name">全新<span class="board-badge twse">TWSE</span></td><td class="num">85億</td><td class="num up">+9.97%</td></tr><tr><td class="rank">29</td><td class="ticker">0050</td><td class="name">元大台灣50<span class="board-badge twse">TWSE</span></td><td class="num">81億</td><td class="num down">-0.28%</td></tr><tr><td class="rank">30</td><td class="ticker">3665</td><td class="name">貿聯-KY<span class="board-badge twse">TWSE</span></td><td class="num">76億</td><td class="num down">-0.36%</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 2: 焦點股 -->
+  <div id="tab-focus" class="tab-pane">
+    <div class="section-hdr">📊 今日成交量股（台美前 30）</div><div class="stock-grid">
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">NVDA</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">NVIDIA Corpo</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct down">-0.56%</span>
+    <span class="sc-val">$25.2B</span>
+    <span class="sc-rank">#1</span>
+    <span class="vol-tag vol-hot">爆量</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">TSLA</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">Tesla, Inc.</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+2.41%</span>
+    <span class="sc-val">$25.2B</span>
+    <span class="sc-rank">#2</span>
+    <span class="vol-tag vol-hot">爆量</span>
+  </div>
+  <button class="arts-btn" onclick="toggleArts('TSLA')">📰 7 篇相關</button>
+  <div id="arts-TSLA" class="arts-panel hidden"><div class="art-item"><div class="art-meta">📰 [2026-05-02 vocus_chivesking] GOOG 1Q26財報：積壓訂單QoQ翻倍成長，證明已不是廣告公司、正成為一家真正AI公司</div><div class="art-snip">- GOOG 1Q26財報：積壓訂單QoQ翻倍成長，證明已不是廣告公司、正成為一家真正AI公司
+  - 营收902.3億美元，YoY+12%，高於分析師預期的891.2億美元。
+  - 淨利345.4億美元，YoY+46%，每股盈餘(EPS)達2.81美元，遠高於預期的2.01美元。…</div></div><div class="art-item"><div class="art-meta">📰 [2026-04-30 vocus_chivesking] Fed 4月會議：延續觀望態度維持利率不變，惟3名票委態度偏鷹</div><div class="art-snip">- Fed 4月會議維持利率不變，但有3名票委態度偏鷹。
+- 聯準會（Fed）會議結果顯示延續觀望態度，市場預期聯準會可能在未來逐步調整政策。…</div></div><div class="art-item"><div class="art-meta">📰 [2026-04-29 vocus_chivesking] BE 1Q26財報：大幅上修年化產能目標至5GW，電價與工業用電價格已相去不遠帶來gain-share機會</div><div class="art-snip">- BE 1Q26財報：大幅上修年化產能目標至5GW
+- 管理層隱晦表示 gain share 的會是小型CCGT (CAT, CMI...) 市場
+- 電價與工業用電價格相去不遠，帶來gain-share機會
+- BE 成本趨近於工業用電，可能加速資料中心用電需求
+- BE 產能擴張速度不難追，可通過台股高力 (8996-TW) 和印股 MTAR 財報會議…</div></div></div>
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">MU</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">Micron Techn</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+4.84%</span>
+    <span class="sc-val">$21.7B</span>
+    <span class="sc-rank">#3</span>
+    <span class="vol-tag vol-hot">爆量</span>
+  </div>
+  <button class="arts-btn" onclick="toggleArts('MU')">📰 4 篇相關</button>
+  <div id="arts-MU" class="arts-panel hidden"><div class="art-item"><div class="art-meta">📰 [2026-04-30 投資錨點] 美光(MU)：財報電話會議摘要</div><div class="art-snip">- FY2026Q2營收238.6億美元，QoQ +74.9%、YoY +196.3%，毛利率74.9%，EPS 12.20美元。
+- DRAM營收187.68億美元，QoQ +73.6%、YoY +206.5%，平均銷售單價QoQ +64~66%；NAND Flash營收49.97億美元，QoQ +82.2%、YoY +169.4%，平均銷售單價QoQ +…</div></div><div class="art-item"><div class="art-meta">📰 [2026-03-29 投資錨點] GTC 2026專題：NVIDIA推出LPX機櫃迎接代理式AI需求爆發</div><div class="art-snip">- NVIDIA推出Groq 3 LPX機櫃、Vera CPU機櫃、BlueField-4 STX Storage機櫃、Spectrum-6 SPX機櫃等新產品。
+- Groq 3 LPU晶片具備高頻寬特性，預計將配合NVIDIA Vera Rubin平台於2026下半年開始出貨。
+- Vera CPU機櫃可滿足客戶在推論端的執行需求，帶動Vera CPU出…</div></div><div class="art-item"><div class="art-meta">📰 [2026-03-22 韭菜畢業班] EP212 | 台、美股重點一次說，新IG出生，美光財報，光通訊與銅纜後勢，液冷與電網族群後勢，聽眾QA</div><div class="art-snip">- 美光科技(MU)財報解析
+- 光通訊與銅纜後勢
+- Lumentum OFC 2026 利多解析
+- Google 與液冷和電網問題…</div></div></div>
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">AAPL</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">Apple Inc.</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+3.24%</span>
+    <span class="sc-val">$21.3B</span>
+    <span class="sc-rank">#4</span>
+    <span class="vol-tag vol-hot">爆量</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">INTC</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">Intel Corpor</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+5.44%</span>
+    <span class="sc-val">$15.6B</span>
+    <span class="sc-rank">#5</span>
+    <span class="vol-tag vol-hot">爆量</span>
+  </div>
+  <button class="arts-btn" onclick="toggleArts('INTC')">📰 4 篇相關</button>
+  <div id="arts-INTC" class="arts-panel hidden"><div class="art-item"><div class="art-meta">📰 [2026-04-30 財報狗] 半導體前段設備產業追蹤：代理式 AI 需求激增，2027 年設備產值成長幅度將更勝 2026 年</div><div class="art-snip">- 代理式 AI 需求激增，帶動 GPU、CPU、AI ASIC、DRAM、NAND Flash 需求加速攀升。
+- 台積電 (2330)、Intel (INTC)、美光等原廠擴產腳步加快，資本支出上調。
+- ASML、應用材料 (AMAT)、科林研發 (LRCX) 等設備巨頭營收展望上修。
+- 2026 下半年~2027 上半年半導體設備業者營運加速成長預…</div></div><div class="art-item"><div class="art-meta">📰 [2026-04-26 投資錨點] 英特爾(INTC)：財報電話會議摘要</div><div class="art-snip">- 营收结构：2026Q1营收135.77亿美元，YoY +7.2%，优于前次财测；非GAAP毛利率41.0%，优于前次财测目标。个人运算事业群（CCG）营收到77.27亿美元，YoY +1.3%；资料中心及人工智能事业群（DCAI）营收50.52亿美元，YoY +22.4%；晶圆代工事业群（Intel Foundry）营收54.21亿美元，YoY +16.…</div></div><div class="art-item"><div class="art-meta">📰 [2026-04-12 財報狗] 產業解析：面板級封裝 PLP 展望與競爭格局</div><div class="art-snip">- 面板級封裝 PLP 以方形玻璃面板載具取代扇出晶圓級封裝 FOWLP 的圓形載具，提高面積利用率與封裝產出效率。
+- OSAT 封裝測試公司如日月光 (3711)、力成 (6239) 涉足 PLP 領域。
+- 晶圓製造商台積電 (2330)、Intel (INTC)、三星電子、意法半導體 (STM) 亦參與 PLP 技術開發。
+- 玻璃載板供應商如 Ab…</div></div></div>
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">AMZN</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">Amazon.com, </span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+1.21%</span>
+    <span class="sc-val">$13.1B</span>
+    <span class="sc-rank">#6</span>
+    <span class="vol-tag vol-high">量大</span>
+  </div>
+  <button class="arts-btn" onclick="toggleArts('AMZN')">📰 1 篇相關</button>
+  <div id="arts-AMZN" class="arts-panel hidden"><div class="art-item"><div class="art-meta">📰 [2026-03-05 vocus_chivesking] AVGO FY1Q26財報：指引FY2027年AI營收超1000億美元，反映6大客戶極高的需求能見度</div><div class="art-snip">- AVGO FY1Q26財報指引FY2027年AI營收超1000億美元，反映6大客戶極高的需求能見度。
+- Allen提到目前更喜歡CPO設備公司如TER/VIAV/KEYS/FORM、台股萬潤/致茂。
+- AVGO用於scale-out的CPO交換機尚未有明確客戶，預計2028年才可能具規模化產量。
+- Anthropic在AVGO這邊下了約220億美元…</div></div></div>
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">AMD</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">Advanced Mic</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+1.71%</span>
+    <span class="sc-val">$11.4B</span>
+    <span class="sc-rank">#7</span>
+    <span class="vol-tag vol-high">量大</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">PLTR</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">Palantir Tec</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+3.57%</span>
+    <span class="sc-val">$4.8B</span>
+    <span class="sc-rank">#8</span>
+    <span class="vol-tag vol-high">量大</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">RBLX</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">Roblox Corpo</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct down">-18.33%</span>
+    <span class="sc-val">$2.4B</span>
+    <span class="sc-rank">#9</span>
+    <span class="vol-tag vol-high">量大</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">NOK</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">Nokia Corpor</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+3.02%</span>
+    <span class="sc-val">$1.8B</span>
+    <span class="sc-rank">#10</span>
+    <span class="vol-tag vol-high">量大</span>
+  </div>
+  <button class="arts-btn" onclick="toggleArts('NOK')">📰 5 篇相關</button>
+  <div id="arts-NOK" class="arts-panel hidden"><div class="art-item"><div class="art-meta">📰 [2026-04-29 vocus_chivesking] CLS 1Q26財報：持續展現良好的營運槓桿，預計2027~2028年受惠CPO Switch和TPU擴大放量</div><div class="art-snip">- CLS 1Q26財報顯示良好營運槓桿，預計2027~2028年受惠CPO Switch和TPU擴大放量。
+- CPO Switch設備上量將在2027年開始上升，因為CPO從未有完善自動化生產流程和供應鏈。
+- TPU出貨量目標為2026年450萬顆、2027年1000萬顆，2028年5000~6000萬顆，代表2028年成長至少3.5倍。…</div></div><div class="art-item"><div class="art-meta">📰 [2026-04-27 vocus_chivesking] TSLA 1Q26財報：宣告2026年進入CAPEX上修循環，用於支持FSD訓練、Optimus與Terafa</div><div class="art-snip">- TSLA 1Q26財報顯示將在2026年進入CAPEX上修循環，用於支持FSD訓練、Optimus與Terafab。
+- 明年的EPS假設中，有算入50億美元的RobotTaxi營收。…</div></div><div class="art-item"><div class="art-meta">📰 [2026-04-24 vocus_chivesking] VRT 1Q26財報：收購BMarko加速專案交付，營運槓桿顯現Prefab模式不會稀釋利潤率</div><div class="art-snip">- VRT 1Q26財報顯示收購BMarko加速專案交付，營運槓桿顯現Prefab模式不會稀釋利潤率。
+- TXN（德州儀器）財報顯示AI資料中心營收大幅成長90%，主要來自GPU/AI的電源管理設計和每個rack內大量的general-purpose analog。毛利率Q1為58%，QoQ +210bps，長期指引在75–85%。
+- 管理層指出庫存天數…</div></div></div>
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">SOFI</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">SoFi Technol</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+2.05%</span>
+    <span class="sc-val">$1.3B</span>
+    <span class="sc-rank">#11</span>
+    <span class="vol-tag vol-high">量大</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">RIVN</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">Rivian Autom</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct down">-8.41%</span>
+    <span class="sc-val">$0.8B</span>
+    <span class="sc-rank">#12</span>
+    <span class="vol-tag vol-high">量大</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">CMCSA</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">Comcast Corp</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+0.55%</span>
+    <span class="sc-val">$0.8B</span>
+    <span class="sc-rank">#13</span>
+    <span class="vol-tag vol-high">量大</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">SOUN</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">SoundHound A</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+20.10%</span>
+    <span class="sc-val">$0.6B</span>
+    <span class="sc-rank">#14</span>
+    <span class="vol-tag vol-high">量大</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">RIOT</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">Riot Platfor</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+7.31%</span>
+    <span class="sc-val">$0.6B</span>
+    <span class="sc-rank">#15</span>
+    <span class="vol-tag vol-high">量大</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">NCLH</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">Norwegian Cr</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+3.47%</span>
+    <span class="sc-val">$0.6B</span>
+    <span class="sc-rank">#16</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">MARA</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">MARA Holding</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct down">-4.42%</span>
+    <span class="sc-val">$0.6B</span>
+    <span class="sc-rank">#17</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">AAL</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">American Air</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+1.11%</span>
+    <span class="sc-val">$0.6B</span>
+    <span class="sc-rank">#18</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">F</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">Ford Motor C</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct down">-1.66%</span>
+    <span class="sc-val">$0.5B</span>
+    <span class="sc-rank">#19</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">OWL</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">Blue Owl Cap</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+2.36%</span>
+    <span class="sc-val">$0.5B</span>
+    <span class="sc-rank">#20</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">ONDS</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">Ondas Inc</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+2.79%</span>
+    <span class="sc-val">$0.5B</span>
+    <span class="sc-rank">#21</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">GRAB</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">Grab Holding</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct down">-3.93%</span>
+    <span class="sc-val">$0.4B</span>
+    <span class="sc-rank">#22</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">NIO</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">NIO Inc.</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct down">-7.51%</span>
+    <span class="sc-val">$0.4B</span>
+    <span class="sc-rank">#23</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">PATH</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">UiPath, Inc.</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+3.59%</span>
+    <span class="sc-val">$0.3B</span>
+    <span class="sc-rank">#24</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">SNAP</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">Snap Inc.</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+3.62%</span>
+    <span class="sc-val">$0.2B</span>
+    <span class="sc-rank">#25</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">RIG</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">Transocean L</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+0.29%</span>
+    <span class="sc-val">$0.2B</span>
+    <span class="sc-rank">#26</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">ACHR</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">Archer Aviat</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+2.26%</span>
+    <span class="sc-val">$0.2B</span>
+    <span class="sc-rank">#27</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">AUR</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">Aurora Innov</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+4.25%</span>
+    <span class="sc-val">$0.2B</span>
+    <span class="sc-rank">#28</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">BTG</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">B2Gold Corp</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct down">-3.11%</span>
+    <span class="sc-val">$0.1B</span>
+    <span class="sc-rank">#29</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">PLUG</span>
+    <span class="mkt-badge mkt-us">US</span>
+    <span class="sc-name">Plug Power, </span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct down">-0.64%</span>
+    <span class="sc-val">$0.1B</span>
+    <span class="sc-rank">#30</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">2330</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">台積電</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct down">-2.06%</span>
+    <span class="sc-val">1291億</span>
+    <span class="sc-rank">#1</span>
+    <span class="vol-tag vol-hot">爆量</span>
+  </div>
+  <button class="arts-btn" onclick="toggleArts('2330')">📰 6 篇相關</button>
+  <div id="arts-2330" class="arts-panel hidden"><div class="art-item"><div class="art-meta">📰 [2026-04-30 財報狗] 半導體前段設備產業追蹤：代理式 AI 需求激增，2027 年設備產值成長幅度將更勝 2026 年</div><div class="art-snip">- 代理式 AI 需求激增，帶動 GPU、CPU、AI ASIC、DRAM、NAND Flash 需求加速攀升。
+- 台積電 (2330)、Intel (INTC)、美光等原廠擴產腳步加快，資本支出上調。
+- ASML、應用材料 (AMAT)、科林研發 (LRCX) 等設備巨頭營收展望上修。
+- 2026 下半年~2027 上半年半導體設備業者營運加速成長預…</div></div><div class="art-item"><div class="art-meta">📰 [2026-04-19 投資錨點] 台股產業週報 2026/4/19</div><div class="art-snip">- 工具機產業景氣迎來初步復甦跡象，半導體及自動化設備接單成長。
+- 上銀、大銀微合作開發之微米級、奈米級定位系統成功切入半導體領域，取得關鍵客戶訂單。
+- 台慶科、三集瑞、金山電等被動元件廠商因原材料成本上升而調漲價格。
+- 長江存儲擴產將影響NAND Flash供需結構，但短期內對市場供需結構無顯著影響。
+- 聯電預計2026下半年調整晶圓代工價格，受A…</div></div><div class="art-item"><div class="art-meta">📰 [2026-04-16 投資錨點] 台積電(2330)：法說會報告</div><div class="art-snip">- 营收目标上调至YoY &gt;30%，受惠于云服务提供商持续强劲需求。
+- 2026Q1营收358.98亿美元，环比增长8.4%，同比增长35.1%；毛利率为66.2%。
+- N2制程已开始放量出货，将稀释毛利率2~3%。
+- 公司计划新建三座工厂以扩产N3制程产能，打破单一制程节点不再扩产的惯例。
+- 将关闭Fab2、Fab5，转为更有效的用途，并可能出售二…</div></div></div>
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">2337</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">旺宏</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct down">-7.78%</span>
+    <span class="sc-val">475億</span>
+    <span class="sc-rank">#2</span>
+    <span class="vol-tag vol-hot">爆量</span>
+  </div>
+  <button class="arts-btn" onclick="toggleArts('2337')">📰 1 篇相關</button>
+  <div id="arts-2337" class="arts-panel hidden"><div class="art-item"><div class="art-meta">📰 [2026-05-03 投資錨點] 台股產業週報 2026/5/3</div><div class="art-snip">- Qualcomm FY2026Q2財報：營收106億美元（YoY -2.2%），展望FY2026Q3營收92~100億美元，非GAAP EPS 2.1~2.3美元。AI資料中心需求推升記憶體供應不確定性，手機出貨量下修。
+- 萬宏：2026Q1營收104.69億元（YoY +70.6%），毛利率40.8%，產能擴充至2.5萬片/月目標。MLC NAND …</div></div></div>
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">2454</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">聯發科</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+1.36%</span>
+    <span class="sc-val">460億</span>
+    <span class="sc-rank">#3</span>
+    <span class="vol-tag vol-hot">爆量</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">2308</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">台達電</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+0.00%</span>
+    <span class="sc-val">310億</span>
+    <span class="sc-rank">#4</span>
+    <span class="vol-tag vol-hot">爆量</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">3037</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">欣興</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+9.96%</span>
+    <span class="sc-val">296億</span>
+    <span class="sc-rank">#5</span>
+    <span class="vol-tag vol-hot">爆量</span>
+  </div>
+  <button class="arts-btn" onclick="toggleArts('3037')">📰 1 篇相關</button>
+  <div id="arts-3037" class="arts-panel hidden"><div class="art-item"><div class="art-meta">📰 [2026-04-12 財報狗] 產業解析：面板級封裝 PLP 展望與競爭格局</div><div class="art-snip">- 面板級封裝 PLP 以方形玻璃面板載具取代扇出晶圓級封裝 FOWLP 的圓形載具，提高面積利用率與封裝產出效率。
+- OSAT 封裝測試公司如日月光 (3711)、力成 (6239) 涉足 PLP 領域。
+- 晶圓製造商台積電 (2330)、Intel (INTC)、三星電子、意法半導體 (STM) 亦參與 PLP 技術開發。
+- 玻璃載板供應商如 Ab…</div></div></div>
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">2408</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">南亞科</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct down">-8.30%</span>
+    <span class="sc-val">281億</span>
+    <span class="sc-rank">#6</span>
+    <span class="vol-tag vol-high">量大</span>
+  </div>
+  <button class="arts-btn" onclick="toggleArts('2408')">📰 1 篇相關</button>
+  <div id="arts-2408" class="arts-panel hidden"><div class="art-item"><div class="art-meta">📰 [2026-04-19 投資錨點] 台股產業週報 2026/4/19</div><div class="art-snip">- 工具機產業景氣迎來初步復甦跡象，半導體及自動化設備接單成長。
+- 上銀、大銀微合作開發之微米級、奈米級定位系統成功切入半導體領域，取得關鍵客戶訂單。
+- 台慶科、三集瑞、金山電等被動元件廠商因原材料成本上升而調漲價格。
+- 長江存儲擴產將影響NAND Flash供需結構，但短期內對市場供需結構無顯著影響。
+- 聯電預計2026下半年調整晶圓代工價格，受A…</div></div></div>
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">3189</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">景碩</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+3.94%</span>
+    <span class="sc-val">264億</span>
+    <span class="sc-rank">#7</span>
+    <span class="vol-tag vol-high">量大</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">2303</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">聯電</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+3.76%</span>
+    <span class="sc-val">261億</span>
+    <span class="sc-rank">#8</span>
+    <span class="vol-tag vol-high">量大</span>
+  </div>
+  <button class="arts-btn" onclick="toggleArts('2303')">📰 1 篇相關</button>
+  <div id="arts-2303" class="arts-panel hidden"><div class="art-item"><div class="art-meta">📰 [2026-05-03 投資錨點] 台股產業週報 2026/5/3</div><div class="art-snip">- Qualcomm FY2026Q2財報：營收106億美元（YoY -2.2%），展望FY2026Q3營收92~100億美元，非GAAP EPS 2.1~2.3美元。AI資料中心需求推升記憶體供應不確定性，手機出貨量下修。
+- 萬宏：2026Q1營收104.69億元（YoY +70.6%），毛利率40.8%，產能擴充至2.5萬片/月目標。MLC NAND …</div></div></div>
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">2449</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">京元電子</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+6.70%</span>
+    <span class="sc-val">217億</span>
+    <span class="sc-rank">#9</span>
+    <span class="vol-tag vol-high">量大</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">8046</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">南電</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+9.72%</span>
+    <span class="sc-val">204億</span>
+    <span class="sc-rank">#10</span>
+    <span class="vol-tag vol-high">量大</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">4958</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">臻鼎-KY</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+9.92%</span>
+    <span class="sc-val">191億</span>
+    <span class="sc-rank">#11</span>
+    <span class="vol-tag vol-high">量大</span>
+  </div>
+  <button class="arts-btn" onclick="toggleArts('4958')">📰 2 篇相關</button>
+  <div id="arts-4958" class="arts-panel hidden"><div class="art-item"><div class="art-meta">📰 [2026-03-22 投資錨點] 台股產業週報 2026/3/22</div><div class="art-snip">- NVIDIA推出Groq 3 LPX Rack，改善AI伺服器推論場景延遲與吞吐量。
+- Feynman架構將採用銅纜及CPO雙軌策略，光通訊在未來扮演關鍵角色。
+- 美伊衝突導致原油價格上漲，塑化產業原料報價低於輕油裂解，可能面臨供應短缺。
+- 台積電加速先進製程廠房建置，2026年資本支出預估520~560億美元。
+- Kioxia停止生產SLC N…</div></div><div class="art-item"><div class="art-meta">📰 [2026-03-13 投資錨點] 臻鼎-KY(4958)：法說會報告</div><div class="art-snip">- 規模：臻鼎-KY成功列入NVIDIA VR200 NVL144 Compute Tray運算主板合格供應商名單，預計取得訂單分配15~20%。
+- 產能擴充：淮安園區、泰國園區積極擴充HDI、HLC PCB產能。
+- 財測：2026年財測EPS達10.31元(首次財測)，2027年財測EPS可望進一步提升至16.0~18.0元。
+- 產品線：AI伺服器/…</div></div></div>
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">2313</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">華通</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+6.30%</span>
+    <span class="sc-val">190億</span>
+    <span class="sc-rank">#12</span>
+    <span class="vol-tag vol-high">量大</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">3711</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">日月光投控</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct down">-2.15%</span>
+    <span class="sc-val">180億</span>
+    <span class="sc-rank">#13</span>
+    <span class="vol-tag vol-high">量大</span>
+  </div>
+  <button class="arts-btn" onclick="toggleArts('3711')">📰 3 篇相關</button>
+  <div id="arts-3711" class="arts-panel hidden"><div class="art-item"><div class="art-meta">📰 [2026-05-03 投資錨點] 台股產業週報 2026/5/3</div><div class="art-snip">- Qualcomm FY2026Q2財報：營收106億美元（YoY -2.2%），展望FY2026Q3營收92~100億美元，非GAAP EPS 2.1~2.3美元。AI資料中心需求推升記憶體供應不確定性，手機出貨量下修。
+- 萬宏：2026Q1營收104.69億元（YoY +70.6%），毛利率40.8%，產能擴充至2.5萬片/月目標。MLC NAND …</div></div><div class="art-item"><div class="art-meta">📰 [2026-04-12 財報狗] 產業解析：面板級封裝 PLP 展望與競爭格局</div><div class="art-snip">- 面板級封裝 PLP 以方形玻璃面板載具取代扇出晶圓級封裝 FOWLP 的圓形載具，提高面積利用率與封裝產出效率。
+- OSAT 封裝測試公司如日月光 (3711)、力成 (6239) 涉足 PLP 領域。
+- 晶圓製造商台積電 (2330)、Intel (INTC)、三星電子、意法半導體 (STM) 亦參與 PLP 技術開發。
+- 玻璃載板供應商如 Ab…</div></div><div class="art-item"><div class="art-meta">📰 [2026-03-10 財報狗] 封裝鍵合設備 Bonder 產業追蹤：AI 驅動先進封裝、傳統封裝投資同時擴大，2026 年強勁復甦</div><div class="art-snip">- 2025Q4 营收季增 +12.4% (库力索法 K&amp;S)
+- 2025Q4 营收季增 +2.1% (ASMPT)
+- 2025Q4 营收季增 +25.4% (BESI)
+- 非先进封装设备营收季增 +15.7% (库力索法 K&amp;S)
+- 非先进封装设备营收较上半年成长约 +52% (ASMPT)
+- AI 投资推动传统封装设备需求复甦
+- 2026Q1…</div></div></div>
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">2317</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">鴻海</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct down">-2.44%</span>
+    <span class="sc-val">165億</span>
+    <span class="sc-rank">#14</span>
+    <span class="vol-tag vol-high">量大</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">2383</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">台光電</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+2.36%</span>
+    <span class="sc-val">159億</span>
+    <span class="sc-rank">#15</span>
+    <span class="vol-tag vol-high">量大</span>
+  </div>
+  <button class="arts-btn" onclick="toggleArts('2383')">📰 1 篇相關</button>
+  <div id="arts-2383" class="arts-panel hidden"><div class="art-item"><div class="art-meta">📰 [2026-03-22 投資錨點] 台股產業週報 2026/3/22</div><div class="art-snip">- NVIDIA推出Groq 3 LPX Rack，改善AI伺服器推論場景延遲與吞吐量。
+- Feynman架構將採用銅纜及CPO雙軌策略，光通訊在未來扮演關鍵角色。
+- 美伊衝突導致原油價格上漲，塑化產業原料報價低於輕油裂解，可能面臨供應短缺。
+- 台積電加速先進製程廠房建置，2026年資本支出預估520~560億美元。
+- Kioxia停止生產SLC N…</div></div></div>
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">3661</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">世芯-KY</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+3.25%</span>
+    <span class="sc-val">120億</span>
+    <span class="sc-rank">#16</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">2327</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">國巨*</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct down">-1.55%</span>
+    <span class="sc-val">115億</span>
+    <span class="sc-rank">#17</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">00981A</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">主動統一台股增長</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+1.95%</span>
+    <span class="sc-val">114億</span>
+    <span class="sc-rank">#18</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">2344</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">華邦電</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct down">-3.13%</span>
+    <span class="sc-val">105億</span>
+    <span class="sc-rank">#19</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">6669</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">緯穎</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct down">-3.51%</span>
+    <span class="sc-val">104億</span>
+    <span class="sc-rank">#20</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">2301</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">光寶科</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct down">-3.49%</span>
+    <span class="sc-val">98億</span>
+    <span class="sc-rank">#21</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">3017</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">奇鋐</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+0.00%</span>
+    <span class="sc-val">97億</span>
+    <span class="sc-rank">#22</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <button class="arts-btn" onclick="toggleArts('3017')">📰 1 篇相關</button>
+  <div id="arts-3017" class="arts-panel hidden"><div class="art-item"><div class="art-meta">📰 [2026-03-22 投資錨點] 台股產業週報 2026/3/22</div><div class="art-snip">- NVIDIA推出Groq 3 LPX Rack，改善AI伺服器推論場景延遲與吞吐量。
+- Feynman架構將採用銅纜及CPO雙軌策略，光通訊在未來扮演關鍵角色。
+- 美伊衝突導致原油價格上漲，塑化產業原料報價低於輕油裂解，可能面臨供應短缺。
+- 台積電加速先進製程廠房建置，2026年資本支出預估520~560億美元。
+- Kioxia停止生產SLC N…</div></div></div>
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">1303</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">南亞</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct down">-2.18%</span>
+    <span class="sc-val">91億</span>
+    <span class="sc-rank">#23</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <button class="arts-btn" onclick="toggleArts('1303')">📰 1 篇相關</button>
+  <div id="arts-1303" class="arts-panel hidden"><div class="art-item"><div class="art-meta">📰 [2026-03-29 投資錨點] GTC 2026專題：NVIDIA推出LPX機櫃迎接代理式AI需求爆發</div><div class="art-snip">- NVIDIA推出Groq 3 LPX機櫃、Vera CPU機櫃、BlueField-4 STX Storage機櫃、Spectrum-6 SPX機櫃等新產品。
+- Groq 3 LPU晶片具備高頻寬特性，預計將配合NVIDIA Vera Rubin平台於2026下半年開始出貨。
+- Vera CPU機櫃可滿足客戶在推論端的執行需求，帶動Vera CPU出…</div></div></div>
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">2486</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">一詮</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+6.71%</span>
+    <span class="sc-val">86億</span>
+    <span class="sc-rank">#24</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">2345</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">智邦</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+3.17%</span>
+    <span class="sc-val">86億</span>
+    <span class="sc-rank">#25</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">1802</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">台玻</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+1.21%</span>
+    <span class="sc-val">86億</span>
+    <span class="sc-rank">#26</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">2360</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">致茂</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+3.16%</span>
+    <span class="sc-val">85億</span>
+    <span class="sc-rank">#27</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">2455</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">全新</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct up">+9.97%</span>
+    <span class="sc-val">85億</span>
+    <span class="sc-rank">#28</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <button class="arts-btn" onclick="toggleArts('2455')">📰 1 篇相關</button>
+  <div id="arts-2455" class="arts-panel hidden"><div class="art-item"><div class="art-meta">📰 [2026-04-05 投資錨點] 台股產業週報 2026/4/5</div><div class="art-snip">- 電子暨半導體供應鏈受惠於AI伺服器需求支撐，訂單及出貨動能延續。
+- Kioxia宣布停止生產32、24、15nm製程，以及BiCS Flash gen 3製程，市場供給將減少50~60%。
+- Micron可能跟進停產計劃，華邦電、旺宏有望成為全球第一大、第二大SLC NAND Flash供應商。
+- NVIDIA投資Marvell並建立戰略合作關係，…</div></div></div>
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">0050</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">元大台灣50</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct down">-0.28%</span>
+    <span class="sc-val">81億</span>
+    <span class="sc-rank">#29</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <button class="arts-btn" onclick="toggleArts('0050')">📰 1 篇相關</button>
+  <div id="arts-0050" class="arts-panel hidden"><div class="art-item"><div class="art-meta">📰 [2026-04-26 投資錨點] 台股產業週報 2026/4/26</div><div class="art-snip">- 台灣2026年3月外銷訂單金額911.2億美元，YoY +65.9%，創歷史新高，受惠於雲端服務商持續擴大建置AI伺服器，推升半導體、記憶體、伺服器零組件等相關供應鏈接單表現。
+- 金管會宣佈國內股票型基金、國內股票主動ETF單一個股持股比例上限從10%放寬至25%，可能導致台積電持股比例增加，中小型股面臨資金流出壓力。
+- 台積電舉辦2026年北美技術…</div></div></div>
+</div>
+<div class="stock-card">
+  <div class="sc-head">
+    <span class="sc-ticker">3665</span>
+    <span class="mkt-badge mkt-tw">TW</span><span class="board-sm twse">TWSE</span>
+    <span class="sc-name">貿聯-KY</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct down">-0.36%</span>
+    <span class="sc-val">76億</span>
+    <span class="sc-rank">#30</span>
+    <span class="vol-tag vol-mid">量增</span>
+  </div>
+  <span class="no-art">暫無爬蟲資料</span>
+  
+</div></div>
+  </div>
+
+  <!-- Tab 3: 股市筆記 -->
+  <div id="tab-notes" class="tab-pane">
+    <div class="section-hdr">🔀 跨來源共同議題</div><p class="muted-note">每日分析完成後更新（需 GOOGLE_API_KEY）</p>
+<div class="section-hdr" style="margin-top:1.5rem">🎙 Podcast 筆記</div>
+
+<div class="pod-source">
+  <div class="pod-src-hdr" onclick="toggleEl('pod-podcast-gooaye')">
+    <span class="pod-src-arrow" id="arrow-pod-podcast-gooaye">▶</span>
+    <span class="pod-src-name">股癌 Gooaye</span>
+    <span class="ep-cnt">3 集</span>
+  </div>
+  <div id="pod-podcast-gooaye" class="pod-episodes hidden">
+    
+<div class="ep-block">
+  <div class="ep-hdr" onclick="toggleEl('podcast-gooaye-0')">
+    <span class="ep-arrow" id="arrow-podcast-gooaye-0">▶</span>
+    <span class="ep-title">EP657 | 🐫</span>
+    <span class="ep-date">2026-04-29</span>
+  </div>
+  <div id="podcast-gooaye-0" class="ep-body hidden">
+    <pre class="pod-raw">- 聲明：近期因母亲节，討論送禮投資策略。
+- 修理可AGE極效复活緊致精華被推薦為電波V臉瓶，能模擬手術後的緊實感。
+- 推薦白天使用CE抗氧化精华以延緩老化，晚上用AGE精華加固結構。
+- 整套抗老產品有助於將短期投資轉變為長期策略。
+- 修理可品牌是長期資產配置的好選擇。</pre>
+  </div>
+</div>
+<div class="ep-block">
+  <div class="ep-hdr" onclick="toggleEl('podcast-gooaye-1')">
+    <span class="ep-arrow" id="arrow-podcast-gooaye-1">▶</span>
+    <span class="ep-title">EP656 | 🍇</span>
+    <span class="ep-date">2026-04-25</span>
+  </div>
+  <div id="podcast-gooaye-1" class="ep-body hidden">
+    <pre class="pod-raw">NONE</pre>
+  </div>
+</div>
+<div class="ep-block">
+  <div class="ep-hdr" onclick="toggleEl('podcast-gooaye-2')">
+    <span class="ep-arrow" id="arrow-podcast-gooaye-2">▶</span>
+    <span class="ep-title">EP655 | 🐯</span>
+    <span class="ep-date">2026-04-22</span>
+  </div>
+  <div id="podcast-gooaye-2" class="ep-body hidden">
+    <pre class="pod-raw">NONE</pre>
+  </div>
+</div>
+  </div>
 </div>
 
-<div class="ranks">
-  <div class="card">
-    <div class="sec">美股 成交值前 30（2026-05-02）</div>
-    <table>
-      <thead><tr><th>#</th><th>代號</th><th>名稱</th><th style="text-align:right">成交值</th><th style="text-align:right">漲跌</th></tr></thead>
-      <tbody><tr><td class="rank">1</td><td class="ticker">NVDA</td><td class="name">NVIDIA Corporati</td><td class="num">$25.2B</td><td class="num down">-0.56%</td></tr><tr><td class="rank">2</td><td class="ticker">TSLA</td><td class="name">Tesla, Inc.</td><td class="num">$25.2B</td><td class="num up">+2.41%</td></tr><tr><td class="rank">3</td><td class="ticker">MU</td><td class="name">Micron Technolog</td><td class="num">$21.7B</td><td class="num up">+4.84%</td></tr><tr><td class="rank">4</td><td class="ticker">AAPL</td><td class="name">Apple Inc.</td><td class="num">$21.3B</td><td class="num up">+3.24%</td></tr><tr><td class="rank">5</td><td class="ticker">INTC</td><td class="name">Intel Corporatio</td><td class="num">$15.6B</td><td class="num up">+5.44%</td></tr><tr><td class="rank">6</td><td class="ticker">AMZN</td><td class="name">Amazon.com, Inc.</td><td class="num">$13.1B</td><td class="num up">+1.21%</td></tr><tr><td class="rank">7</td><td class="ticker">AMD</td><td class="name">Advanced Micro D</td><td class="num">$11.4B</td><td class="num up">+1.71%</td></tr><tr><td class="rank">8</td><td class="ticker">PLTR</td><td class="name">Palantir Technol</td><td class="num">$4.8B</td><td class="num up">+3.57%</td></tr><tr><td class="rank">9</td><td class="ticker">RBLX</td><td class="name">Roblox Corporati</td><td class="num">$2.4B</td><td class="num down">-18.33%</td></tr><tr><td class="rank">10</td><td class="ticker">NOK</td><td class="name">Nokia Corporatio</td><td class="num">$1.8B</td><td class="num up">+3.02%</td></tr><tr><td class="rank">11</td><td class="ticker">SOFI</td><td class="name">SoFi Technologie</td><td class="num">$1.3B</td><td class="num up">+2.05%</td></tr><tr><td class="rank">12</td><td class="ticker">RIVN</td><td class="name">Rivian Automotiv</td><td class="num">$0.8B</td><td class="num down">-8.41%</td></tr><tr><td class="rank">13</td><td class="ticker">CMCSA</td><td class="name">Comcast Corporat</td><td class="num">$0.8B</td><td class="num up">+0.55%</td></tr><tr><td class="rank">14</td><td class="ticker">SOUN</td><td class="name">SoundHound AI, I</td><td class="num">$0.6B</td><td class="num up">+20.10%</td></tr><tr><td class="rank">15</td><td class="ticker">RIOT</td><td class="name">Riot Platforms, </td><td class="num">$0.6B</td><td class="num up">+7.31%</td></tr><tr><td class="rank">16</td><td class="ticker">NCLH</td><td class="name">Norwegian Cruise</td><td class="num">$0.6B</td><td class="num up">+3.47%</td></tr><tr><td class="rank">17</td><td class="ticker">MARA</td><td class="name">MARA Holdings, I</td><td class="num">$0.6B</td><td class="num down">-4.42%</td></tr><tr><td class="rank">18</td><td class="ticker">AAL</td><td class="name">American Airline</td><td class="num">$0.6B</td><td class="num up">+1.11%</td></tr><tr><td class="rank">19</td><td class="ticker">F</td><td class="name">Ford Motor Compa</td><td class="num">$0.5B</td><td class="num down">-1.66%</td></tr><tr><td class="rank">20</td><td class="ticker">OWL</td><td class="name">Blue Owl Capital</td><td class="num">$0.5B</td><td class="num up">+2.36%</td></tr><tr><td class="rank">21</td><td class="ticker">ONDS</td><td class="name">Ondas Inc</td><td class="num">$0.5B</td><td class="num up">+2.79%</td></tr><tr><td class="rank">22</td><td class="ticker">GRAB</td><td class="name">Grab Holdings Li</td><td class="num">$0.4B</td><td class="num down">-3.93%</td></tr><tr><td class="rank">23</td><td class="ticker">NIO</td><td class="name">NIO Inc.</td><td class="num">$0.4B</td><td class="num down">-7.51%</td></tr><tr><td class="rank">24</td><td class="ticker">PATH</td><td class="name">UiPath, Inc.</td><td class="num">$0.3B</td><td class="num up">+3.59%</td></tr><tr><td class="rank">25</td><td class="ticker">SNAP</td><td class="name">Snap Inc.</td><td class="num">$0.2B</td><td class="num up">+3.62%</td></tr><tr><td class="rank">26</td><td class="ticker">RIG</td><td class="name">Transocean Ltd (</td><td class="num">$0.2B</td><td class="num up">+0.29%</td></tr><tr><td class="rank">27</td><td class="ticker">ACHR</td><td class="name">Archer Aviation </td><td class="num">$0.2B</td><td class="num up">+2.26%</td></tr><tr><td class="rank">28</td><td class="ticker">AUR</td><td class="name">Aurora Innovatio</td><td class="num">$0.2B</td><td class="num up">+4.25%</td></tr><tr><td class="rank">29</td><td class="ticker">BTG</td><td class="name">B2Gold Corp</td><td class="num">$0.1B</td><td class="num down">-3.11%</td></tr><tr><td class="rank">30</td><td class="ticker">PLUG</td><td class="name">Plug Power, Inc.</td><td class="num">$0.1B</td><td class="num down">-0.64%</td></tr></tbody>
-    </table>
+<div class="pod-source">
+  <div class="pod-src-hdr" onclick="toggleEl('pod-podcast-macromicro')">
+    <span class="pod-src-arrow" id="arrow-pod-podcast-macromicro">▶</span>
+    <span class="pod-src-name">財經M平方</span>
+    <span class="ep-cnt">3 集</span>
   </div>
-  <div class="card">
-    <div class="sec">台股 成交值前 30（2026-05-01）</div>
-    <table>
-      <thead><tr><th>#</th><th>代號</th><th>名稱</th><th style="text-align:right">成交值</th><th style="text-align:right">漲跌</th></tr></thead>
-      <tbody><tr><td class="rank">1</td><td class="ticker">2330</td><td class="name">台積電</td><td class="num">1291億</td><td class="num down">-2.06%</td></tr><tr><td class="rank">2</td><td class="ticker">2337</td><td class="name">旺宏</td><td class="num">475億</td><td class="num down">-7.78%</td></tr><tr><td class="rank">3</td><td class="ticker">2454</td><td class="name">聯發科</td><td class="num">460億</td><td class="num up">+1.36%</td></tr><tr><td class="rank">4</td><td class="ticker">2308</td><td class="name">台達電</td><td class="num">310億</td><td class="num up">+0.00%</td></tr><tr><td class="rank">5</td><td class="ticker">3037</td><td class="name">欣興</td><td class="num">296億</td><td class="num up">+9.96%</td></tr><tr><td class="rank">6</td><td class="ticker">2408</td><td class="name">南亞科</td><td class="num">281億</td><td class="num down">-8.30%</td></tr><tr><td class="rank">7</td><td class="ticker">3189</td><td class="name">景碩</td><td class="num">264億</td><td class="num up">+3.94%</td></tr><tr><td class="rank">8</td><td class="ticker">2303</td><td class="name">聯電</td><td class="num">261億</td><td class="num up">+3.76%</td></tr><tr><td class="rank">9</td><td class="ticker">2449</td><td class="name">京元電子</td><td class="num">217億</td><td class="num up">+6.70%</td></tr><tr><td class="rank">10</td><td class="ticker">8046</td><td class="name">南電</td><td class="num">204億</td><td class="num up">+9.72%</td></tr><tr><td class="rank">11</td><td class="ticker">4958</td><td class="name">臻鼎-KY</td><td class="num">191億</td><td class="num up">+9.92%</td></tr><tr><td class="rank">12</td><td class="ticker">2313</td><td class="name">華通</td><td class="num">190億</td><td class="num up">+6.30%</td></tr><tr><td class="rank">13</td><td class="ticker">3711</td><td class="name">日月光投控</td><td class="num">180億</td><td class="num down">-2.15%</td></tr><tr><td class="rank">14</td><td class="ticker">2317</td><td class="name">鴻海</td><td class="num">165億</td><td class="num down">-2.44%</td></tr><tr><td class="rank">15</td><td class="ticker">2383</td><td class="name">台光電</td><td class="num">159億</td><td class="num up">+2.36%</td></tr><tr><td class="rank">16</td><td class="ticker">3661</td><td class="name">世芯-KY</td><td class="num">120億</td><td class="num up">+3.25%</td></tr><tr><td class="rank">17</td><td class="ticker">2327</td><td class="name">國巨*</td><td class="num">115億</td><td class="num down">-1.55%</td></tr><tr><td class="rank">18</td><td class="ticker">00981A</td><td class="name">主動統一台股增長</td><td class="num">114億</td><td class="num up">+1.95%</td></tr><tr><td class="rank">19</td><td class="ticker">2344</td><td class="name">華邦電</td><td class="num">105億</td><td class="num down">-3.13%</td></tr><tr><td class="rank">20</td><td class="ticker">6669</td><td class="name">緯穎</td><td class="num">104億</td><td class="num down">-3.51%</td></tr><tr><td class="rank">21</td><td class="ticker">2301</td><td class="name">光寶科</td><td class="num">98億</td><td class="num down">-3.49%</td></tr><tr><td class="rank">22</td><td class="ticker">3017</td><td class="name">奇鋐</td><td class="num">97億</td><td class="num up">+0.00%</td></tr><tr><td class="rank">23</td><td class="ticker">1303</td><td class="name">南亞</td><td class="num">91億</td><td class="num down">-2.18%</td></tr><tr><td class="rank">24</td><td class="ticker">2486</td><td class="name">一詮</td><td class="num">86億</td><td class="num up">+6.71%</td></tr><tr><td class="rank">25</td><td class="ticker">2345</td><td class="name">智邦</td><td class="num">86億</td><td class="num up">+3.17%</td></tr><tr><td class="rank">26</td><td class="ticker">1802</td><td class="name">台玻</td><td class="num">86億</td><td class="num up">+1.21%</td></tr><tr><td class="rank">27</td><td class="ticker">2360</td><td class="name">致茂</td><td class="num">85億</td><td class="num up">+3.16%</td></tr><tr><td class="rank">28</td><td class="ticker">2455</td><td class="name">全新</td><td class="num">85億</td><td class="num up">+9.97%</td></tr><tr><td class="rank">29</td><td class="ticker">0050</td><td class="name">元大台灣50</td><td class="num">81億</td><td class="num down">-0.28%</td></tr><tr><td class="rank">30</td><td class="ticker">3665</td><td class="name">貿聯-KY</td><td class="num">76億</td><td class="num down">-0.36%</td></tr></tbody>
-    </table>
+  <div id="pod-podcast-macromicro" class="pod-episodes hidden">
+    
+<div class="ep-block">
+  <div class="ep-hdr" onclick="toggleEl('podcast-macromicro-0')">
+    <span class="ep-arrow" id="arrow-podcast-macromicro-0">▶</span>
+    <span class="ep-title">After Meeting EP. 196｜戰爭不跌反漲？現在是基本面接棒了嗎？</span>
+    <span class="ep-date">2026-04-25</span>
+  </div>
+  <div id="podcast-macromicro-0" class="ep-body hidden">
+    <pre class="pod-raw">- 美伊停火談判反覆，但最終川普宣布延長停火。
+- 通膨預期開始頓化，CPI公布後股市債市反應不大。
+- Q1財報普遍表現不錯，美股S&amp;P500創新高，亞股表現更強勁。
+- 原物料價格微升，黃金價格回落。
+- 聯準會維持利率不變機率小幅攀升至7成左右。
+- 企業獲利健康，AI、雲端應用等主線持續發展。</pre>
+  </div>
+</div>
+<div class="ep-block">
+  <div class="ep-hdr" onclick="toggleEl('podcast-macromicro-1')">
+    <span class="ep-arrow" id="arrow-podcast-macromicro-1">▶</span>
+    <span class="ep-title">After Meeting EP. 195｜台股重新點火，從台積電看半導體行情</span>
+    <span class="ep-date">2026-04-18</span>
+  </div>
+  <div id="podcast-macromicro-1" class="ep-body hidden">
+    <pre class="pod-raw">- 台積電 Q1 表現再超預期！
+- 台積電對 AI 的看法改變了嗎？
+- 全球半導體庫存是什麼情況？
+- M平方獨家消息大公開！2026 展望組合包銷售倒數！即刻掌握 AI 大投資時代 https://pse.is/8pcxd2
+- 加入訂閱搶先接收完整 AI 供應鏈報告！https://pse.is/8y8rn9</pre>
+  </div>
+</div>
+<div class="ep-block">
+  <div class="ep-hdr" onclick="toggleEl('podcast-macromicro-2')">
+    <span class="ep-arrow" id="arrow-podcast-macromicro-2">▶</span>
+    <span class="ep-title">After Meeting EP. 194｜大漲價時代來臨？要抱還是要逃</span>
+    <span class="ep-date">2026-04-11</span>
+  </div>
+  <div id="podcast-macromicro-2" class="ep-body hidden">
+    <pre class="pod-raw">- 美伊三方達成停火協議，市場樂觀情緒浮現，美、亞股強勢反彈、油價大跌、美元指數與公債殖利率回落。
+- 3月美國CPI是本週至關重要的重點。
+- 「大漲價時代」下，除了油價以外，其他東西也在默默漲價。
+- 供應鏈漲價的原因。</pre>
+  </div>
+</div>
   </div>
 </div>
 
+<div class="pod-source">
+  <div class="pod-src-hdr" onclick="toggleEl('pod-podcast-chives-grad')">
+    <span class="pod-src-arrow" id="arrow-pod-podcast-chives-grad">▶</span>
+    <span class="pod-src-name">韭菜畢業班</span>
+    <span class="ep-cnt">3 集</span>
+  </div>
+  <div id="pod-podcast-chives-grad" class="pod-episodes hidden">
+    
+<div class="ep-block">
+  <div class="ep-hdr" onclick="toggleEl('podcast-chives-grad-0')">
+    <span class="ep-arrow" id="arrow-podcast-chives-grad-0">▶</span>
+    <span class="ep-title">EP221 | 台、美股重點一次說， 台積電25%條款後的資金節奏，台達電AI Power與高階連接器，旺宏法說重點</span>
+    <span class="ep-date">2026-04-28</span>
+  </div>
+  <div id="podcast-chives-grad-0" class="ep-body hidden">
+    <pre class="pod-raw">- 台積電25%條款後資金節奏：基金和主動式ETF為主要買盤，但基金需開會討論，過程複雜。
+- 台股IC設計族群表現強勢，漲幅達60%，旺宏、怡鼎群聯等記憶體相關公司表現亦佳。
+- 台光電出現修正，台積電25%上限提高，龍頭股可能優先修正。
+- 台達電2026年第一季年增率43%，毛利率提升至31.7%，伺服器電源營收年增90%，12kW PSU需求增加，HVDC Power Rank預估上半年貢獻。
+- 台達電SST固態變壓器方案推升ASP。</pre>
+  </div>
 </div>
+<div class="ep-block">
+  <div class="ep-hdr" onclick="toggleEl('podcast-chives-grad-1')">
+    <span class="ep-arrow" id="arrow-podcast-chives-grad-1">▶</span>
+    <span class="ep-title">EP220 | 台、美股重點一次說， ETF投資上限25%與台股關係，亞馬遜Amazon 算力供應鏈， CPU漲價與Intel財報</span>
+    <span class="ep-date">2026-04-26</span>
+  </div>
+  <div id="podcast-chives-grad-1" class="ep-body hidden">
+    <pre class="pod-raw">- 亞馬遜Amazon 算力供應鏈
+- CPU漲價與Intel財報</pre>
+  </div>
+</div>
+<div class="ep-block">
+  <div class="ep-hdr" onclick="toggleEl('podcast-chives-grad-2')">
+    <span class="ep-arrow" id="arrow-podcast-chives-grad-2">▶</span>
+    <span class="ep-title">EP219 | 台、美股重點一次說，瘋狗行情與8 吋晶圓代工漲價循環，力積電矽電容、信驊與CPU關係，Marvell技術重點</span>
+    <span class="ep-date">2026-04-22</span>
+  </div>
+  <div id="podcast-chives-grad-2" class="ep-body hidden">
+    <pre class="pod-raw">- 聯發科 TPU 與 ASIC 業務展望
+- 力積電法說會重點與矽電容佈局
+- 信驊 BMC 需求與代理式 AI 帶動
+- 8 吋晶圓代工漲價循環</pre>
+  </div>
+</div>
+  </div>
+</div>
+
+<div class="pod-source">
+  <div class="pod-src-hdr" onclick="toggleEl('pod-podcast-stock-barrel')">
+    <span class="pod-src-arrow" id="arrow-pod-podcast-stock-barrel">▶</span>
+    <span class="pod-src-name">股海飯桶</span>
+    <span class="ep-cnt">3 集</span>
+  </div>
+  <div id="pod-podcast-stock-barrel" class="pod-episodes hidden">
+    
+<div class="ep-block">
+  <div class="ep-hdr" onclick="toggleEl('podcast-stock-barrel-0')">
+    <span class="ep-arrow" id="arrow-podcast-stock-barrel-0">▶</span>
+    <span class="ep-title">EP71｜感受到自己成長 供應鏈上游窘境 方形封裝</span>
+    <span class="ep-date">2026-04-27</span>
+  </div>
+  <div id="podcast-stock-barrel-0" class="ep-body hidden">
+    <pre class="pod-raw">- 供應鏈上游窘境：封測大廠人員交流，台積電權重調整影響基金配置。
+- 指數調整：台積電在0050指數中佔比從10%提升至25%，其他基金需重新配置以符合規定。</pre>
+  </div>
+</div>
+<div class="ep-block">
+  <div class="ep-hdr" onclick="toggleEl('podcast-stock-barrel-1')">
+    <span class="ep-arrow" id="arrow-podcast-stock-barrel-1">▶</span>
+    <span class="ep-title">EP70｜用力吃用力動 迷惘是好事 光通訊隱憂</span>
+    <span class="ep-date">2026-04-23</span>
+  </div>
+  <div id="podcast-stock-barrel-1" class="ep-body hidden">
+    <pre class="pod-raw">NONE</pre>
+  </div>
+</div>
+<div class="ep-block">
+  <div class="ep-hdr" onclick="toggleEl('podcast-stock-barrel-2')">
+    <span class="ep-arrow" id="arrow-podcast-stock-barrel-2">▶</span>
+    <span class="ep-title">EP69｜6字頭級數卡好久 玻璃相關廠商 成熟製程</span>
+    <span class="ep-date">2026-04-20</span>
+  </div>
+  <div id="podcast-stock-barrel-2" class="ep-body hidden">
+    <pre class="pod-raw">NONE</pre>
+  </div>
+</div>
+  </div>
+</div>
+
+<div class="pod-source">
+  <div class="pod-src-hdr" onclick="toggleEl('pod-podcast-zhaohua')">
+    <span class="pod-src-arrow" id="arrow-pod-podcast-zhaohua">▶</span>
+    <span class="pod-src-name">兆華與股惑仔</span>
+    
+  </div>
+  <div id="pod-podcast-zhaohua" class="pod-episodes hidden">
+    <p class="muted-note">尚無資料</p>
+  </div>
+</div>
+  </div>
+</div>
+
 <footer>IIA Investment Intelligence Analyst &nbsp;·&nbsp; 資料僅供參考，不構成投資建議</footer>
+
+<script>
+function showTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('.tab-pane').forEach(p =>
+    p.classList.toggle('active', p.id === 'tab-' + name));
+}
+
+function toggleArts(id) {
+  const el = document.getElementById('arts-' + id);
+  if (el) el.classList.toggle('hidden');
+}
+
+function toggleEl(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const nowHidden = el.classList.toggle('hidden');
+  const arrow = document.getElementById('arrow-' + id);
+  if (arrow) arrow.textContent = nowHidden ? '▶' : '▼';
+}
+</script>
 </body>
 </html>
