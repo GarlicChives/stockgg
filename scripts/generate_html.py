@@ -267,8 +267,15 @@ def _cluster_section_html(clusters: list[ThemeCluster], stocks: dict) -> str:
         return ""
     cards = []
     for c in clusters:
-        strength_cls = "strength-high" if c.primary_art_count >= 2 or len(c.focal) >= 2 else "strength-mid"
-        strength_lbl = "強勢" if strength_cls == "strength-high" else "觀察"
+        if c.volume_only:
+            strength_cls = "strength-vol"
+            strength_lbl = "量能輪動"
+        elif c.primary_art_count >= 2 or len(c.focal) >= 2:
+            strength_cls = "strength-high"
+            strength_lbl = "強勢"
+        else:
+            strength_cls = "strength-mid"
+            strength_lbl = "觀察"
 
         # Focal stock pills
         focal_pills = []
@@ -324,7 +331,7 @@ def _cluster_section_html(clusters: list[ThemeCluster], stocks: dict) -> str:
   <div class="cluster-hdr">
     <span class="cluster-name">🔷 {html_lib.escape(c.name)}</span>
     <span class="cluster-strength {strength_cls}">{strength_lbl}</span>
-    <span class="cluster-meta">{len(c.focal)} 檔焦點 · {c.primary_art_count} 篇近7日文章</span>
+    <span class="cluster-meta">{len(c.focal)} 檔焦點{"" if c.volume_only else f" · {c.primary_art_count} 篇近7日文章"}</span>
   </div>
   <div class="cluster-section-label">今日焦點（在前30）</div>
   <div class="cluster-focal-stocks">{''.join(focal_pills)}</div>
@@ -830,6 +837,7 @@ tr:last-child td{{border-bottom:none}}
 .cluster-strength{{font-size:.65rem;font-weight:700;padding:.15rem .4rem;border-radius:4px}}
 .strength-high{{background:#1a3a2a;color:#4caf82}}
 .strength-mid{{background:#1e2235;color:var(--muted)}}
+.strength-vol{{background:#2a2a1a;color:#c8a84b}}
 .cluster-meta{{font-size:.72rem;color:var(--muted);margin-left:auto}}
 .cluster-section-label{{font-size:.68rem;color:var(--muted);font-weight:600;
                          text-transform:uppercase;letter-spacing:.04em;margin:.55rem 0 .3rem}}
