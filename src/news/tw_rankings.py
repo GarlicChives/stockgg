@@ -7,6 +7,7 @@ Data source: TWSE / TPEX open data APIs (no auth required).
 import asyncio
 import json
 import os
+import re
 import sys
 from datetime import date, timedelta
 from pathlib import Path
@@ -82,11 +83,11 @@ def _fetch_twse_all(date_str: str) -> list[dict]:
 # ── TPEX (上櫃) ──────────────────────────────────────────────────────────────
 
 def _fetch_tpex_all(date_str: str) -> list[dict]:
-    """Download all TPEX stocks for the day, return sorted list.
+    """Download all TPEX (上櫃) stocks for the day, return sorted list.
 
-    TPEX stk_quote_result aaData columns:
-      0:代號 1:名稱 2:收盤 3:漲跌 4:開盤 5:最高 6:最低 7:均價
-      8:成交股數(千股) 9:成交金額(千元) 10:成交筆數 ...
+    TPEX stk_quote_result response: tables[0].data
+    Fields: [0]代號 [1]名稱 [2]收盤 [3]漲跌 [4]開盤 [5]最高 [6]最低 [7]均價
+             [8]成交股數 [9]成交金額(元) [10]成交筆數 ...
     """
     yyyy, mm, dd = date_str[:4], date_str[4:6], date_str[6:8]
     url = f"{TPEX_ALL}?d={yyyy}/{mm}/{dd}&s=0,asc,0&o=json&l=zh-tw"
@@ -94,38 +95,43 @@ def _fetch_tpex_all(date_str: str) -> list[dict]:
     with urlopen(req, timeout=30) as r:
         data = json.loads(r.read())
 
-    aa = data.get("aaData") or []
+    if data.get("stat", "").lower() != "ok":
+        raise RuntimeError(f"TPEX stat={data.get('stat')!r} for {date_str}")
+
+    tables = data.get("tables") or []
+    aa = (tables[0].get("data") or []) if tables else []
     if not aa:
-        raise RuntimeError(f"TPEX returned no aaData for {date_str}")
+        raise RuntimeError(f"TPEX returned no data for {date_str}")
 
     parsed = []
     for row in aa:
         try:
             ticker = str(row[0]).strip()
-            name   = str(row[1]).strip()
-            if not ticker or not (ticker.isdigit() or ticker.isalnum()):
+            # Only pure stock codes (4-5 digits) — skip ETFs, bonds, etc.
+            if not re.match(r'^\d{4,5}$', ticker):
                 continue
+            name = str(row[1]).strip()
 
             val_str = str(row[9]).replace(",", "")
             if not val_str or val_str in ("--", ""):
                 continue
-            value = float(val_str) * 1000  # 千元 → 元
+            value = float(val_str)  # Already in 元
 
-            close_str = str(row[2]).replace(",", "")
+            close_str = str(row[2]).replace(",", "").strip()
             close = float(close_str) if close_str not in ("--", "") else None
 
-            diff_str = str(row[3]).replace(",", "").replace("+", "").strip()
+            diff_str = str(row[3]).replace(",", "").strip()
             change_pct = None
             if close and diff_str and diff_str not in ("--", "X", ""):
                 try:
                     diff = float(diff_str)
                     prev = close - diff
-                    change_pct = round((close - prev) / prev * 100, 4) if prev != 0 else None
+                    change_pct = round(diff / prev * 100, 4) if prev != 0 else None
                 except Exception:
                     pass
 
-            open_str = str(row[4]).replace(",", "")
-            high_str = str(row[5]).replace(",", "")
+            open_str = str(row[4]).replace(",", "").strip()
+            high_str = str(row[5]).replace(",", "").strip()
             parsed.append({
                 "ticker": ticker, "name": name, "trading_value": value,
                 "close_price": close, "change_pct": change_pct,
