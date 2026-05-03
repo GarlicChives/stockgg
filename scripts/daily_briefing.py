@@ -91,6 +91,16 @@ async def main():
         await conn.close()
     print()
 
+    print("── Step 7: Rebuild HTML ──")
+    import subprocess
+    proc = subprocess.run(
+        [sys.executable, str(Path(__file__).resolve().parent / "generate_html.py")],
+        cwd=Path(__file__).resolve().parents[1],
+        capture_output=True, text=True,
+    )
+    print((proc.stdout or proc.stderr).strip())
+    print()
+
     print("── Done ──")
 
 
