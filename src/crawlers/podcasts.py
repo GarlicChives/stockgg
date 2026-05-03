@@ -57,6 +57,12 @@ PODCASTS = [
         "rss": "https://feeds.soundon.fm/podcasts/537b7401-756c-4d0d-b1df-36a49e2793d3.xml",
         "author": "Wilson",
     },
+    {
+        "source": "podcast_zhaohua",
+        "name": "兆華與股惑仔",
+        "rss": "https://feeds.soundon.fm/podcasts/91be014b-9f55-4bf3-a910-b232eda82d11.xml",
+        "author": "兆華",
+    },
 ]
 
 NS = {
