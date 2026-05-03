@@ -15,6 +15,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from src.utils.api_logger import log_usage
+
 GEMINI_MODEL = "gemini-2.5-flash"
 GEMINI_BASE  = "https://generativelanguage.googleapis.com/v1beta/models"
 
@@ -51,6 +53,13 @@ def _gemini_http(api_key: str, prompt: str) -> str:
     )
     with urllib.request.urlopen(req, timeout=120) as r:
         data = json.loads(r.read())
+    usage = data.get("usageMetadata", {})
+    log_usage(
+        "gemini", GEMINI_MODEL, "market_notes",
+        usage.get("promptTokenCount", 0),
+        usage.get("candidatesTokenCount", 0),
+        usage.get("thoughtsTokenCount", 0),
+    )
     parts = data["candidates"][0]["content"]["parts"]
     text = "".join(
         p["text"] for p in parts if "text" in p and not p.get("thought", False)

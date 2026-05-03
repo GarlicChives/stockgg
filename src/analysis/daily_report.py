@@ -21,6 +21,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from src.utils.api_logger import log_usage
+
 GEMINI_MODEL = "gemini-2.5-flash"
 GEMINI_BASE  = "https://generativelanguage.googleapis.com/v1beta/models"
 
@@ -38,6 +40,13 @@ def _gemini_http(api_key: str, model: str, prompt: str,
     )
     with urllib.request.urlopen(req, timeout=120) as r:
         data = json.loads(r.read())
+    usage = data.get("usageMetadata", {})
+    log_usage(
+        "gemini", model, "daily_report",
+        usage.get("promptTokenCount", 0),
+        usage.get("candidatesTokenCount", 0),
+        usage.get("thoughtsTokenCount", 0),
+    )
     # Gemini 2.5 Flash is a thinking model — parts may include thought traces
     # (thought=True). Collect only the actual response parts.
     parts = data["candidates"][0]["content"]["parts"]

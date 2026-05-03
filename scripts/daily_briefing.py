@@ -27,7 +27,6 @@ from src.news.us_rankings import fetch_and_store as fetch_us
 from src.news.tw_rankings import fetch_and_store as fetch_tw
 from src.analysis.daily_report import generate_report
 from src.analysis.market_notes import generate_market_notes
-
 import asyncpg
 
 
@@ -95,6 +94,15 @@ async def main():
     import subprocess
     proc = subprocess.run(
         [sys.executable, str(Path(__file__).resolve().parent / "generate_html.py")],
+        cwd=Path(__file__).resolve().parents[1],
+        capture_output=True, text=True,
+    )
+    print((proc.stdout or proc.stderr).strip())
+    print()
+
+    print("── Step 8: API 使用成本報告 ──")
+    proc = subprocess.run(
+        [sys.executable, str(Path(__file__).resolve().parent / "api_cost_check.py")],
         cwd=Path(__file__).resolve().parents[1],
         capture_output=True, text=True,
     )
