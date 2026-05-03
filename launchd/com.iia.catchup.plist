@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.iia.podcast-backfill</string>
+    <string>com.iia.catchup</string>
 
     <key>ProgramArguments</key>
     <array>
@@ -11,24 +11,30 @@
         <string>-is</string>
         <string>/Users/edward.song/.local/bin/uv</string>
         <string>run</string>
-        <string>/Users/edward.song/Desktop/Stock/scripts/podcast_backfill.py</string>
+        <string>/Users/edward.song/Desktop/Stock/scripts/catchup.py</string>
     </array>
 
     <key>WorkingDirectory</key>
     <string>/Users/edward.song/Desktop/Stock</string>
 
-    <key>StartCalendarInterval</key>
-    <dict>
-        <key>Hour</key>
-        <integer>7</integer>
-        <key>Minute</key>
-        <integer>0</integer>
-    </dict>
+    <!-- Trigger 1: run immediately when agent is loaded (boot / launchctl load) -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- Trigger 2: run every 30 minutes as a safety net -->
+    <key>StartInterval</key>
+    <integer>1800</integer>
+
+    <!-- Trigger 3: run when network connects (resolv.conf changes on DHCP/VPN) -->
+    <key>WatchPaths</key>
+    <array>
+        <string>/private/var/run/resolv.conf</string>
+    </array>
 
     <key>StandardOutPath</key>
-    <string>/Users/edward.song/Desktop/Stock/logs/podcast_backfill.log</string>
+    <string>/Users/edward.song/Desktop/Stock/logs/catchup.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/edward.song/Desktop/Stock/logs/podcast_backfill.log</string>
+    <string>/Users/edward.song/Desktop/Stock/logs/catchup.log</string>
 
     <key>EnvironmentVariables</key>
     <dict>
@@ -39,8 +45,5 @@
         <key>PYTHONUNBUFFERED</key>
         <string>1</string>
     </dict>
-
-    <key>RunAtLoad</key>
-    <false/>
 </dict>
 </plist>
