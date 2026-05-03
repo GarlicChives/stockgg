@@ -11,6 +11,8 @@ import urllib.request
 from typing import Optional
 from urllib.request import urlopen
 
+from src.utils.api_logger import log_usage
+
 _embed_model = None
 
 _REFINE_SYSTEM = """\
@@ -134,6 +136,13 @@ def _gemini_refine(api_key: str, title: str, raw: str,
     try:
         with urllib.request.urlopen(req, timeout=120) as r:
             data = json.loads(r.read())
+        usage = data.get("usageMetadata", {})
+        log_usage(
+            "gemini", GEMINI_MODEL, "refine",
+            usage.get("promptTokenCount", 0),
+            usage.get("candidatesTokenCount", 0),
+            usage.get("thoughtsTokenCount", 0),
+        )
         parts = data["candidates"][0]["content"]["parts"]
         response = "".join(
             p["text"] for p in parts if "text" in p and not p.get("thought", False)
@@ -142,6 +151,7 @@ def _gemini_refine(api_key: str, title: str, raw: str,
             response = "".join(p.get("text", "") for p in parts).strip()
     except Exception as e:
         print(f"    [refine/gemini] {e}")
+        log_usage("gemini", GEMINI_MODEL, "refine", 0, 0, success=False)
         return None
 
     return _parse_refine_response(response)
