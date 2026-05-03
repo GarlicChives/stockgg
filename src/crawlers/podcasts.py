@@ -257,7 +257,7 @@ async def crawl(incremental: bool = False):
                 if new_id:
                     print(f"    Saved id={new_id} ({len(content)} chars transcript)")
                     total_new += 1
-                    await refine_and_store(conn, new_id, ep['title'], content)
+                    await refine_and_store(conn, new_id, ep['title'], content, is_podcast=True)
 
         except Exception as e:
             print(f"  ERROR: {e}")

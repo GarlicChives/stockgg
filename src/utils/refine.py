@@ -24,9 +24,41 @@ TAGS: <從 macro/international/stock/supply_chain 選，逗號分隔>
 CONTENT:
 <條列式重點，保留數字和標的名稱>"""
 
+_PODCAST_SYSTEM = """\
+你是投資分析整理員。將 Podcast 逐字稿整理成結構化投資筆記。
+
+必須過濾（完全刪除，不保留）：
+- 開場白、結語、感謝詞、廣告、訂閱推廣
+- 主持人間的閒聊、趣事、日常話題
+- 與投資市場完全無關的內容
+
+必須保留並結構化（以下每類各用編號列點）：
+1. 總經觀點：利率、通膨、GDP、聯準會動向、景氣循環判斷
+2. 市場判斷：指數看法（多/空/區間）、資金輪動方向
+3. 產業/題材：具體看好或看壞的產業，說明理由
+4. 標的分析：提到的具體股票（台股代號/美股TICKER），給出看法與邏輯
+5. 風險提示：提到的下行風險、注意事項
+
+格式規定（嚴格遵守）：
+TAGS: <從 macro/international/stock/supply_chain 選，逗號分隔>
+CONTENT:
+【總經觀點】
+1. ...（保留數字、時間點）
+【市場判斷】
+1. ...
+【產業/題材】
+1. ...
+【標的分析】
+1. 股名(代號)：...（說明看法與邏輯，保留目標價/估值）
+【風險提示】
+1. ...
+
+若某類別完全沒有內容，略去該類別。若整段無投資內容→回覆 NONE。"""
+
 _VALID_TAGS = {"macro", "international", "stock", "supply_chain"}
 OLLAMA_MODEL = "qwen2.5:7b"
-CONTENT_TRUNCATE = 4000   # chars sent to model — balances quality vs. speed
+CONTENT_TRUNCATE = 4000      # chars for regular articles
+PODCAST_TRUNCATE = 12000     # chars for podcast transcripts (longer)
 
 
 def _ollama_running() -> bool:
@@ -52,18 +84,21 @@ def _get_embed_model():
     return _embed_model
 
 
-def refine_content(raw: str, title: str = "") -> tuple[str, list[str]] | None:
+def refine_content(raw: str, title: str = "",
+                   is_podcast: bool = False) -> tuple[str, list[str]] | None:
     """Return (refined_text, tags) via Ollama, or None if Ollama unavailable."""
     if not _ollama_running():
         return None
 
     import ollama  # imported here to avoid error when package missing
-    text_input = f"標題：{title}\n\n{raw[:CONTENT_TRUNCATE]}"
+    system_prompt = _PODCAST_SYSTEM if is_podcast else _REFINE_SYSTEM
+    truncate = PODCAST_TRUNCATE if is_podcast else CONTENT_TRUNCATE
+    text_input = f"標題：{title}\n\n{raw[:truncate]}"
     try:
         resp = ollama.chat(
             model=OLLAMA_MODEL,
             messages=[
-                {"role": "system", "content": _REFINE_SYSTEM},
+                {"role": "system", "content": system_prompt},
                 {"role": "user",   "content": text_input},
             ],
             options={"temperature": 0},
@@ -102,12 +137,13 @@ def embed_text(text: str) -> Optional[list[float]]:
         return None
 
 
-async def refine_and_store(conn, article_id: int, title: str, content: str) -> bool:
+async def refine_and_store(conn, article_id: int, title: str, content: str,
+                           is_podcast: bool = False) -> bool:
     """Refine + embed an article and persist to DB. Returns True if anything was written."""
     if not content:
         return False
 
-    result = refine_content(content, title)
+    result = refine_content(content, title, is_podcast=is_podcast)
     has_refined = result is not None
     refined, tags = result if has_refined else ("", [])
 

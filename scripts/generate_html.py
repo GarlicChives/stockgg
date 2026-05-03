@@ -3,12 +3,12 @@
 
 Three-tab layout:
   市場行情 — Full AI report + US/TW rankings
-  焦點股   — Theme groups with top-30 stocks + article snippets
+  焦點股   — TW/US sub-tabs, article-matched stocks + popup modal
   股市筆記  — Cross-source topic intersection + podcast notes (collapsible)
 
 Fixed elements:
-  - Ticker tape (sticky top, scrolling market indicators)
-  - Direction badge (fixed top-right, short/mid term outlook)
+  - Ticker tape (sticky top, seamless continuous scroll)
+  - Direction badge (fixed top-right: short/mid term + report date)
 """
 import asyncio
 import collections
@@ -66,7 +66,6 @@ def strip_preamble(text: str) -> str:
 
 
 def parse_directions(text: str) -> dict:
-    """Extract short/mid term 偏多/中立/偏空 from 綜合多空判斷."""
     result = {"short": "中立", "mid": "中立"}
     if not text:
         return result
@@ -80,7 +79,6 @@ def parse_directions(text: str) -> dict:
 
 
 def md_to_html(text: str) -> str:
-    """Convert AI report markdown to HTML (strip 動能股彙整 section)."""
     text = re.sub(r'## 動能股彙整.*?(?=\n## |\Z)', '', text, flags=re.DOTALL)
     text = strip_preamble(text)
     text = html_lib.escape(text)
@@ -105,13 +103,26 @@ def md_to_html(text: str) -> str:
 
 
 def podcast_content_to_html(content: str) -> str:
-    """Render podcast transcript/notes as preformatted text."""
     if not content:
         return '<p style="color:var(--muted)">（無內容）</p>'
-    # Truncate to 4000 chars to avoid huge pages
-    if len(content) > 4000:
-        content = content[:4000] + "\n…（以下省略）"
+    if len(content) > 5000:
+        content = content[:5000] + "\n…（以下省略）"
     return f'<pre class="pod-raw">{html_lib.escape(content)}</pre>'
+
+
+def extract_relevant_para(content: str, ticker: str, name: str, max_chars: int = 700) -> str:
+    """Return paragraph(s) from content that mention the ticker or stock name."""
+    if not content:
+        return ""
+    paras = [p.strip() for p in re.split(r'\n{2,}|\n(?=\d+\.|•|-\s)', content) if p.strip()]
+    name_prefix = name[:2] if name and len(name) >= 2 else ""
+    relevant = [p for p in paras if ticker in p or (name_prefix and name_prefix in p)]
+    if not relevant:
+        relevant = paras[:1]
+    result = '\n\n'.join(relevant[:3])
+    if len(result) > max_chars:
+        result = result[:max_chars] + "…"
+    return result
 
 
 # ── Ranking rows HTML ─────────────────────────────────────────────────────────
@@ -152,10 +163,74 @@ def _vol_label(rank: int) -> str:
     return '<span class="vol-tag vol-mid">量增</span>'
 
 
+def _build_stock_cards(ticker_list: list[tuple[str, dict]],
+                       ticker_arts: dict, market: str) -> tuple[str, dict]:
+    """Build stock cards for a market. Returns (html, modal_data dict)."""
+    modal_data: dict[str, str] = {}
+    cards = []
+    for ticker, info in ticker_list:
+        arts = ticker_arts.get(ticker, [])
+        if not arts:
+            continue  # only show stocks with article coverage
+        chg = info["change_pct"]
+        pct_str, pct_cls = fmt_pct(chg)
+        mkt_badge = f'<span class="mkt-badge mkt-{market.lower()}">{market}</span>'
+        vol_html = _vol_label(info["rank"])
+        art_count = len(arts)
+
+        if market == "US":
+            val_str = f"${info['trading_value']/1e9:.1f}B"
+        else:
+            val_str = f"{info['trading_value']/1e8:.0f}億"
+        board_badge = ""
+        if market == "TW":
+            board = info.get("board", "TWSE")
+            board_badge = f'<span class="board-sm {board.lower()}">{board}</span>'
+        limit_badge = '<span class="limit-up-badge">漲停⬆</span>' if info.get("limit_up") else ""
+
+        # Build modal HTML for this ticker
+        modal_html_parts = []
+        for a in arts[:5]:
+            src_name = html_lib.escape(SOURCE_NAMES.get(a["source"] or "", a["source"] or ""))
+            dt = str(a["published_at"])[:10] if a["published_at"] else "?"
+            title = html_lib.escape((a["title"] or "")[:70])
+            relevant = extract_relevant_para(
+                a.get("full_content") or "",
+                ticker,
+                info["name"],
+            )
+            snippet_html = f'<div class="modal-snip">{html_lib.escape(relevant)}</div>' if relevant else ""
+            modal_html_parts.append(
+                f'<div class="modal-art">'
+                f'<div class="modal-art-meta">📰 {dt} · {src_name}</div>'
+                f'<div class="modal-art-title">{title}</div>'
+                f'{snippet_html}'
+                f'</div>'
+            )
+        modal_data[ticker] = ''.join(modal_html_parts)
+
+        safe_ticker = re.sub(r'[^A-Za-z0-9]', '_', ticker)
+        cards.append(f"""
+<div class="stock-card" onclick="showArtModal('{html_lib.escape(ticker)}','{html_lib.escape(info['name'][:12])}')">
+  <div class="sc-head">
+    <span class="sc-ticker">{html_lib.escape(ticker)}</span>
+    {mkt_badge}{board_badge}{limit_badge}
+    <span class="sc-name">{html_lib.escape(info['name'][:12])}</span>
+  </div>
+  <div class="sc-meta">
+    <span class="sc-pct {pct_cls}">{pct_str}</span>
+    <span class="sc-val">{val_str}</span>
+    <span class="sc-rank">#{info['rank']}</span>
+    {vol_html}
+  </div>
+  <div class="sc-arts-hint">📰 {art_count} 篇相關文章</div>
+</div>""")
+    return ''.join(cards), modal_data
+
+
 def build_focus_html(us_ranks: list, tw_ranks: list,
-                     ticker_arts: dict, market_notes: dict | None) -> str:
-    """Build the 焦點股 tab content."""
-    # Build stock info dict
+                     ticker_arts: dict, market_notes: dict | None) -> tuple[str, dict]:
+    """Build the 焦點股 tab content. Returns (html, modal_data)."""
     stocks: dict[str, dict] = {}
     for r in us_ranks:
         stocks[r["ticker"]] = {
@@ -178,10 +253,16 @@ def build_focus_html(us_ranks: list, tw_ranks: list,
             "limit_up": bool(r.get("is_limit_up_30m")),
         }
 
-    covered_tickers: set[str] = set()
+    tw_list = [(t, i) for t, i in stocks.items() if i["market"] == "TW"]
+    us_list = [(t, i) for t, i in stocks.items() if i["market"] == "US"]
+    # Sort: stocks with more articles first, then by trading value
+    tw_list.sort(key=lambda x: (-len(ticker_arts.get(x[0], [])), -x[1]["trading_value"]))
+    us_list.sort(key=lambda x: (-len(ticker_arts.get(x[0], [])), -x[1]["trading_value"]))
+
+    all_modal_data: dict[str, str] = {}
     sections: list[str] = []
 
-    # ── Section 1: AI cross-source themes ────────────────────────────────────
+    # ── AI cross-source themes ────────────────────────────────────────────────
     if market_notes and market_notes.get("topics"):
         cards = []
         for topic in market_notes["topics"]:
@@ -192,28 +273,20 @@ def build_focus_html(us_ranks: list, tw_ranks: list,
             summary = html_lib.escape(topic.get("summary", ""))
             key_points = topic.get("key_points", [])
             kp_html = "".join(f'<li>{html_lib.escape(p)}</li>' for p in key_points[:4])
-
-            # Ticker chips for tickers in today's top-30
             t_chips = []
             for tk_raw in topic.get("tickers", []):
-                # Try to extract ticker code from "旺宏(6670)" or "MU(US)"
                 m = re.search(r'[（(]([A-Z0-9]+)[）)]', tk_raw)
                 code = m.group(1) if m else ""
                 display = html_lib.escape(tk_raw)
                 in_today = code in stocks
                 chip_cls = "focus-chip-match" if in_today else "focus-chip"
                 t_chips.append(f'<span class="{chip_cls}">{display}</span>')
-                if code:
-                    covered_tickers.add(code)
-
-            # Matching articles snippets
             art_items = []
             for art in topic.get("articles", [])[:3]:
                 src = html_lib.escape(art.get("source", ""))
                 title = html_lib.escape(art.get("title", "")[:50])
                 dt = art.get("date", "")
                 art_items.append(f'<div class="art-ref">📰 [{dt} {src}] {title}</div>')
-
             cards.append(f"""
 <div class="focus-theme">
   <div class="theme-top">
@@ -226,85 +299,35 @@ def build_focus_html(us_ranks: list, tw_ranks: list,
   <div class="focus-chips">{''.join(t_chips)}</div>
   {'<div class="theme-arts">' + ''.join(art_items) + '</div>' if art_items else ''}
 </div>""")
-
         if cards:
             sections.append(
                 '<div class="section-hdr">📌 跨來源共同議題</div>'
                 '<div class="focus-themes">' + ''.join(cards) + '</div>'
             )
 
-    # ── Section 2: Per-stock cards for all top-30 ────────────────────────────
-    stock_cards = []
-    for ticker, info in stocks.items():
-        arts = ticker_arts.get(ticker, [])
-        chg = info["change_pct"]
-        pct_str, pct_cls = fmt_pct(chg)
-        mkt_badge = f'<span class="mkt-badge mkt-{info["market"].lower()}">{info["market"]}</span>'
-        vol_html = _vol_label(info["rank"])
+    # ── Sub-tabs: 台股 / 美股 ─────────────────────────────────────────────────
+    tw_cards_html, tw_modal = _build_stock_cards(tw_list, ticker_arts, "TW")
+    us_cards_html, us_modal = _build_stock_cards(us_list, ticker_arts, "US")
+    all_modal_data.update(tw_modal)
+    all_modal_data.update(us_modal)
 
-        art_items_html = ""
-        if arts:
-            art_items = []
-            for a in arts[:3]:
-                src_name = SOURCE_NAMES.get(a["source"] or "", a["source"] or "")
-                dt = str(a["published_at"])[:10] if a["published_at"] else "?"
-                title = html_lib.escape((a["title"] or "")[:55])
-                snippet = html_lib.escape((a["snippet"] or "")[:180])
-                art_items.append(
-                    f'<div class="art-item">'
-                    f'<div class="art-meta">📰 [{dt} {html_lib.escape(src_name)}] {title}</div>'
-                    f'<div class="art-snip">{snippet}…</div>'
-                    f'</div>'
-                )
-            art_items_html = (
-                f'<div id="arts-{ticker}" class="arts-panel hidden">'
-                f'{"".join(art_items)}</div>'
-            )
+    tw_count = tw_cards_html.count('class="stock-card"')
+    us_count = us_cards_html.count('class="stock-card"')
 
-        art_btn = ""
-        if arts:
-            art_btn = (
-                f'<button class="arts-btn" onclick="toggleArts(\'{ticker}\')">'
-                f'📰 {len(arts)} 篇相關</button>'
-            )
-        elif ticker not in covered_tickers:
-            art_btn = '<span class="no-art">暫無爬蟲資料</span>'
-
-        limit_badge = '<span class="limit-up-badge">漲停⬆</span>' if info.get("limit_up") else ""
-
-        if info["market"] == "US":
-            val_str = f"${info['trading_value']/1e9:.1f}B"
-        else:
-            val_str = f"{info['trading_value']/1e8:.0f}億"
-        board_badge = ""
-        if info["market"] == "TW":
-            board = info.get("board", "TWSE")
-            board_badge = f'<span class="board-sm {board.lower()}">{board}</span>'
-
-        stock_cards.append(f"""
-<div class="stock-card">
-  <div class="sc-head">
-    <span class="sc-ticker">{html_lib.escape(ticker)}</span>
-    {mkt_badge}{board_badge}{limit_badge}
-    <span class="sc-name">{html_lib.escape(info['name'][:12])}</span>
-  </div>
-  <div class="sc-meta">
-    <span class="sc-pct {pct_cls}">{pct_str}</span>
-    <span class="sc-val">{val_str}</span>
-    <span class="sc-rank">#{info['rank']}</span>
-    {vol_html}
-  </div>
-  {art_btn}
-  {art_items_html}
+    sections.append(f"""
+<div class="section-hdr">📊 焦點股（有爬蟲覆蓋）</div>
+<div class="sub-tabs">
+  <button class="sub-tab-btn active" data-stab="tw" onclick="showSubTab('tw')">台股 ({tw_count})</button>
+  <button class="sub-tab-btn" data-stab="us" onclick="showSubTab('us')">美股 ({us_count})</button>
+</div>
+<div id="stab-tw" class="sub-tab-pane active">
+  {('<div class="stock-grid">' + tw_cards_html + '</div>') if tw_cards_html else '<p class="muted-note">尚無符合條件的台股</p>'}
+</div>
+<div id="stab-us" class="sub-tab-pane">
+  {('<div class="stock-grid">' + us_cards_html + '</div>') if us_cards_html else '<p class="muted-note">尚無符合條件的美股</p>'}
 </div>""")
 
-    if stock_cards:
-        sections.append(
-            '<div class="section-hdr">📊 今日成交量股（台美前 30）</div>'
-            '<div class="stock-grid">' + ''.join(stock_cards) + '</div>'
-        )
-
-    return '\n'.join(sections) if sections else '<p style="color:var(--muted)">今日資料尚未更新</p>'
+    return '\n'.join(sections), all_modal_data
 
 
 # ── 股市筆記 tab ──────────────────────────────────────────────────────────────
@@ -312,7 +335,6 @@ def build_focus_html(us_ranks: list, tw_ranks: list,
 def build_notes_html(market_notes: dict | None, podcast_rows: list) -> str:
     parts = []
 
-    # Cross-source topics
     if market_notes and market_notes.get("topics"):
         topic_cards = []
         for topic in market_notes["topics"]:
@@ -325,9 +347,7 @@ def build_notes_html(market_notes: dict | None, podcast_rows: list) -> str:
             key_points = topic.get("key_points", [])
             kp_html = "".join(f'<li>{html_lib.escape(p)}</li>' for p in key_points[:5])
             tickers = topic.get("tickers", [])
-            tk_html = "".join(
-                f'<span class="tk-chip">{html_lib.escape(t)}</span>' for t in tickers
-            )
+            tk_html = "".join(f'<span class="tk-chip">{html_lib.escape(t)}</span>' for t in tickers)
             art_refs = "".join(
                 f'<div class="art-ref">📰 [{a.get("date","?")} {html_lib.escape(a.get("source",""))}] '
                 f'{html_lib.escape(a.get("title","")[:60])}</div>'
@@ -345,7 +365,6 @@ def build_notes_html(market_notes: dict | None, podcast_rows: list) -> str:
   {f'<div class="tk-row">{tk_html}</div>' if tk_html else ''}
   {f'<div class="topic-arts">{art_refs}</div>' if art_refs else ''}
 </div>""")
-
         parts.append(
             '<div class="section-hdr">🔀 跨來源共同議題（近7日）</div>'
             '<div class="topics-grid">' + ''.join(topic_cards) + '</div>'
@@ -356,10 +375,8 @@ def build_notes_html(market_notes: dict | None, podcast_rows: list) -> str:
             '<p class="muted-note">每日分析完成後更新（需 GOOGLE_API_KEY）</p>'
         )
 
-    # Podcast sections
     parts.append('<div class="section-hdr" style="margin-top:1.5rem">🎙 Podcast 筆記</div>')
 
-    # Group by source
     pods: dict[str, list] = collections.defaultdict(list)
     for row in podcast_rows:
         pods[row["source"]].append(row)
@@ -375,7 +392,7 @@ def build_notes_html(market_notes: dict | None, podcast_rows: list) -> str:
             ep_id = f"{safe_key}-{i}"
             dt = str(ep["published_at"])[:10] if ep["published_at"] else "?"
             title = html_lib.escape(ep["title"] or "（無標題）")
-            content = ep.get("refined_content") or (ep.get("content") or "")
+            content = ep.get("content") or ""
             content_html = podcast_content_to_html(content)
             ep_html_parts.append(f"""
 <div class="ep-block">
@@ -410,7 +427,6 @@ def build_notes_html(market_notes: dict | None, podcast_rows: list) -> str:
 async def generate():
     conn = await asyncpg.connect(os.environ["DATABASE_URL"])
 
-    # Latest report
     report = await conn.fetchrow(
         "SELECT report_date, raw_response, market_notes_json "
         "FROM analysis_reports ORDER BY report_date DESC LIMIT 1"
@@ -429,7 +445,7 @@ async def generate():
         name = json.loads(row["extra"] or "{}").get("name", row["symbol"])
         snaps[row["symbol"]] = {
             "name": name,
-            "close": float(row["close_price"] or 0),
+            "close": float(row["close_price"]) if row["close_price"] is not None else None,
             "chg": float(row["change_pct"]) if row["change_pct"] is not None else None,
         }
         snap_dates[row["symbol"]] = row["snapshot_date"]
@@ -459,13 +475,13 @@ async def generate():
             tw_rank_date,
         )]
 
-    # Article matching for focus stocks
+    # Article matching — fetch full content for relevant paragraph extraction
     all_tickers = [r["ticker"] for r in us_ranks + tw_ranks]
     ticker_arts: dict[str, list] = collections.defaultdict(list)
     if all_tickers:
         art_rows = await conn.fetch("""
             SELECT source, title, published_at, tickers,
-                   LEFT(COALESCE(refined_content, content), 300) AS snippet
+                   COALESCE(refined_content, content) AS full_content
             FROM articles
             WHERE tickers && $1::text[]
               AND published_at >= NOW() - INTERVAL '60 days'
@@ -478,13 +494,12 @@ async def generate():
                 if t in all_tickers:
                     ticker_arts[t].append(dict(row))
 
-    # Podcast notes (last 3 episodes per source)
+    # Podcast notes (last 3 episodes per source, full content)
     podcast_rows = []
     for src in PODCAST_SOURCES:
         rows = await conn.fetch(
             """SELECT source, title, published_at,
-                      LEFT(content, 200) as content,
-                      refined_content
+                      COALESCE(refined_content, LEFT(content, 5000)) as content
                FROM articles
                WHERE source=$1 AND status='active'
                ORDER BY published_at DESC NULLS LAST
@@ -502,34 +517,34 @@ async def generate():
         mn = report["market_notes_json"]
         market_notes = mn if isinstance(mn, dict) else json.loads(mn)
 
-    directions   = parse_directions(raw_report)
-    report_html  = md_to_html(raw_report)
-    updated_at   = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    focus_html   = build_focus_html(us_ranks, tw_ranks, ticker_arts, market_notes)
-    notes_html   = build_notes_html(market_notes, podcast_rows)
+    directions  = parse_directions(raw_report)
+    report_html = md_to_html(raw_report)
+    updated_at  = datetime.now(timezone.utc).strftime("%m/%d %H:%M UTC")
+    focus_html, modal_data = build_focus_html(us_ranks, tw_ranks, ticker_arts, market_notes)
+    notes_html  = build_notes_html(market_notes, podcast_rows)
 
     # ── Indicator helpers ─────────────────────────────────────────────────────
     def ind(sym):
         d = snaps.get(sym, {})
-        return d.get("close", 0), d.get("chg")
+        return d.get("close"), d.get("chg")
 
     INDICATORS = [
-        ("S&amp;P 500", "^GSPC", True),
-        ("NASDAQ",       "^IXIC", True),
-        ("SOX",          "^SOX",  True),
-        ("日經 N225",    "^N225", True),
-        ("台股 TWII",    "^TWII", True),
-        ("VIX",          "^VIX",  False),
-        ("10Y 殖利率",   "^TNX",  False),
-        ("DXY",          "DX-Y.NYB", True),
-        ("恐慌貪婪",     "FEAR_GREED", False),
+        ("S&amp;P 500", "^GSPC",    True),
+        ("NASDAQ",      "^IXIC",    True),
+        ("SOX",         "^SOX",     True),
+        ("日經 N225",   "^N225",    True),
+        ("台股 TWII",   "^TWII",    True),
+        ("VIX",         "^VIX",     False),
+        ("10Y 殖利率",  "^TNX",     False),
+        ("DXY",         "DX-Y.NYB", True),
+        ("恐慌貪婪",    "FEAR_GREED", False),
     ]
 
-    # Ticker tape content
+    # Ticker tape — duplicate content for seamless loop
     tape_items = []
     for label, sym, show_pct in INDICATORS:
         close, chg = ind(sym)
-        if not close:
+        if close is None:
             continue
         if sym in ("^VIX", "^TNX", "FEAR_GREED"):
             val = f"{close:.2f}"
@@ -545,6 +560,7 @@ async def generate():
             f'{"&nbsp;" + pct_html if pct_html else ""}</span>'
         )
     tape_content = '&ensp;·&ensp;'.join(tape_items)
+    # Duplicate for seamless loop; animation runs translateX(-50%)
     tape_html = f'<div class="tape-track">{tape_content}&ensp;&ensp;&ensp;&ensp;{tape_content}</div>'
 
     # Market indicator cards
@@ -552,9 +568,9 @@ async def generate():
     for label, sym, show_pct in INDICATORS:
         close, chg = ind(sym)
         if sym in ("^VIX", "^TNX", "FEAR_GREED"):
-            val = f"{close:.2f}" if close else "N/A"
+            val = f"{close:.2f}" if close is not None else "—"
         else:
-            val = f"{close:,.0f}" if close else "N/A"
+            val = f"{close:,.0f}" if close is not None else "—"
         pct_html = ""
         if show_pct:
             pct_text, css = fmt_pct(chg)
@@ -566,11 +582,17 @@ async def generate():
           {pct_html}
         </div>""")
 
-    # Direction badge values
+    # Direction badge
     dir_short = directions["short"]
     dir_mid   = directions["mid"]
     dir_short_cls = "dir-bull" if dir_short == "偏多" else ("dir-bear" if dir_short == "偏空" else "dir-neu")
     dir_mid_cls   = "dir-bull" if dir_mid   == "偏多" else ("dir-bear" if dir_mid   == "偏空" else "dir-neu")
+
+    # Modal data JS (escaped JSON string values)
+    modal_js_entries = ",\n".join(
+        f'  {json.dumps(k)}: {json.dumps(v)}'
+        for k, v in modal_data.items()
+    )
 
     # ── Page HTML ─────────────────────────────────────────────────────────────
     page = f"""<!DOCTYPE html>
@@ -592,33 +614,35 @@ body{{background:var(--bg);color:var(--text);
 a{{color:var(--accent)}}
 button{{cursor:pointer;border:none;outline:none}}
 
-/* ── Ticker tape ── */
+/* ── Ticker tape (seamless) ── */
 .tape{{position:sticky;top:0;z-index:200;
        background:var(--card);border-bottom:1px solid var(--border);
        height:30px;overflow:hidden;display:flex;align-items:center;
        white-space:nowrap}}
-.tape-track{{display:inline-block;animation:tape-scroll 90s linear infinite;
-             padding-left:50%;will-change:transform}}
+.tape-track{{display:inline-block;
+             animation:tape-scroll 90s linear infinite;
+             will-change:transform}}
 .tape-item{{display:inline-block;padding:0 .5rem;font-size:.8rem;color:var(--muted)}}
 .tape-item b{{color:var(--text)}}
 .tape-up{{color:var(--up)}} .tape-down{{color:var(--down)}}
 @keyframes tape-scroll{{0%{{transform:translateX(0)}}100%{{transform:translateX(-50%)}}}}
 
-/* ── Direction badge (fixed) ── */
+/* ── Direction badge (fixed top-right) ── */
 .dir-badge{{position:fixed;top:6px;right:10px;z-index:300;
             background:rgba(26,29,38,.92);border:1px solid var(--border);
-            border-radius:8px;padding:.3rem .65rem;
-            display:flex;gap:.65rem;align-items:center;
+            border-radius:8px;padding:.28rem .6rem;
+            display:flex;gap:.5rem;align-items:center;
             font-size:.72rem;backdrop-filter:blur(4px)}}
 .dir-label{{color:var(--muted)}}
 .dir-val{{font-weight:700;font-size:.78rem}}
 .dir-bull{{color:var(--up)}} .dir-bear{{color:var(--down)}} .dir-neu{{color:var(--muted)}}
+.dir-sep{{color:var(--border);margin:0 .1rem}}
+.dir-date{{color:var(--muted);font-size:.68rem}}
 
 /* ── Header ── */
 header{{background:var(--card);border-bottom:1px solid var(--border);
-        padding:1rem 1.5rem}}
-header h1{{font-size:1.25rem;font-weight:700;color:var(--accent)}}
-header p{{color:var(--muted);font-size:.82rem;margin-top:.15rem}}
+        padding:.55rem 1.5rem}}
+header h1{{font-size:1rem;font-weight:700;color:var(--accent)}}
 
 /* ── Tabs ── */
 .wrap{{max-width:1120px;margin:0 auto;padding:1.25rem 1.1rem}}
@@ -631,15 +655,25 @@ header p{{color:var(--muted);font-size:.82rem;margin-top:.15rem}}
 .tab-pane{{display:none}}
 .tab-pane.active{{display:block}}
 
+/* ── Sub-tabs (焦點股) ── */
+.sub-tabs{{display:flex;gap:.35rem;margin-bottom:.9rem}}
+.sub-tab-btn{{background:var(--card);color:var(--muted);
+              padding:.32rem .8rem;border-radius:6px;
+              font-size:.82rem;font-weight:500;
+              border:1px solid var(--border);transition:.15s}}
+.sub-tab-btn.active{{background:var(--accent);color:#fff;border-color:var(--accent)}}
+.sub-tab-pane{{display:none}}
+.sub-tab-pane.active{{display:block}}
+
 /* ── Card ── */
 .card{{background:var(--card);border:1px solid var(--border);border-radius:12px;
        padding:1.2rem 1.35rem;margin-bottom:1.1rem}}
-.sec{{font-size:.7rem;font-weight:700;color:var(--accent);letter-spacing:.1em;
-      text-transform:uppercase;margin-bottom:.85rem}}
-.section-hdr{{font-size:.75rem;font-weight:700;color:var(--accent);letter-spacing:.08em;
-              text-transform:uppercase;margin:1rem 0 .65rem}}
+.sec{{font-size:1rem;font-weight:700;color:var(--accent);letter-spacing:.04em;
+      margin-bottom:.85rem}}
+.section-hdr{{font-size:.88rem;font-weight:700;color:var(--accent);letter-spacing:.04em;
+              margin:1rem 0 .65rem}}
 
-/* ── Market grid (tab 1) ── */
+/* ── Market grid ── */
 .grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(115px,1fr));gap:.6rem}}
 .market-item{{background:#12151f;border-radius:8px;padding:.6rem .7rem}}
 .market-item .label{{font-size:.68rem;color:var(--muted)}}
@@ -674,7 +708,7 @@ tr:last-child td{{border-bottom:none}}
 .twse{{background:#1a2a3a;color:#6c8ef5}}
 .tpex{{background:#1a2e24;color:#26a69a}}
 
-/* ── Focus stocks (tab 2) ── */
+/* ── Focus stocks ── */
 .focus-themes{{display:flex;flex-direction:column;gap:.85rem;margin-bottom:1rem}}
 .focus-theme{{background:#12151f;border-radius:10px;padding:1rem 1.1rem;
               border-left:3px solid var(--accent)}}
@@ -695,10 +729,13 @@ tr:last-child td{{border-bottom:none}}
                    font-size:.78rem;font-weight:700;padding:.18rem .45rem;border-radius:5px;
                    color:var(--accent)}}
 .theme-arts{{margin-top:.4rem}}
+.art-ref{{color:var(--muted);font-size:.75rem;margin:.2rem 0}}
 
-/* ── Stock grid ── */
-.stock-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:.7rem}}
-.stock-card{{background:#12151f;border-radius:9px;padding:.8rem .9rem}}
+/* ── Stock grid (clickable cards) ── */
+.stock-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:.7rem}}
+.stock-card{{background:#12151f;border-radius:9px;padding:.8rem .9rem;
+             cursor:pointer;transition:.15s;border:1px solid transparent}}
+.stock-card:hover{{border-color:var(--accent);background:#14182a}}
 .sc-head{{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;margin-bottom:.35rem}}
 .sc-ticker{{font-size:.9rem;font-weight:800}}
 .mkt-badge{{font-size:.55rem;font-weight:700;padding:.1rem .3rem;border-radius:3px}}
@@ -715,20 +752,29 @@ tr:last-child td{{border-bottom:none}}
 .vol-mid{{background:#1e2235;color:var(--muted)}}
 .limit-up-badge{{font-size:.62rem;font-weight:700;padding:.1rem .3rem;
                  border-radius:3px;background:#2a1a3a;color:#cf6ef5}}
-.arts-btn{{display:block;width:100%;margin-top:.5rem;background:#1e2235;
-           color:var(--muted);font-size:.75rem;padding:.3rem .5rem;
-           border-radius:5px;text-align:left;transition:.15s}}
-.arts-btn:hover{{background:#252a3d;color:var(--text)}}
-.no-art{{display:block;font-size:.72rem;color:var(--muted);margin-top:.4rem}}
-.arts-panel{{margin-top:.5rem}}
-.arts-panel.hidden{{display:none}}
-.art-item{{background:#0f1117;border-radius:6px;padding:.5rem .65rem;
-           margin-bottom:.4rem;font-size:.78rem}}
-.art-meta{{font-weight:600;color:#a0b8d0;margin-bottom:.25rem}}
-.art-snip{{color:var(--muted);line-height:1.5}}
+.sc-arts-hint{{font-size:.72rem;color:var(--muted);margin-top:.4rem}}
+
+/* ── Article modal ── */
+dialog#art-modal{{background:var(--card);border:1px solid var(--border);
+                  border-radius:14px;color:var(--text);padding:0;
+                  width:min(680px,96vw);max-height:80vh;overflow:hidden;
+                  display:flex;flex-direction:column}}
+dialog#art-modal::backdrop{{background:rgba(0,0,0,.65)}}
+.modal-hdr{{display:flex;align-items:center;gap:.6rem;
+            padding:.85rem 1.1rem;border-bottom:1px solid var(--border);
+            flex-shrink:0}}
+.modal-hdr-title{{font-size:.95rem;font-weight:700;flex:1}}
+.modal-close{{background:transparent;color:var(--muted);font-size:1.1rem;
+              padding:.2rem .4rem;border-radius:5px;line-height:1}}
+.modal-close:hover{{background:#1e2235;color:var(--text)}}
+.modal-body{{overflow-y:auto;padding:.9rem 1.1rem;flex:1}}
+.modal-art{{background:#12151f;border-radius:8px;padding:.75rem .9rem;margin-bottom:.7rem}}
+.modal-art-meta{{font-size:.72rem;color:var(--muted);margin-bottom:.25rem}}
+.modal-art-title{{font-size:.85rem;font-weight:600;color:#c8d8ea;margin-bottom:.35rem}}
+.modal-snip{{font-size:.82rem;color:#b0bfcf;white-space:pre-wrap;line-height:1.65}}
 
 /* ── Cross-source topics (tab 3) ── */
-.topics-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
+.topics-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));
               gap:.85rem;margin-bottom:1.25rem}}
 .topic-card{{background:#12151f;border-radius:10px;padding:1rem 1.1rem;
              border-left:3px solid var(--up)}}
@@ -742,9 +788,8 @@ tr:last-child td{{border-bottom:none}}
 .tk-chip{{font-size:.75rem;font-weight:600;padding:.15rem .4rem;
           background:#1e2235;border-radius:4px}}
 .topic-arts{{margin-top:.4rem;font-size:.75rem}}
-.art-ref{{color:var(--muted);margin:.2rem 0;line-height:1.4}}
 
-/* ── Podcast notes (tab 3) ── */
+/* ── Podcast notes ── */
 .pod-source{{background:var(--card);border:1px solid var(--border);
              border-radius:10px;margin-bottom:.75rem}}
 .pod-src-hdr{{padding:.75rem 1rem;cursor:pointer;display:flex;
@@ -762,10 +807,8 @@ tr:last-child td{{border-bottom:none}}
 .ep-arrow{{font-size:.7rem;color:var(--muted);width:.9rem;transition:.2s}}
 .ep-title{{font-size:.85rem;font-weight:600;flex:1}}
 .ep-date{{font-size:.72rem;color:var(--muted);white-space:nowrap}}
-.ep-body{{margin:.5rem 0 .5rem .9rem;
-          font-size:.82rem;color:#b0bfcf;line-height:1.7}}
+.ep-body{{margin:.5rem 0 .5rem .9rem;font-size:.82rem;color:#b0bfcf;line-height:1.7}}
 .ep-body.hidden{{display:none}}
-.pod-content{{white-space:pre-wrap;font-size:.8rem;color:#b0bfcf;line-height:1.7}}
 .pod-raw{{white-space:pre-wrap;font-family:inherit;font-size:.8rem;
           color:#b0bfcf;line-height:1.75;overflow-wrap:break-word;margin:0}}
 .muted-note{{color:var(--muted);font-size:.85rem;padding:.5rem 0}}
@@ -780,25 +823,25 @@ footer{{text-align:center;color:var(--muted);font-size:.75rem;
 <!-- Ticker tape -->
 <div class="tape">{tape_html}</div>
 
-<!-- Direction badge (fixed) -->
+<!-- Direction badge (fixed top-right) -->
 <div class="dir-badge">
   <span class="dir-label">短期</span>
   <span class="dir-val {dir_short_cls}">{dir_short}</span>
   <span class="dir-label" style="margin-left:.2rem">中期</span>
   <span class="dir-val {dir_mid_cls}">{dir_mid}</span>
+  <span class="dir-sep">|</span>
+  <span class="dir-date">{report_date} · {updated_at}</span>
 </div>
 
 <header>
   <h1>IIA 投資情報</h1>
-  <p>報告日期：{report_date}　·　資料更新：{updated_at}</p>
 </header>
 
 <div class="wrap">
-  <!-- Tab navigation -->
   <nav class="tabs">
-    <button class="tab-btn active" data-tab="market"   onclick="showTab('market')">市場行情</button>
-    <button class="tab-btn"        data-tab="focus"    onclick="showTab('focus')">焦點股</button>
-    <button class="tab-btn"        data-tab="notes"    onclick="showTab('notes')">股市筆記</button>
+    <button class="tab-btn active" data-tab="market" onclick="showTab('market')">市場行情</button>
+    <button class="tab-btn"        data-tab="focus"  onclick="showTab('focus')">焦點股</button>
+    <button class="tab-btn"        data-tab="notes"  onclick="showTab('notes')">股市筆記</button>
   </nav>
 
   <!-- Tab 1: 市場行情 -->
@@ -844,9 +887,22 @@ footer{{text-align:center;color:var(--muted);font-size:.75rem;
   </div>
 </div>
 
+<!-- Article modal -->
+<dialog id="art-modal">
+  <div class="modal-hdr">
+    <span class="modal-hdr-title" id="modal-title"></span>
+    <button class="modal-close" onclick="document.getElementById('art-modal').close()">✕</button>
+  </div>
+  <div class="modal-body" id="modal-body"></div>
+</dialog>
+
 <footer>IIA Investment Intelligence Analyst &nbsp;·&nbsp; 資料僅供參考，不構成投資建議</footer>
 
 <script>
+const artModalData = {{
+{modal_js_entries}
+}};
+
 function showTab(name) {{
   document.querySelectorAll('.tab-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.tab === name));
@@ -854,9 +910,18 @@ function showTab(name) {{
     p.classList.toggle('active', p.id === 'tab-' + name));
 }}
 
-function toggleArts(id) {{
-  const el = document.getElementById('arts-' + id);
-  if (el) el.classList.toggle('hidden');
+function showSubTab(name) {{
+  document.querySelectorAll('.sub-tab-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.stab === name));
+  document.querySelectorAll('.sub-tab-pane').forEach(p =>
+    p.classList.toggle('active', p.id === 'stab-' + name));
+}}
+
+function showArtModal(ticker, name) {{
+  const modal = document.getElementById('art-modal');
+  document.getElementById('modal-title').textContent = ticker + ' ' + name + ' — 相關文章';
+  document.getElementById('modal-body').innerHTML = artModalData[ticker] || '<p style="color:#7a8ba0">無相關文章資料</p>';
+  modal.showModal();
 }}
 
 function toggleEl(id) {{
@@ -866,6 +931,11 @@ function toggleEl(id) {{
   const arrow = document.getElementById('arrow-' + id);
   if (arrow) arrow.textContent = nowHidden ? '▶' : '▼';
 }}
+
+// Close modal on backdrop click
+document.getElementById('art-modal').addEventListener('click', function(e) {{
+  if (e.target === this) this.close();
+}});
 </script>
 </body>
 </html>"""
