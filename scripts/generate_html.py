@@ -529,19 +529,20 @@ async def generate():
                     deduped.append(art)
             ticker_arts[ticker] = deduped
 
-    # Podcast notes (last 3 episodes per source)
-    # Use refined_content if available (structured notes), else short raw preview
+    # Podcast notes — only episodes with valid Gemini-structured content (has real tags)
+    # Filters out: NONE episodes (content_tags={}), Ollama garbage (no tags), raw fallback
     podcast_rows = []
     for src in PODCAST_SOURCES:
         rows = await conn.fetch(
-            """SELECT source, title, published_at, content, has_refined
+            """SELECT source, title, published_at, refined_content AS content, true AS has_refined
                FROM (
                  SELECT DISTINCT ON (title)
-                        source, title, published_at,
-                        COALESCE(refined_content, LEFT(content, 900)) as content,
-                        (refined_content IS NOT NULL) as has_refined
+                        source, title, published_at, refined_content
                  FROM articles
                  WHERE source=$1 AND status='active'
+                   AND refined_content IS NOT NULL
+                   AND content_tags IS NOT NULL
+                   AND content_tags != '{}'
                  ORDER BY title, published_at DESC NULLS LAST
                ) deduped
                ORDER BY published_at DESC NULLS LAST
