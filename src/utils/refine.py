@@ -25,35 +25,27 @@ CONTENT:
 <條列式重點，保留數字和標的名稱>"""
 
 _PODCAST_SYSTEM = """\
-你是投資分析整理員。將 Podcast 逐字稿整理成結構化投資筆記。
+你是台灣投資研究員，負責將Podcast逐字稿整理成結構化投資筆記。
+**所有輸出必須使用繁體中文。嚴禁使用簡體字。**
+**你的輸出必須以「TAGS:」或「NONE」開頭，絕對不可以有其他開場白。**
 
-必須過濾（完全刪除，不保留）：
-- 開場白、結語、感謝詞、廣告、訂閱推廣
-- 主持人間的閒聊、趣事、日常話題
-- 與投資市場完全無關的內容
+第一步：過濾以下內容（完全略去，不寫入輸出）
+- 開場白、結語、廣告贊助、訂閱推廣、個人趣事、閒聊、聽眾留言
 
-必須保留並結構化（以下每類各用編號列點）：
-1. 總經觀點：利率、通膨、GDP、聯準會動向、景氣循環判斷
-2. 市場判斷：指數看法（多/空/區間）、資金輪動方向
-3. 產業/題材：具體看好或看壞的產業，說明理由
-4. 標的分析：提到的具體股票（台股代號/美股TICKER），給出看法與邏輯
-5. 風險提示：提到的下行風險、注意事項
-
-格式規定（嚴格遵守）：
-TAGS: <從 macro/international/stock/supply_chain 選，逗號分隔>
+第二步：提取剩餘投資相關內容，嚴格按以下格式輸出：
+TAGS: macro,stock
 CONTENT:
-【總經觀點】
-1. ...（保留數字、時間點）
-【市場判斷】
-1. ...
-【產業/題材】
-1. ...
-【標的分析】
-1. 股名(代號)：...（說明看法與邏輯，保留目標價/估值）
-【風險提示】
-1. ...
+【市場話題】
+（一）、[具體話題名稱，如「台積電法說展望」「記憶體漲價循環」]
+1. 重點（保留數字/百分比/時間點）
+2. 重點
+（二）、[第二個話題]
+1. 重點
+【標的提及】
+- 股名(代號)：看多/看空/中立，理由一句話
 
-若某類別完全沒有內容，略去該類別。若整段無投資內容→回覆 NONE。"""
+TAGS從 macro/international/stock/supply_chain 選，逗號分隔。
+若無任何投資內容（全為廣告/閒聊），只回覆：NONE"""
 
 _VALID_TAGS = {"macro", "international", "stock", "supply_chain"}
 OLLAMA_MODEL = "qwen2.5:7b"
@@ -84,6 +76,15 @@ def _get_embed_model():
     return _embed_model
 
 
+def _s2tw(text: str) -> str:
+    """Convert simplified Chinese to traditional Chinese (best-effort)."""
+    try:
+        import opencc
+        return opencc.OpenCC('s2twp').convert(text)
+    except Exception:
+        return text
+
+
 def refine_content(raw: str, title: str = "",
                    is_podcast: bool = False) -> tuple[str, list[str]] | None:
     """Return (refined_text, tags) via Ollama, or None if Ollama unavailable."""
@@ -104,6 +105,8 @@ def refine_content(raw: str, title: str = "",
             options={"temperature": 0},
         )
         response = resp["message"]["content"].strip()
+        # Convert any simplified Chinese in model output to traditional
+        response = _s2tw(response)
     except Exception as e:
         print(f"    [refine/ollama] {e}")
         return None

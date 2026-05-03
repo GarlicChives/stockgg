@@ -22,12 +22,13 @@ load_dotenv()
 
 # Symbols: (yfinance_symbol, market, display_name)
 TRACKED = [
-    ("^GSPC",  "US", "S&P 500"),
-    ("^IXIC",  "US", "NASDAQ"),
-    ("^SOX",   "US", "Philadelphia SOX"),
-    ("^DJI",   "US", "Dow Jones"),
-    ("^TWII",  "TW", "加權指數"),
-    ("^N225",  "JP", "日經 225"),
+    ("^GSPC",    "US",        "S&P 500"),
+    ("^IXIC",    "US",        "NASDAQ"),
+    ("^SOX",     "US",        "Philadelphia SOX"),
+    ("^DJI",     "US",        "Dow Jones"),
+    ("^TWII",    "TW",        "加權指數"),
+    ("1308.T",   "JP",        "東證 TOPIX"),    # Amova TOPIX ETF tracks TOPIX 1:1
+    ("^KS11",    "KR",        "韓股 KOSPI"),
     ("^VIX",     "INDICATOR", "VIX"),
     ("^TNX",     "INDICATOR", "10Y 殖利率"),
     ("DX-Y.NYB", "INDICATOR", "美元指數"),

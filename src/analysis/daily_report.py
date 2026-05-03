@@ -148,7 +148,8 @@ def _build_prompt(market: dict, articles: str) -> str:
     sp500_c,  sp500_p  = get("^GSPC")
     nasdaq_c, nasdaq_p = get("^IXIC")
     sox_c,    sox_p    = get("^SOX")
-    nikkei_c, nikkei_p = get("^N225")
+    topix_c,  topix_p  = get("1308.T")
+    kospi_c,  kospi_p  = get("^KS11")
     taiex_c,  taiex_p  = get("^TWII")
     vix_c,    _        = get("^VIX")
     yield10_c, _       = get("^TNX")
@@ -170,7 +171,7 @@ def _build_prompt(market: dict, articles: str) -> str:
 
 === 市場數據 {market.get('snap_date','')} ===
 美股 S&P500={sp500_c:.0f}({_fmt_pct(sp500_p)}) NASDAQ={nasdaq_c:.0f}({_fmt_pct(nasdaq_p)}) SOX={sox_c:.0f}({_fmt_pct(sox_p)})
-日股 N225={nikkei_c:.0f}({_fmt_pct(nikkei_p)}) 台股 TWII={taiex_c:.0f}({_fmt_pct(taiex_p)})
+日股東證TOPIX={topix_c:.0f}({_fmt_pct(topix_p)}) 韓股KOSPI={kospi_c:.0f}({_fmt_pct(kospi_p)}) 台股 TWII={taiex_c:.0f}({_fmt_pct(taiex_p)})
 VIX={vix_c:.1f} 10Y={yield10_c:.2f}% DXY={dxy_c:.2f}({_fmt_pct(dxy_p)}) 恐慌貪婪={fg_c:.0f}
 
 === 成交值排行 {market.get('rank_date','')} ===
@@ -195,29 +196,6 @@ TW前30:
 - 長期(3-12月)：[偏多/中立/偏空] — 理由
 - 關鍵風險：
 
-## 今日焦點股分析
-（依成交值排行分析市場正在反應的「具體題材」，2-4個題材）
-題材命名規則（必須遵守）：
-- 必須具體，說明「漲什麼/跌什麼/為什麼」，例如：記憶體漲價、EMIB封裝、AI伺服器散熱需求、CoWoS先進封裝、玻璃基板滲透、被動元件庫存回補、ABF載板報價回升
-- 禁止用寬泛標籤：半導體、AI、科技股、電子股（這些不是題材，是產業）
-
-### 題材一：[具體題材名稱]（信心度：高/中/低）
-- 核心標的：
-- 市場在反應：（說明具體的驅動事件或數據）
-- 供應鏈機會：
-
-### 題材二（如有）：
-### 題材三（如有）：
-
-## 動能股彙整
-（整合台美股排行與近期文章，最多4組，每組3-6個標的）
-### [題材名稱]（信心：高/中/低）
-產業：[大產業]
-- [細產業一]：TICKER1(US), TICKER2(US), 1234(TW)
-- [細產業二]：5678(TW), TICKER3(US)
-
-## 明日觀察重點
-（2-3個具體事件或指標）
 """
 
 
