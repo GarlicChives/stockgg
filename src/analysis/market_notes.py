@@ -20,7 +20,7 @@ GEMINI_BASE  = "https://generativelanguage.googleapis.com/v1beta/models"
 
 LOOKBACK_DAYS = 7
 MAX_ARTICLES  = 40
-BODY_CHARS    = 600
+BODY_CHARS    = 800
 
 SOURCE_NAMES = {
     "macromicro":          "財經M平方",
@@ -109,7 +109,7 @@ async def generate_market_notes(conn, report_date: date, api_key: str) -> dict:
                   LEFT(COALESCE(refined_content, content), {BODY_CHARS}) AS body
            FROM articles
            WHERE published_at >= $1 AND status='active'
-             AND content IS NOT NULL
+             AND COALESCE(LENGTH(refined_content), LENGTH(content), 0) > 100
            ORDER BY published_at DESC
            LIMIT {MAX_ARTICLES}""",
         cutoff,
@@ -155,9 +155,10 @@ async def generate_market_notes(conn, report_date: date, api_key: str) -> dict:
                 notes = {"topics": []}
 
     await conn.execute(
-        """UPDATE analysis_reports
-           SET market_notes_json = $2
-           WHERE report_date = $1""",
+        """INSERT INTO analysis_reports (report_date, market_notes_json)
+           VALUES ($1, $2::jsonb)
+           ON CONFLICT (report_date) DO UPDATE
+           SET market_notes_json = EXCLUDED.market_notes_json""",
         report_date,
         json.dumps(notes),
     )

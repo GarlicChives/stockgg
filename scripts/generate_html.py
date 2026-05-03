@@ -501,18 +501,22 @@ async def generate():
             LIMIT 400
         """, all_tickers)
 
-        # Assign article to ticker only if ticker is a PRIMARY subject of the article:
-        # (a) ticker appears in article title, OR (b) ticker is in the first 3 tickers extracted
+        # Assign article to ticker only if the ticker is a PRIMARY subject:
+        # (a) ticker appears in article title, OR (b) ticker is the first extracted ticker.
+        # Secondary cross-mentions (e.g. VRT article mentioning NOK as a customer) are excluded.
         for row in art_rows:
             art_tickers = row["tickers"] or []
             title_upper = (row.get("title") or "").upper()
-            seen_in_this_article: set[str] = set()
+            first_ticker_assigned = False
             for i, t in enumerate(art_tickers):
-                if t not in all_tickers_set or t in seen_in_this_article:
+                if t not in all_tickers_set:
                     continue
-                seen_in_this_article.add(t)
-                if i < 3 or t in title_upper:
+                in_title = t in title_upper
+                is_primary = (i == 0 and not first_ticker_assigned)
+                if in_title or is_primary:
                     ticker_arts[t].append(dict(row))
+                    if is_primary:
+                        first_ticker_assigned = True
 
         # Deduplicate by article id per ticker
         for ticker in ticker_arts:

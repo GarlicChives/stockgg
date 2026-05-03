@@ -1,19 +1,18 @@
 """Content refinement + embedding pipeline.
 
-Refinement: Ollama (local Qwen2.5:7b) — free, no API key, runs on M1.
-Embedding:  sentence-transformers (local) — for pgvector similarity search.
-
-If Ollama is not running, refined_content stays NULL (embedding still generated).
-Run `ollama serve` before using refinement.
+Refinement priority (podcast): Gemini 2.5 Flash (GOOGLE_API_KEY) → Ollama qwen2.5:7b fallback
+Refinement priority (articles): Ollama qwen2.5:7b → Gemini fallback if Ollama down
+Embedding: sentence-transformers (local) — for pgvector similarity search.
 """
+import json
 import os
 import re
+import urllib.request
 from typing import Optional
 from urllib.request import urlopen
 
 _embed_model = None
 
-# Concise prompt keeps inference fast on local hardware
 _REFINE_SYSTEM = """\
 你是投資篩選器。從內容截取投資相關段落，過濾閒聊廣告個人軼事。
 投資相關：總經(利率/通膨/GDP/聯準會)、國際股市、個股動向、供應鏈產業。
@@ -25,32 +24,41 @@ CONTENT:
 <條列式重點，保留數字和標的名稱>"""
 
 _PODCAST_SYSTEM = """\
-你是台灣投資研究員，負責將Podcast逐字稿整理成結構化投資筆記。
-**所有輸出必須使用繁體中文。嚴禁使用簡體字。**
-**你的輸出必須以「TAGS:」或「NONE」開頭，絕對不可以有其他開場白。**
+你是台灣資深投資研究員，專門整理財經Podcast逐字稿為結構化投資筆記。
 
-第一步：過濾以下內容（完全略去，不寫入輸出）
-- 開場白、結語、廣告贊助、訂閱推廣、個人趣事、閒聊、聽眾留言
+【過濾規則】完全略去以下內容，不得出現在輸出中：
+- 廣告贊助、訂閱推廣、活動宣傳
+- 開場白、結語、感謝詞
+- 主持人個人趣事、閒聊、生活分享
+- 聽眾留言回覆、來信互動
 
-第二步：提取剩餘投資相關內容，嚴格按以下格式輸出：
+【提取規則】只保留以下投資相關內容：
+- 總經觀點（聯準會、利率、通膨、GDP、景氣循環）
+- 國際股市分析（指數漲跌、資金流向、風險情緒）
+- 個股/產業分析（法說會、財報、題材、價格目標）
+- 供應鏈產業趨勢（記憶體、半導體、AI、被動元件等）
+
+【輸出格式】嚴格按以下格式輸出，不得有其他開場白：
 TAGS: macro,stock
 CONTENT:
 【市場話題】
-（一）、[具體話題名稱，如「台積電法說展望」「記憶體漲價循環」]
-1. 重點（保留數字/百分比/時間點）
-2. 重點
-（二）、[第二個話題]
+（一）、具體話題名稱（如「台積電CoWoS擴產」「記憶體HBM供不應求」）
+1. 具體重點，保留數字/百分比/時間點
+2. 具體重點
+（二）、第二個話題（若有）
 1. 重點
 【標的提及】
-- 股名(代號)：看多/看空/中立，理由一句話
+- 公司名(代號)：看多/看空/中立，一句話理由
 
-TAGS從 macro/international/stock/supply_chain 選，逗號分隔。
-若無任何投資內容（全為廣告/閒聊），只回覆：NONE"""
+TAGS 從 macro/international/stock/supply_chain 選，逗號分隔。
+若整集內容完全無投資分析（純廣告/閒聊/問答），只輸出：NONE"""
 
 _VALID_TAGS = {"macro", "international", "stock", "supply_chain"}
 OLLAMA_MODEL = "qwen2.5:7b"
-CONTENT_TRUNCATE = 4000      # chars for regular articles
-PODCAST_TRUNCATE = 12000     # chars for podcast transcripts (longer)
+GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_BASE  = "https://generativelanguage.googleapis.com/v1beta/models"
+CONTENT_TRUNCATE = 4000
+PODCAST_TRUNCATE = 16000     # Gemini handles longer context well
 
 
 def _ollama_running() -> bool:
@@ -85,13 +93,62 @@ def _s2tw(text: str) -> str:
         return text
 
 
-def refine_content(raw: str, title: str = "",
+def _parse_refine_response(response: str) -> tuple[str, list[str]]:
+    """Extract (refined_text, tags) from TAGS:/CONTENT: formatted response."""
+    if not response or response.upper().startswith("NONE"):
+        return "", []
+    tags: list[str] = []
+    refined = response
+    tag_match = re.match(r"TAGS:\s*(.+)", response, re.IGNORECASE)
+    if tag_match:
+        raw_tags = [t.strip().lower() for t in tag_match.group(1).split(",")]
+        tags = [t for t in raw_tags if t in _VALID_TAGS]
+        content_match = re.search(r"CONTENT:\s*\n(.*)", response, re.IGNORECASE | re.DOTALL)
+        refined = content_match.group(1).strip() if content_match else response
+    return refined, tags
+
+
+def _gemini_refine(api_key: str, title: str, raw: str,
                    is_podcast: bool = False) -> tuple[str, list[str]] | None:
-    """Return (refined_text, tags) via Ollama, or None if Ollama unavailable."""
-    if not _ollama_running():
+    """Refine via Gemini 2.5 Flash. Returns (refined, tags) or None on error."""
+    system_prompt = _PODCAST_SYSTEM if is_podcast else _REFINE_SYSTEM
+    truncate = PODCAST_TRUNCATE if is_podcast else CONTENT_TRUNCATE
+    full_prompt = f"{system_prompt}\n\n標題：{title}\n\n{raw[:truncate]}"
+
+    url = f"{GEMINI_BASE}/{GEMINI_MODEL}:generateContent?key={api_key}"
+    payload = json.dumps({
+        "contents": [{"parts": [{"text": full_prompt}]}],
+        "generationConfig": {
+            "temperature": 0,
+            "maxOutputTokens": 3000,
+        },
+    }).encode()
+    req = urllib.request.Request(
+        url, data=payload, headers={"Content-Type": "application/json"}
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=120) as r:
+            data = json.loads(r.read())
+        parts = data["candidates"][0]["content"]["parts"]
+        response = "".join(
+            p["text"] for p in parts if "text" in p and not p.get("thought", False)
+        ).strip()
+        if not response:
+            response = "".join(p.get("text", "") for p in parts).strip()
+    except Exception as e:
+        print(f"    [refine/gemini] {e}")
         return None
 
-    import ollama  # imported here to avoid error when package missing
+    return _parse_refine_response(response)
+
+
+def _refine_ollama(raw: str, title: str,
+                   is_podcast: bool = False) -> tuple[str, list[str]] | None:
+    """Refine via local Ollama. Returns None on error or unavailable."""
+    try:
+        import ollama
+    except ImportError:
+        return None
     system_prompt = _PODCAST_SYSTEM if is_podcast else _REFINE_SYSTEM
     truncate = PODCAST_TRUNCATE if is_podcast else CONTENT_TRUNCATE
     text_input = f"標題：{title}\n\n{raw[:truncate]}"
@@ -104,27 +161,36 @@ def refine_content(raw: str, title: str = "",
             ],
             options={"temperature": 0},
         )
-        response = resp["message"]["content"].strip()
-        # Convert any simplified Chinese in model output to traditional
-        response = _s2tw(response)
+        response = _s2tw(resp["message"]["content"].strip())
     except Exception as e:
         print(f"    [refine/ollama] {e}")
         return None
+    return _parse_refine_response(response)
 
-    if response.upper().startswith("NONE") or not response:
-        return "", []
 
-    tags: list[str] = []
-    refined = response
+def refine_content(raw: str, title: str = "",
+                   is_podcast: bool = False) -> tuple[str, list[str]] | None:
+    """Return (refined_text, tags) or None if no backend available.
 
-    tag_match = re.match(r"TAGS:\s*(.+)", response, re.IGNORECASE)
-    if tag_match:
-        raw_tags = [t.strip().lower() for t in tag_match.group(1).split(",")]
-        tags = [t for t in raw_tags if t in _VALID_TAGS]
-        content_match = re.search(r"CONTENT:\s*\n(.*)", response, re.IGNORECASE | re.DOTALL)
-        refined = content_match.group(1).strip() if content_match else response
+    Podcast: Gemini (GOOGLE_API_KEY) preferred → Ollama fallback
+    Article: Ollama preferred (local, fast) → Gemini fallback
+    """
+    api_key = os.environ.get("GOOGLE_API_KEY")
 
-    return refined, tags
+    if is_podcast:
+        if api_key:
+            result = _gemini_refine(api_key, title, raw, is_podcast=True)
+            if result is not None:
+                return result
+        if _ollama_running():
+            return _refine_ollama(raw, title, is_podcast=True)
+        return None
+    else:
+        if _ollama_running():
+            return _refine_ollama(raw, title, is_podcast=False)
+        if api_key:
+            return _gemini_refine(api_key, title, raw, is_podcast=False)
+        return None
 
 
 def embed_text(text: str) -> Optional[list[float]]:
