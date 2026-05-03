@@ -54,6 +54,7 @@ class WatchStock:
     code_or_ticker: str   # maps to theme_dict.tw_stocks.code / us_stocks.ticker
     name: str
     market: str           # "TW" | "US"
+    change_pct: float | None = None   # most recent available trading day change%
 
 
 @dataclass
@@ -65,6 +66,8 @@ class ThemeCluster:
     total_score: float
     primary_art_count: int   # sum of primary keyword hits across focal stocks
     volume_only: bool = False  # True when surfaced via volume-rotation pathway (no keyword confirm)
+    upstream: list[str] = field(default_factory=list)    # upstream theme/material names
+    downstream: list[str] = field(default_factory=list)  # downstream application names
 
 
 # ── Dictionary loader (swap body for DB migration) ────────────────────────────
@@ -202,6 +205,7 @@ def detect_clusters(
         total_score = sum(s.score for s in focal_stocks)
         primary_art_count = sum(s.primary_keyword_hits for s in focal_stocks)
 
+        sc = theme.get("supply_chain", {})
         clusters.append(ThemeCluster(
             theme_id=theme["id"],
             name=theme["name"],
@@ -210,6 +214,8 @@ def detect_clusters(
             total_score=total_score,
             primary_art_count=primary_art_count,
             volume_only=volume_only,
+            upstream=sc.get("upstream", []),
+            downstream=sc.get("downstream", []),
         ))
 
     return sorted(
