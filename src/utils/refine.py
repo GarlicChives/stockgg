@@ -95,7 +95,12 @@ def _s2tw(text: str) -> str:
 
 def _parse_refine_response(response: str) -> tuple[str, list[str]]:
     """Extract (refined_text, tags) from TAGS:/CONTENT: formatted response."""
-    if not response or response.upper().startswith("NONE"):
+    if not response:
+        return "", []
+    stripped_upper = response.strip().upper()
+    # NONE variants: bare NONE, or TAGS: NONE (model forgot the format)
+    if stripped_upper == "NONE" or stripped_upper.startswith("NONE\n") or \
+            re.match(r"TAGS:\s*NONE", response, re.IGNORECASE):
         return "", []
     tags: list[str] = []
     refined = response
@@ -120,7 +125,8 @@ def _gemini_refine(api_key: str, title: str, raw: str,
         "contents": [{"parts": [{"text": full_prompt}]}],
         "generationConfig": {
             "temperature": 0,
-            "maxOutputTokens": 3000,
+            "maxOutputTokens": 8000,
+            "thinkingConfig": {"thinkingBudget": 0},
         },
     }).encode()
     req = urllib.request.Request(
@@ -172,18 +178,15 @@ def refine_content(raw: str, title: str = "",
                    is_podcast: bool = False) -> tuple[str, list[str]] | None:
     """Return (refined_text, tags) or None if no backend available.
 
-    Podcast: Gemini (GOOGLE_API_KEY) preferred → Ollama fallback
+    Podcast: Gemini only (qwen2.5:7b cannot follow the structured format reliably)
     Article: Ollama preferred (local, fast) → Gemini fallback
     """
     api_key = os.environ.get("GOOGLE_API_KEY")
 
     if is_podcast:
         if api_key:
-            result = _gemini_refine(api_key, title, raw, is_podcast=True)
-            if result is not None:
-                return result
-        if _ollama_running():
-            return _refine_ollama(raw, title, is_podcast=True)
+            return _gemini_refine(api_key, title, raw, is_podcast=True)
+        # No Ollama fallback for podcasts — format adherence is critical
         return None
     else:
         if _ollama_running():
