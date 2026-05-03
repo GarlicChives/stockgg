@@ -27,6 +27,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from src.analysis.focus_themes import detect_clusters, ThemeCluster
+
 OUT_FILE = Path(__file__).resolve().parents[1] / "docs" / "index.html"
 
 SOURCE_NAMES = {
@@ -259,8 +261,86 @@ def _build_stock_cards(ticker_list: list[tuple[str, dict]],
     return ''.join(cards), modal_data
 
 
+def _cluster_section_html(clusters: list[ThemeCluster], stocks: dict) -> str:
+    """Render theme cluster cards above the stock grid."""
+    if not clusters:
+        return ""
+    cards = []
+    for c in clusters:
+        strength_cls = "strength-high" if c.primary_art_count >= 2 or len(c.focal) >= 2 else "strength-mid"
+        strength_lbl = "強勢" if strength_cls == "strength-high" else "觀察"
+
+        # Focal stock pills
+        focal_pills = []
+        for s in c.focal:
+            pct_str = f"{'+' if (s.change_pct or 0) >= 0 else ''}{s.change_pct:.1f}%" if s.change_pct is not None else "—"
+            pct_cls = "up" if (s.change_pct or 0) >= 0 else "down"
+            mkt_cls = "mkt-tw" if s.market == "TW" else "mkt-us"
+            focal_pills.append(
+                f'<div class="focal-pill" onclick="showArtModal({json.dumps(s.ticker)},{json.dumps(s.name[:12])})">'
+                f'<span class="fp-ticker">{html_lib.escape(s.ticker)}</span>'
+                f'<span class="mkt-badge {mkt_cls}">{s.market}</span>'
+                f'<span class="fp-name">{html_lib.escape(s.name[:8])}</span>'
+                f'<span class="fp-pct {pct_cls}">{pct_str}</span>'
+                f'<span class="fp-rank">#{s.rank}</span>'
+                f'</div>'
+            )
+
+        # Watch stock chips
+        watch_chips = []
+        for w in c.watch:
+            chip_cls = "watch-chip tw" if w.market == "TW" else "watch-chip us"
+            label = f"{w.name}({w.code_or_ticker})" if w.market == "TW" else f"{w.code_or_ticker} {w.name}"
+            watch_chips.append(f'<span class="{chip_cls}">{html_lib.escape(label)}</span>')
+
+        # Recent article refs (7-day primary only in the cluster card)
+        from datetime import date, timedelta
+        cutoff7 = date.today() - timedelta(days=7)
+        art_refs = []
+        seen_ids: set = set()
+        for s in c.focal:
+            for art in s.articles:
+                aid = art.get("id")
+                if aid in seen_ids:
+                    continue
+                seen_ids.add(aid)
+                pub = art.get("published_at")
+                if pub is None:
+                    continue
+                art_date = pub.date() if hasattr(pub, "date") else pub
+                if art_date < cutoff7:
+                    continue
+                dt = str(art_date)
+                src = html_lib.escape(SOURCE_NAMES.get(art.get("source") or "", art.get("source") or ""))
+                title = html_lib.escape((art.get("title") or "")[:45])
+                art_refs.append(f'<div class="art-ref">📰 [{dt} {src}] {title}</div>')
+                if len(art_refs) >= 4:
+                    break
+            if len(art_refs) >= 4:
+                break
+
+        cards.append(f"""
+<div class="cluster-card">
+  <div class="cluster-hdr">
+    <span class="cluster-name">🔷 {html_lib.escape(c.name)}</span>
+    <span class="cluster-strength {strength_cls}">{strength_lbl}</span>
+    <span class="cluster-meta">{len(c.focal)} 檔焦點 · {c.primary_art_count} 篇近7日文章</span>
+  </div>
+  <div class="cluster-section-label">今日焦點（在前30）</div>
+  <div class="cluster-focal-stocks">{''.join(focal_pills)}</div>
+  {'<div class="cluster-section-label">前哨觀察（同族群，未在前30）</div><div class="cluster-watch-stocks">' + "".join(watch_chips) + "</div>" if watch_chips else ""}
+  {'<div class="cluster-arts">' + "".join(art_refs) + "</div>" if art_refs else ""}
+</div>""")
+
+    return (
+        '<div class="section-hdr">🎯 題材族群分析</div>'
+        '<div class="focus-clusters">' + ''.join(cards) + '</div>'
+    )
+
+
 def build_focus_html(us_ranks: list, tw_ranks: list,
-                     ticker_arts: dict) -> tuple[str, dict]:
+                     ticker_arts: dict,
+                     clusters: list | None = None) -> tuple[str, dict]:
     """Build the 焦點股 tab content. Returns (html, modal_data)."""
     stocks: dict[str, dict] = {}
     for r in us_ranks:
@@ -292,6 +372,12 @@ def build_focus_html(us_ranks: list, tw_ranks: list,
 
     all_modal_data: dict[str, str] = {}
     sections: list[str] = []
+
+    # ── Theme clusters ────────────────────────────────────────────────────────
+    if clusters:
+        cluster_html = _cluster_section_html(clusters, stocks)
+        if cluster_html:
+            sections.append(cluster_html)
 
     # ── Sub-tabs: 台股 / 美股 ─────────────────────────────────────────────────
     tw_cards_html, tw_modal = _build_stock_cards(tw_list, ticker_arts, "TW")
@@ -542,7 +628,31 @@ async def generate():
     directions  = parse_directions(raw_report)
     report_html = md_to_html(raw_report)
     updated_at  = datetime.now(timezone.utc).strftime("%m/%d %H:%M UTC")
-    focus_html, modal_data = build_focus_html(us_ranks, tw_ranks, ticker_arts)
+    # Build stocks_info for theme detection (mirrors ranking data already fetched)
+    stocks_info: dict[str, dict] = {}
+    for r in us_ranks:
+        stocks_info[r["ticker"]] = {
+            "name": r["name"] or r["ticker"],
+            "market": "US",
+            "change_pct": float(r["change_pct"]) if r["change_pct"] is not None else None,
+            "trading_value": float(r["trading_value"] or 0),
+            "rank": r["rank"],
+            "limit_up": False,
+        }
+    for r in tw_ranks:
+        extra = json.loads(r.get("extra") or "{}") if isinstance(r.get("extra"), str) else (r.get("extra") or {})
+        stocks_info[r["ticker"]] = {
+            "name": r["name"] or r["ticker"],
+            "market": "TW",
+            "board": extra.get("board", "TWSE"),
+            "change_pct": float(r["change_pct"]) if r["change_pct"] is not None else None,
+            "trading_value": float(r["trading_value"] or 0),
+            "rank": r["rank"],
+            "limit_up": bool(r.get("is_limit_up_30m")),
+        }
+    clusters = detect_clusters(stocks_info, ticker_arts)
+
+    focus_html, modal_data = build_focus_html(us_ranks, tw_ranks, ticker_arts, clusters)
     notes_html  = build_notes_html(market_notes, podcast_rows)
 
     # ── Indicator helpers ─────────────────────────────────────────────────────
@@ -710,6 +820,33 @@ tr:last-child td{{border-bottom:none}}
                    color:var(--accent)}}
 .theme-arts{{margin-top:.4rem}}
 .art-ref{{color:var(--muted);font-size:.75rem;margin:.2rem 0}}
+
+/* ── Theme clusters ── */
+.focus-clusters{{display:flex;flex-direction:column;gap:.85rem;margin-bottom:1.5rem}}
+.cluster-card{{background:#12151f;border-radius:10px;padding:1rem 1.1rem;
+               border-left:3px solid var(--accent)}}
+.cluster-hdr{{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;margin-bottom:.7rem}}
+.cluster-name{{font-size:.95rem;font-weight:700}}
+.cluster-strength{{font-size:.65rem;font-weight:700;padding:.15rem .4rem;border-radius:4px}}
+.strength-high{{background:#1a3a2a;color:#4caf82}}
+.strength-mid{{background:#1e2235;color:var(--muted)}}
+.cluster-meta{{font-size:.72rem;color:var(--muted);margin-left:auto}}
+.cluster-section-label{{font-size:.68rem;color:var(--muted);font-weight:600;
+                         text-transform:uppercase;letter-spacing:.04em;margin:.55rem 0 .3rem}}
+.cluster-focal-stocks{{display:flex;flex-wrap:wrap;gap:.45rem;margin-bottom:.4rem}}
+.focal-pill{{display:flex;align-items:center;gap:.3rem;
+             background:var(--card);border:1px solid var(--border);border-radius:8px;
+             padding:.35rem .65rem;cursor:pointer;transition:.15s}}
+.focal-pill:hover{{border-color:var(--accent)}}
+.fp-ticker{{font-weight:800;font-size:.85rem}}
+.fp-name{{font-size:.75rem;color:var(--muted)}}
+.fp-pct{{font-weight:700;font-size:.82rem}}
+.fp-rank{{color:var(--muted);font-size:.7rem}}
+.cluster-watch-stocks{{display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.4rem}}
+.watch-chip{{font-size:.78rem;padding:.15rem .45rem;border-radius:5px;font-weight:600}}
+.watch-chip.tw{{background:#12201a;border:1px solid #1a3a2a;color:#4caf82}}
+.watch-chip.us{{background:#121520;border:1px solid #1a2a3a;color:#6c8ef5}}
+.cluster-arts{{margin-top:.3rem}}
 
 /* ── Stock grid (clickable cards) ── */
 .stock-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:.7rem}}
