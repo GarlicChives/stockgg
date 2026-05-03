@@ -1,0 +1,70 @@
+Articles needing refinement: 383
+Processing 383 articles…
+
+Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]Loading weights: 100%|██████████| 199/199 [00:00<00:00, 5393.85it/s]
+  10/383 done (0 skipped)
+  20/383 done (0 skipped)
+  30/383 done (0 skipped)
+  40/383 done (0 skipped)
+  50/383 done (0 skipped)
+  60/383 done (0 skipped)
+  70/383 done (0 skipped)
+  80/383 done (0 skipped)
+  90/383 done (0 skipped)
+  100/383 done (0 skipped)
+  110/383 done (0 skipped)
+  120/383 done (0 skipped)
+  130/383 done (0 skipped)
+  140/383 done (0 skipped)
+  150/383 done (0 skipped)
+  160/383 done (0 skipped)
+  170/383 done (0 skipped)
+  180/383 done (0 skipped)
+  190/383 done (0 skipped)
+  200/383 done (0 skipped)
+  210/383 done (0 skipped)
+  220/383 done (0 skipped)
+  230/383 done (0 skipped)
+  240/383 done (0 skipped)
+  250/383 done (0 skipped)
+  260/383 done (0 skipped)
+  270/383 done (0 skipped)
+Traceback (most recent call last):
+  File "/Users/edward.song/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/asyncio/selector_events.py", line 988, in _read_ready__get_buffer
+    nbytes = self._sock.recv_into(buf)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+ConnectionResetError: [Errno 54] Connection reset by peer
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/edward.song/Desktop/Stock/scripts/backfill_refined.py", line 81, in <module>
+    asyncio.run(main(limit=limit, source=source))
+  File "/Users/edward.song/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/Users/edward.song/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/edward.song/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/Users/edward.song/Desktop/Stock/scripts/backfill_refined.py", line 57, in main
+    updated = await refine_and_store(conn, row["id"], title, content)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/edward.song/Desktop/Stock/src/utils/refine.py", line 119, in refine_and_store
+    await conn.execute(
+  File "/Users/edward.song/Desktop/Stock/.venv/lib/python3.12/site-packages/asyncpg/connection.py", line 357, in execute
+    _, status, _ = await self._execute(
+                   ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/edward.song/Desktop/Stock/.venv/lib/python3.12/site-packages/asyncpg/connection.py", line 1873, in _execute
+    result, _ = await self.__execute(
+                ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/edward.song/Desktop/Stock/.venv/lib/python3.12/site-packages/asyncpg/connection.py", line 1970, in __execute
+    result, stmt = await self._do_execute(
+                   ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/edward.song/Desktop/Stock/.venv/lib/python3.12/site-packages/asyncpg/connection.py", line 2033, in _do_execute
+    result = await executor(stmt, None)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "asyncpg/protocol/protocol.pyx", line 205, in bind_execute
+asyncpg.exceptions.ConnectionDoesNotExistError: connection was closed in the middle of operation

@@ -79,7 +79,8 @@ def parse_directions(text: str) -> dict:
 
 
 def md_to_html(text: str) -> str:
-    text = re.sub(r'## 動能股彙整.*?(?=\n## |\Z)', '', text, flags=re.DOTALL)
+    for section in ("動能股彙整", "今日焦點股分析", "明日觀察重點"):
+        text = re.sub(rf'## {section}.*?(?=\n## |\Z)', '', text, flags=re.DOTALL)
     text = strip_preamble(text)
     text = html_lib.escape(text)
     text = re.sub(r'^### (.+)$', r'<h3>\1</h3>', text, flags=re.MULTILINE)
@@ -486,33 +487,59 @@ async def generate():
 
     # Article matching — fetch full content for relevant paragraph extraction
     all_tickers = [r["ticker"] for r in us_ranks + tw_ranks]
+    all_tickers_set = set(all_tickers)
     ticker_arts: dict[str, list] = collections.defaultdict(list)
     if all_tickers:
         art_rows = await conn.fetch("""
-            SELECT source, title, published_at, tickers,
+            SELECT id, source, title, published_at, tickers,
                    COALESCE(refined_content, content) AS full_content
             FROM articles
             WHERE tickers && $1::text[]
               AND published_at >= NOW() - INTERVAL '60 days'
               AND status = 'active'
             ORDER BY published_at DESC
-            LIMIT 300
+            LIMIT 400
         """, all_tickers)
+
+        # Assign article to ticker only if ticker is a PRIMARY subject of the article:
+        # (a) ticker appears in article title, OR (b) ticker is in the first 3 tickers extracted
         for row in art_rows:
-            for t in (row["tickers"] or []):
-                if t in all_tickers:
+            art_tickers = row["tickers"] or []
+            title_upper = (row.get("title") or "").upper()
+            seen_in_this_article: set[str] = set()
+            for i, t in enumerate(art_tickers):
+                if t not in all_tickers_set or t in seen_in_this_article:
+                    continue
+                seen_in_this_article.add(t)
+                if i < 3 or t in title_upper:
                     ticker_arts[t].append(dict(row))
+
+        # Deduplicate by article id per ticker
+        for ticker in ticker_arts:
+            seen_ids: set = set()
+            deduped = []
+            for art in ticker_arts[ticker]:
+                aid = art.get("id")
+                if aid not in seen_ids:
+                    seen_ids.add(aid)
+                    deduped.append(art)
+            ticker_arts[ticker] = deduped
 
     # Podcast notes (last 3 episodes per source)
     # Use refined_content if available (structured notes), else short raw preview
     podcast_rows = []
     for src in PODCAST_SOURCES:
         rows = await conn.fetch(
-            """SELECT source, title, published_at,
-                      COALESCE(refined_content, LEFT(content, 900)) as content,
-                      (refined_content IS NOT NULL) as has_refined
-               FROM articles
-               WHERE source=$1 AND status='active'
+            """SELECT source, title, published_at, content, has_refined
+               FROM (
+                 SELECT DISTINCT ON (title)
+                        source, title, published_at,
+                        COALESCE(refined_content, LEFT(content, 900)) as content,
+                        (refined_content IS NOT NULL) as has_refined
+                 FROM articles
+                 WHERE source=$1 AND status='active'
+                 ORDER BY title, published_at DESC NULLS LAST
+               ) deduped
                ORDER BY published_at DESC NULLS LAST
                LIMIT 3""",
             src,
@@ -543,7 +570,8 @@ async def generate():
         ("S&amp;P 500", "^GSPC",    True),
         ("NASDAQ",      "^IXIC",    True),
         ("SOX",         "^SOX",     True),
-        ("日經 N225",   "^N225",    True),
+        ("東證 TOPIX",  "1308.T",   True),
+        ("韓股 KOSPI",  "^KS11",    True),
         ("台股 TWII",   "^TWII",    True),
         ("VIX",         "^VIX",     False),
         ("10Y 殖利率",  "^TNX",     False),
@@ -573,12 +601,6 @@ async def generate():
     tape_content = '&ensp;·&ensp;'.join(tape_items)
     # Duplicate for seamless loop; animation runs translateX(-50%)
     tape_html = f'<div class="tape-track">{tape_content}&ensp;&ensp;&ensp;&ensp;{tape_content}</div>'
-
-    # Direction badge
-    dir_short = directions["short"]
-    dir_mid   = directions["mid"]
-    dir_short_cls = "dir-bull" if dir_short == "偏多" else ("dir-bear" if dir_short == "偏空" else "dir-neu")
-    dir_mid_cls   = "dir-bull" if dir_mid   == "偏多" else ("dir-bear" if dir_mid   == "偏空" else "dir-neu")
 
     # Modal data JS (escaped JSON string values)
     modal_js_entries = ",\n".join(
@@ -619,17 +641,6 @@ button{{cursor:pointer;border:none;outline:none}}
 .tape-up{{color:var(--up)}} .tape-down{{color:var(--down)}}
 @keyframes tape-scroll{{0%{{transform:translateX(0)}}100%{{transform:translateX(-50%)}}}}
 
-/* ── Direction badge (fixed top-right) ── */
-.dir-badge{{position:fixed;top:6px;right:10px;z-index:300;
-            background:rgba(26,29,38,.92);border:1px solid var(--border);
-            border-radius:8px;padding:.28rem .6rem;
-            display:flex;gap:.5rem;align-items:center;
-            font-size:.72rem;backdrop-filter:blur(4px)}}
-.dir-label{{color:var(--muted)}}
-.dir-val{{font-weight:700;font-size:.78rem}}
-.dir-bull{{color:var(--up)}} .dir-bear{{color:var(--down)}} .dir-neu{{color:var(--muted)}}
-.dir-sep{{color:var(--border);margin:0 .1rem}}
-.dir-date{{color:var(--muted);font-size:.68rem}}
 
 /* ── Header ── */
 header{{background:var(--card);border-bottom:1px solid var(--border);
@@ -739,10 +750,12 @@ tr:last-child td{{border-bottom:none}}
                  border-radius:3px;background:#2a1a3a;color:#cf6ef5}}
 .sc-arts-hint{{font-size:.72rem;color:var(--muted);margin-top:.4rem}}
 
-/* ── Article modal ── */
+/* ── Article modal (centered) ── */
 dialog#art-modal{{background:var(--card);border:1px solid var(--border);
                   border-radius:14px;color:var(--text);padding:0;
-                  width:min(680px,96vw);max-height:80vh;overflow:hidden}}
+                  width:min(680px,96vw);max-height:80vh;overflow:hidden;
+                  position:fixed;top:50%;left:50%;
+                  transform:translate(-50%,-50%);margin:0}}
 dialog#art-modal[open]{{display:flex;flex-direction:column}}
 dialog#art-modal::backdrop{{background:rgba(0,0,0,.65)}}
 .modal-hdr{{display:flex;align-items:center;gap:.6rem;
@@ -811,16 +824,6 @@ footer{{text-align:center;color:var(--muted);font-size:.75rem;
 
 <!-- Ticker tape -->
 <div class="tape">{tape_html}</div>
-
-<!-- Direction badge (fixed top-right) -->
-<div class="dir-badge">
-  <span class="dir-label">短期</span>
-  <span class="dir-val {dir_short_cls}">{dir_short}</span>
-  <span class="dir-label" style="margin-left:.2rem">中期</span>
-  <span class="dir-val {dir_mid_cls}">{dir_mid}</span>
-  <span class="dir-sep">|</span>
-  <span class="dir-date">{report_date} · {updated_at}</span>
-</div>
 
 <header>
   <h1>IIA 投資情報</h1>
