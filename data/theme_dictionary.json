@@ -1,50 +1,64 @@
 {
   "meta": {
     "version": "1",
-    "generated_at": "2026-05-03T15:39:35Z",
-    "last_checked": "2026-05-03T15:39:35Z",
+    "generated_at": "2026-05-03T16:17:15Z",
+    "last_checked": "2026-05-03T16:17:15Z",
     "model": "gemini-2.5-flash",
-    "source_articles": 200,
-    "source_podcasts": 31
+    "source_articles": 262,
+    "source_podcasts": 30
   },
   "themes": [
     {
-      "id": "hbm_memory",
-      "name": "HBM記憶體",
-      "keyword": "HBM",
+      "id": "abf_substrate",
+      "name": "ABF載板",
+      "keyword": "ABF",
+      "supply_chain": {
+        "upstream": [
+          "玻纖布",
+          "銅箔",
+          "樹脂",
+          "Ajinomoto膜"
+        ],
+        "downstream": [
+          "AI伺服器",
+          "CoWoS先進封裝",
+          "GPU",
+          "CPU"
+        ]
+      },
       "tw_stocks": [
         {
-          "code": "2408",
-          "name": "南亞科"
+          "code": "3037",
+          "name": "欣興"
         },
         {
-          "code": "3006",
-          "name": "晶豪科"
+          "code": "8046",
+          "name": "南電"
         },
         {
-          "code": "3260",
-          "name": "威剛"
-        },
-        {
-          "code": "8299",
-          "name": "群聯"
+          "code": "3189",
+          "name": "景碩"
         }
       ],
-      "us_stocks": [
-        {
-          "ticker": "MU",
-          "name": "Micron"
-        },
-        {
-          "ticker": "SKHY",
-          "name": "SK Hynix"
-        }
-      ]
+      "us_stocks": []
     },
     {
       "id": "cowos_advanced_packaging",
       "name": "CoWoS先進封裝",
       "keyword": "CoWoS",
+      "supply_chain": {
+        "upstream": [
+          "ABF",
+          "HBM",
+          "矽中介層",
+          "封裝材料"
+        ],
+        "downstream": [
+          "AI加速器晶片",
+          "GPU",
+          "ASIC"
+        ]
+      },
       "tw_stocks": [
         {
           "code": "2330",
@@ -59,53 +73,46 @@
           "name": "力成"
         },
         {
-          "code": "3034",
-          "name": "聯詠"
+          "code": "6953",
+          "name": "家碩"
         },
         {
-          "code": "3035",
-          "name": "智原"
+          "code": "3583",
+          "name": "辛耘"
         },
         {
-          "code": "3532",
-          "name": "台勝科"
-        },
-        {
-          "code": "6510",
-          "name": "精測"
-        },
-        {
-          "code": "6664",
-          "name": "群翊"
-        },
-        {
-          "code": "8027",
-          "name": "鈦昇"
-        },
-        {
-          "code": "2464",
-          "name": "盟立"
-        },
-        {
-          "code": "4760",
-          "name": "勤凱"
+          "code": "6196",
+          "name": "帆宣"
         }
       ],
       "us_stocks": [
         {
-          "ticker": "TSM",
-          "name": "TSMC"
+          "ticker": "NVDA",
+          "name": "Nvidia"
         },
         {
-          "ticker": "INTC",
-          "name": "Intel"
+          "ticker": "AMD",
+          "name": "AMD"
         }
       ]
     },
     {
-      "id": "copos_advanced_packaging",
-      "name": "CoPoS先進封裝",
-      "keyword": "CoPoS",
+      "id": "hbm_memory",
+      "name": "HBM記憶體",
+      "keyword": "HBM",
+      "supply_chain": {
+        "upstream": [
+          "DRAM",
+          "矽中介層",
+          "TSV技術"
+        ],
+        "downstream": [
+          "CoWoS先進封裝",
+          "AI加速器晶片",
+          "GPU",
+          "AI伺服器"
+        ]
+      },
       "tw_stocks": [
         {
           "code": "2330",
@@ -118,97 +125,20 @@
         {
           "code": "6239",
           "name": "力成"
-        },
-        {
-          "code": "3034",
-          "name": "聯詠"
-        },
-        {
-          "code": "3035",
-          "name": "智原"
-        },
-        {
-          "code": "3532",
-          "name": "台勝科"
-        },
-        {
-          "code": "6510",
-          "name": "精測"
-        },
-        {
-          "code": "6664",
-          "name": "群翊"
-        },
-        {
-          "code": "8027",
-          "name": "鈦昇"
-        },
-        {
-          "code": "2464",
-          "name": "盟立"
-        },
-        {
-          "code": "4760",
-          "name": "勤凱"
         }
       ],
       "us_stocks": [
         {
-          "ticker": "TSM",
-          "name": "TSMC"
+          "ticker": "MU",
+          "name": "美光"
         },
         {
-          "ticker": "INTC",
-          "name": "Intel"
-        }
-      ]
-    },
-    {
-      "id": "optical_communication_module_800g",
-      "name": "光通訊模組800G",
-      "keyword": "800G光收發模組",
-      "tw_stocks": [
-        {
-          "code": "4991",
-          "name": "環宇-KY"
+          "ticker": "SKHY",
+          "name": "SK海力士"
         },
         {
-          "code": "3363",
-          "name": "律勝"
-        },
-        {
-          "code": "3380",
-          "name": "明泰"
-        },
-        {
-          "code": "3450",
-          "name": "聯鈞"
-        },
-        {
-          "code": "4979",
-          "name": "華星光"
-        },
-        {
-          "code": "6451",
-          "name": "訊芯-KY"
-        }
-      ],
-      "us_stocks": [
-        {
-          "ticker": "LITE",
-          "name": "Lumentum"
-        },
-        {
-          "ticker": "MRVL",
-          "name": "Marvell"
-        },
-        {
-          "ticker": "CIEN",
-          "name": "Ciena"
-        },
-        {
-          "ticker": "COHR",
-          "name": "Coherent"
+          "ticker": "SSNLF",
+          "name": "三星電子"
         }
       ]
     },
@@ -216,6 +146,18 @@
       "id": "mlcc",
       "name": "MLCC",
       "keyword": "MLCC",
+      "supply_chain": {
+        "upstream": [
+          "陶瓷粉末",
+          "電極材料"
+        ],
+        "downstream": [
+          "AI伺服器",
+          "電動車",
+          "ADAS系統",
+          "消費性電子"
+        ]
+      },
       "tw_stocks": [
         {
           "code": "2327",
@@ -228,18 +170,71 @@
         {
           "code": "3026",
           "name": "禾伸堂"
-        },
-        {
-          "code": "6173",
-          "name": "信昌電"
         }
       ],
       "us_stocks": []
     },
     {
+      "id": "800g_optical_communication",
+      "name": "光通訊800G",
+      "keyword": "800G",
+      "supply_chain": {
+        "upstream": [
+          "雷射二極體",
+          "光電探測器",
+          "InP基板",
+          "光通訊模組"
+        ],
+        "downstream": [
+          "AI資料中心",
+          "高速網路",
+          "CPO共封裝光學"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "4991",
+          "name": "環宇-KY"
+        },
+        {
+          "code": "3363",
+          "name": "華星光"
+        },
+        {
+          "code": "3450",
+          "name": "聯鈞"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "LITE",
+          "name": "Lumentum"
+        },
+        {
+          "ticker": "COHR",
+          "name": "Coherent"
+        },
+        {
+          "ticker": "MRVL",
+          "name": "Marvell"
+        }
+      ]
+    },
+    {
       "id": "quartz_crystal",
       "name": "石英晶體",
       "keyword": "石英晶體",
+      "supply_chain": {
+        "upstream": [
+          "石英材料",
+          "切割研磨設備"
+        ],
+        "downstream": [
+          "電子產品",
+          "通訊設備",
+          "感測器"
+        ]
+      },
       "tw_stocks": [
         {
           "code": "3042",
@@ -248,10 +243,6 @@
         {
           "code": "3221",
           "name": "台嘉碩"
-        },
-        {
-          "code": "3229",
-          "name": "晟鈦"
         }
       ],
       "us_stocks": []
@@ -259,27 +250,43 @@
     {
       "id": "pcb_drill_bit",
       "name": "PCB鑽針",
-      "keyword": "鑽針",
+      "keyword": "PCB鑽針",
+      "supply_chain": {
+        "upstream": [
+          "碳化鎢",
+          "鑽石塗層"
+        ],
+        "downstream": [
+          "PCB製造",
+          "HDI板"
+        ]
+      },
       "tw_stocks": [
         {
-          "code": "6108",
-          "name": "競國"
-        },
-        {
-          "code": "6269",
-          "name": "台郡"
-        },
-        {
-          "code": "6271",
-          "name": "同欣電"
+          "code": "6121",
+          "name": "新普"
         }
       ],
       "us_stocks": []
     },
     {
-      "id": "liquid_cooling_dissipation",
+      "id": "liquid_cooling_thermal_management",
       "name": "液冷散熱",
       "keyword": "液冷散熱",
+      "supply_chain": {
+        "upstream": [
+          "冷卻液",
+          "CDU冷卻分配單元",
+          "水冷板",
+          "泵浦"
+        ],
+        "downstream": [
+          "AI伺服器",
+          "資料中心",
+          "GPU",
+          "ASIC"
+        ]
+      },
       "tw_stocks": [
         {
           "code": "3017",
@@ -306,9 +313,22 @@
       ]
     },
     {
-      "id": "air_cooling_dissipation",
+      "id": "air_cooling_thermal_management",
       "name": "氣冷散熱",
       "keyword": "氣冷散熱",
+      "supply_chain": {
+        "upstream": [
+          "均熱板",
+          "熱管",
+          "散熱鰭片",
+          "風扇"
+        ],
+        "downstream": [
+          "伺服器",
+          "PC/NB",
+          "消費性電子"
+        ]
+      },
       "tw_stocks": [
         {
           "code": "3017",
@@ -326,267 +346,1281 @@
       "us_stocks": []
     },
     {
-      "id": "tsmc_etf_holding_limit",
-      "name": "台積電條款（ETF持股上限）",
-      "keyword": "25%條款",
+      "id": "cleanroom",
+      "name": "無塵室",
+      "keyword": "無塵室",
+      "supply_chain": {
+        "upstream": [
+          "HVAC系統",
+          "過濾器",
+          "潔淨設備",
+          "建材"
+        ],
+        "downstream": [
+          "晶圓廠",
+          "封裝廠",
+          "面板廠",
+          "生技廠"
+        ]
+      },
       "tw_stocks": [
         {
-          "code": "2330",
-          "name": "台積電"
-        }
-      ],
-      "us_stocks": [
-        {
-          "ticker": "TSM",
-          "name": "TSMC"
-        }
-      ]
-    },
-    {
-      "id": "abf_substrate",
-      "name": "ABF載板",
-      "keyword": "ABF",
-      "tw_stocks": [
-        {
-          "code": "3037",
-          "name": "欣興"
+          "code": "2404",
+          "name": "漢唐"
         },
         {
-          "code": "8046",
-          "name": "南電"
+          "code": "6196",
+          "name": "帆宣"
         },
         {
-          "code": "3189",
-          "name": "景碩"
+          "code": "3016",
+          "name": "嘉晶"
         }
       ],
       "us_stocks": []
     },
     {
-      "id": "server_vr_power",
-      "name": "伺服器VR電源",
-      "keyword": "伺服器VR電源",
+      "id": "plant_engineering",
+      "name": "廠務工程",
+      "keyword": "廠務工程",
+      "supply_chain": {
+        "upstream": [
+          "機電系統",
+          "管線工程",
+          "監控系統",
+          "自動化設備"
+        ],
+        "downstream": [
+          "晶圓廠",
+          "封裝廠",
+          "面板廠",
+          "生技廠"
+        ]
+      },
       "tw_stocks": [
         {
-          "code": "2308",
-          "name": "台達電"
+          "code": "2404",
+          "name": "漢唐"
         },
         {
-          "code": "6138",
-          "name": "茂達"
+          "code": "6196",
+          "name": "帆宣"
         },
         {
-          "code": "6202",
-          "name": "盛群"
-        }
-      ],
-      "us_stocks": [
-        {
-          "ticker": "VICR",
-          "name": "Vicor"
-        },
-        {
-          "ticker": "TXN",
-          "name": "Texas Instruments"
-        }
-      ]
-    },
-    {
-      "id": "automotive_sic",
-      "name": "車用SiC",
-      "keyword": "車用SiC",
-      "tw_stocks": [
-        {
-          "code": "2454",
-          "name": "聯發科"
-        },
-        {
-          "code": "3014",
-          "name": "聯陽"
-        },
-        {
-          "code": "3372",
-          "name": "典範"
+          "code": "3016",
+          "name": "嘉晶"
         }
       ],
       "us_stocks": []
     },
     {
-      "id": "ai_inference_asic",
-      "name": "AI推論ASIC",
-      "keyword": "AI推論ASIC",
+      "id": "inp_substrate",
+      "name": "InP基板",
+      "keyword": "InP",
+      "supply_chain": {
+        "upstream": [
+          "磷化銦材料",
+          "晶體生長設備"
+        ],
+        "downstream": [
+          "光通訊雷射元件",
+          "光電探測器",
+          "磊晶片"
+        ]
+      },
       "tw_stocks": [
         {
-          "code": "2454",
-          "name": "聯發科"
-        },
-        {
-          "code": "3661",
-          "name": "世芯-KY"
-        },
-        {
-          "code": "6533",
-          "name": "晶心科"
-        },
-        {
-          "code": "3035",
-          "name": "智原"
+          "code": "4991",
+          "name": "環宇-KY"
         }
       ],
       "us_stocks": [
         {
-          "ticker": "QCOM",
-          "name": "Qualcomm"
+          "ticker": "AXTI",
+          "name": "AXT"
+        }
+      ]
+    },
+    {
+      "id": "epitaxial_wafer",
+      "name": "磊晶片",
+      "keyword": "磊晶片",
+      "supply_chain": {
+        "upstream": [
+          "矽晶圓",
+          "磊晶設備",
+          "化學氣體"
+        ],
+        "downstream": [
+          "功率元件",
+          "光通訊元件",
+          "RF元件"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "3016",
+          "name": "嘉晶"
         },
+        {
+          "code": "5483",
+          "name": "中美晶"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "ccl_copper_clad_laminate",
+      "name": "CCL銅箔基板",
+      "keyword": "CCL",
+      "supply_chain": {
+        "upstream": [
+          "玻纖布",
+          "銅箔",
+          "樹脂"
+        ],
+        "downstream": [
+          "PCB製造",
+          "ABF載板",
+          "HDI板"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2383",
+          "name": "台光電"
+        },
+        {
+          "code": "6213",
+          "name": "聯茂"
+        },
+        {
+          "code": "4760",
+          "name": "勤凱"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "fiberglass_cloth",
+      "name": "玻纖布",
+      "keyword": "玻纖布",
+      "supply_chain": {
+        "upstream": [
+          "玻璃纖維紗",
+          "織布機"
+        ],
+        "downstream": [
+          "CCL銅箔基板",
+          "PCB製造",
+          "絕緣材料"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "1802",
+          "name": "台玻"
+        },
+        {
+          "code": "8038",
+          "name": "長華*"
+        },
+        {
+          "code": "1809",
+          "name": "中纖"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "copper_foil",
+      "name": "銅箔",
+      "keyword": "銅箔",
+      "supply_chain": {
+        "upstream": [
+          "銅材",
+          "電解設備"
+        ],
+        "downstream": [
+          "CCL銅箔基板",
+          "PCB製造",
+          "鋰電池負極材料"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "8358",
+          "name": "金居"
+        },
+        {
+          "code": "6274",
+          "name": "台燿"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "photoresist",
+      "name": "光阻",
+      "keyword": "光阻",
+      "supply_chain": {
+        "upstream": [
+          "光敏劑",
+          "樹脂",
+          "溶劑"
+        ],
+        "downstream": [
+          "微影製程",
+          "PCB製造",
+          "面板製造"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "4725",
+          "name": "信越化學(代理)"
+        },
+        {
+          "code": "4721",
+          "name": "美琪瑪"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "cmp_consumables",
+      "name": "CMP耗材",
+      "keyword": "CMP耗材",
+      "supply_chain": {
+        "upstream": [
+          "研磨液",
+          "研磨墊",
+          "鑽石碟"
+        ],
+        "downstream": [
+          "CMP製程",
+          "晶圓平坦化"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "1560",
+          "name": "中砂"
+        },
+        {
+          "code": "6510",
+          "name": "精測"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "dry_etching_equipment",
+      "name": "乾蝕刻設備",
+      "keyword": "乾蝕刻",
+      "supply_chain": {
+        "upstream": [
+          "真空系統",
+          "電漿源",
+          "氣體供應系統"
+        ],
+        "downstream": [
+          "蝕刻製程",
+          "半導體製造"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6937",
+          "name": "天虹"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "LRCX",
+          "name": "科林研發"
+        }
+      ]
+    },
+    {
+      "id": "thin_film_deposition_equipment",
+      "name": "薄膜沉積設備",
+      "keyword": "薄膜沉積",
+      "supply_chain": {
+        "upstream": [
+          "真空系統",
+          "氣體供應系統",
+          "加熱系統"
+        ],
+        "downstream": [
+          "薄膜沉積製程",
+          "半導體製造",
+          "CVD/ALD"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6937",
+          "name": "天虹"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "AMAT",
+          "name": "應用材料"
+        }
+      ]
+    },
+    {
+      "id": "optical_communication_laser_components",
+      "name": "光通訊雷射元件",
+      "keyword": "光通訊雷射",
+      "supply_chain": {
+        "upstream": [
+          "InP基板",
+          "磊晶片",
+          "雷射二極體"
+        ],
+        "downstream": [
+          "光通訊模組",
+          "CPO共封裝光學",
+          "資料中心"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "4991",
+          "name": "環宇-KY"
+        },
+        {
+          "code": "3363",
+          "name": "華星光"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "LITE",
+          "name": "Lumentum"
+        },
+        {
+          "ticker": "COHR",
+          "name": "Coherent"
+        }
+      ]
+    },
+    {
+      "id": "cpo_co_packaged_optics",
+      "name": "CPO共封裝光學",
+      "keyword": "CPO",
+      "supply_chain": {
+        "upstream": [
+          "矽光子",
+          "光通訊雷射元件",
+          "交換晶片",
+          "導線載板"
+        ],
+        "downstream": [
+          "AI資料中心",
+          "高速網路",
+          "AI伺服器"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "3363",
+          "name": "華星光"
+        },
+        {
+          "code": "3450",
+          "name": "聯鈞"
+        },
+        {
+          "code": "6257",
+          "name": "矽格"
+        },
+        {
+          "code": "6196",
+          "name": "帆宣"
+        },
+        {
+          "code": "3583",
+          "name": "辛耘"
+        }
+      ],
+      "us_stocks": [
         {
           "ticker": "MRVL",
           "name": "Marvell"
         },
         {
           "ticker": "AVGO",
-          "name": "Broadcom"
+          "name": "博通"
+        },
+        {
+          "ticker": "TER",
+          "name": "泰瑞達"
         }
       ]
     },
     {
-      "id": "risc_v",
-      "name": "RISC-V",
-      "keyword": "RISC-V",
+      "id": "sic_substrate",
+      "name": "SiC基板",
+      "keyword": "SiC基板",
+      "supply_chain": {
+        "upstream": [
+          "碳化矽材料",
+          "晶體生長設備"
+        ],
+        "downstream": [
+          "車用SiC",
+          "功率元件",
+          "電動車"
+        ]
+      },
       "tw_stocks": [
         {
-          "code": "6533",
-          "name": "晶心科"
+          "code": "5483",
+          "name": "中美晶"
+        },
+        {
+          "code": "3016",
+          "name": "嘉晶"
         }
       ],
       "us_stocks": []
     },
     {
-      "id": "nuclear_energy",
-      "name": "核能",
-      "keyword": "核能",
+      "id": "gan_components",
+      "name": "GaN元件",
+      "keyword": "GaN元件",
+      "supply_chain": {
+        "upstream": [
+          "氮化鎵材料",
+          "磊晶片"
+        ],
+        "downstream": [
+          "GaN功率元件",
+          "快充",
+          "5G基地台"
+        ]
+      },
       "tw_stocks": [
         {
-          "code": "1513",
-          "name": "中興電"
+          "code": "3016",
+          "name": "嘉晶"
         },
         {
-          "code": "1519",
-          "name": "華城"
+          "code": "5483",
+          "name": "中美晶"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "soic_advanced_packaging",
+      "name": "SoIC先進封裝",
+      "keyword": "SoIC",
+      "supply_chain": {
+        "upstream": [
+          "晶圓鍵合",
+          "TSV技術",
+          "微凸塊"
+        ],
+        "downstream": [
+          "AI加速器晶片",
+          "高效能運算"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
         },
         {
-          "code": "8996",
-          "name": "高力"
+          "code": "3711",
+          "name": "日月光投控"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "2_5d_packaging",
+      "name": "2.5D封裝",
+      "keyword": "2.5D",
+      "supply_chain": {
+        "upstream": [
+          "矽中介層",
+          "微凸塊",
+          "ABF載板"
+        ],
+        "downstream": [
+          "GPU",
+          "AI加速器晶片",
+          "高效能運算"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        },
+        {
+          "code": "3711",
+          "name": "日月光投控"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "3d_ic_packaging",
+      "name": "3DIC封裝",
+      "keyword": "3DIC",
+      "supply_chain": {
+        "upstream": [
+          "TSV技術",
+          "晶圓堆疊",
+          "微凸塊"
+        ],
+        "downstream": [
+          "HBM記憶體",
+          "AI加速器晶片",
+          "高效能運算"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        },
+        {
+          "code": "3711",
+          "name": "日月光投控"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "ultrapure_water",
+      "name": "超純水",
+      "keyword": "超純水",
+      "supply_chain": {
+        "upstream": [
+          "水處理設備",
+          "化學品",
+          "過濾膜"
+        ],
+        "downstream": [
+          "晶圓清洗",
+          "半導體製造",
+          "面板製造"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6803",
+          "name": "兆聯實業"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "industrial_gases",
+      "name": "工業氣體",
+      "keyword": "工業氣體",
+      "supply_chain": {
+        "upstream": [
+          "空氣分離設備",
+          "氣體純化設備"
+        ],
+        "downstream": [
+          "蝕刻製程",
+          "薄膜沉積",
+          "無塵室"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6806",
+          "name": "和淞"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "abf_film",
+      "name": "Ajinomoto膜",
+      "keyword": "Ajinomoto膜",
+      "supply_chain": {
+        "upstream": [
+          "樹脂",
+          "添加劑"
+        ],
+        "downstream": [
+          "ABF載板",
+          "先進封裝"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": []
+    },
+    {
+      "id": "underfill",
+      "name": "底膠",
+      "keyword": "底膠",
+      "supply_chain": {
+        "upstream": [
+          "環氧樹脂",
+          "填充料"
+        ],
+        "downstream": [
+          "晶片封裝",
+          "CoWoS先進封裝"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": []
+    },
+    {
+      "id": "emc_molding_compound",
+      "name": "EMC模封料",
+      "keyword": "EMC模封料",
+      "supply_chain": {
+        "upstream": [
+          "環氧樹脂",
+          "填充料",
+          "硬化劑"
+        ],
+        "downstream": [
+          "晶片封裝",
+          "模組封裝"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": []
+    },
+    {
+      "id": "lithography_equipment",
+      "name": "微影設備",
+      "keyword": "微影",
+      "supply_chain": {
+        "upstream": [
+          "EUV光源",
+          "光學鏡頭",
+          "雷射"
+        ],
+        "downstream": [
+          "微影製程",
+          "晶圓製造",
+          "EUV"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6953",
+          "name": "家碩"
         }
       ],
       "us_stocks": [
         {
-          "ticker": "CEG",
-          "name": "Constellation Energy"
-        },
-        {
-          "ticker": "GEV",
-          "name": "GE Vernova"
-        },
-        {
-          "ticker": "URA",
-          "name": "Global X Uranium ETF"
+          "ticker": "ASML",
+          "name": "艾司摩爾"
         }
       ]
     },
     {
-      "id": "uranium_mining",
-      "name": "鈾礦",
-      "keyword": "鈾礦",
+      "id": "etching_equipment",
+      "name": "蝕刻設備",
+      "keyword": "蝕刻",
+      "supply_chain": {
+        "upstream": [
+          "電漿源",
+          "氣體供應系統",
+          "真空系統"
+        ],
+        "downstream": [
+          "蝕刻製程",
+          "半導體製造"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6937",
+          "name": "天虹"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "LRCX",
+          "name": "科林研發"
+        }
+      ]
+    },
+    {
+      "id": "cvd_ald_deposition_equipment",
+      "name": "CVD/ALD薄膜沉積設備",
+      "keyword": "CVD",
+      "supply_chain": {
+        "upstream": [
+          "前驅體",
+          "反應腔體",
+          "氣體供應系統"
+        ],
+        "downstream": [
+          "薄膜沉積製程",
+          "半導體製造"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6937",
+          "name": "天虹"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "AMAT",
+          "name": "應用材料"
+        }
+      ]
+    },
+    {
+      "id": "cmp_equipment",
+      "name": "CMP設備",
+      "keyword": "CMP",
+      "supply_chain": {
+        "upstream": [
+          "研磨液供應系統",
+          "研磨頭",
+          "清洗系統"
+        ],
+        "downstream": [
+          "CMP製程",
+          "晶圓平坦化"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "3583",
+          "name": "辛耘"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "AMAT",
+          "name": "應用材料"
+        }
+      ]
+    },
+    {
+      "id": "cleaning_equipment",
+      "name": "清洗設備",
+      "keyword": "清洗設備",
+      "supply_chain": {
+        "upstream": [
+          "超純水系統",
+          "化學品供應系統",
+          "乾燥系統"
+        ],
+        "downstream": [
+          "晶圓清洗",
+          "半導體製造"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "3583",
+          "name": "辛耘"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "TEL",
+          "name": "東京威力科創"
+        }
+      ]
+    },
+    {
+      "id": "metrology_equipment",
+      "name": "量測設備",
+      "keyword": "量測設備",
+      "supply_chain": {
+        "upstream": [
+          "光學系統",
+          "電子束系統",
+          "自動化平台"
+        ],
+        "downstream": [
+          "製程監控",
+          "缺陷檢測",
+          "半導體製造"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6510",
+          "name": "精測"
+        },
+        {
+          "code": "3680",
+          "name": "達興材料"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "KLA",
+          "name": "科磊"
+        },
+        {
+          "ticker": "ONTO",
+          "name": "Onto Innovation"
+        }
+      ]
+    },
+    {
+      "id": "laser_diode",
+      "name": "雷射二極體",
+      "keyword": "雷射二極體",
+      "supply_chain": {
+        "upstream": [
+          "InP基板",
+          "磊晶片",
+          "光學腔體"
+        ],
+        "downstream": [
+          "光通訊模組",
+          "光通訊雷射元件",
+          "感測器"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "4991",
+          "name": "環宇-KY"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "LITE",
+          "name": "Lumentum"
+        }
+      ]
+    },
+    {
+      "id": "photodetector",
+      "name": "光電探測器",
+      "keyword": "光電探測器",
+      "supply_chain": {
+        "upstream": [
+          "InP基板",
+          "磊晶片",
+          "光學濾波器"
+        ],
+        "downstream": [
+          "光通訊模組",
+          "光通訊雷射元件",
+          "感測器"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "4991",
+          "name": "環宇-KY"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "LITE",
+          "name": "Lumentum"
+        }
+      ]
+    },
+    {
+      "id": "optical_communication_module",
+      "name": "光通訊模組",
+      "keyword": "光通訊模組",
+      "supply_chain": {
+        "upstream": [
+          "雷射二極體",
+          "光電探測器",
+          "光纖",
+          "驅動IC"
+        ],
+        "downstream": [
+          "資料中心",
+          "高速網路",
+          "CPO共封裝光學"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "3363",
+          "name": "華星光"
+        },
+        {
+          "code": "3450",
+          "name": "聯鈞"
+        },
+        {
+          "code": "4991",
+          "name": "環宇-KY"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "LITE",
+          "name": "Lumentum"
+        },
+        {
+          "ticker": "COHR",
+          "name": "Coherent"
+        },
+        {
+          "ticker": "FN",
+          "name": "Fabrinet"
+        }
+      ]
+    },
+    {
+      "id": "ppo_resin",
+      "name": "PPO樹脂",
+      "keyword": "PPO樹脂",
+      "supply_chain": {
+        "upstream": [
+          "聚苯醚",
+          "添加劑"
+        ],
+        "downstream": [
+          "CCL銅箔基板",
+          "高速PCB"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "4760",
+          "name": "勤凱"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "bt_resin",
+      "name": "BT樹脂",
+      "keyword": "BT樹脂",
+      "supply_chain": {
+        "upstream": [
+          "雙馬來醯亞胺",
+          "三嗪"
+        ],
+        "downstream": [
+          "CCL銅箔基板",
+          "ABF載板",
+          "高頻PCB"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": []
+    },
+    {
+      "id": "hdi_pcb",
+      "name": "HDI",
+      "keyword": "HDI",
+      "supply_chain": {
+        "upstream": [
+          "CCL銅箔基板",
+          "雷射鑽孔設備",
+          "電鍍液"
+        ],
+        "downstream": [
+          "智慧型手機",
+          "穿戴裝置",
+          "AI伺服器"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "4958",
+          "name": "臻鼎-KY"
+        },
+        {
+          "code": "2313",
+          "name": "華通"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "dram",
+      "name": "DRAM",
+      "keyword": "DRAM",
+      "supply_chain": {
+        "upstream": [
+          "矽晶圓",
+          "微影設備",
+          "蝕刻設備"
+        ],
+        "downstream": [
+          "HBM記憶體",
+          "伺服器",
+          "PC/NB",
+          "智慧型手機"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        },
+        {
+          "code": "2408",
+          "name": "南亞科"
+        },
+        {
+          "code": "6770",
+          "name": "力積電"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "MU",
+          "name": "美光"
+        },
+        {
+          "ticker": "SKHY",
+          "name": "SK海力士"
+        },
+        {
+          "ticker": "SSNLF",
+          "name": "三星電子"
+        }
+      ]
+    },
+    {
+      "id": "nand_flash",
+      "name": "NAND Flash",
+      "keyword": "NAND Flash",
+      "supply_chain": {
+        "upstream": [
+          "矽晶圓",
+          "微影設備",
+          "蝕刻設備"
+        ],
+        "downstream": [
+          "SSD固態硬碟",
+          "智慧型手機",
+          "USB隨身碟"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2344",
+          "name": "華邦電"
+        },
+        {
+          "code": "2337",
+          "name": "旺宏"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "MU",
+          "name": "美光"
+        },
+        {
+          "ticker": "SKHY",
+          "name": "SK海力士"
+        },
+        {
+          "ticker": "SSNLF",
+          "name": "三星電子"
+        }
+      ]
+    },
+    {
+      "id": "nor_flash",
+      "name": "NOR Flash",
+      "keyword": "NOR Flash",
+      "supply_chain": {
+        "upstream": [
+          "矽晶圓",
+          "微影設備",
+          "蝕刻設備"
+        ],
+        "downstream": [
+          "物聯網裝置",
+          "車用電子",
+          "LPU運算主板"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2344",
+          "name": "華邦電"
+        },
+        {
+          "code": "2337",
+          "name": "旺宏"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "slc_nand",
+      "name": "SLC NAND Flash",
+      "keyword": "SLC NAND Flash",
+      "supply_chain": {
+        "upstream": [
+          "NAND Flash晶圓",
+          "封裝測試"
+        ],
+        "downstream": [
+          "工業控制",
+          "醫療設備",
+          "國防應用"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2344",
+          "name": "華邦電"
+        },
+        {
+          "code": "2337",
+          "name": "旺宏"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "mlc_nand",
+      "name": "MLC NAND Flash",
+      "keyword": "MLC NAND Flash",
+      "supply_chain": {
+        "upstream": [
+          "NAND Flash晶圓",
+          "封裝測試"
+        ],
+        "downstream": [
+          "消費性電子",
+          "固態硬碟"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2344",
+          "name": "華邦電"
+        },
+        {
+          "code": "2337",
+          "name": "旺宏"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "tlc_nand",
+      "name": "TLC NAND Flash",
+      "keyword": "TLC NAND Flash",
+      "supply_chain": {
+        "upstream": [
+          "NAND Flash晶圓",
+          "封裝測試"
+        ],
+        "downstream": [
+          "消費性電子",
+          "固態硬碟"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2344",
+          "name": "華邦電"
+        },
+        {
+          "code": "2337",
+          "name": "旺宏"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "emib_packaging",
+      "name": "EMIB封裝",
+      "keyword": "EMIB",
+      "supply_chain": {
+        "upstream": [
+          "矽橋",
+          "微凸塊",
+          "ABF載板"
+        ],
+        "downstream": [
+          "CPU",
+          "GPU",
+          "高效能運算"
+        ]
+      },
       "tw_stocks": [],
       "us_stocks": [
         {
-          "ticker": "URA",
-          "name": "Global X Uranium ETF"
+          "ticker": "INTC",
+          "name": "英特爾"
         }
       ]
     },
     {
-      "id": "defense_industry",
-      "name": "國防軍工",
-      "keyword": "國防軍工",
+      "id": "hbm_stacking",
+      "name": "HBM堆疊",
+      "keyword": "HBM堆疊",
+      "supply_chain": {
+        "upstream": [
+          "DRAM晶粒",
+          "TSV技術",
+          "微凸塊"
+        ],
+        "downstream": [
+          "HBM記憶體",
+          "CoWoS先進封裝"
+        ]
+      },
       "tw_stocks": [
         {
-          "code": "2634",
-          "name": "漢翔"
+          "code": "2330",
+          "name": "台積電"
         },
         {
-          "code": "8222",
-          "name": "寶一"
-        },
-        {
-          "code": "6609",
-          "name": "鼎固-KY"
-        },
-        {
-          "code": "8033",
-          "name": "雷虎"
+          "code": "3711",
+          "name": "日月光投控"
         }
       ],
       "us_stocks": [
         {
-          "ticker": "HII",
-          "name": "Huntington Ingalls Industries"
+          "ticker": "MU",
+          "name": "美光"
         },
         {
-          "ticker": "SHLD",
-          "name": "Shield AI"
+          "ticker": "SKHY",
+          "name": "SK海力士"
         },
         {
-          "ticker": "AVAV",
-          "name": "AeroVironment"
-        }
-      ]
-    },
-    {
-      "id": "rare_earth_minerals",
-      "name": "稀土",
-      "keyword": "稀土",
-      "tw_stocks": [],
-      "us_stocks": [
-        {
-          "ticker": "REMX",
-          "name": "VanEck Rare Earth/Strategic Metals ETF"
-        }
-      ]
-    },
-    {
-      "id": "agentic_ai",
-      "name": "代理式AI",
-      "keyword": "Agentic AI",
-      "tw_stocks": [
-        {
-          "code": "5274",
-          "name": "信驊"
-        },
-        {
-          "code": "2454",
-          "name": "聯發科"
-        },
-        {
-          "code": "3661",
-          "name": "世芯-KY"
-        }
-      ],
-      "us_stocks": [
-        {
-          "ticker": "GOOG",
-          "name": "Google"
-        },
-        {
-          "ticker": "MSFT",
-          "name": "Microsoft"
+          "ticker": "SSNLF",
+          "name": "三星電子"
         }
       ]
     },
     {
       "id": "panel_level_packaging",
-      "name": "面板級封裝",
-      "keyword": "面板級封裝",
+      "name": "面板級封裝PLP",
+      "keyword": "面板級封裝PLP",
+      "supply_chain": {
+        "upstream": [
+          "方形玻璃面板載具",
+          "乾膜材料",
+          "RDL介電絕緣層"
+        ],
+        "downstream": [
+          "中低階晶片封裝",
+          "扇出型封裝"
+        ]
+      },
       "tw_stocks": [
         {
           "code": "3711",
@@ -597,105 +1631,1001 @@
           "name": "力成"
         },
         {
-          "code": "2330",
-          "name": "台積電"
-        },
-        {
-          "code": "3037",
-          "name": "欣興"
-        },
-        {
           "code": "3481",
           "name": "群創"
         }
       ],
-      "us_stocks": [
-        {
-          "ticker": "INTC",
-          "name": "Intel"
-        }
-      ]
+      "us_stocks": []
     },
     {
       "id": "glass_substrate",
       "name": "玻璃基板",
       "keyword": "玻璃基板",
+      "supply_chain": {
+        "upstream": [
+          "玻璃材料",
+          "蝕刻設備",
+          "薄膜沉積設備"
+        ],
+        "downstream": [
+          "面板級封裝PLP",
+          "先進封裝",
+          "顯示器"
+        ]
+      },
       "tw_stocks": [
         {
           "code": "3481",
           "name": "群創"
         },
         {
-          "code": "2409",
-          "name": "友達"
+          "code": "3037",
+          "name": "欣興"
         }
       ],
       "us_stocks": [
         {
           "ticker": "INTC",
-          "name": "Intel"
+          "name": "英特爾"
         }
       ]
     },
     {
-      "id": "emib",
-      "name": "EMIB",
-      "keyword": "EMIB",
-      "tw_stocks": [],
+      "id": "cdu_cooling_distribution_unit",
+      "name": "CDU冷卻分配單元",
+      "keyword": "CDU冷卻分配單元",
+      "supply_chain": {
+        "upstream": [
+          "泵浦",
+          "熱交換器",
+          "管路系統"
+        ],
+        "downstream": [
+          "液冷散熱系統",
+          "資料中心",
+          "AI伺服器"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "3017",
+          "name": "奇鋐"
+        },
+        {
+          "code": "3324",
+          "name": "雙鴻"
+        }
+      ],
       "us_stocks": [
         {
-          "ticker": "INTC",
-          "name": "Intel"
+          "ticker": "VRT",
+          "name": "Vertiv"
         }
       ]
     },
     {
-      "id": "cmp_consumables",
-      "name": "CMP耗材",
-      "keyword": "CMP耗材",
+      "id": "vapor_chamber",
+      "name": "均熱板",
+      "keyword": "均熱板",
+      "supply_chain": {
+        "upstream": [
+          "銅材",
+          "毛細結構",
+          "真空封裝"
+        ],
+        "downstream": [
+          "氣冷散熱",
+          "筆記型電腦",
+          "遊戲機"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "3017",
+          "name": "奇鋐"
+        },
+        {
+          "code": "3324",
+          "name": "雙鴻"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "thermal_interface_material",
+      "name": "熱界面材料",
+      "keyword": "熱界面材料",
+      "supply_chain": {
+        "upstream": [
+          "導熱膏",
+          "導熱墊片",
+          "液態金屬"
+        ],
+        "downstream": [
+          "散熱模組",
+          "CPU/GPU散熱",
+          "電子產品"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6230",
+          "name": "超眾"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "developer",
+      "name": "顯影液",
+      "keyword": "顯影液",
+      "supply_chain": {
+        "upstream": [
+          "鹼性溶液",
+          "添加劑"
+        ],
+        "downstream": [
+          "微影製程",
+          "PCB製造",
+          "面板製造"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": []
+    },
+    {
+      "id": "etching_solution",
+      "name": "蝕刻液",
+      "keyword": "蝕刻液",
+      "supply_chain": {
+        "upstream": [
+          "酸性溶液",
+          "鹼性溶液",
+          "氧化劑"
+        ],
+        "downstream": [
+          "蝕刻製程",
+          "半導體製造",
+          "PCB製造"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": []
+    },
+    {
+      "id": "precursor",
+      "name": "前驅體",
+      "keyword": "前驅體",
+      "supply_chain": {
+        "upstream": [
+          "有機金屬化合物",
+          "無機化合物"
+        ],
+        "downstream": [
+          "薄膜沉積",
+          "CVD/ALD製程",
+          "半導體製造"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": []
+    },
+    {
+      "id": "cmp_slurry",
+      "name": "CMP漿料",
+      "keyword": "CMP漿料",
+      "supply_chain": {
+        "upstream": [
+          "研磨顆粒",
+          "化學添加劑",
+          "水"
+        ],
+        "downstream": [
+          "CMP製程",
+          "晶圓平坦化"
+        ]
+      },
       "tw_stocks": [
         {
           "code": "1560",
           "name": "中砂"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "automotive_sic",
+      "name": "車用SiC",
+      "keyword": "車用SiC",
+      "supply_chain": {
+        "upstream": [
+          "SiC基板",
+          "磊晶片",
+          "功率模組"
+        ],
+        "downstream": [
+          "電動車",
+          "充電樁",
+          "車載電源"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "5483",
+          "name": "中美晶"
         },
         {
-          "code": "6121",
-          "name": "新普"
+          "code": "3016",
+          "name": "嘉晶"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "IFX",
+          "name": "英飛凌"
+        }
+      ]
+    },
+    {
+      "id": "gan_power_components",
+      "name": "GaN功率元件",
+      "keyword": "GaN功率",
+      "supply_chain": {
+        "upstream": [
+          "GaN元件",
+          "磊晶片",
+          "封裝技術"
+        ],
+        "downstream": [
+          "快充",
+          "5G基地台",
+          "資料中心電源"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "3016",
+          "name": "嘉晶"
+        },
+        {
+          "code": "5483",
+          "name": "中美晶"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "IFX",
+          "name": "英飛凌"
+        }
+      ]
+    },
+    {
+      "id": "drone",
+      "name": "無人機",
+      "keyword": "無人機",
+      "supply_chain": {
+        "upstream": [
+          "電池",
+          "馬達",
+          "飛控系統",
+          "感測器"
+        ],
+        "downstream": [
+          "國防",
+          "物流",
+          "農業",
+          "空拍"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "8033",
+          "name": "雷虎"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "AVAV",
+          "name": "AeroVironment"
+        },
+        {
+          "ticker": "KTOS",
+          "name": "Kratos Defense & Security Solutions"
+        }
+      ]
+    },
+    {
+      "id": "national_defense",
+      "name": "國防",
+      "keyword": "國防",
+      "supply_chain": {
+        "upstream": [
+          "軍工材料",
+          "電子元件",
+          "武器系統"
+        ],
+        "downstream": [
+          "軍事裝備",
+          "國防預算",
+          "太空"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "8033",
+          "name": "雷虎"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "HII",
+          "name": "亨廷頓·英格爾斯工業"
+        },
+        {
+          "ticker": "LMT",
+          "name": "洛克希德馬丁"
+        },
+        {
+          "ticker": "RTX",
+          "name": "雷神技術"
+        }
+      ]
+    },
+    {
+      "id": "nuclear_energy",
+      "name": "核能",
+      "keyword": "核能",
+      "supply_chain": {
+        "upstream": [
+          "鈾礦",
+          "核燃料棒",
+          "核反應爐設備"
+        ],
+        "downstream": [
+          "電力供應",
+          "能源轉型",
+          "核電廠"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "URA",
+          "name": "全球鈾礦ETF"
+        },
+        {
+          "ticker": "CEG",
+          "name": "Constellation Energy"
+        },
+        {
+          "ticker": "GEV",
+          "name": "GE Vernova"
+        }
+      ]
+    },
+    {
+      "id": "space_industry",
+      "name": "太空",
+      "keyword": "太空",
+      "supply_chain": {
+        "upstream": [
+          "火箭發射",
+          "衛星製造",
+          "太空材料"
+        ],
+        "downstream": [
+          "低軌衛星",
+          "太空探索",
+          "國防"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "SPCE",
+          "name": "維珍銀河"
+        },
+        {
+          "ticker": "RKLB",
+          "name": "Rocket Lab"
+        },
+        {
+          "ticker": "TSLA",
+          "name": "特斯拉 (Starlink相關)"
+        }
+      ]
+    },
+    {
+      "id": "risc_v",
+      "name": "RISC-V",
+      "keyword": "RISC-V",
+      "supply_chain": {
+        "upstream": [
+          "IP設計",
+          "EDA工具",
+          "晶圓代工"
+        ],
+        "downstream": [
+          "AI晶片",
+          "物聯網裝置",
+          "嵌入式系統"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6533",
+          "name": "晶心科"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "ARM",
+          "name": "安謀"
+        }
+      ]
+    },
+    {
+      "id": "ai_agent",
+      "name": "AI Agent",
+      "keyword": "AI Agent",
+      "supply_chain": {
+        "upstream": [
+          "AI軟體",
+          "大型語言模型",
+          "雲端運算"
+        ],
+        "downstream": [
+          "自動化應用",
+          "智慧助理",
+          "資安中樞平台"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "CRWD",
+          "name": "CrowdStrike"
+        },
+        {
+          "ticker": "PLTR",
+          "name": "Palantir"
+        },
+        {
+          "ticker": "MSFT",
+          "name": "微軟"
+        }
+      ]
+    },
+    {
+      "id": "power_management_ic",
+      "name": "PMIC",
+      "keyword": "PMIC",
+      "supply_chain": {
+        "upstream": [
+          "晶圓代工",
+          "封裝測試",
+          "電源管理設計"
+        ],
+        "downstream": [
+          "AI伺服器",
+          "電動車",
+          "消費性電子"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "5347",
+          "name": "世界先進"
+        },
+        {
+          "code": "6770",
+          "name": "力積電"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "TXN",
+          "name": "德州儀器"
+        },
+        {
+          "ticker": "IFX",
+          "name": "英飛凌"
+        }
+      ]
+    },
+    {
+      "id": "high_voltage_mosfet",
+      "name": "高壓MOSFET",
+      "keyword": "高壓MOSFET",
+      "supply_chain": {
+        "upstream": [
+          "晶圓代工",
+          "封裝測試",
+          "功率半導體設計"
+        ],
+        "downstream": [
+          "電源供應器",
+          "電動車",
+          "工業控制"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "5347",
+          "name": "世界先進"
+        },
+        {
+          "code": "6770",
+          "name": "力積電"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "IFX",
+          "name": "英飛凌"
+        }
+      ]
+    },
+    {
+      "id": "eda_tools",
+      "name": "EDA工具",
+      "keyword": "EDA",
+      "supply_chain": {
+        "upstream": [
+          "軟體開發",
+          "演算法"
+        ],
+        "downstream": [
+          "IC設計",
+          "晶圓製造",
+          "半導體設備"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "SNPS",
+          "name": "新思科技"
+        },
+        {
+          "ticker": "CDNS",
+          "name": "益華電腦"
+        }
+      ]
+    },
+    {
+      "id": "euv_lithography",
+      "name": "EUV",
+      "keyword": "EUV",
+      "supply_chain": {
+        "upstream": [
+          "EUV光源",
+          "光學鏡頭",
+          "光阻"
+        ],
+        "downstream": [
+          "先進製程",
+          "晶圓製造",
+          "N3製程"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        },
+        {
+          "code": "6953",
+          "name": "家碩"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "ASML",
+          "name": "艾司摩爾"
+        }
+      ]
+    },
+    {
+      "id": "high_na_euv",
+      "name": "High-NA EUV",
+      "keyword": "High-NA EUV",
+      "supply_chain": {
+        "upstream": [
+          "EUV光源",
+          "光學鏡頭",
+          "光阻"
+        ],
+        "downstream": [
+          "14A製程",
+          "先進製程",
+          "晶圓製造"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "ASML",
+          "name": "艾司摩爾"
+        },
+        {
+          "ticker": "INTC",
+          "name": "英特爾"
+        }
+      ]
+    },
+    {
+      "id": "n3_process",
+      "name": "N3製程",
+      "keyword": "N3製程",
+      "supply_chain": {
+        "upstream": [
+          "EUV",
+          "先進材料",
+          "晶圓代工"
+        ],
+        "downstream": [
+          "AI晶片",
+          "高效能運算",
+          "智慧型手機"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "n2_process",
+      "name": "N2製程",
+      "keyword": "N2製程",
+      "supply_chain": {
+        "upstream": [
+          "EUV",
+          "先進材料",
+          "晶圓代工"
+        ],
+        "downstream": [
+          "AI晶片",
+          "高效能運算",
+          "智慧型手機"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "a16_process",
+      "name": "A16製程",
+      "keyword": "A16製程",
+      "supply_chain": {
+        "upstream": [
+          "晶背供電BSPDN",
+          "EUV",
+          "先進材料"
+        ],
+        "downstream": [
+          "AI晶片",
+          "高效能運算",
+          "智慧型手機"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "a12_process",
+      "name": "A12製程",
+      "keyword": "A12製程",
+      "supply_chain": {
+        "upstream": [
+          "晶背供電BSPDN",
+          "EUV",
+          "先進材料"
+        ],
+        "downstream": [
+          "AI晶片",
+          "高效能運算",
+          "智慧型手機"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "backside_power_delivery_network",
+      "name": "晶背供電BSPDN",
+      "keyword": "晶背供電",
+      "supply_chain": {
+        "upstream": [
+          "沉積設備",
+          "蝕刻設備",
+          "晶圓鍵合"
+        ],
+        "downstream": [
+          "2奈米以下製程",
+          "A16製程",
+          "AI晶片"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "8028",
+          "name": "昇陽半導體"
+        },
+        {
+          "code": "1560",
+          "name": "中砂"
         }
       ],
       "us_stocks": [
         {
           "ticker": "AMAT",
-          "name": "Applied Materials"
+          "name": "應用材料"
         },
         {
           "ticker": "LRCX",
-          "name": "Lam Research"
+          "name": "科林研發"
         }
       ]
     },
     {
-      "id": "cpu_demand",
-      "name": "CPU需求",
-      "keyword": "CPU需求",
+      "id": "wafer_bonding",
+      "name": "晶圓鍵合",
+      "keyword": "晶圓鍵合",
+      "supply_chain": {
+        "upstream": [
+          "鍵合設備",
+          "晶圓表面處理"
+        ],
+        "downstream": [
+          "3DIC封裝",
+          "晶背供電BSPDN",
+          "HBM堆疊"
+        ]
+      },
       "tw_stocks": [
         {
-          "code": "2301",
-          "name": "光寶科"
-        },
-        {
-          "code": "2357",
-          "name": "華碩"
-        },
-        {
-          "code": "2377",
-          "name": "微星"
+          "code": "8028",
+          "name": "昇陽半導體"
         }
       ],
       "us_stocks": [
         {
-          "ticker": "INTC",
-          "name": "Intel"
+          "ticker": "BESI",
+          "name": "BE Semiconductor Industries"
+        }
+      ]
+    },
+    {
+      "id": "wafer_thinning",
+      "name": "晶圓減薄",
+      "keyword": "晶圓減薄",
+      "supply_chain": {
+        "upstream": [
+          "研磨設備",
+          "鑽石碟",
+          "化學機械平坦化"
+        ],
+        "downstream": [
+          "先進封裝",
+          "3DIC封裝",
+          "HBM堆疊"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "1560",
+          "name": "中砂"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "silicon_photonics",
+      "name": "矽光子",
+      "keyword": "矽光子",
+      "supply_chain": {
+        "upstream": [
+          "矽晶圓",
+          "光學元件",
+          "雷射二極體"
+        ],
+        "downstream": [
+          "CPO共封裝光學",
+          "資料中心互連",
+          "高速傳輸"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "3363",
+          "name": "華星光"
+        },
+        {
+          "code": "3450",
+          "name": "聯鈞"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "MRVL",
+          "name": "Marvell"
+        },
+        {
+          "ticker": "AVGO",
+          "name": "博通"
+        },
+        {
+          "ticker": "LITE",
+          "name": "Lumentum"
+        }
+      ]
+    },
+    {
+      "id": "nanoridge_laser",
+      "name": "奈米脊雷射",
+      "keyword": "奈米脊雷射",
+      "supply_chain": {
+        "upstream": [
+          "矽晶圓",
+          "化合物半導體磊晶",
+          "微影製程"
+        ],
+        "downstream": [
+          "矽光子",
+          "光通訊雷射元件"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": []
+    },
+    {
+      "id": "data_center_interconnect",
+      "name": "資料中心互連DCI",
+      "keyword": "DCI",
+      "supply_chain": {
+        "upstream": [
+          "光通訊模組",
+          "光纖",
+          "交換器"
+        ],
+        "downstream": [
+          "雲端服務",
+          "AI資料中心",
+          "高速網路"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "3363",
+          "name": "華星光"
+        },
+        {
+          "code": "3450",
+          "name": "聯鈞"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "CIEN",
+          "name": "Ciena"
+        },
+        {
+          "ticker": "NOK",
+          "name": "Nokia"
+        }
+      ]
+    },
+    {
+      "id": "optical_cross_connect_switch",
+      "name": "全光交換器OCS",
+      "keyword": "OCS",
+      "supply_chain": {
+        "upstream": [
+          "光學開關",
+          "光纖",
+          "控制晶片"
+        ],
+        "downstream": [
+          "資料中心",
+          "高速網路",
+          "CPO共封裝光學"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "COHR",
+          "name": "Coherent"
+        }
+      ]
+    },
+    {
+      "id": "agentic_ai",
+      "name": "代理式AI",
+      "keyword": "代理式AI",
+      "supply_chain": {
+        "upstream": [
+          "AI軟體",
+          "大型語言模型",
+          "雲端運算"
+        ],
+        "downstream": [
+          "自動化應用",
+          "智慧助理",
+          "資安中樞平台"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "CRWD",
+          "name": "CrowdStrike"
+        },
+        {
+          "ticker": "PLTR",
+          "name": "Palantir"
+        },
+        {
+          "ticker": "MSFT",
+          "name": "微軟"
+        }
+      ]
+    },
+    {
+      "id": "gpu",
+      "name": "GPU",
+      "keyword": "GPU",
+      "supply_chain": {
+        "upstream": [
+          "晶圓代工",
+          "CoWoS先進封裝",
+          "HBM記憶體"
+        ],
+        "downstream": [
+          "AI伺服器",
+          "AI加速器晶片",
+          "遊戲"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        },
+        {
+          "code": "3711",
+          "name": "日月光投控"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "NVDA",
+          "name": "Nvidia"
         },
         {
           "ticker": "AMD",
@@ -704,9 +2634,614 @@
       ]
     },
     {
+      "id": "cpu",
+      "name": "CPU",
+      "keyword": "CPU",
+      "supply_chain": {
+        "upstream": [
+          "晶圓代工",
+          "ABF載板",
+          "封裝測試"
+        ],
+        "downstream": [
+          "伺服器",
+          "PC/NB",
+          "AI伺服器"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        },
+        {
+          "code": "3711",
+          "name": "日月光投控"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "INTC",
+          "name": "英特爾"
+        },
+        {
+          "ticker": "AMD",
+          "name": "AMD"
+        }
+      ]
+    },
+    {
+      "id": "ai_asic",
+      "name": "AI ASIC",
+      "keyword": "AI ASIC",
+      "supply_chain": {
+        "upstream": [
+          "IC設計",
+          "晶圓代工",
+          "CoWoS先進封裝"
+        ],
+        "downstream": [
+          "AI伺服器",
+          "資料中心",
+          "邊緣AI"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        },
+        {
+          "code": "3711",
+          "name": "日月光投控"
+        },
+        {
+          "code": "2454",
+          "name": "聯發科"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "NVDA",
+          "name": "Nvidia"
+        },
+        {
+          "ticker": "GOOG",
+          "name": "Google"
+        },
+        {
+          "ticker": "AMZN",
+          "name": "Amazon"
+        }
+      ]
+    },
+    {
+      "id": "server_dram",
+      "name": "Server DRAM",
+      "keyword": "Server DRAM",
+      "supply_chain": {
+        "upstream": [
+          "DRAM晶圓",
+          "封裝測試"
+        ],
+        "downstream": [
+          "伺服器",
+          "AI伺服器",
+          "資料中心"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2408",
+          "name": "南亞科"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "MU",
+          "name": "美光"
+        },
+        {
+          "ticker": "SKHY",
+          "name": "SK海力士"
+        },
+        {
+          "ticker": "SSNLF",
+          "name": "三星電子"
+        }
+      ]
+    },
+    {
+      "id": "general_server",
+      "name": "通用伺服器",
+      "keyword": "通用伺服器",
+      "supply_chain": {
+        "upstream": [
+          "CPU",
+          "DRAM",
+          "SSD",
+          "主機板"
+        ],
+        "downstream": [
+          "資料中心",
+          "企業應用",
+          "雲端服務"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2382",
+          "name": "廣達"
+        },
+        {
+          "code": "3231",
+          "name": "緯創"
+        },
+        {
+          "code": "2376",
+          "name": "技嘉"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "DELL",
+          "name": "戴爾"
+        },
+        {
+          "ticker": "HPE",
+          "name": "慧與科技"
+        }
+      ]
+    },
+    {
+      "id": "non_hbm_server_dram",
+      "name": "非HBM Server DRAM",
+      "keyword": "非HBM Server DRAM",
+      "supply_chain": {
+        "upstream": [
+          "DRAM晶圓",
+          "封裝測試"
+        ],
+        "downstream": [
+          "通用伺服器",
+          "資料中心"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2408",
+          "name": "南亞科"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "MU",
+          "name": "美光"
+        },
+        {
+          "ticker": "SKHY",
+          "name": "SK海力士"
+        },
+        {
+          "ticker": "SSNLF",
+          "name": "三星電子"
+        }
+      ]
+    },
+    {
+      "id": "mature_process_dram",
+      "name": "成熟製程DRAM",
+      "keyword": "成熟製程DRAM",
+      "supply_chain": {
+        "upstream": [
+          "DRAM晶圓",
+          "封裝測試"
+        ],
+        "downstream": [
+          "消費性電子",
+          "車用電子",
+          "工業控制"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2408",
+          "name": "南亞科"
+        },
+        {
+          "code": "6770",
+          "name": "力積電"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "advanced_process_dram",
+      "name": "先進製程DRAM",
+      "keyword": "先進製程DRAM",
+      "supply_chain": {
+        "upstream": [
+          "DRAM晶圓",
+          "EUV",
+          "先進材料"
+        ],
+        "downstream": [
+          "HBM記憶體",
+          "AI伺服器",
+          "高效能運算"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "MU",
+          "name": "美光"
+        },
+        {
+          "ticker": "SKHY",
+          "name": "SK海力士"
+        },
+        {
+          "ticker": "SSNLF",
+          "name": "三星電子"
+        }
+      ]
+    },
+    {
+      "id": "ddr4",
+      "name": "DDR4",
+      "keyword": "DDR4",
+      "supply_chain": {
+        "upstream": [
+          "DRAM晶圓",
+          "封裝測試"
+        ],
+        "downstream": [
+          "PC/NB",
+          "伺服器",
+          "消費性電子"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2408",
+          "name": "南亞科"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "MU",
+          "name": "美光"
+        },
+        {
+          "ticker": "SKHY",
+          "name": "SK海力士"
+        },
+        {
+          "ticker": "SSNLF",
+          "name": "三星電子"
+        }
+      ]
+    },
+    {
+      "id": "ddr5",
+      "name": "DDR5",
+      "keyword": "DDR5",
+      "supply_chain": {
+        "upstream": [
+          "DRAM晶圓",
+          "封裝測試"
+        ],
+        "downstream": [
+          "PC/NB",
+          "伺服器",
+          "AI伺服器"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2408",
+          "name": "南亞科"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "MU",
+          "name": "美光"
+        },
+        {
+          "ticker": "SKHY",
+          "name": "SK海力士"
+        },
+        {
+          "ticker": "SSNLF",
+          "name": "三星電子"
+        }
+      ]
+    },
+    {
+      "id": "power_supply_unit",
+      "name": "電源供應器",
+      "keyword": "電源供應器",
+      "supply_chain": {
+        "upstream": [
+          "變壓器",
+          "電容",
+          "電感",
+          "功率元件"
+        ],
+        "downstream": [
+          "AI伺服器",
+          "PC/NB",
+          "資料中心"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2308",
+          "name": "台達電"
+        },
+        {
+          "code": "6203",
+          "name": "盛群"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "VRT",
+          "name": "Vertiv"
+        }
+      ]
+    },
+    {
+      "id": "high_capacity_capacitor",
+      "name": "高容值電容",
+      "keyword": "高容值電容",
+      "supply_chain": {
+        "upstream": [
+          "陶瓷材料",
+          "電解液",
+          "金屬箔"
+        ],
+        "downstream": [
+          "800V HVDC供電",
+          "AI伺服器",
+          "電動車"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2472",
+          "name": "立隆電"
+        },
+        {
+          "code": "6449",
+          "name": "鈺邦"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "KEM",
+          "name": "KEMET"
+        },
+        {
+          "ticker": "VSH",
+          "name": "Vishay"
+        }
+      ]
+    },
+    {
+      "id": "800v_hvdc_power_supply",
+      "name": "800V HVDC供電",
+      "keyword": "800V HVDC供電",
+      "supply_chain": {
+        "upstream": [
+          "高容值電容",
+          "功率元件",
+          "電源管理IC"
+        ],
+        "downstream": [
+          "NVIDIA Rubin Ultra",
+          "AI伺服器",
+          "資料中心"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2308",
+          "name": "台達電"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "NVDA",
+          "name": "Nvidia"
+        }
+      ]
+    },
+    {
+      "id": "lpu_cabinet",
+      "name": "LPU機櫃",
+      "keyword": "LPU機櫃",
+      "supply_chain": {
+        "upstream": [
+          "LPU晶片",
+          "液冷散熱",
+          "電源供應器",
+          "高速連接器"
+        ],
+        "downstream": [
+          "AI伺服器",
+          "資料中心",
+          "推論應用"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2382",
+          "name": "廣達"
+        },
+        {
+          "code": "3231",
+          "name": "緯創"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "NVDA",
+          "name": "Nvidia"
+        }
+      ]
+    },
+    {
+      "id": "vera_cpu_cabinet",
+      "name": "Vera CPU機櫃",
+      "keyword": "Vera CPU機櫃",
+      "supply_chain": {
+        "upstream": [
+          "Vera CPU",
+          "液冷散熱",
+          "電源供應器",
+          "高速連接器"
+        ],
+        "downstream": [
+          "AI伺服器",
+          "資料中心",
+          "推論應用"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2382",
+          "name": "廣達"
+        },
+        {
+          "code": "3231",
+          "name": "緯創"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "NVDA",
+          "name": "Nvidia"
+        }
+      ]
+    },
+    {
+      "id": "bluefield_dpu",
+      "name": "BlueField DPU",
+      "keyword": "BlueField DPU",
+      "supply_chain": {
+        "upstream": [
+          "DPU晶片",
+          "封裝測試",
+          "DRAM"
+        ],
+        "downstream": [
+          "AI伺服器",
+          "資料中心",
+          "網路加速"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        },
+        {
+          "code": "3711",
+          "name": "日月光投控"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "NVDA",
+          "name": "Nvidia"
+        }
+      ]
+    },
+    {
+      "id": "kyber_switch",
+      "name": "Kyber交換器",
+      "keyword": "Kyber交換器",
+      "supply_chain": {
+        "upstream": [
+          "交換器晶片",
+          "光通訊模組",
+          "PCB"
+        ],
+        "downstream": [
+          "AI伺服器",
+          "資料中心",
+          "高速網路"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2382",
+          "name": "廣達"
+        },
+        {
+          "code": "3231",
+          "name": "緯創"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "NVDA",
+          "name": "Nvidia"
+        }
+      ]
+    },
+    {
+      "id": "copper_cable",
+      "name": "銅纜",
+      "keyword": "銅纜",
+      "supply_chain": {
+        "upstream": [
+          "銅材",
+          "絕緣材料",
+          "連接器"
+        ],
+        "downstream": [
+          "AI伺服器",
+          "資料中心",
+          "高速傳輸"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2382",
+          "name": "廣達"
+        },
+        {
+          "code": "3231",
+          "name": "緯創"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
       "id": "silicon_capacitor",
       "name": "矽電容",
       "keyword": "矽電容",
+      "supply_chain": {
+        "upstream": [
+          "矽晶圓",
+          "薄膜沉積",
+          "微影製程"
+        ],
+        "downstream": [
+          "AI晶片",
+          "高效能運算",
+          "電源管理"
+        ]
+      },
       "tw_stocks": [
         {
           "code": "6770",
@@ -720,86 +3255,57 @@
       "us_stocks": []
     },
     {
-      "id": "3d_stacking",
-      "name": "3D堆疊",
-      "keyword": "3D堆疊",
+      "id": "baseboard_management_controller",
+      "name": "BMC",
+      "keyword": "BMC",
+      "supply_chain": {
+        "upstream": [
+          "微控制器",
+          "韌體",
+          "感測器"
+        ],
+        "downstream": [
+          "伺服器",
+          "AI伺服器",
+          "資料中心"
+        ]
+      },
       "tw_stocks": [
         {
-          "code": "6531",
-          "name": "愛普"
-        },
+          "code": "5274",
+          "name": "信驊"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "tensor_processing_unit",
+      "name": "TPU",
+      "keyword": "TPU",
+      "supply_chain": {
+        "upstream": [
+          "IC設計",
+          "晶圓代工",
+          "CoWoS先進封裝"
+        ],
+        "downstream": [
+          "Google AI",
+          "資料中心",
+          "AI訓練"
+        ]
+      },
+      "tw_stocks": [
         {
           "code": "2330",
           "name": "台積電"
-        }
-      ],
-      "us_stocks": [
-        {
-          "ticker": "TSM",
-          "name": "TSMC"
-        }
-      ]
-    },
-    {
-      "id": "ccl_capacity",
-      "name": "CCL產能",
-      "keyword": "CCL產能",
-      "tw_stocks": [
-        {
-          "code": "2383",
-          "name": "台光電"
         },
-        {
-          "code": "6213",
-          "name": "聯茂"
-        },
-        {
-          "code": "8039",
-          "name": "台虹"
-        }
-      ],
-      "us_stocks": []
-    },
-    {
-      "id": "m_sap",
-      "name": "mSAP",
-      "keyword": "mSAP",
-      "tw_stocks": [
-        {
-          "code": "4958",
-          "name": "臻鼎-KY"
-        },
-        {
-          "code": "2313",
-          "name": "華通"
-        },
-        {
-          "code": "6269",
-          "name": "台郡"
-        }
-      ],
-      "us_stocks": []
-    },
-    {
-      "id": "tpu_v8",
-      "name": "TPU V8",
-      "keyword": "TPU V8",
-      "tw_stocks": [
         {
           "code": "2454",
           "name": "聯發科"
         },
         {
-          "code": "3661",
-          "name": "世芯-KY"
-        },
-        {
-          "code": "2376",
-          "name": "技嘉"
-        },
-        {
-          "code": "2382",
-          "name": "廣達"
+          "code": "3711",
+          "name": "日月光投控"
         }
       ],
       "us_stocks": [
@@ -813,6 +3319,19 @@
       "id": "ai_pc",
       "name": "AI PC",
       "keyword": "AI PC",
+      "supply_chain": {
+        "upstream": [
+          "CPU",
+          "GPU",
+          "NPU",
+          "DRAM"
+        ],
+        "downstream": [
+          "個人電腦",
+          "筆記型電腦",
+          "邊緣AI"
+        ]
+      },
       "tw_stocks": [
         {
           "code": "2357",
@@ -825,20 +3344,16 @@
         {
           "code": "2382",
           "name": "廣達"
-        },
-        {
-          "code": "2301",
-          "name": "光寶科"
         }
       ],
       "us_stocks": [
         {
-          "ticker": "QCOM",
-          "name": "Qualcomm"
+          "ticker": "INTC",
+          "name": "英特爾"
         },
         {
-          "ticker": "INTC",
-          "name": "Intel"
+          "ticker": "QCOM",
+          "name": "高通"
         },
         {
           "ticker": "AMD",
@@ -850,418 +3365,357 @@
       "id": "ai_phone",
       "name": "AI手機",
       "keyword": "AI手機",
+      "supply_chain": {
+        "upstream": [
+          "AP晶片",
+          "NPU",
+          "DRAM",
+          "NAND Flash"
+        ],
+        "downstream": [
+          "智慧型手機",
+          "邊緣AI"
+        ]
+      },
       "tw_stocks": [
         {
           "code": "2454",
           "name": "聯發科"
-        },
-        {
-          "code": "2317",
-          "name": "鴻海"
-        },
-        {
-          "code": "2301",
-          "name": "光寶科"
         }
       ],
       "us_stocks": [
         {
           "ticker": "QCOM",
-          "name": "Qualcomm"
+          "name": "高通"
         },
         {
           "ticker": "AAPL",
-          "name": "Apple"
+          "name": "蘋果"
+        },
+        {
+          "ticker": "SSNLF",
+          "name": "三星電子"
         }
       ]
     },
     {
-      "id": "chip_back_power_delivery",
-      "name": "晶背供電",
-      "keyword": "晶背供電",
+      "id": "ai_server",
+      "name": "AI伺服器",
+      "keyword": "AI伺服器",
+      "supply_chain": {
+        "upstream": [
+          "GPU",
+          "CPU",
+          "HBM",
+          "CoWoS",
+          "液冷散熱",
+          "ABF載板"
+        ],
+        "downstream": [
+          "資料中心",
+          "雲端服務",
+          "AI應用"
+        ]
+      },
       "tw_stocks": [
         {
-          "code": "2330",
-          "name": "台積電"
+          "code": "2382",
+          "name": "廣達"
         },
         {
-          "code": "8028",
-          "name": "昇陽半導體"
+          "code": "3231",
+          "name": "緯創"
         },
         {
-          "code": "1560",
-          "name": "中砂"
+          "code": "2376",
+          "name": "技嘉"
         },
         {
-          "code": "6937",
-          "name": "天虹"
+          "code": "6669",
+          "name": "緯穎"
+        },
+        {
+          "code": "3017",
+          "name": "奇鋐"
+        },
+        {
+          "code": "3324",
+          "name": "雙鴻"
         }
       ],
       "us_stocks": [
         {
-          "ticker": "AMAT",
-          "name": "Applied Materials"
+          "ticker": "NVDA",
+          "name": "Nvidia"
         },
         {
-          "ticker": "LRCX",
-          "name": "Lam Research"
-        }
-      ]
-    },
-    {
-      "id": "ai_agent",
-      "name": "AI Agent",
-      "keyword": "AI Agent",
-      "tw_stocks": [
-        {
-          "code": "2454",
-          "name": "聯發科"
+          "ticker": "AMD",
+          "name": "AMD"
         },
-        {
-          "code": "3661",
-          "name": "世芯-KY"
-        },
-        {
-          "code": "5274",
-          "name": "信驊"
-        }
-      ],
-      "us_stocks": [
         {
           "ticker": "GOOG",
           "name": "Google"
         },
         {
-          "ticker": "MSFT",
-          "name": "Microsoft"
+          "ticker": "AMZN",
+          "name": "Amazon"
         },
         {
-          "ticker": "CRM",
-          "name": "Salesforce"
+          "ticker": "MSFT",
+          "name": "微軟"
         }
       ]
     },
     {
-      "id": "co_packaged_optics",
-      "name": "共同封裝光學",
-      "keyword": "CPO",
+      "id": "data_center",
+      "name": "資料中心",
+      "keyword": "資料中心",
+      "supply_chain": {
+        "upstream": [
+          "AI伺服器",
+          "網路設備",
+          "儲存設備",
+          "電源供應器",
+          "散熱系統"
+        ],
+        "downstream": [
+          "雲端服務",
+          "AI應用",
+          "企業IT"
+        ]
+      },
       "tw_stocks": [
         {
-          "code": "4991",
-          "name": "環宇-KY"
+          "code": "2382",
+          "name": "廣達"
         },
+        {
+          "code": "3231",
+          "name": "緯創"
+        },
+        {
+          "code": "6669",
+          "name": "緯穎"
+        },
+        {
+          "code": "2308",
+          "name": "台達電"
+        },
+        {
+          "code": "3017",
+          "name": "奇鋐"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "AMZN",
+          "name": "Amazon (AWS)"
+        },
+        {
+          "ticker": "GOOG",
+          "name": "Google (GCP)"
+        },
+        {
+          "ticker": "MSFT",
+          "name": "微軟 (Azure)"
+        }
+      ]
+    },
+    {
+      "id": "cloud_service_provider",
+      "name": "雲端服務商CSP",
+      "keyword": "CSP",
+      "supply_chain": {
+        "upstream": [
+          "AI伺服器",
+          "資料中心",
+          "網路設備"
+        ],
+        "downstream": [
+          "雲端運算",
+          "AI應用",
+          "企業服務"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "AMZN",
+          "name": "Amazon (AWS)"
+        },
+        {
+          "ticker": "GOOG",
+          "name": "Google (GCP)"
+        },
+        {
+          "ticker": "MSFT",
+          "name": "微軟 (Azure)"
+        },
+        {
+          "ticker": "META",
+          "name": "Meta"
+        }
+      ]
+    },
+    {
+      "id": "power_management_design",
+      "name": "電源管理設計",
+      "keyword": "電源管理設計",
+      "supply_chain": {
+        "upstream": [
+          "IC設計",
+          "功率元件",
+          "電容電感"
+        ],
+        "downstream": [
+          "PMIC",
+          "電源供應器",
+          "AI資料中心"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6203",
+          "name": "盛群"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "TXN",
+          "name": "德州儀器"
+        },
+        {
+          "ticker": "IFX",
+          "name": "英飛凌"
+        }
+      ]
+    },
+    {
+      "id": "general_purpose_analog",
+      "name": "general-purpose analog",
+      "keyword": "general-purpose analog",
+      "supply_chain": {
+        "upstream": [
+          "類比IC設計",
+          "晶圓代工"
+        ],
+        "downstream": [
+          "電源管理",
+          "感測器介面",
+          "AI資料中心"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "TXN",
+          "name": "德州儀器"
+        }
+      ]
+    },
+    {
+      "id": "prefab_data_center",
+      "name": "Prefab模式",
+      "keyword": "Prefab模式",
+      "supply_chain": {
+        "upstream": [
+          "模組化建材",
+          "預製組件",
+          "廠務工程"
+        ],
+        "downstream": [
+          "資料中心",
+          "快速部署",
+          "成本效益"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "VRT",
+          "name": "Vertiv"
+        }
+      ]
+    },
+    {
+      "id": "dci_ai",
+      "name": "DCI AI",
+      "keyword": "DCI AI",
+      "supply_chain": {
+        "upstream": [
+          "光通訊模組",
+          "AI晶片",
+          "網路設備"
+        ],
+        "downstream": [
+          "資料中心互連",
+          "AI算力傳輸",
+          "6G AI-RAN"
+        ]
+      },
+      "tw_stocks": [
         {
           "code": "3363",
-          "name": "律勝"
-        },
-        {
-          "code": "3380",
-          "name": "明泰"
+          "name": "華星光"
         },
         {
           "code": "3450",
           "name": "聯鈞"
-        },
-        {
-          "code": "4979",
-          "name": "華星光"
-        },
-        {
-          "code": "6451",
-          "name": "訊芯-KY"
         }
       ],
       "us_stocks": [
         {
-          "ticker": "LITE",
-          "name": "Lumentum"
-        },
-        {
-          "ticker": "MRVL",
-          "name": "Marvell"
+          "ticker": "NOK",
+          "name": "Nokia"
         },
         {
           "ticker": "CIEN",
           "name": "Ciena"
-        },
-        {
-          "ticker": "COHR",
-          "name": "Coherent"
         }
       ]
     },
     {
-      "id": "n3_process",
-      "name": "N3製程",
-      "keyword": "N3製程",
-      "tw_stocks": [
-        {
-          "code": "2330",
-          "name": "台積電"
-        }
-      ],
-      "us_stocks": [
-        {
-          "ticker": "TSM",
-          "name": "TSMC"
-        }
-      ]
-    },
-    {
-      "id": "euv_equipment",
-      "name": "EUV設備",
-      "keyword": "EUV設備",
-      "tw_stocks": [
-        {
-          "code": "6953",
-          "name": "家碩"
-        }
-      ],
-      "us_stocks": [
-        {
-          "ticker": "ASML",
-          "name": "ASML"
-        }
-      ]
-    },
-    {
-      "id": "low_na_euv",
-      "name": "Low NA EUV",
-      "keyword": "Low NA EUV",
-      "tw_stocks": [
-        {
-          "code": "2330",
-          "name": "台積電"
-        }
-      ],
-      "us_stocks": [
-        {
-          "ticker": "ASML",
-          "name": "ASML"
-        }
-      ]
-    },
-    {
-      "id": "match_act",
-      "name": "MATCH法案",
-      "keyword": "MATCH法案",
-      "tw_stocks": [],
-      "us_stocks": []
-    },
-    {
-      "id": "ddr5_demand",
-      "name": "DDR5需求",
-      "keyword": "DDR5需求",
-      "tw_stocks": [
-        {
-          "code": "2408",
-          "name": "南亞科"
-        },
-        {
-          "code": "3006",
-          "name": "晶豪科"
-        },
-        {
-          "code": "3260",
-          "name": "威剛"
-        }
-      ],
-      "us_stocks": [
-        {
-          "ticker": "MU",
-          "name": "Micron"
-        },
-        {
-          "ticker": "SKHY",
-          "name": "SK Hynix"
-        }
-      ]
-    },
-    {
-      "id": "nand_flash_supply",
-      "name": "NAND Flash供給",
-      "keyword": "NAND Flash供給",
-      "tw_stocks": [
-        {
-          "code": "2344",
-          "name": "華邦電"
-        },
-        {
-          "code": "2337",
-          "name": "旺宏"
-        }
-      ],
-      "us_stocks": [
-        {
-          "ticker": "MU",
-          "name": "Micron"
-        },
-        {
-          "ticker": "SKHY",
-          "name": "SK Hynix"
-        }
-      ]
-    },
-    {
-      "id": "low_cte_fiberglass_cloth",
-      "name": "Low CTE玻纖布",
-      "keyword": "Low CTE玻纖布",
-      "tw_stocks": [
-        {
-          "code": "1802",
-          "name": "台玻"
-        },
-        {
-          "code": "1809",
-          "name": "建榮"
-        },
-        {
-          "code": "1815",
-          "name": "富喬"
-        }
-      ],
-      "us_stocks": []
-    },
-    {
-      "id": "ppo_resin",
-      "name": "PPO樹脂",
-      "keyword": "PPO樹脂",
-      "tw_stocks": [
-        {
-          "code": "4764",
-          "name": "雙鍵"
-        }
-      ],
-      "us_stocks": []
-    },
-    {
-      "id": "feynman_architecture",
-      "name": "Feynman架構",
-      "keyword": "Feynman架構",
+      "id": "ai_ran",
+      "name": "AI-RAN",
+      "keyword": "AI-RAN",
+      "supply_chain": {
+        "upstream": [
+          "5G基地台",
+          "AI晶片",
+          "邊緣運算"
+        ],
+        "downstream": [
+          "6G通訊",
+          "智慧城市",
+          "物聯網"
+        ]
+      },
       "tw_stocks": [],
       "us_stocks": [
         {
-          "ticker": "NVDA",
-          "name": "Nvidia"
+          "ticker": "NOK",
+          "name": "Nokia"
         }
       ]
     },
     {
-      "id": "groq_3_lpx_rack",
-      "name": "Groq 3 LPX機櫃",
-      "keyword": "Groq 3 LPX機櫃",
+      "id": "lithium_battery_module",
+      "name": "鋰電池模組",
+      "keyword": "鋰電池模組",
+      "supply_chain": {
+        "upstream": [
+          "鋰電池芯",
+          "電池管理系統BMS",
+          "保護電路"
+        ],
+        "downstream": [
+          "儲能系統",
+          "電動手工具",
+          "輕型電動載具",
+          "資料中心備援電池模組BBU"
+        ]
+      },
       "tw_stocks": [
-        {
-          "code": "2376",
-          "name": "技嘉"
-        },
-        {
-          "code": "2382",
-          "name": "廣達"
-        },
-        {
-          "code": "3231",
-          "name": "緯創"
-        }
-      ],
-      "us_stocks": [
-        {
-          "ticker": "NVDA",
-          "name": "Nvidia"
-        }
-      ]
-    },
-    {
-      "id": "vera_cpu_rack",
-      "name": "Vera CPU機櫃",
-      "keyword": "Vera CPU機櫃",
-      "tw_stocks": [
-        {
-          "code": "2376",
-          "name": "技嘉"
-        },
-        {
-          "code": "2382",
-          "name": "廣達"
-        },
-        {
-          "code": "3231",
-          "name": "緯創"
-        }
-      ],
-      "us_stocks": [
-        {
-          "ticker": "NVDA",
-          "name": "Nvidia"
-        }
-      ]
-    },
-    {
-      "id": "bluefield_4_dpu",
-      "name": "BlueField-4 DPU",
-      "keyword": "BlueField-4 DPU",
-      "tw_stocks": [
-        {
-          "code": "3711",
-          "name": "日月光投控"
-        },
-        {
-          "code": "6239",
-          "name": "力成"
-        }
-      ],
-      "us_stocks": [
-        {
-          "ticker": "NVDA",
-          "name": "Nvidia"
-        }
-      ]
-    },
-    {
-      "id": "kyber_switch",
-      "name": "Kyber Switch",
-      "keyword": "Kyber Switch",
-      "tw_stocks": [],
-      "us_stocks": [
-        {
-          "ticker": "NVDA",
-          "name": "Nvidia"
-        }
-      ]
-    },
-    {
-      "id": "high_end_carbon_materials",
-      "name": "高階碳材料",
-      "keyword": "高階碳材料",
-      "tw_stocks": [
-        {
-          "code": "1723",
-          "name": "中碳"
-        }
-      ],
-      "us_stocks": []
-    },
-    {
-      "id": "battery_anode_materials",
-      "name": "電池負極材料",
-      "keyword": "電池負極材料",
-      "tw_stocks": [
-        {
-          "code": "1723",
-          "name": "中碳"
-        }
-      ],
-      "us_stocks": []
-    },
-    {
-      "id": "ai_server_bbu",
-      "name": "AI伺服器BBU",
-      "keyword": "AI伺服器BBU",
-      "tw_stocks": [
-        {
-          "code": "1723",
-          "name": "中碳"
-        },
         {
           "code": "4931",
           "name": "新盛力"
@@ -1270,319 +3724,572 @@
       "us_stocks": []
     },
     {
-      "id": "ai_asic_testing",
-      "name": "AI ASIC測試",
-      "keyword": "AI ASIC測試",
+      "id": "energy_storage_system",
+      "name": "儲能系統",
+      "keyword": "儲能系統",
+      "supply_chain": {
+        "upstream": [
+          "鋰電池模組",
+          "變流器PCS",
+          "能源管理系統EMS"
+        ],
+        "downstream": [
+          "電網",
+          "資料中心",
+          "再生能源"
+        ]
+      },
       "tw_stocks": [
         {
-          "code": "6257",
-          "name": "矽格"
+          "code": "4931",
+          "name": "新盛力"
         },
         {
-          "code": "3711",
-          "name": "日月光投控"
-        },
-        {
-          "code": "6239",
-          "name": "力成"
+          "code": "2308",
+          "name": "台達電"
         }
       ],
       "us_stocks": []
     },
     {
-      "id": "optical_communication_component_testing",
-      "name": "光通訊元件測試",
-      "keyword": "光通訊元件測試",
+      "id": "data_center_backup_battery_module",
+      "name": "資料中心備援電池模組BBU",
+      "keyword": "BBU",
+      "supply_chain": {
+        "upstream": [
+          "鋰電池模組",
+          "電池管理系統BMS",
+          "電源管理IC"
+        ],
+        "downstream": [
+          "資料中心",
+          "AI伺服器"
+        ]
+      },
       "tw_stocks": [
         {
-          "code": "6257",
-          "name": "矽格"
+          "code": "4931",
+          "name": "新盛力"
+        },
+        {
+          "code": "1723",
+          "name": "中碳"
         }
       ],
       "us_stocks": []
     },
     {
-      "id": "huawei_chip_swarm",
-      "name": "華為晶片群狼",
-      "keyword": "晶片群狼",
+      "id": "euv_pod",
+      "name": "EUV Pod",
+      "keyword": "EUV Pod",
+      "supply_chain": {
+        "upstream": [
+          "石英玻璃",
+          "精密機械",
+          "無塵室材料"
+        ],
+        "downstream": [
+          "EUV微影製程",
+          "晶圓傳輸",
+          "先進製程"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6953",
+          "name": "家碩"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "euv_stocker",
+      "name": "EUV Stocker",
+      "keyword": "EUV Stocker",
+      "supply_chain": {
+        "upstream": [
+          "自動化倉儲系統",
+          "無塵室設備",
+          "機械手臂"
+        ],
+        "downstream": [
+          "EUV微影製程",
+          "晶圓儲存",
+          "先進製程"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6953",
+          "name": "家碩"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "ar_193_stocker",
+      "name": "ArF193 Stocker",
+      "keyword": "ArF193 Stocker",
+      "supply_chain": {
+        "upstream": [
+          "自動化倉儲系統",
+          "無塵室設備",
+          "機械手臂"
+        ],
+        "downstream": [
+          "DUV微影製程",
+          "晶圓儲存",
+          "成熟製程"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6953",
+          "name": "家碩"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "aoi_equipment",
+      "name": "AOI設備",
+      "keyword": "AOI",
+      "supply_chain": {
+        "upstream": [
+          "光學鏡頭",
+          "影像處理軟體",
+          "自動化平台"
+        ],
+        "downstream": [
+          "缺陷檢測",
+          "製程監控",
+          "半導體製造",
+          "PCB製造"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6953",
+          "name": "家碩"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "tool_machine",
+      "name": "工具機",
+      "keyword": "工具機",
+      "supply_chain": {
+        "upstream": [
+          "控制器",
+          "伺服馬達",
+          "精密軸承",
+          "鑄件"
+        ],
+        "downstream": [
+          "半導體設備",
+          "自動化設備",
+          "汽車製造"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2049",
+          "name": "上銀"
+        },
+        {
+          "code": "4576",
+          "name": "大銀微系統"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "passive_components",
+      "name": "被動元件",
+      "keyword": "被動元件",
+      "supply_chain": {
+        "upstream": [
+          "陶瓷粉末",
+          "金屬材料",
+          "電解液"
+        ],
+        "downstream": [
+          "MLCC",
+          "電阻",
+          "電感",
+          "電子產品"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2327",
+          "name": "國巨"
+        },
+        {
+          "code": "2492",
+          "name": "華新科"
+        },
+        {
+          "code": "3026",
+          "name": "禾伸堂"
+        },
+        {
+          "code": "2472",
+          "name": "立隆電"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "uranium_ore",
+      "name": "鈾礦",
+      "keyword": "鈾礦",
+      "supply_chain": {
+        "upstream": [
+          "鈾礦開採",
+          "鈾精礦提煉"
+        ],
+        "downstream": [
+          "核燃料棒",
+          "核能發電"
+        ]
+      },
       "tw_stocks": [],
-      "us_stocks": []
-    },
-    {
-      "id": "optical_interconnect",
-      "name": "光通訊",
-      "keyword": "光通訊",
-      "tw_stocks": [
-        {
-          "code": "4991",
-          "name": "環宇-KY"
-        },
-        {
-          "code": "3363",
-          "name": "律勝"
-        },
-        {
-          "code": "3380",
-          "name": "明泰"
-        },
-        {
-          "code": "3450",
-          "name": "聯鈞"
-        },
-        {
-          "code": "4979",
-          "name": "華星光"
-        },
-        {
-          "code": "6451",
-          "name": "訊芯-KY"
-        }
-      ],
       "us_stocks": [
         {
-          "ticker": "LITE",
-          "name": "Lumentum"
-        },
-        {
-          "ticker": "MRVL",
-          "name": "Marvell"
-        },
-        {
-          "ticker": "CIEN",
-          "name": "Ciena"
-        },
-        {
-          "ticker": "COHR",
-          "name": "Coherent"
-        },
-        {
-          "ticker": "NOK",
-          "name": "Nokia"
+          "ticker": "URA",
+          "name": "全球鈾礦ETF"
         }
       ]
     },
     {
-      "id": "slc_nand_flash",
-      "name": "SLC NAND Flash",
-      "keyword": "SLC NAND Flash",
+      "id": "rare_earth",
+      "name": "稀土",
+      "keyword": "稀土",
+      "supply_chain": {
+        "upstream": [
+          "稀土礦開採",
+          "稀土分離提純"
+        ],
+        "downstream": [
+          "電動車馬達",
+          "風力發電機",
+          "國防科技"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "REMX",
+          "name": "稀土ETF"
+        }
+      ]
+    },
+    {
+      "id": "silicon_interposer",
+      "name": "矽中介層",
+      "keyword": "矽中介層",
+      "supply_chain": {
+        "upstream": [
+          "矽晶圓",
+          "TSV技術",
+          "微凸塊"
+        ],
+        "downstream": [
+          "CoWoS先進封裝",
+          "2.5D封裝",
+          "HBM記憶體"
+        ]
+      },
       "tw_stocks": [
         {
-          "code": "2344",
-          "name": "華邦電"
-        },
-        {
-          "code": "2337",
-          "name": "旺宏"
+          "code": "2330",
+          "name": "台積電"
         }
       ],
       "us_stocks": []
     },
     {
-      "id": "hbm4",
-      "name": "HBM4",
-      "keyword": "HBM4",
-      "tw_stocks": [
-        {
-          "code": "2408",
-          "name": "南亞科"
-        }
-      ],
-      "us_stocks": [
-        {
-          "ticker": "MU",
-          "name": "Micron"
-        },
-        {
-          "ticker": "SKHY",
-          "name": "SK Hynix"
-        }
-      ]
-    },
-    {
-      "id": "hybrid_bonding",
-      "name": "Hybrid Bonding",
-      "keyword": "Hybrid Bonding",
+      "id": "tsmc_cowos_copos",
+      "name": "台積電CoPoS",
+      "keyword": "CoPoS",
+      "supply_chain": {
+        "upstream": [
+          "面板級製造",
+          "玻璃基板",
+          "先進封裝材料"
+        ],
+        "downstream": [
+          "AI加速器晶片",
+          "高效能運算",
+          "大面積設計"
+        ]
+      },
       "tw_stocks": [
         {
           "code": "2330",
           "name": "台積電"
         },
         {
-          "code": "3711",
-          "name": "日月光投控"
+          "code": "8027",
+          "name": "鈦昇"
+        },
+        {
+          "code": "6664",
+          "name": "群翊"
+        },
+        {
+          "code": "4760",
+          "name": "勤凱"
+        },
+        {
+          "code": "2464",
+          "name": "盟立"
         }
       ],
-      "us_stocks": [
-        {
-          "ticker": "TSM",
-          "name": "TSMC"
-        }
-      ]
+      "us_stocks": []
     },
     {
-      "id": "dci_ai",
-      "name": "DCI AI",
-      "keyword": "DCI AI",
+      "id": "vsp_hvlp_copper_foil",
+      "name": "VSP/HVLP銅箔",
+      "keyword": "VSP/HVLP銅箔",
+      "supply_chain": {
+        "upstream": [
+          "銅材",
+          "電解設備",
+          "表面處理"
+        ],
+        "downstream": [
+          "高速PCB",
+          "高頻PCB",
+          "CCL銅箔基板"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "8358",
+          "name": "金居"
+        },
+        {
+          "code": "6274",
+          "name": "台燿"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "low_cte_fiberglass_cloth",
+      "name": "Low CTE玻纖布",
+      "keyword": "Low CTE玻纖布",
+      "supply_chain": {
+        "upstream": [
+          "玻璃纖維紗",
+          "特殊樹脂"
+        ],
+        "downstream": [
+          "載板",
+          "CCL銅箔基板",
+          "高階PCB"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "1802",
+          "name": "台玻"
+        },
+        {
+          "code": "3388",
+          "name": "建榮"
+        },
+        {
+          "code": "1809",
+          "name": "中纖"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "low_dk_low_df_fiberglass_cloth",
+      "name": "Low Dk/Low Df玻纖布",
+      "keyword": "Low Dk/Low Df玻纖布",
+      "supply_chain": {
+        "upstream": [
+          "玻璃纖維紗",
+          "特殊樹脂"
+        ],
+        "downstream": [
+          "高頻PCB",
+          "高速PCB",
+          "CCL銅箔基板"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "1802",
+          "name": "台玻"
+        },
+        {
+          "code": "3388",
+          "name": "建榮"
+        },
+        {
+          "code": "1809",
+          "name": "中纖"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "ppo_resin_for_ccl",
+      "name": "PPO樹脂(CCL用)",
+      "keyword": "PPO樹脂",
+      "supply_chain": {
+        "upstream": [
+          "聚苯醚",
+          "添加劑"
+        ],
+        "downstream": [
+          "CCL銅箔基板",
+          "高速PCB"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "4760",
+          "name": "勤凱"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "hc_adhesive",
+      "name": "HC膠",
+      "keyword": "HC膠",
+      "supply_chain": {
+        "upstream": [
+          "環氧樹脂",
+          "硬化劑",
+          "填充料"
+        ],
+        "downstream": [
+          "CCL銅箔基板",
+          "高階PCB"
+        ]
+      },
       "tw_stocks": [],
-      "us_stocks": [
-        {
-          "ticker": "NOK",
-          "name": "Nokia"
-        },
-        {
-          "ticker": "CIEN",
-          "name": "Ciena"
-        }
-      ]
+      "us_stocks": []
     },
     {
-      "id": "6g_ai_ran",
-      "name": "6G AI-RAN",
-      "keyword": "6G AI-RAN",
+      "id": "rfid_technology",
+      "name": "RFID技術",
+      "keyword": "RFID",
+      "supply_chain": {
+        "upstream": [
+          "RFID晶片",
+          "天線",
+          "讀寫器"
+        ],
+        "downstream": [
+          "AIoT",
+          "智慧庫存管理",
+          "無人化工廠",
+          "醫療設備管理"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6548",
+          "name": "韋僑"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "aiot",
+      "name": "AIoT",
+      "keyword": "AIoT",
+      "supply_chain": {
+        "upstream": [
+          "AI晶片",
+          "感測器",
+          "通訊模組",
+          "雲端平台"
+        ],
+        "downstream": [
+          "智慧城市",
+          "智慧工廠",
+          "智慧家庭",
+          "智慧醫療"
+        ]
+      },
       "tw_stocks": [],
-      "us_stocks": [
-        {
-          "ticker": "NOK",
-          "name": "Nokia"
-        }
-      ]
-    },
-    {
-      "id": "100g_pd",
-      "name": "100G PD",
-      "keyword": "100G PD",
-      "tw_stocks": [
-        {
-          "code": "4991",
-          "name": "環宇-KY"
-        }
-      ],
       "us_stocks": []
     },
     {
-      "id": "200g_pd",
-      "name": "200G PD",
-      "keyword": "200G PD",
-      "tw_stocks": [
-        {
-          "code": "4991",
-          "name": "環宇-KY"
-        }
-      ],
-      "us_stocks": []
-    },
-    {
-      "id": "cw_laser",
-      "name": "CW Laser",
-      "keyword": "CW Laser",
-      "tw_stocks": [
-        {
-          "code": "4991",
-          "name": "環宇-KY"
-        }
-      ],
-      "us_stocks": [
-        {
-          "ticker": "LITE",
-          "name": "Lumentum"
-        }
-      ]
-    },
-    {
-      "id": "nand_flash_contract_price",
-      "name": "NAND Flash合約價",
-      "keyword": "NAND Flash合約價",
-      "tw_stocks": [
-        {
-          "code": "2344",
-          "name": "華邦電"
-        },
-        {
-          "code": "2337",
-          "name": "旺宏"
-        }
-      ],
-      "us_stocks": [
-        {
-          "ticker": "MU",
-          "name": "Micron"
-        },
-        {
-          "ticker": "SKHY",
-          "name": "SK Hynix"
-        }
-      ]
-    },
-    {
-      "id": "drone_anti_drone",
-      "name": "無人機+反無人機",
-      "keyword": "無人機+反無人機",
-      "tw_stocks": [
-        {
-          "code": "8033",
-          "name": "雷虎"
-        }
-      ],
-      "us_stocks": [
-        {
-          "ticker": "AVAV",
-          "name": "AeroVironment"
-        }
-      ]
-    },
-    {
-      "id": "hdi_pcb",
-      "name": "HDI PCB",
-      "keyword": "HDI PCB",
-      "tw_stocks": [
-        {
-          "code": "4958",
-          "name": "臻鼎-KY"
-        },
-        {
-          "code": "2313",
-          "name": "華通"
-        }
-      ],
-      "us_stocks": []
-    },
-    {
-      "id": "hlc_pcb",
-      "name": "HLC PCB",
-      "keyword": "HLC PCB",
-      "tw_stocks": [
-        {
-          "code": "4958",
-          "name": "臻鼎-KY"
-        },
-        {
-          "code": "2313",
-          "name": "華通"
-        }
-      ],
-      "us_stocks": []
-    },
-    {
-      "id": "vr200_nvl144_compute_tray",
-      "name": "VR200 NVL144 Compute Tray",
-      "keyword": "VR200 NVL144 Compute Tray",
+      "id": "msap_process",
+      "name": "mSAP製程",
+      "keyword": "mSAP",
+      "supply_chain": {
+        "upstream": [
+          "CCL銅箔基板",
+          "雷射鑽孔",
+          "電鍍"
+        ],
+        "downstream": [
+          "高階HDI",
+          "ABF載板",
+          "先進封裝"
+        ]
+      },
       "tw_stocks": [
         {
           "code": "4958",
           "name": "臻鼎-KY"
         }
       ],
-      "us_stocks": [
-        {
-          "ticker": "NVDA",
-          "name": "Nvidia"
-        }
-      ]
+      "us_stocks": []
     },
     {
-      "id": "ipc_ipd",
-      "name": "IPC、IPD",
-      "keyword": "IPC、IPD",
+      "id": "3d_stacking_technology",
+      "name": "3D堆疊技術",
+      "keyword": "3D堆疊",
+      "supply_chain": {
+        "upstream": [
+          "TSV技術",
+          "晶圓鍵合",
+          "微凸塊"
+        ],
+        "downstream": [
+          "HBM記憶體",
+          "3DIC封裝",
+          "AI晶片"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6531",
+          "name": "愛普"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "silicon_capacitor_integration",
+      "name": "矽電容整合方案",
+      "keyword": "矽電容整合方案",
+      "supply_chain": {
+        "upstream": [
+          "矽電容",
+          "3D堆疊技術",
+          "電源管理IC"
+        ],
+        "downstream": [
+          "AI晶片",
+          "高效能運算",
+          "電源管理"
+        ]
+      },
       "tw_stocks": [
         {
           "code": "6531",
@@ -1595,71 +4302,1301 @@
       "id": "8_inch_foundry",
       "name": "8吋晶圓代工",
       "keyword": "8吋晶圓代工",
+      "supply_chain": {
+        "upstream": [
+          "8吋矽晶圓",
+          "成熟製程設備",
+          "光阻"
+        ],
+        "downstream": [
+          "PMIC",
+          "MOSFET",
+          "MCU",
+          "車用電子"
+        ]
+      },
       "tw_stocks": [
+        {
+          "code": "5347",
+          "name": "世界先進"
+        },
         {
           "code": "6770",
           "name": "力積電"
         },
         {
-          "code": "2302",
-          "name": "麗正"
+          "code": "2303",
+          "name": "聯電"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "silicon_capacitor_power_ic",
+      "name": "矽電容(力積電)",
+      "keyword": "矽電容",
+      "supply_chain": {
+        "upstream": [
+          "矽晶圓",
+          "薄膜沉積",
+          "微影製程"
+        ],
+        "downstream": [
+          "AI晶片",
+          "高效能運算",
+          "電源管理"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6770",
+          "name": "力積電"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "advanced_packaging_materials",
+      "name": "先進封裝材料",
+      "keyword": "先進封裝材料",
+      "supply_chain": {
+        "upstream": [
+          "ABF",
+          "CCL",
+          "底膠",
+          "EMC模封料"
+        ],
+        "downstream": [
+          "CoWoS",
+          "SoIC",
+          "面板級封裝PLP"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2383",
+          "name": "台光電"
+        },
+        {
+          "code": "6213",
+          "name": "聯茂"
+        },
+        {
+          "code": "4760",
+          "name": "勤凱"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "advanced_packaging_equipment",
+      "name": "先進封裝設備",
+      "keyword": "先進封裝設備",
+      "supply_chain": {
+        "upstream": [
+          "鍵合設備",
+          "量測設備",
+          "蝕刻設備",
+          "薄膜沉積設備"
+        ],
+        "downstream": [
+          "CoWoS",
+          "SoIC",
+          "面板級封裝PLP"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6953",
+          "name": "家碩"
+        },
+        {
+          "code": "3583",
+          "name": "辛耘"
+        },
+        {
+          "code": "8027",
+          "name": "鈦昇"
+        },
+        {
+          "code": "6664",
+          "name": "群翊"
+        },
+        {
+          "code": "2464",
+          "name": "盟立"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "BESI",
+          "name": "BE Semiconductor Industries"
+        },
+        {
+          "ticker": "ONTO",
+          "name": "Onto Innovation"
+        },
+        {
+          "ticker": "AMAT",
+          "name": "應用材料"
+        }
+      ]
+    },
+    {
+      "id": "foundry_capacity",
+      "name": "晶圓代工產能",
+      "keyword": "晶圓代工產能",
+      "supply_chain": {
+        "upstream": [
+          "晶圓廠",
+          "半導體設備",
+          "無塵室"
+        ],
+        "downstream": [
+          "IC設計",
+          "AI晶片",
+          "高效能運算"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        },
+        {
+          "code": "2303",
+          "name": "聯電"
+        },
+        {
+          "code": "6770",
+          "name": "力積電"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "INTC",
+          "name": "英特爾"
+        },
+        {
+          "ticker": "SSNLF",
+          "name": "三星電子"
+        }
+      ]
+    },
+    {
+      "id": "ai_chip_architecture",
+      "name": "AI晶片架構",
+      "keyword": "AI晶片架構",
+      "supply_chain": {
+        "upstream": [
+          "IC設計",
+          "GPU",
+          "ASIC",
+          "TPU"
+        ],
+        "downstream": [
+          "AI伺服器",
+          "資料中心",
+          "邊緣AI"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2454",
+          "name": "聯發科"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "NVDA",
+          "name": "Nvidia"
+        },
+        {
+          "ticker": "AMD",
+          "name": "AMD"
+        },
+        {
+          "ticker": "GOOG",
+          "name": "Google"
+        }
+      ]
+    },
+    {
+      "id": "memory_module",
+      "name": "記憶體模組",
+      "keyword": "記憶體模組",
+      "supply_chain": {
+        "upstream": [
+          "DRAM",
+          "NAND Flash",
+          "PCB"
+        ],
+        "downstream": [
+          "伺服器",
+          "PC/NB",
+          "智慧型手機"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2408",
+          "name": "南亞科"
+        },
+        {
+          "code": "2337",
+          "name": "旺宏"
+        },
+        {
+          "code": "2344",
+          "name": "華邦電"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "MU",
+          "name": "美光"
+        },
+        {
+          "ticker": "SKHY",
+          "name": "SK海力士"
+        },
+        {
+          "ticker": "SSNLF",
+          "name": "三星電子"
+        }
+      ]
+    },
+    {
+      "id": "high_end_connector",
+      "name": "高階連接器",
+      "keyword": "高階連接器",
+      "supply_chain": {
+        "upstream": [
+          "金屬材料",
+          "塑膠材料",
+          "精密加工"
+        ],
+        "downstream": [
+          "AI伺服器",
+          "高速網路",
+          "資料中心"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6279",
+          "name": "胡連"
+        },
+        {
+          "code": "6153",
+          "name": "嘉聯益"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "pcb_equipment",
+      "name": "PCB設備",
+      "keyword": "PCB設備",
+      "supply_chain": {
+        "upstream": [
+          "鑽孔機",
+          "曝光機",
+          "電鍍設備",
+          "檢測設備"
+        ],
+        "downstream": [
+          "PCB製造",
+          "HDI板",
+          "軟板"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6664",
+          "name": "群翊"
+        },
+        {
+          "code": "8027",
+          "name": "鈦昇"
+        },
+        {
+          "code": "2464",
+          "name": "盟立"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "silicon_interposer_cowos",
+      "name": "矽中介層(CoWoS)",
+      "keyword": "矽中介層",
+      "supply_chain": {
+        "upstream": [
+          "矽晶圓",
+          "TSV技術",
+          "微凸塊"
+        ],
+        "downstream": [
+          "CoWoS先進封裝",
+          "2.5D封裝",
+          "HBM記憶體"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "wafer_warpage",
+      "name": "翹曲",
+      "keyword": "翹曲",
+      "supply_chain": {
+        "upstream": [
+          "晶圓材料",
+          "製程溫度控制",
+          "薄膜應力"
+        ],
+        "downstream": [
+          "晶圓製造",
+          "先進封裝",
+          "良率"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "cpo_yield_challenge",
+      "name": "CPO良率挑戰",
+      "keyword": "CPO良率挑戰",
+      "supply_chain": {
+        "upstream": [
+          "矽光子",
+          "光通訊雷射元件",
+          "封裝技術"
+        ],
+        "downstream": [
+          "CPO共封裝光學",
+          "AI資料中心",
+          "高速網路"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        },
+        {
+          "code": "3363",
+          "name": "華星光"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "MRVL",
+          "name": "Marvell"
+        },
+        {
+          "ticker": "AVGO",
+          "name": "博通"
+        }
+      ]
+    },
+    {
+      "id": "glass_related_manufacturers",
+      "name": "玻璃相關廠商",
+      "keyword": "玻璃相關廠商",
+      "supply_chain": {
+        "upstream": [
+          "玻璃材料",
+          "加工設備"
+        ],
+        "downstream": [
+          "面板級封裝PLP",
+          "顯示器",
+          "建築玻璃",
+          "汽車玻璃"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "3481",
+          "name": "群創"
+        },
+        {
+          "code": "2409",
+          "name": "友達"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "mature_process",
+      "name": "成熟製程",
+      "keyword": "成熟製程",
+      "supply_chain": {
+        "upstream": [
+          "8吋晶圓代工",
+          "DUV設備",
+          "通用材料"
+        ],
+        "downstream": [
+          "PMIC",
+          "MOSFET",
+          "MCU",
+          "車用電子",
+          "消費性電子"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2303",
+          "name": "聯電"
         },
         {
           "code": "5347",
           "name": "世界先進"
-        }
-      ],
-      "us_stocks": []
-    },
-    {
-      "id": "bmc",
-      "name": "BMC",
-      "keyword": "BMC",
-      "tw_stocks": [
-        {
-          "code": "5274",
-          "name": "信驊"
-        }
-      ],
-      "us_stocks": []
-    },
-    {
-      "id": "mlc_nand",
-      "name": "MLC NAND",
-      "keyword": "MLC NAND",
-      "tw_stocks": [
-        {
-          "code": "2337",
-          "name": "旺宏"
-        }
-      ],
-      "us_stocks": []
-    },
-    {
-      "id": "nor_flash",
-      "name": "Nor Flash",
-      "keyword": "Nor Flash",
-      "tw_stocks": [
-        {
-          "code": "2337",
-          "name": "旺宏"
         },
         {
-          "code": "2408",
-          "name": "南亞科"
+          "code": "6770",
+          "name": "力積電"
         }
       ],
       "us_stocks": []
     },
     {
-      "id": "google_tpu",
-      "name": "Google TPU",
-      "keyword": "Google TPU",
+      "id": "foplp_packaging",
+      "name": "FOPLP封裝",
+      "keyword": "FOPLP",
+      "supply_chain": {
+        "upstream": [
+          "方形玻璃面板載具",
+          "乾膜材料",
+          "RDL介電絕緣層"
+        ],
+        "downstream": [
+          "中低階晶片封裝",
+          "扇出型封裝",
+          "面板級封裝PLP"
+        ]
+      },
       "tw_stocks": [
         {
-          "code": "2376",
-          "name": "技嘉"
+          "code": "3711",
+          "name": "日月光投控"
         },
+        {
+          "code": "6239",
+          "name": "力成"
+        },
+        {
+          "code": "3481",
+          "name": "群創"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "foplp_key_materials",
+      "name": "FOPLP關鍵材料",
+      "keyword": "FOPLP關鍵材料",
+      "supply_chain": {
+        "upstream": [
+          "方形玻璃面板載具",
+          "乾膜材料",
+          "RDL介電絕緣層",
+          "封裝膠材"
+        ],
+        "downstream": [
+          "FOPLP封裝",
+          "先進封裝"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "3481",
+          "name": "群創"
+        },
+        {
+          "code": "2383",
+          "name": "台光電"
+        },
+        {
+          "code": "6213",
+          "name": "聯茂"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "foplp_equipment",
+      "name": "FOPLP相關設備",
+      "keyword": "FOPLP",
+      "supply_chain": {
+        "upstream": [
+          "蝕刻機",
+          "檢測設備",
+          "雷射設備",
+          "塗佈設備"
+        ],
+        "downstream": [
+          "FOPLP封裝",
+          "先進封裝"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "8027",
+          "name": "鈦昇"
+        },
+        {
+          "code": "6664",
+          "name": "群翊"
+        },
+        {
+          "code": "2464",
+          "name": "盟立"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "ai_chip_training",
+      "name": "AI晶片訓練",
+      "keyword": "AI晶片訓練",
+      "supply_chain": {
+        "upstream": [
+          "GPU",
+          "TPU",
+          "ASIC",
+          "HBM記憶體"
+        ],
+        "downstream": [
+          "大型語言模型",
+          "AI模型開發",
+          "資料中心"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        },
+        {
+          "code": "3711",
+          "name": "日月光投控"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "NVDA",
+          "name": "Nvidia"
+        },
+        {
+          "ticker": "GOOG",
+          "name": "Google"
+        },
+        {
+          "ticker": "AMD",
+          "name": "AMD"
+        }
+      ]
+    },
+    {
+      "id": "ai_chip_inference",
+      "name": "AI晶片推論",
+      "keyword": "AI晶片推論",
+      "supply_chain": {
+        "upstream": [
+          "CPU",
+          "NPU",
+          "邊緣AI晶片",
+          "DRAM"
+        ],
+        "downstream": [
+          "AI PC",
+          "AI手機",
+          "邊緣運算",
+          "AI應用"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2454",
+          "name": "聯發科"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "INTC",
+          "name": "英特爾"
+        },
+        {
+          "ticker": "QCOM",
+          "name": "高通"
+        },
+        {
+          "ticker": "AMD",
+          "name": "AMD"
+        }
+      ]
+    },
+    {
+      "id": "cmp_process",
+      "name": "CMP製程",
+      "keyword": "CMP製程",
+      "supply_chain": {
+        "upstream": [
+          "CMP設備",
+          "CMP漿料",
+          "CMP耗材"
+        ],
+        "downstream": [
+          "晶圓平坦化",
+          "半導體製造",
+          "多層佈線"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "1560",
+          "name": "中砂"
+        },
+        {
+          "code": "3583",
+          "name": "辛耘"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "AMAT",
+          "name": "應用材料"
+        }
+      ]
+    },
+    {
+      "id": "llm",
+      "name": "大型語言模型LLM",
+      "keyword": "LLM",
+      "supply_chain": {
+        "upstream": [
+          "AI晶片訓練",
+          "雲端運算",
+          "大數據"
+        ],
+        "downstream": [
+          "AI Agent",
+          "自然語言處理",
+          "AI應用"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "GOOG",
+          "name": "Google"
+        },
+        {
+          "ticker": "MSFT",
+          "name": "微軟"
+        },
+        {
+          "ticker": "META",
+          "name": "Meta"
+        },
+        {
+          "ticker": "ANTH",
+          "name": "Anthropic"
+        }
+      ]
+    },
+    {
+      "id": "ai_software",
+      "name": "AI軟體",
+      "keyword": "AI軟體",
+      "supply_chain": {
+        "upstream": [
+          "演算法",
+          "程式語言",
+          "雲端平台"
+        ],
+        "downstream": [
+          "AI Agent",
+          "企業應用",
+          "SaaS服務"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "CRM",
+          "name": "Salesforce"
+        },
+        {
+          "ticker": "ADBE",
+          "name": "Adobe"
+        },
+        {
+          "ticker": "ATLS",
+          "name": "Atlassian"
+        }
+      ]
+    },
+    {
+      "id": "saas_service",
+      "name": "SaaS服務",
+      "keyword": "SaaS服務",
+      "supply_chain": {
+        "upstream": [
+          "雲端運算",
+          "軟體開發",
+          "資料庫"
+        ],
+        "downstream": [
+          "企業應用",
+          "AI軟體",
+          "客戶關係管理CRM"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "CRM",
+          "name": "Salesforce"
+        },
+        {
+          "ticker": "ADBE",
+          "name": "Adobe"
+        },
+        {
+          "ticker": "ATLS",
+          "name": "Atlassian"
+        }
+      ]
+    },
+    {
+      "id": "headless_architecture",
+      "name": "Headless架構",
+      "keyword": "Headless架構",
+      "supply_chain": {
+        "upstream": [
+          "API",
+          "後端服務",
+          "內容管理系統CMS"
+        ],
+        "downstream": [
+          "電商平台",
+          "網站開發",
+          "AI應用整合"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "CRM",
+          "name": "Salesforce"
+        }
+      ]
+    },
+    {
+      "id": "ai_roi",
+      "name": "AI ROI",
+      "keyword": "AI ROI",
+      "supply_chain": {
+        "upstream": [
+          "AI投資",
+          "AI應用",
+          "營運效率"
+        ],
+        "downstream": [
+          "企業獲利",
+          "資本回報率ROIC",
+          "股價評價"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "META",
+          "name": "Meta"
+        },
+        {
+          "ticker": "MSFT",
+          "name": "微軟"
+        },
+        {
+          "ticker": "GOOG",
+          "name": "Google"
+        },
+        {
+          "ticker": "AMZN",
+          "name": "Amazon"
+        }
+      ]
+    },
+    {
+      "id": "capital_expenditure",
+      "name": "資本支出",
+      "keyword": "資本支出",
+      "supply_chain": {
+        "upstream": [
+          "半導體設備",
+          "廠務工程",
+          "無塵室",
+          "建廠成本"
+        ],
+        "downstream": [
+          "晶圓廠擴產",
+          "AI資料中心",
+          "產能擴張"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "MU",
+          "name": "美光"
+        },
+        {
+          "ticker": "INTC",
+          "name": "英特爾"
+        },
+        {
+          "ticker": "SSNLF",
+          "name": "三星電子"
+        },
+        {
+          "ticker": "GOOG",
+          "name": "Google"
+        },
+        {
+          "ticker": "AMZN",
+          "name": "Amazon"
+        },
+        {
+          "ticker": "MSFT",
+          "name": "微軟"
+        },
+        {
+          "ticker": "META",
+          "name": "Meta"
+        }
+      ]
+    },
+    {
+      "id": "maintenance_capex",
+      "name": "Maintenance Capex",
+      "keyword": "Maintenance Capex",
+      "supply_chain": {
+        "upstream": [
+          "設備維護",
+          "廠房修繕",
+          "晶片漲價"
+        ],
+        "downstream": [
+          "營運成本",
+          "資本回報率ROIC",
+          "自由現金流"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "GOOG",
+          "name": "Google"
+        },
+        {
+          "ticker": "AMZN",
+          "name": "Amazon"
+        },
+        {
+          "ticker": "MSFT",
+          "name": "微軟"
+        },
+        {
+          "ticker": "META",
+          "name": "Meta"
+        }
+      ]
+    },
+    {
+      "id": "growth_capex",
+      "name": "Growth Capex",
+      "keyword": "Growth Capex",
+      "supply_chain": {
+        "upstream": [
+          "新設備採購",
+          "新廠房建設",
+          "技術升級"
+        ],
+        "downstream": [
+          "產能擴張",
+          "營收增長",
+          "市場份額"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "GOOG",
+          "name": "Google"
+        },
+        {
+          "ticker": "AMZN",
+          "name": "Amazon"
+        },
+        {
+          "ticker": "MSFT",
+          "name": "微軟"
+        },
+        {
+          "ticker": "META",
+          "name": "Meta"
+        }
+      ]
+    },
+    {
+      "id": "roic",
+      "name": "資本回報率ROIC",
+      "keyword": "ROIC",
+      "supply_chain": {
+        "upstream": [
+          "資本支出",
+          "營運利潤",
+          "稅後淨利"
+        ],
+        "downstream": [
+          "企業價值",
+          "股價評價",
+          "投資決策"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": []
+    },
+    {
+      "id": "free_cash_flow",
+      "name": "自由現金流",
+      "keyword": "自由現金流",
+      "supply_chain": {
+        "upstream": [
+          "營運現金流",
+          "資本支出"
+        ],
+        "downstream": [
+          "企業價值",
+          "股東回報",
+          "融資能力"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "GOOG",
+          "name": "Google"
+        },
+        {
+          "ticker": "AMZN",
+          "name": "Amazon"
+        },
+        {
+          "ticker": "MSFT",
+          "name": "微軟"
+        },
+        {
+          "ticker": "META",
+          "name": "Meta"
+        }
+      ]
+    },
+    {
+      "id": "ai_revenue_contribution",
+      "name": "AI貢獻營收增速",
+      "keyword": "AI貢獻營收增速",
+      "supply_chain": {
+        "upstream": [
+          "AI產品",
+          "AI服務",
+          "市場需求"
+        ],
+        "downstream": [
+          "企業營收",
+          "市場評價",
+          "投資吸引力"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "GOOG",
+          "name": "Google"
+        },
+        {
+          "ticker": "AMZN",
+          "name": "Amazon"
+        },
+        {
+          "ticker": "MSFT",
+          "name": "微軟"
+        },
+        {
+          "ticker": "META",
+          "name": "Meta"
+        }
+      ]
+    },
+    {
+      "id": "backlog_orders",
+      "name": "積壓訂單",
+      "keyword": "積壓訂單",
+      "supply_chain": {
+        "upstream": [
+          "客戶需求",
+          "市場預期",
+          "產能限制"
+        ],
+        "downstream": [
+          "未來營收",
+          "產能規劃",
+          "資本支出"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "GOOG",
+          "name": "Google"
+        },
+        {
+          "ticker": "AMZN",
+          "name": "Amazon"
+        },
+        {
+          "ticker": "MSFT",
+          "name": "微軟"
+        },
+        {
+          "ticker": "META",
+          "name": "Meta"
+        }
+      ]
+    },
+    {
+      "id": "rubin_chip",
+      "name": "Rubin晶片",
+      "keyword": "Rubin",
+      "supply_chain": {
+        "upstream": [
+          "晶圓代工",
+          "CoWoS先進封裝",
+          "HBM記憶體",
+          "液冷散熱"
+        ],
+        "downstream": [
+          "AI伺服器",
+          "AI加速器晶片",
+          "資料中心"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        },
+        {
+          "code": "3711",
+          "name": "日月光投控"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "NVDA",
+          "name": "Nvidia"
+        }
+      ]
+    },
+    {
+      "id": "gpu_cpo_test_equipment",
+      "name": "GPU+CPO測試機台",
+      "keyword": "GPU+CPO測試機台",
+      "supply_chain": {
+        "upstream": [
+          "測試設備",
+          "CPO共封裝光學",
+          "GPU"
+        ],
+        "downstream": [
+          "AI晶片測試",
+          "CPO模組測試",
+          "半導體製造"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "3583",
+          "name": "辛耘"
+        },
+        {
+          "code": "6257",
+          "name": "矽格"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "TER",
+          "name": "泰瑞達"
+        },
+        {
+          "ticker": "ADVN",
+          "name": "愛德萬測試"
+        }
+      ]
+    },
+    {
+      "id": "advantest",
+      "name": "Advantest",
+      "keyword": "Advantest",
+      "supply_chain": {
+        "upstream": [
+          "測試設備",
+          "半導體設備"
+        ],
+        "downstream": [
+          "GPU+CPO測試機台",
+          "半導體測試"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "ADVN",
+          "name": "愛德萬測試"
+        }
+      ]
+    },
+    {
+      "id": "energy_infrastructure",
+      "name": "能源基建",
+      "keyword": "能源基建",
+      "supply_chain": {
+        "upstream": [
+          "發電廠",
+          "輸電網",
+          "儲能系統"
+        ],
+        "downstream": [
+          "電力供應",
+          "工業用電",
+          "資料中心用電"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "8996",
+          "name": "高力"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "BE",
+          "name": "Bloom Energy"
+        }
+      ]
+    },
+    {
+      "id": "industrial_electricity_price",
+      "name": "工業用電價格",
+      "keyword": "工業用電價格",
+      "supply_chain": {
+        "upstream": [
+          "發電成本",
+          "輸配電費",
+          "政府補貼"
+        ],
+        "downstream": [
+          "資料中心用電",
+          "製造業成本",
+          "企業獲利"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "BE",
+          "name": "Bloom Energy"
+        }
+      ]
+    },
+    {
+      "id": "ccgt_market",
+      "name": "小型CCGT市場",
+      "keyword": "小型CCGT市場",
+      "supply_chain": {
+        "upstream": [
+          "燃氣渦輪機",
+          "發電機",
+          "熱回收系統"
+        ],
+        "downstream": [
+          "分散式發電",
+          "資料中心自建電力",
+          "工業用電"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "CAT",
+          "name": "Caterpillar"
+        },
+        {
+          "ticker": "CMI",
+          "name": "康明斯"
+        }
+      ]
+    },
+    {
+      "id": "cpo_switch",
+      "name": "CPO Switch",
+      "keyword": "CPO Switch",
+      "supply_chain": {
+        "upstream": [
+          "CPO共封裝光學",
+          "交換晶片",
+          "PCB"
+        ],
+        "downstream": [
+          "AI資料中心",
+          "高速網路",
+          "AI伺服器"
+        ]
+      },
+      "tw_stocks": [
         {
           "code": "2382",
           "name": "廣達"
@@ -1671,42 +5608,1299 @@
       ],
       "us_stocks": [
         {
+          "ticker": "CLS",
+          "name": "Celestica"
+        }
+      ]
+    },
+    {
+      "id": "tpu_v7_ghostfish_ironwood",
+      "name": "TPU v7(Ghostfish/Ironwood)",
+      "keyword": "TPU v7(Ghostfish/Ironwood)",
+      "supply_chain": {
+        "upstream": [
+          "TPU晶片",
+          "CoWoS先進封裝",
+          "HBM記憶體"
+        ],
+        "downstream": [
+          "Google AI",
+          "資料中心",
+          "AI訓練"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        },
+        {
+          "code": "3711",
+          "name": "日月光投控"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "GOOG",
+          "name": "Google"
+        },
+        {
+          "ticker": "CLS",
+          "name": "Celestica"
+        }
+      ]
+    },
+    {
+      "id": "fsd_training",
+      "name": "FSD訓練",
+      "keyword": "FSD訓練",
+      "supply_chain": {
+        "upstream": [
+          "AI晶片訓練",
+          "資料中心",
+          "自動駕駛數據"
+        ],
+        "downstream": [
+          "自動駕駛",
+          "AI模型開發",
+          "電動車"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "TSLA",
+          "name": "特斯拉"
+        }
+      ]
+    },
+    {
+      "id": "optimus_robot",
+      "name": "Optimus機器人",
+      "keyword": "Optimus機器人",
+      "supply_chain": {
+        "upstream": [
+          "機器人硬體",
+          "AI軟體",
+          "感測器"
+        ],
+        "downstream": [
+          "自動化生產",
+          "物流",
+          "家庭服務"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "TSLA",
+          "name": "特斯拉"
+        }
+      ]
+    },
+    {
+      "id": "terafab",
+      "name": "Terafab",
+      "keyword": "Terafab",
+      "supply_chain": {
+        "upstream": [
+          "自動化生產線",
+          "機器人",
+          "AI控制系統"
+        ],
+        "downstream": [
+          "電動車製造",
+          "超級工廠",
+          "大規模生產"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "TSLA",
+          "name": "特斯拉"
+        }
+      ]
+    },
+    {
+      "id": "agent_ai_cpu",
+      "name": "Agent AI CPU",
+      "keyword": "Agent AI CPU",
+      "supply_chain": {
+        "upstream": [
+          "CPU設計",
+          "晶圓代工",
+          "AI加速器"
+        ],
+        "downstream": [
+          "AI PC",
+          "AI伺服器",
+          "邊緣AI"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "INTC",
+          "name": "英特爾"
+        }
+      ]
+    },
+    {
+      "id": "robotaxi",
+      "name": "RobotTaxi",
+      "keyword": "RobotTaxi",
+      "supply_chain": {
+        "upstream": [
+          "自動駕駛技術",
+          "電動車",
+          "AI軟體"
+        ],
+        "downstream": [
+          "共享出行",
+          "無人駕駛服務",
+          "智慧交通"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "TSLA",
+          "name": "特斯拉"
+        }
+      ]
+    },
+    {
+      "id": "power_management_design_gpu_ai",
+      "name": "GPU/AI電源管理設計",
+      "keyword": "GPU/AI電源管理設計",
+      "supply_chain": {
+        "upstream": [
+          "電源管理IC",
+          "功率元件",
+          "電容電感"
+        ],
+        "downstream": [
+          "GPU",
+          "AI晶片",
+          "AI資料中心"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "TXN",
+          "name": "德州儀器"
+        }
+      ]
+    },
+    {
+      "id": "general_purpose_analog_rack",
+      "name": "每個rack內大量的general-purpose analog",
+      "keyword": "general-purpose analog",
+      "supply_chain": {
+        "upstream": [
+          "類比IC設計",
+          "晶圓代工"
+        ],
+        "downstream": [
+          "電源管理",
+          "感測器介面",
+          "AI資料中心"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "TXN",
+          "name": "德州儀器"
+        }
+      ]
+    },
+    {
+      "id": "dci_ai_growth",
+      "name": "DCI AI增長",
+      "keyword": "DCI AI增長",
+      "supply_chain": {
+        "upstream": [
+          "光通訊模組",
+          "AI晶片",
+          "網路設備"
+        ],
+        "downstream": [
+          "資料中心互連",
+          "AI算力傳輸",
+          "6G AI-RAN"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "3363",
+          "name": "華星光"
+        },
+        {
+          "code": "3450",
+          "name": "聯鈞"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "NOK",
+          "name": "Nokia"
+        }
+      ]
+    },
+    {
+      "id": "ai_ran_early_cooperation",
+      "name": "AI-RAN早期合作承諾",
+      "keyword": "AI-RAN早期合作承諾",
+      "supply_chain": {
+        "upstream": [
+          "5G基地台",
+          "AI晶片",
+          "邊緣運算"
+        ],
+        "downstream": [
+          "6G通訊",
+          "智慧城市",
+          "物聯網"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "NOK",
+          "name": "Nokia"
+        }
+      ]
+    },
+    {
+      "id": "optical_communication_core",
+      "name": "光通信核心",
+      "keyword": "光通信核心",
+      "supply_chain": {
+        "upstream": [
+          "光通訊雷射元件",
+          "光電探測器",
+          "光纖"
+        ],
+        "downstream": [
+          "資料中心",
+          "高速網路",
+          "CPO共封裝光學"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "3363",
+          "name": "華星光"
+        },
+        {
+          "code": "3450",
+          "name": "聯鈞"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "NOK",
+          "name": "Nokia"
+        }
+      ]
+    },
+    {
+      "id": "5g_infrastructure",
+      "name": "5G基礎設施",
+      "keyword": "5G基礎設施",
+      "supply_chain": {
+        "upstream": [
+          "基地台",
+          "光纖網路",
+          "核心網設備"
+        ],
+        "downstream": [
+          "5G通訊",
+          "邊緣算力",
+          "AI-RAN"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "NOK",
+          "name": "Nokia"
+        }
+      ]
+    },
+    {
+      "id": "edge_computing_power",
+      "name": "邊緣算力",
+      "keyword": "邊緣算力",
+      "supply_chain": {
+        "upstream": [
+          "邊緣AI晶片",
+          "邊緣伺服器",
+          "5G通訊"
+        ],
+        "downstream": [
+          "物聯網",
+          "智慧城市",
+          "工業自動化"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "NOK",
+          "name": "Nokia"
+        }
+      ]
+    },
+    {
+      "id": "6g_base_station",
+      "name": "6G基地台",
+      "keyword": "6G基地台",
+      "supply_chain": {
+        "upstream": [
+          "6G通訊技術",
+          "AI晶片",
+          "光通訊模組"
+        ],
+        "downstream": [
+          "6G AI-RAN",
+          "未來通訊網路"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "NOK",
+          "name": "Nokia"
+        }
+      ]
+    },
+    {
+      "id": "rfid_custom_design",
+      "name": "RFID客製化設計",
+      "keyword": "RFID客製化設計",
+      "supply_chain": {
+        "upstream": [
+          "RFID晶片",
+          "天線設計",
+          "軟體開發"
+        ],
+        "downstream": [
+          "利基市場應用",
+          "AIoT",
+          "智慧製造"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6548",
+          "name": "韋僑"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "rfid_production",
+      "name": "RFID生產",
+      "keyword": "RFID生產",
+      "supply_chain": {
+        "upstream": [
+          "RFID晶片",
+          "天線製造",
+          "封裝技術"
+        ],
+        "downstream": [
+          "RFID標籤",
+          "RFID讀寫器",
+          "AIoT"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6548",
+          "name": "韋僑"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "rfid_medical_management",
+      "name": "RFID醫療設備管理",
+      "keyword": "RFID醫療設備管理",
+      "supply_chain": {
+        "upstream": [
+          "RFID標籤",
+          "讀寫器",
+          "管理系統"
+        ],
+        "downstream": [
+          "醫療設備追蹤",
+          "庫存管理",
+          "病患安全"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6548",
+          "name": "韋僑"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "rfid_smart_inventory",
+      "name": "RFID智慧庫存管理",
+      "keyword": "RFID智慧庫存管理",
+      "supply_chain": {
+        "upstream": [
+          "RFID標籤",
+          "讀寫器",
+          "管理系統"
+        ],
+        "downstream": [
+          "零售業",
+          "物流業",
+          "製造業"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6548",
+          "name": "韋僑"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "rfid_unmanned_factory",
+      "name": "RFID無人化工廠",
+      "keyword": "RFID無人化工廠",
+      "supply_chain": {
+        "upstream": [
+          "RFID標籤",
+          "讀寫器",
+          "自動化設備"
+        ],
+        "downstream": [
+          "智慧製造",
+          "物料追蹤",
+          "生產流程自動化"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6548",
+          "name": "韋僑"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "rfid_semiconductor_management",
+      "name": "RFID半導體產業管理",
+      "keyword": "RFID半導體產業管理",
+      "supply_chain": {
+        "upstream": [
+          "RFID標籤",
+          "讀寫器",
+          "管理系統"
+        ],
+        "downstream": [
+          "設備管理",
+          "物料追蹤",
+          "無塵室管理"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6548",
+          "name": "韋僑"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "rfid_sensor_integration",
+      "name": "RFID與產測器結合",
+      "keyword": "RFID與產測器結合",
+      "supply_chain": {
+        "upstream": [
+          "RFID讀寫器",
+          "感測器",
+          "數據融合平台"
+        ],
+        "downstream": [
+          "智慧製造",
+          "物流追蹤",
+          "自動化應用"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6548",
+          "name": "韋僑"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "iphone_sales",
+      "name": "iPhone銷售額",
+      "keyword": "iPhone銷售額",
+      "supply_chain": {
+        "upstream": [
+          "手機組裝",
+          "零組件供應",
+          "市場行銷"
+        ],
+        "downstream": [
+          "蘋果營收",
+          "消費性電子市場",
+          "大中華區營收"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2317",
+          "name": "鴻海"
+        },
+        {
+          "code": "2327",
+          "name": "國巨"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "AAPL",
+          "name": "蘋果"
+        }
+      ]
+    },
+    {
+      "id": "aws_cloud_business",
+      "name": "AWS雲端業務",
+      "keyword": "AWS雲端業務",
+      "supply_chain": {
+        "upstream": [
+          "資料中心",
+          "AI伺服器",
+          "網路設備"
+        ],
+        "downstream": [
+          "雲端運算",
+          "AI應用",
+          "企業服務"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "AMZN",
+          "name": "Amazon"
+        }
+      ]
+    },
+    {
+      "id": "meta_ad_business",
+      "name": "Meta廣告業務",
+      "keyword": "Meta廣告業務",
+      "supply_chain": {
+        "upstream": [
+          "廣告平台",
+          "數據分析",
+          "AI演算法"
+        ],
+        "downstream": [
+          "社群媒體",
+          "數位行銷",
+          "企業獲利"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "META",
+          "name": "Meta"
+        }
+      ]
+    },
+    {
+      "id": "reality_labs",
+      "name": "Reality Labs",
+      "keyword": "Reality Labs",
+      "supply_chain": {
+        "upstream": [
+          "VR/AR硬體",
+          "軟體開發",
+          "內容創作"
+        ],
+        "downstream": [
+          "元宇宙",
+          "VR/AR應用",
+          "消費性電子"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "META",
+          "name": "Meta"
+        }
+      ]
+    },
+    {
+      "id": "azure_cloud_business",
+      "name": "Azure雲端業務",
+      "keyword": "Azure雲端業務",
+      "supply_chain": {
+        "upstream": [
+          "資料中心",
+          "AI伺服器",
+          "網路設備"
+        ],
+        "downstream": [
+          "雲端運算",
+          "AI應用",
+          "企業服務"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "MSFT",
+          "name": "微軟"
+        }
+      ]
+    },
+    {
+      "id": "google_ad_business",
+      "name": "Google廣告業務",
+      "keyword": "Google廣告業務",
+      "supply_chain": {
+        "upstream": [
+          "廣告平台",
+          "數據分析",
+          "AI演算法"
+        ],
+        "downstream": [
+          "搜尋引擎",
+          "數位行銷",
+          "企業獲利"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
           "ticker": "GOOG",
           "name": "Google"
         }
       ]
     },
     {
-      "id": "ai_power",
-      "name": "AI Power",
-      "keyword": "AI Power",
+      "id": "google_cloud_business",
+      "name": "Google雲端業務",
+      "keyword": "Google雲端業務",
+      "supply_chain": {
+        "upstream": [
+          "資料中心",
+          "AI伺服器",
+          "網路設備"
+        ],
+        "downstream": [
+          "雲端運算",
+          "AI應用",
+          "企業服務"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "GOOG",
+          "name": "Google"
+        }
+      ]
+    },
+    {
+      "id": "memory_price_trend",
+      "name": "記憶體價格上漲趨勢",
+      "keyword": "記憶體價格上漲趨勢",
+      "supply_chain": {
+        "upstream": [
+          "DRAM",
+          "NAND Flash",
+          "市場供需"
+        ],
+        "downstream": [
+          "PC/NB",
+          "手機",
+          "伺服器",
+          "AI伺服器"
+        ]
+      },
       "tw_stocks": [
         {
-          "code": "2308",
-          "name": "台達電"
+          "code": "2408",
+          "name": "南亞科"
         },
         {
-          "code": "6138",
-          "name": "茂達"
+          "code": "2337",
+          "name": "旺宏"
+        },
+        {
+          "code": "2344",
+          "name": "華邦電"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "MU",
+          "name": "美光"
+        },
+        {
+          "ticker": "SKHY",
+          "name": "SK海力士"
+        },
+        {
+          "ticker": "SSNLF",
+          "name": "三星電子"
+        }
+      ]
+    },
+    {
+      "id": "hbm_capacity_expansion",
+      "name": "HBM擴產",
+      "keyword": "HBM擴產",
+      "supply_chain": {
+        "upstream": [
+          "DRAM晶圓",
+          "CoWoS先進封裝",
+          "設備交期",
+          "良率"
+        ],
+        "downstream": [
+          "HBM記憶體",
+          "AI伺服器",
+          "AI晶片"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        },
+        {
+          "code": "3711",
+          "name": "日月光投控"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "MU",
+          "name": "美光"
+        },
+        {
+          "ticker": "SKHY",
+          "name": "SK海力士"
+        },
+        {
+          "ticker": "SSNLF",
+          "name": "三星電子"
+        }
+      ]
+    },
+    {
+      "id": "msap_demand",
+      "name": "mSAP需求",
+      "keyword": "mSAP需求",
+      "supply_chain": {
+        "upstream": [
+          "高階CCL",
+          "雷射鑽孔",
+          "電鍍"
+        ],
+        "downstream": [
+          "高階HDI",
+          "ABF載板",
+          "先進封裝"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "4958",
+          "name": "臻鼎-KY"
         }
       ],
       "us_stocks": []
     },
     {
-      "id": "high_end_connector",
-      "name": "高階連接器",
-      "keyword": "高階連接器",
+      "id": "zhimao_product_structure",
+      "name": "致茂產品結構",
+      "keyword": "致茂產品結構",
+      "supply_chain": {
+        "upstream": [
+          "測試設備",
+          "自動化設備",
+          "電源供應器"
+        ],
+        "downstream": [
+          "半導體測試",
+          "光通訊測試",
+          "電動車測試"
+        ]
+      },
       "tw_stocks": [
         {
-          "code": "6271",
-          "name": "同欣電"
-        },
-        {
-          "code": "6278",
-          "name": "台表科"
+          "code": "2360",
+          "name": "致茂"
         }
       ],
       "us_stocks": []
+    },
+    {
+      "id": "hongjin_product_structure",
+      "name": "鴻勁產品結構",
+      "keyword": "鴻勁產品結構",
+      "supply_chain": {
+        "upstream": [
+          "PCB製造",
+          "CCL銅箔基板",
+          "銅箔"
+        ],
+        "downstream": [
+          "網通設備",
+          "伺服器",
+          "消費性電子"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6269",
+          "name": "鴻勁"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "apple_tax",
+      "name": "蘋果稅",
+      "keyword": "蘋果稅",
+      "supply_chain": {
+        "upstream": [
+          "App Store",
+          "平台服務"
+        ],
+        "downstream": [
+          "遊戲開發商",
+          "軟體服務營收",
+          "蘋果獲利"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "AAPL",
+          "name": "蘋果"
+        }
+      ]
+    },
+    {
+      "id": "intel_post_packaging_yield",
+      "name": "Intel後段封裝良率",
+      "keyword": "Intel後段封裝良率",
+      "supply_chain": {
+        "upstream": [
+          "封裝材料",
+          "封裝設備",
+          "製程技術"
+        ],
+        "downstream": [
+          "CPU",
+          "GPU",
+          "AI晶片",
+          "英特爾獲利"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "INTC",
+          "name": "英特爾"
+        }
+      ]
+    },
+    {
+      "id": "rfid_aiot_key",
+      "name": "RFID啟動AIoT的鑰匙",
+      "keyword": "RFID啟動AIoT的鑰匙",
+      "supply_chain": {
+        "upstream": [
+          "RFID技術",
+          "感測器",
+          "自動化設備"
+        ],
+        "downstream": [
+          "AIoT",
+          "智慧工廠",
+          "智慧物流"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6548",
+          "name": "韋僑"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "rfid_terminal_application",
+      "name": "RFID終端產業應用",
+      "keyword": "RFID終端產業應用",
+      "supply_chain": {
+        "upstream": [
+          "RFID技術",
+          "客製化設計"
+        ],
+        "downstream": [
+          "醫療",
+          "快時尚",
+          "無人化工廠",
+          "半導體產業"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6548",
+          "name": "韋僑"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "rfid_sensor_integration_application",
+      "name": "RFID與產測器結合應用",
+      "keyword": "RFID與產測器結合應用",
+      "supply_chain": {
+        "upstream": [
+          "RFID讀寫器",
+          "感測器",
+          "數據融合平台"
+        ],
+        "downstream": [
+          "智慧製造",
+          "物流追蹤",
+          "自動化應用"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6548",
+          "name": "韋僑"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "etf_investment_limit",
+      "name": "ETF投資上限25%",
+      "keyword": "ETF投資上限25%",
+      "supply_chain": {
+        "upstream": [
+          "金管會政策",
+          "基金管理",
+          "指數複製"
+        ],
+        "downstream": [
+          "台積電持股",
+          "台股資金流向",
+          "權值股表現"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "amazon_computing_power_supply_chain",
+      "name": "亞馬遜算力供應鏈",
+      "keyword": "亞馬遜算力供應鏈",
+      "supply_chain": {
+        "upstream": [
+          "AI伺服器",
+          "資料中心",
+          "GPU",
+          "ASIC"
+        ],
+        "downstream": [
+          "AWS雲端業務",
+          "AI應用",
+          "企業服務"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2382",
+          "name": "廣達"
+        },
+        {
+          "code": "3231",
+          "name": "緯創"
+        },
+        {
+          "code": "6669",
+          "name": "緯穎"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "AMZN",
+          "name": "Amazon"
+        }
+      ]
+    },
+    {
+      "id": "cpu_price_cycle",
+      "name": "CPU漲價迴圈",
+      "keyword": "CPU漲價迴圈",
+      "supply_chain": {
+        "upstream": [
+          "CPU",
+          "市場供需",
+          "晶圓代工成本"
+        ],
+        "downstream": [
+          "PC/NB",
+          "伺服器",
+          "AI伺服器"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "INTC",
+          "name": "英特爾"
+        },
+        {
+          "ticker": "AMD",
+          "name": "AMD"
+        }
+      ]
+    },
+    {
+      "id": "intel_layout",
+      "name": "Intel的佈局",
+      "keyword": "Intel的佈局",
+      "supply_chain": {
+        "upstream": [
+          "晶圓代工",
+          "CPU",
+          "GPU",
+          "先進封裝"
+        ],
+        "downstream": [
+          "AI晶片",
+          "AI PC",
+          "資料中心"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "INTC",
+          "name": "英特爾"
+        }
+      ]
+    },
+    {
+      "id": "google_tpu_beneficiaries",
+      "name": "Google TPU當前受惠廠商",
+      "keyword": "Google TPU當前受惠廠商",
+      "supply_chain": {
+        "upstream": [
+          "TPU晶片",
+          "CoWoS先進封裝",
+          "HBM記憶體"
+        ],
+        "downstream": [
+          "Google AI",
+          "資料中心",
+          "AI訓練"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        },
+        {
+          "code": "2454",
+          "name": "聯發科"
+        },
+        {
+          "code": "3711",
+          "name": "日月光投控"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "GOOG",
+          "name": "Google"
+        }
+      ]
+    },
+    {
+      "id": "pcb_equipment_manufacturers",
+      "name": "PCB設備廠",
+      "keyword": "PCB設備廠",
+      "supply_chain": {
+        "upstream": [
+          "鑽孔機",
+          "曝光機",
+          "電鍍設備",
+          "檢測設備"
+        ],
+        "downstream": [
+          "PCB製造",
+          "HDI板",
+          "軟板"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "6664",
+          "name": "群翊"
+        },
+        {
+          "code": "8027",
+          "name": "鈦昇"
+        },
+        {
+          "code": "2464",
+          "name": "盟立"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "ai_development_key_industries",
+      "name": "AI發展的三大關鍵產業需求",
+      "keyword": "AI發展的三大關鍵產業需求",
+      "supply_chain": {
+        "upstream": [
+          "AI晶片",
+          "資料中心",
+          "網路設備"
+        ],
+        "downstream": [
+          "AI應用",
+          "雲端服務",
+          "邊緣運算"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        },
+        {
+          "code": "3017",
+          "name": "奇鋐"
+        },
+        {
+          "code": "3324",
+          "name": "雙鴻"
+        },
+        {
+          "code": "3363",
+          "name": "華星光"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "NVDA",
+          "name": "Nvidia"
+        },
+        {
+          "ticker": "GOOG",
+          "name": "Google"
+        },
+        {
+          "ticker": "AMZN",
+          "name": "Amazon"
+        }
+      ]
+    },
+    {
+      "id": "mobile_market_taiwan_stock_relationship",
+      "name": "手機市場與台股關係",
+      "keyword": "手機市場與台股關係",
+      "supply_chain": {
+        "upstream": [
+          "智慧型手機",
+          "零組件供應",
+          "市場需求"
+        ],
+        "downstream": [
+          "台股供應鏈",
+          "IC設計",
+          "組裝代工"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2454",
+          "name": "聯發科"
+        },
+        {
+          "code": "2317",
+          "name": "鴻海"
+        },
+        {
+          "code": "2330",
+          "name": "台積電"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "AAPL",
+          "name": "蘋果"
+        },
+        {
+          "ticker": "QCOM",
+          "name": "高通"
+        }
+      ]
+    },
+    {
+      "id": "marvell_technology_focus",
+      "name": "Marvell技術重點",
+      "keyword": "Marvell技術重點",
+      "supply_chain": {
+        "upstream": [
+          "IC設計",
+          "矽光子",
+          "CPO共封裝光學"
+        ],
+        "downstream": [
+          "資料中心互連",
+          "AI網路",
+          "高速傳輸"
+        ]
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "MRVL",
+          "name": "Marvell"
+        }
+      ]
     }
   ]
 }

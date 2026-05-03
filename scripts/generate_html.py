@@ -293,12 +293,20 @@ def _cluster_section_html(clusters: list[ThemeCluster], stocks: dict) -> str:
                 f'</div>'
             )
 
-        # Watch stock chips
+        # Watch stock chips (with change% if available)
         watch_chips = []
         for w in c.watch:
             chip_cls = "watch-chip tw" if w.market == "TW" else "watch-chip us"
             label = f"{w.name}({w.code_or_ticker})" if w.market == "TW" else f"{w.code_or_ticker} {w.name}"
-            watch_chips.append(f'<span class="{chip_cls}">{html_lib.escape(label)}</span>')
+            if w.change_pct is not None:
+                pct_str = f"{'+' if w.change_pct >= 0 else ''}{w.change_pct:.1f}%"
+                pct_cls = "wc-up" if w.change_pct >= 0 else "wc-down"
+                watch_chips.append(
+                    f'<span class="{chip_cls}">{html_lib.escape(label)}'
+                    f'<span class="{pct_cls}"> {pct_str}</span></span>'
+                )
+            else:
+                watch_chips.append(f'<span class="{chip_cls}">{html_lib.escape(label)}</span>')
 
         # Recent article refs (7-day primary only in the cluster card)
         from datetime import date, timedelta
@@ -326,6 +334,16 @@ def _cluster_section_html(clusters: list[ThemeCluster], stocks: dict) -> str:
             if len(art_refs) >= 4:
                 break
 
+        # Supply chain row
+        sc_parts = []
+        if c.upstream:
+            items = " · ".join(html_lib.escape(u) for u in c.upstream[:4])
+            sc_parts.append(f'<span class="sc-label">上游</span><span class="sc-items">{items}</span>')
+        if c.downstream:
+            items = " · ".join(html_lib.escape(d) for d in c.downstream[:4])
+            sc_parts.append(f'<span class="sc-label">下游</span><span class="sc-items">{items}</span>')
+        sc_html = f'<div class="cluster-sc">{"　".join(sc_parts)}</div>' if sc_parts else ""
+
         cards.append(f"""
 <div class="cluster-card">
   <div class="cluster-hdr">
@@ -333,6 +351,7 @@ def _cluster_section_html(clusters: list[ThemeCluster], stocks: dict) -> str:
     <span class="cluster-strength {strength_cls}">{strength_lbl}</span>
     <span class="cluster-meta">{len(c.focal)} 檔焦點{"" if c.volume_only else f" · {c.primary_art_count} 篇近7日文章"}</span>
   </div>
+  {sc_html}
   <div class="cluster-section-label">今日焦點（在前30）</div>
   <div class="cluster-focal-stocks">{''.join(focal_pills)}</div>
   {'<div class="cluster-section-label">前哨觀察（同族群，未在前30）</div><div class="cluster-watch-stocks">' + "".join(watch_chips) + "</div>" if watch_chips else ""}
@@ -623,18 +642,6 @@ async def generate():
         )
         podcast_rows.extend(dict(r) for r in rows)
 
-    await conn.close()
-
-    raw_report   = (report["raw_response"] or "") if report else ""
-    report_date  = report["report_date"].strftime("%Y/%m/%d") if report else "—"
-    market_notes = None
-    if report and report["market_notes_json"]:
-        mn = report["market_notes_json"]
-        market_notes = mn if isinstance(mn, dict) else json.loads(mn)
-
-    directions  = parse_directions(raw_report)
-    report_html = md_to_html(raw_report)
-    updated_at  = datetime.now(timezone.utc).strftime("%m/%d %H:%M UTC")
     # Build stocks_info for theme detection (mirrors ranking data already fetched)
     stocks_info: dict[str, dict] = {}
     for r in us_ranks:
@@ -658,6 +665,34 @@ async def generate():
             "limit_up": bool(r.get("is_limit_up_30m")),
         }
     clusters = detect_clusters(stocks_info, ticker_arts)
+
+    # Fetch recent change% for watch stocks (not in today's top-30, from past rankings)
+    if clusters:
+        watch_tickers = list({w.code_or_ticker for c in clusters for w in c.watch})
+        if watch_tickers:
+            wp_rows = await conn.fetch(
+                """SELECT DISTINCT ON (ticker) ticker, change_pct
+                   FROM trading_rankings
+                   WHERE ticker = ANY($1::text[])
+                   ORDER BY ticker, rank_date DESC""",
+                watch_tickers,
+            )
+            watch_prices = {r["ticker"]: (float(r["change_pct"]) if r["change_pct"] is not None else None) for r in wp_rows}
+            for c in clusters:
+                for w in c.watch:
+                    w.change_pct = watch_prices.get(w.code_or_ticker)
+
+    await conn.close()
+
+    raw_report   = (report["raw_response"] or "") if report else ""
+    report_date  = report["report_date"].strftime("%Y/%m/%d") if report else "—"
+    market_notes = None
+    if report and report["market_notes_json"]:
+        mn = report["market_notes_json"]
+        market_notes = mn if isinstance(mn, dict) else json.loads(mn)
+    directions  = parse_directions(raw_report)
+    report_html = md_to_html(raw_report)
+    updated_at  = datetime.now(timezone.utc).strftime("%m/%d %H:%M UTC")
 
     focus_html, modal_data = build_focus_html(us_ranks, tw_ranks, ticker_arts, clusters)
     notes_html  = build_notes_html(market_notes, podcast_rows)
@@ -851,9 +886,12 @@ tr:last-child td{{border-bottom:none}}
 .fp-pct{{font-weight:700;font-size:.82rem}}
 .fp-rank{{color:var(--muted);font-size:.7rem}}
 .cluster-watch-stocks{{display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.4rem}}
-.watch-chip{{font-size:.78rem;padding:.15rem .45rem;border-radius:5px;font-weight:600}}
+.watch-chip{{font-size:.78rem;padding:.15rem .45rem;border-radius:5px;font-weight:600;display:inline-flex;align-items:center;gap:.25rem}}
 .watch-chip.tw{{background:#12201a;border:1px solid #1a3a2a;color:#4caf82}}
 .watch-chip.us{{background:#121520;border:1px solid #1a2a3a;color:#6c8ef5}}
+.wc-up{{color:#4caf82;font-size:.72rem}}.wc-down{{color:#e05c5c;font-size:.72rem}}
+.cluster-sc{{font-size:.72rem;color:var(--muted);margin:.2rem 0 .35rem;display:flex;flex-wrap:wrap;gap:.4rem .8rem}}
+.sc-label{{font-weight:700;color:#6c7a8a}}.sc-items{{color:var(--muted)}}
 .cluster-arts{{margin-top:.3rem}}
 
 /* ── Stock grid (clickable cards) ── */

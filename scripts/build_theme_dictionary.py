@@ -158,7 +158,7 @@ async def _fetch_all(conn) -> tuple[list[dict], list[dict]]:
            FROM articles
            WHERE status='active' AND source NOT LIKE 'podcast_%'
              AND refined_content IS NOT NULL AND LENGTH(refined_content) > 50
-           ORDER BY published_at DESC LIMIT 200"""
+           ORDER BY published_at DESC LIMIT 350"""
     )
     cutoff = date.today() - timedelta(days=PODCAST_DAYS)
     podcasts = await conn.fetch(
@@ -216,26 +216,51 @@ def _build_content_block(articles: list[dict], podcasts: list[dict]) -> str:
 # ── Prompts ───────────────────────────────────────────────────────────────────
 
 _REBUILD_PROMPT = """\
-你是一位專精台美股市的資深投資分析師。以下是台灣主流投資分析平台及 Podcast 的精煉內容。
+你是一位專精台美股供應鏈的資深投資分析師。以下是台灣主流投資分析平台及 Podcast 的精煉內容。
 
 【任務】
-建立一份「台美股投資主題字典」。
+建立一份完整的「台美股投資主題字典」，目標 150 個以上主題。
 
 【顆粒度要求 — 非常重要】
-必須「細粒度」：
-✅ HBM記憶體、CoWoS先進封裝、光通訊模組800G、MLCC、石英晶體、PCB鑽針、液冷散熱、氣冷散熱、台積電條款（ETF持股上限）、ABF載板、伺服器VR電源、車用SiC、AI推論ASIC
-❌ 半導體（太廣）、科技股（太廣）
+必須「細粒度」，越細越好：
+✅ 好例子：HBM記憶體、CoWoS先進封裝、ABF載板、光通訊800G、MLCC、石英晶體、PCB鑽針、液冷散熱、氣冷散熱、無塵室、廠務工程、InP基板、磊晶片、CCL銅箔基板、玻纖布、銅箔、光阻、CMP耗材、乾蝕刻設備、薄膜沉積設備、光通訊雷射元件、CPO共封裝光學、SiC基板、GaN元件、先進封裝CoWoS/SoIC/2.5D/3DIC
+❌ 壞例子：半導體（太廣）、科技股（太廣）、電子業（太廣）
 
-【keyword 欄位說明 — 最關鍵】
-keyword 必須是「單一字串」（非陣列），代表此主題最獨特、最無歧義的技術識別詞。
-此詞會直接用來搜尋文章，出現即代表文章在討論此主題。
-原則：越精準越好，寧可窄不可廣。
-✅ "CoWoS"、"HBM"、"液冷散熱"、"ABF載板"、"鑽針"、"MLCC"、"石英晶體"
-❌ "散熱"（液冷氣冷都中）、"記憶體"（太廣）、"AI"（到處都有）
+【必須涵蓋的供應鏈層次】
+請務必包含這些常被忽略但重要的子題材：
+- 晶圓廠廠務：無塵室、廠務工程、超純水、工業氣體（特氣）
+- 封裝材料：ABF、CCL、玻纖布、銅箔、底膠（Underfill）、EMC模封料
+- 半導體設備：微影、蝕刻、CVD/ALD薄膜沉積、CMP、清洗設備、量測設備
+- 光通訊元件：雷射二極體（LD）、光電探測器（PD）、磊晶片、InP基板、光通訊模組
+- PCB材料：玻纖布、銅箔、樹脂（PPO/BT）、HDI、ABF載板、Ajinomoto膜
+- 記憶體：HBM、DRAM、NAND、NOR Flash、SLC/MLC/TLC分類
+- 先進封裝：CoWoS、SoIC、EMIB、HBM堆疊、面板級封裝PLP、玻璃基板
+- 散熱：液冷（CDU冷卻分配單元）、氣冷、均熱板、熱界面材料
+- 化學品：光阻（PR）、顯影液、蝕刻液、前驅體、CMP漿料
+- 特殊應用：車用SiC、GaN功率元件、無人機、國防、核能、太空
 
-【股票標的】
-tw_stocks：{{"code":"2330","name":"台積電"}}，不限文章中出現者，請補全同族群重要台股
-us_stocks：{{"ticker":"NVDA","name":"Nvidia"}}，同上
+【keyword 欄位 — 最關鍵規則】
+keyword 是「單一字串」，直接用 Python str.count() 在文章中計數。
+
+規則一：取核心識別詞，不要加通用後綴
+✅ "ABF"（不要 "ABF載板"）、"CoWoS"（不要 "CoWoS封裝"）、"MLCC"、"HBM"
+✅ "液冷散熱"（這個整體詞已夠精準）、"玻纖布"、"銅箔"、"磊晶"
+
+規則二：若核心詞太短可能誤判，保留最短能識別的組合
+✅ "石英晶體"（保留，因為"晶體"太廣）、"無塵室"、"特氣"、"底膠"
+❌ "載板"（ABF/HDI/玻璃都中）、"記憶體"、"散熱"、"模組"
+
+規則三：英文專有名詞直接用原文
+✅ "CoWoS"、"HBM"、"MLCC"、"ABF"、"CPO"、"SiC"、"GaN"、"EUV"
+
+【股票標的 — 補全族群】
+tw_stocks：{{"code":"2330","name":"台積電"}} — 不限文章中出現者，請補全同族群所有重要台股
+us_stocks：{{"ticker":"NVDA","name":"Nvidia"}} — 同上
+
+【supply_chain — 上下游關係】
+每個主題請標記上游材料/設備及下游應用，用簡短中文名稱（3-8字）：
+upstream：此主題的上游原材料、設備、前製程（最多4項）
+downstream：此主題的下游應用、組裝、終端市場（最多4項）
 
 === 內容 ===
 {content}
@@ -245,26 +270,33 @@ us_stocks：{{"ticker":"NVDA","name":"Nvidia"}}，同上
 {{
   "themes": [
     {{
-      "id": "hbm_memory",
-      "name": "HBM記憶體",
-      "keyword": "HBM",
-      "tw_stocks": [{{"code":"2408","name":"南亞科"}}],
-      "us_stocks": [{{"ticker":"MU","name":"Micron"}}]
+      "id": "abf_substrate",
+      "name": "ABF載板",
+      "keyword": "ABF",
+      "supply_chain": {{
+        "upstream": ["玻纖布", "銅箔", "樹脂"],
+        "downstream": ["AI伺服器", "CoWoS先進封裝"]
+      }},
+      "tw_stocks": [{{"code":"3037","name":"欣興"}},{{"code":"8046","name":"南電"}},{{"code":"3189","name":"景碩"}}],
+      "us_stocks": []
     }}
   ]
 }}"""
 
 _APPEND_PROMPT = """\
-你是台美股投資分析師。以下是最新的投資分析內容（新增文章/Podcast）。
+你是台美股供應鏈投資分析師。以下是最新的投資分析內容。
 
-【現有主題列表】
+【現有主題列表（keyword）】
 {existing}
 
 【任務】
 分析新內容，判斷是否出現「現有主題清單中沒有的」新投資主題。
-若有，輸出新主題（格式同下）；若無，只輸出：NO_NEW_THEMES
+若有，輸出新主題；若無，只輸出：NO_NEW_THEMES
 
-【keyword 規則】同樣必須是單一精準字串，避免和現有主題的 keyword 重複或過於相近。
+【keyword 規則】
+- 單一精準字串，能在文章中獨立計數
+- 取核心識別詞，不要加通用後綴（如 "載板"、"基板"、"模組"）
+- 避免和現有 keyword 重複或過於相近
 
 === 新內容 ===
 {content}
@@ -277,6 +309,7 @@ _APPEND_PROMPT = """\
       "id": "new_theme_id",
       "name": "新主題名稱",
       "keyword": "精準識別詞",
+      "supply_chain": {{"upstream": [], "downstream": []}},
       "tw_stocks": [],
       "us_stocks": []
     }}
