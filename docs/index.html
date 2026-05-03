@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IIA 投資情報 2026/05/02</title>
+<title>IIA 投資情報 2026/05/03</title>
 <style>
 :root {
   --bg:#0f1117; --card:#1a1d26; --border:#2a2e40;
@@ -75,13 +75,6 @@ header h1{font-size:1rem;font-weight:700;color:var(--accent)}
       margin-bottom:.85rem}
 .section-hdr{font-size:.88rem;font-weight:700;color:var(--accent);letter-spacing:.04em;
               margin:1rem 0 .65rem}
-
-/* ── Market grid ── */
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(115px,1fr));gap:.6rem}
-.market-item{background:#12151f;border-radius:8px;padding:.6rem .7rem}
-.market-item .label{font-size:.68rem;color:var(--muted)}
-.market-item .value{font-size:1rem;font-weight:700;margin:.12rem 0}
-.market-item .change{font-size:.78rem}
 
 /* ── Report ── */
 .report h2{color:var(--accent);font-size:.98rem;font-weight:600;
@@ -160,8 +153,8 @@ tr:last-child td{border-bottom:none}
 /* ── Article modal ── */
 dialog#art-modal{background:var(--card);border:1px solid var(--border);
                   border-radius:14px;color:var(--text);padding:0;
-                  width:min(680px,96vw);max-height:80vh;overflow:hidden;
-                  display:flex;flex-direction:column}
+                  width:min(680px,96vw);max-height:80vh;overflow:hidden}
+dialog#art-modal[open]{display:flex;flex-direction:column}
 dialog#art-modal::backdrop{background:rgba(0,0,0,.65)}
 .modal-hdr{display:flex;align-items:center;gap:.6rem;
             padding:.85rem 1.1rem;border-bottom:1px solid var(--border);
@@ -214,6 +207,10 @@ dialog#art-modal::backdrop{background:rgba(0,0,0,.65)}
 .ep-body.hidden{display:none}
 .pod-raw{white-space:pre-wrap;font-family:inherit;font-size:.8rem;
           color:#b0bfcf;line-height:1.75;overflow-wrap:break-word;margin:0}
+.pod-raw-note{font-size:.72rem;color:var(--muted);margin-bottom:.4rem;font-style:italic}
+.pod-notes{font-size:.82rem;color:#b0bfcf;line-height:1.75;white-space:pre-wrap;overflow-wrap:break-word}
+.pod-notes h4{color:var(--accent);font-size:.82rem;font-weight:700;
+               margin:.7rem 0 .2rem;border-bottom:1px solid var(--border);padding-bottom:.2rem}
 .muted-note{color:var(--muted);font-size:.85rem;padding:.5rem 0}
 
 .up{color:var(--up)} .down{color:var(--down)} .neutral{color:var(--muted)}
@@ -229,11 +226,11 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;
 <!-- Direction badge (fixed top-right) -->
 <div class="dir-badge">
   <span class="dir-label">短期</span>
-  <span class="dir-val dir-bull">偏多</span>
+  <span class="dir-val dir-neu">中立</span>
   <span class="dir-label" style="margin-left:.2rem">中期</span>
-  <span class="dir-val dir-bull">偏多</span>
+  <span class="dir-val dir-neu">中立</span>
   <span class="dir-sep">|</span>
-  <span class="dir-date">2026/05/02 · 05/03 04:13 UTC</span>
+  <span class="dir-date">2026/05/03 · 05/03 04:44 UTC</span>
 </div>
 
 <header>
@@ -250,92 +247,40 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;
   <!-- Tab 1: 市場行情 -->
   <div id="tab-market" class="tab-pane active">
     <div class="card">
-      <div class="sec">市場指標（2026-05-01）</div>
-      <div class="grid">
-        <div class="market-item">
-          <div class="label">S&amp;P 500</div>
-          <div class="value">7,230</div>
-          <div class="change up">+0.29%</div>
-        </div>
-        <div class="market-item">
-          <div class="label">NASDAQ</div>
-          <div class="value">25,114</div>
-          <div class="change up">+0.89%</div>
-        </div>
-        <div class="market-item">
-          <div class="label">SOX</div>
-          <div class="value">10,595</div>
-          <div class="change up">+0.87%</div>
-        </div>
-        <div class="market-item">
-          <div class="label">日經 N225</div>
-          <div class="value">59,513</div>
-          <div class="change up">+0.38%</div>
-        </div>
-        <div class="market-item">
-          <div class="label">台股 TWII</div>
-          <div class="value">38,927</div>
-          <div class="change down">-0.96%</div>
-        </div>
-        <div class="market-item">
-          <div class="label">VIX</div>
-          <div class="value">16.99</div>
-          
-        </div>
-        <div class="market-item">
-          <div class="label">10Y 殖利率</div>
-          <div class="value">4.38</div>
-          
-        </div>
-        <div class="market-item">
-          <div class="label">DXY</div>
-          <div class="value">98</div>
-          <div class="change up">+0.13%</div>
-        </div>
-        <div class="market-item">
-          <div class="label">恐慌貪婪</div>
-          <div class="value">66.60</div>
-          
-        </div></div>
-    </div>
-    <div class="card">
-      <div class="sec">每日分析報告（2026/05/02）</div>
+      <div class="sec">每日分析報告（2026/05/03）</div>
       <div class="report"><h2>總經近況</h2>
-聯準會(FED)維持利率不變，但內部意見分歧加劇，顯示貨幣政策路徑仍具不確定性。中東地緣政治風險對市場影響逐步淡化，但油價與美債殖利率仍是觀察川普底線的關鍵。台灣景氣受惠於AI需求持續擴張，出口動能強勁。
+聯準會維持利率不變，但內部意見分歧加劇，中東局勢與油價仍是關鍵變數。台灣景氣燈號續亮紅燈，領先指標雖下滑但同時指標上升，外銷訂單預期強勁。AI需求超預期，半導體產業正從分歧式復甦走向全面擴張。
 <h2>國際股市</h2>
-今日美股主要指數因數據未更新顯示為N/A，但根據成交值排行與近期文章判斷，市場情緒偏向樂觀，恐慌貪婪指數維持在67（貪婪）。科技巨頭與半導體類股表現強勁，顯示AI題材仍是市場主軸。
+<ul><li><strong>美股</strong>：S&amp;P500 (+0.29%)、NASDAQ (+0.89%)、SOX (+0.87%)。科技與半導體股在財報利多及AI需求強勁帶動下領漲，市場對聯準會政策觀望。</li>
+<li><strong>日股</strong>：N225 (+0.38%)。受全球科技股氣氛提振而上漲。</li>
+<li><strong>台股</strong>：TWII (-0.96%)。受獲利了結賣壓影響而下跌。</li>
+</ul>
 <h2>綜合多空判斷</h2>
-<ul><li><strong>短期(1-2週)：偏多</strong> — AI相關企業財報與展望持續優於預期，帶動科技股上漲。中東地緣風險鈍化，市場回歸基本面定價。</li>
-<li><strong>中期(1-3月)：偏多</strong> — 代理式AI需求激增，推升半導體設備、記憶體及先進製程需求。台灣出口數據強勁，顯示經濟基本面穩固。</li>
-<li><strong>長期(3-12月)：偏多</strong> — AI產業的結構性成長趨勢明確，帶動相關供應鏈長期投資。記憶體產業復甦週期確立，有助於整體半導體景氣。</li>
-<li><strong>關鍵風險：</strong> 聯準會內部意見分歧加劇可能導致政策溝通混亂；中東局勢若再度惡化，油價突破關鍵價位恐引發通膨擔憂；消費性電子需求復甦不如預期，可能限制部分半導體產品漲價空間。</li>
+<ul><li>短期(1-2週)：<strong>偏多</strong> — 美股科技巨頭財報亮眼，AI需求持續超預期，聯準會維持利率不變且市場流動性有望逐步釋放。</li>
+<li>中期(1-3月)：<strong>偏多</strong> — AI趨勢明確推動半導體產業擴張，企業財報展望樂觀，若能源通膨風險緩解，聯準會仍有重啟降息機會。</li>
+<li>長期(3-12月)：<strong>偏多</strong> — AI帶動的半導體週期進入全面擴張階段，全球經濟基本面穩健，科技創新提供長期成長動能。</li>
+<li>關鍵風險：中東地緣政治不確定性對油價及通膨的影響、聯準會內部意見分歧加劇、全球供應鏈潛在斷鏈風險。</li>
 </ul>
 <h2>今日焦點股分析</h2>
-<h3>題材一：AI基礎建設與先進半導體（信心度：高）</h3>
-<ul><li><strong>核心標的：</strong> NVDA (-0.56%), MU (+4.84%), AAPL (+3.24%), INTC (+5.44%), AMZN (+1.21%), AMD (+1.71%), PLTR (+3.57%), SOUN (+20.10%)</li>
-<li><strong>市場在反應：</strong></li>
-</ul>    *   AI需求超預期，帶動GPU、CPU、HBM、DDR全面加速。台積電上修全年營收指引至「30%以上」印證強勁需求。
-    *   記憶體產業復甦，美光(MU)財報顯著優於預期，DRAM與NAND Flash合約價大幅上漲，供給短缺持續。
-    *   雲端服務商持續擴大AI資料中心建置，Celestica (CLS)受惠800G交換器及Google TPU v7放量出貨，並上修全年營收目標。
-    *   半導體前段設備與廠務工程需求旺盛，Intel (INTC)等大廠調高資本支出。
-    *   SoundHound AI (SOUN)作為AI語音技術供應商，股價大幅上漲，顯示市場對AI應用端潛力的高度關注。
-<ul><li><strong>供應鏈機會：</strong></li>
-</ul>    *   <strong>台灣PCB廠商：</strong> 定穎、萬宏受惠於NVIDIA LPU運算主板、Google TPU v8x運算主板放量。群翊受惠於PCB客戶擴充HLC、HDI產能。
-    *   <strong>記憶體相關：</strong> 萬宏受惠MLC NAND Flash漲價，力成受惠FOPLP先進封裝產能擴充。
-    *   <strong>半導體設備與廠務工程：</strong> 京鼎、帆宣、漢唐、聖暉、亞翔等。
-<h3>題材二：電動車與能源轉型（信心度：中）</h3>
-<ul><li><strong>核心標的：</strong> TSLA (+2.41%), BE (未在排行但文章提及), RIVN (-8.41%), NIO (-7.51%), F (-1.66%)</li>
-<li><strong>市場在反應：</strong></li>
-</ul>    *   Tesla (TSLA) 1Q26財報後宣告2026年進入CAPEX上修循環，用於支持FSD訓練、Optimus與Terafab，市場對其長期成長潛力抱持期待。
-    *   Bloom Energy (BE) 大幅上修年化產能目標至5GW，顯示能源轉型領域的成長動能。
-    *   然而，部分電動車新創公司如Rivian (RIVN) 和NIO (NIO) 股價仍面臨壓力，顯示市場對電動車產業的競爭與獲利能力仍有分歧。
-<ul><li><strong>供應鏈機會：</strong></li>
-</ul>    *   Tesla相關的電池、自動駕駛技術、超級工廠設備供應商。
-    *   燃料電池與潔淨能源相關技術供應商。
+<h3>題材一：記憶體漲價與AI資料中心需求（信心度：高）</h3>
+<ul><li>核心標的：MU(US), 萬宏(TW)</li>
+<li>市場在反應：美光(MU) FY2026Q2營收與獲利大幅優於預期，DRAM及NAND Flash平均銷售單價顯著提升，經營層預期AI資料中心將推動伺服器市場需求在2026年首度超過50%。萬宏(TW) Nor Flash切入NVIDIA LPU運算主板供應鏈，MLC NAND Flash漲價趨勢樂觀。</li>
+<li>供應鏈機會：力成(TW, FOPLP先進封裝產能擴充)、亞翔(TW, Micron新加坡HBM封裝廠統包工程)。</li>
+</ul>
+<h3>題材二：AI晶片擴產與先進封裝技術（信心度：高）</h3>
+<ul><li>核心標的：INTC(US), NVDA(US), AMD(US)</li>
+<li>市場在反應：Intel(INTC)股價上漲，反映半導體設備業者營運加速成長預期，以及先進封裝技術（如CPO Switch、FOPLP）需求激增。台積電上修全年營收指引，AI需求強度超預期。Celestica(CLS)受惠Google TPU v7量產爬坡。</li>
+<li>供應鏈機會：定穎(TW, 切入NVIDIA/Google TPU運算主板)、群翊(TW, PCB客戶擴充HLC/HDI產能)、力成(TW, FOPLP先進封裝)。</li>
+</ul>
+<h3>題材三：AI應用整合與雲端服務成長（信心度：中）</h3>
+<ul><li>核心標的：GOOG(US), AAPL(US), AMZN(US), PLTR(US)</li>
+<li>市場在反應：Google(GOOG) 1Q26財報顯示積壓訂單季增翻倍，證明其正成功轉型為AI公司。Apple(AAPL)、Amazon(AMZN)等科技巨頭在AI時代的應用整合與雲端服務需求持續增長。Palantir(PLTR)在AI數據分析領域持續受關注。</li>
+<li>供應鏈機會：SoundHound AI(SOUN, AI語音技術應用擴展)。</li>
+</ul>
 <h2>明日觀察重點</h2>
-1.  <strong>聯準會官員談話：</strong> 關注近期FED會議中持鷹派立場的委員是否發表言論，以及對未來貨幣政策路徑的進一步闡述，可能影響市場對降息時程的預期。
-2.  <strong>中東局勢與油價走勢：</strong> 持續追蹤中東地緣政治發展，特別是國際原油價格是否逼近川普所設定的100-110美元/桶紅線，這將是影響全球通膨與FED政策的重要變數。
-3.  <strong>台灣外銷訂單數據：</strong> 經濟部預估2026年4月外銷訂單金額將維持高速成長，實際數據的公布將進一步驗證台灣經濟的韌性與AI需求帶來的動能。</div>
+<ul><li>聯準會官員最新發言，關注對通膨及利率政策的態度變化。</li>
+<li>中東地緣政治發展，特別是原油價格的短期走勢。</li>
+<li>半導體產業鏈相關公司是否有進一步的財報或營運展望更新。</li></ul></div>
     </div>
     <div class="ranks">
       <div class="card">
@@ -361,7 +306,41 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;
 
   <!-- Tab 2: 焦點股 -->
   <div id="tab-focus" class="tab-pane">
-    
+    <div class="section-hdr">📌 跨來源共同議題</div><div class="focus-themes">
+<div class="focus-theme">
+  <div class="theme-top">
+    <span class="theme-ttl">台積電25%持股上限放寬與資金輪動</span>
+    <span class="sent-badge sent-neu">中立</span>
+    <span class="src-note">韭菜畢業班 × 股海飯桶 × 投資錨點</span>
+  </div>
+  <p class="theme-summary">金管會放寬國內股票型基金及主動式ETF單一個股持股比例上限至25%，可能導致台積電持股增加，中小型股面臨資金流出壓力。</p>
+  <ul class="kp-list"><li>金管會宣布國內股票型基金、國內股票主動ETF單一個股持股比例上限從10%放寬至25%。</li><li>可能導致台積電持股比例增加，中小型股面臨資金流出壓力。</li><li>基金和主動式ETF為主要買盤，但基金需開會討論，過程複雜。</li><li>台積電在0050指數中佔比從10%提升至25%，其他基金需重新配置以符合規定。</li></ul>
+  <div class="focus-chips"><span class="focus-chip-match">台積電(2330)</span></div>
+  <div class="theme-arts"><div class="art-ref">📰 [2026-04-28 韭菜畢業班] EP221 | 台、美股重點一次說， 台積電25%條款後的資金節奏，台達電AI Power與高階連接</div><div class="art-ref">📰 [2026-04-27 股海飯桶] EP71｜感受到自己成長 供應鏈上游窘境 方形封裝</div><div class="art-ref">📰 [2026-04-26 韭菜畢業班] EP220 | 台、美股重點一次說， ETF投資上限25%與台股關係，亞馬遜Amazon 算力供應鏈</div></div>
+</div>
+<div class="focus-theme">
+  <div class="theme-top">
+    <span class="theme-ttl">聯準會利率決策與通膨展望</span>
+    <span class="sent-badge sent-neu">中立</span>
+    <span class="src-note">投資錨點 × vocus_chivesking × 財經M平方 × 財經M平方 podcast</span>
+  </div>
+  <p class="theme-summary">聯準會維持基準利率不變，但內部意見分歧加劇，部分票委態度偏鷹，市場關注中東局勢、油價及通膨數據對未來政策的影響。</p>
+  <ul class="kp-list"><li>FED維持基準利率3.50~3.75%不變，內部意見分歧加劇，3名票委態度偏鷹。</li><li>聯準會票委以 8 : 4 維持基準利率不變，創下1992年以來最多委員投票反對的紀錄。</li><li>中東局勢造成高度不確定性，影響能源供應與價格長期走勢。</li><li>Powell表示沒有委員認為現在就需要升息，更多是在討論是否應該轉向中性立場。</li></ul>
+  <div class="focus-chips"></div>
+  <div class="theme-arts"><div class="art-ref">📰 [2026-05-01 投資錨點] FED維持觀望態度，內部意見分歧加劇</div><div class="art-ref">📰 [2026-04-30 vocus_chivesking] Fed 4月會議：延續觀望態度維持利率不變，惟3名票委態度偏鷹</div><div class="art-ref">📰 [2026-04-30 財經M平方] 【MM 訂閱會員快報】鮑威爾「告別會」，聯準會出現 34 年最大分歧！</div></div>
+</div>
+<div class="focus-theme">
+  <div class="theme-top">
+    <span class="theme-ttl">AI資料中心需求與相關供應鏈</span>
+    <span class="sent-badge sent-bull">偏多</span>
+    <span class="src-note">投資錨點 × vocus_chivesking × 財經M平方 × 財報狗</span>
+  </div>
+  <p class="theme-summary">AI資料中心需求持續強勁，推升記憶體、伺服器零組件、先進封裝及相關設備需求，多家公司財報顯示AI業務成長顯著，並上修全年展望。</p>
+  <ul class="kp-list"><li>Qualcomm財報提及AI資料中心需求推升記憶體供應不確定性。</li><li>旺宏(6670)Nor Flash切入NVIDIA LPU運算主板供應鏈，MLC NAND Flash漲價趨勢樂觀。</li><li>定穎(6251)切入NVIDIA Vera Rubin平台GPU運算主板、NVSwitch交換器板，Google TPU v8x運算主板放量出貨。</li><li>力成(6239)FOPLP先進封裝產能擴充。</li></ul>
+  <div class="focus-chips"><span class="focus-chip">旺宏(6670)</span><span class="focus-chip">定穎(6251)</span><span class="focus-chip">群翊(6643)</span><span class="focus-chip">力成(6239)</span><span class="focus-chip">GOOG(US)</span><span class="focus-chip-match">Intel(INTC)</span><span class="focus-chip">Celestica(CLS)</span><span class="focus-chip">MU(US)</span><span class="focus-chip-match">台積電(2330)</span><span class="focus-chip">ASML(US)</span><span class="focus-chip">AMAT(US)</span><span class="focus-chip">LRCX(US)</span></div>
+  <div class="theme-arts"><div class="art-ref">📰 [2026-05-03 投資錨點] 台股產業週報 2026/5/3</div><div class="art-ref">📰 [2026-05-02 vocus_chivesking] GOOG 1Q26財報：積壓訂單QoQ翻倍成長，證明已不是廣告公司、正成為一家真正AI公司</div><div class="art-ref">📰 [2026-04-30 投資錨點] 台灣景氣燈號與領先、同時指標 2026-03</div></div>
+</div></div>
+
 <div class="section-hdr">📊 焦點股（有爬蟲覆蓋）</div>
 <div class="sub-tabs">
   <button class="sub-tab-btn active" data-stab="tw" onclick="showSubTab('tw')">台股 (12)</button>
@@ -615,7 +594,40 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;
 
   <!-- Tab 3: 股市筆記 -->
   <div id="tab-notes" class="tab-pane">
-    <div class="section-hdr">🔀 跨來源共同議題</div><p class="muted-note">每日分析完成後更新（需 GOOGLE_API_KEY）</p>
+    <div class="section-hdr">🔀 跨來源共同議題（近7日）</div><div class="topics-grid">
+<div class="topic-card">
+  <div class="topic-head">
+    <span class="topic-name">台積電25%持股上限放寬與資金輪動</span>
+    <span class="sent-badge sent-neu">中立</span>
+  </div>
+  <div class="src-row"><span class="src-tag">韭菜畢業班</span><span class="src-tag">股海飯桶</span><span class="src-tag">投資錨點</span></div>
+  <p class="topic-sum">金管會放寬國內股票型基金及主動式ETF單一個股持股比例上限至25%，可能導致台積電持股增加，中小型股面臨資金流出壓力。</p>
+  <ul class="kp-list"><li>金管會宣布國內股票型基金、國內股票主動ETF單一個股持股比例上限從10%放寬至25%。</li><li>可能導致台積電持股比例增加，中小型股面臨資金流出壓力。</li><li>基金和主動式ETF為主要買盤，但基金需開會討論，過程複雜。</li><li>台積電在0050指數中佔比從10%提升至25%，其他基金需重新配置以符合規定。</li></ul>
+  <div class="tk-row"><span class="tk-chip">台積電(2330)</span></div>
+  <div class="topic-arts"><div class="art-ref">📰 [2026-04-28 韭菜畢業班] EP221 | 台、美股重點一次說， 台積電25%條款後的資金節奏，台達電AI Power與高階連接器，旺宏法說重點</div><div class="art-ref">📰 [2026-04-27 股海飯桶] EP71｜感受到自己成長 供應鏈上游窘境 方形封裝</div><div class="art-ref">📰 [2026-04-26 韭菜畢業班] EP220 | 台、美股重點一次說， ETF投資上限25%與台股關係，亞馬遜Amazon 算力供應鏈， CPU漲價與In</div><div class="art-ref">📰 [2026-04-26 投資錨點] 台股產業週報 2026/4/26</div></div>
+</div>
+<div class="topic-card">
+  <div class="topic-head">
+    <span class="topic-name">聯準會利率決策與通膨展望</span>
+    <span class="sent-badge sent-neu">中立</span>
+  </div>
+  <div class="src-row"><span class="src-tag">投資錨點</span><span class="src-tag">vocus_chivesking</span><span class="src-tag">財經M平方</span><span class="src-tag">財經M平方 podcast</span></div>
+  <p class="topic-sum">聯準會維持基準利率不變，但內部意見分歧加劇，部分票委態度偏鷹，市場關注中東局勢、油價及通膨數據對未來政策的影響。</p>
+  <ul class="kp-list"><li>FED維持基準利率3.50~3.75%不變，內部意見分歧加劇，3名票委態度偏鷹。</li><li>聯準會票委以 8 : 4 維持基準利率不變，創下1992年以來最多委員投票反對的紀錄。</li><li>中東局勢造成高度不確定性，影響能源供應與價格長期走勢。</li><li>Powell表示沒有委員認為現在就需要升息，更多是在討論是否應該轉向中性立場。</li><li>通膨回落進程仍具挑戰，但預期2026年中趨緩，2026Q4可望重啟降息。</li></ul>
+  
+  <div class="topic-arts"><div class="art-ref">📰 [2026-05-01 投資錨點] FED維持觀望態度，內部意見分歧加劇</div><div class="art-ref">📰 [2026-04-30 vocus_chivesking] Fed 4月會議：延續觀望態度維持利率不變，惟3名票委態度偏鷹</div><div class="art-ref">📰 [2026-04-30 財經M平方] 【MM 訂閱會員快報】鮑威爾「告別會」，聯準會出現 34 年最大分歧！</div><div class="art-ref">📰 [2026-04-30 財經M平方] 部落格</div></div>
+</div>
+<div class="topic-card">
+  <div class="topic-head">
+    <span class="topic-name">AI資料中心需求與相關供應鏈</span>
+    <span class="sent-badge sent-bull">偏多</span>
+  </div>
+  <div class="src-row"><span class="src-tag">投資錨點</span><span class="src-tag">vocus_chivesking</span><span class="src-tag">財經M平方</span><span class="src-tag">財報狗</span></div>
+  <p class="topic-sum">AI資料中心需求持續強勁，推升記憶體、伺服器零組件、先進封裝及相關設備需求，多家公司財報顯示AI業務成長顯著，並上修全年展望。</p>
+  <ul class="kp-list"><li>Qualcomm財報提及AI資料中心需求推升記憶體供應不確定性。</li><li>旺宏(6670)Nor Flash切入NVIDIA LPU運算主板供應鏈，MLC NAND Flash漲價趨勢樂觀。</li><li>定穎(6251)切入NVIDIA Vera Rubin平台GPU運算主板、NVSwitch交換器板，Google TPU v8x運算主板放量出貨。</li><li>力成(6239)FOPLP先進封裝產能擴充。</li><li>GOOG 1Q26財報顯示積壓訂單QoQ翻倍成長，正成為一家真正AI公司。</li></ul>
+  <div class="tk-row"><span class="tk-chip">旺宏(6670)</span><span class="tk-chip">定穎(6251)</span><span class="tk-chip">群翊(6643)</span><span class="tk-chip">力成(6239)</span><span class="tk-chip">GOOG(US)</span><span class="tk-chip">Intel(INTC)</span><span class="tk-chip">Celestica(CLS)</span><span class="tk-chip">MU(US)</span><span class="tk-chip">台積電(2330)</span><span class="tk-chip">ASML(US)</span><span class="tk-chip">AMAT(US)</span><span class="tk-chip">LRCX(US)</span></div>
+  <div class="topic-arts"><div class="art-ref">📰 [2026-05-03 投資錨點] 台股產業週報 2026/5/3</div><div class="art-ref">📰 [2026-05-02 vocus_chivesking] GOOG 1Q26財報：積壓訂單QoQ翻倍成長，證明已不是廣告公司、正成為一家真正AI公司</div><div class="art-ref">📰 [2026-04-30 投資錨點] 台灣景氣燈號與領先、同時指標 2026-03</div><div class="art-ref">📰 [2026-04-30 投資錨點] Celestica(CLS)：財報電話會議摘要</div></div>
+</div></div>
 <div class="section-hdr" style="margin-top:1.5rem">🎙 Podcast 筆記</div>
 
 <div class="pod-source">
@@ -629,35 +641,63 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;
 <div class="ep-block">
   <div class="ep-hdr" onclick="toggleEl('podcast-gooaye-0')">
     <span class="ep-arrow" id="arrow-podcast-gooaye-0">▶</span>
-    <span class="ep-title">EP657 | 🐫</span>
-    <span class="ep-date">2026-04-29</span>
+    <span class="ep-title">EP658 | 🪿</span>
+    <span class="ep-date">2026-05-02</span>
   </div>
   <div id="podcast-gooaye-0" class="ep-body hidden">
-    <pre class="pod-raw">- 聲明：近期因母亲节，討論送禮投資策略。
-- 修理可AGE極效复活緊致精華被推薦為電波V臉瓶，能模擬手術後的緊實感。
-- 推薦白天使用CE抗氧化精华以延緩老化，晚上用AGE精華加固結構。
-- 整套抗老產品有助於將短期投資轉變為長期策略。
-- 修理可品牌是長期資產配置的好選擇。</pre>
+    <div class="pod-notes">从你提到的内容来看，确实涉及到了多个方面的讨论和分析。让我们逐一梳理一下：
+
+<br>1. **软件公司与AI时代**：
+   - 一些传统软件公司在AI时代的挑战：如Adobe、Check等。
+   - 这些公司的商业模式可能会因为AI技术的发展而发生变化，例如需要大量部署工程师来处理数据，这可能成为AI难以替代的部分。
+
+<br>2. **Salesforce的未来**：
+   - Salesforce在AI时代的表现和转型。Benioff作为创始人，在公司发展中的作用。
+   - 通过引入AgentForce和Headless架构，简化了用户界面，提高了效率，并找到了新的盈利模式。
+
+<br>3. **市场轮动与投资机会**：
+   - 讨论了消费性电子市场的波动性和潜在的投资机会。
+   - 强调了在市场变化中寻找新的增长点的重要性。
+
+<br>4. **台积电和联发科的合作**：
+   - 台积电研发大将加入联发科，可能带来的影响。讨论了先进封装技术的发展及其对供应链的影响。
+   - 特别提到了5921和5922芯片的生产情况以及后段工艺转移到Intel Inmib的情况。
+
+### 关键点总结
+- **软件公司**：传统软件公司在AI时代可能会面临挑战，但也有机会通过新的商业模式获得增长。例如Salesforce通过引入AI技术简化了业务流程。
+- **市场轮动**：消费性电子市场的波动性和潜在的投资机会值得持续关注。
+- **台积电和联发科的合作**：先进封装技术的发展及其对供应链的影响值得关注。
+
+### 建议
+<br>1. **持续跟踪行业动态**：关注软件公司如何利用AI技术进行转型，以及这些变化可能带来的市场机遇。
+<br>2. **关注技术创新**：如先进封装技术的发展，这不仅影响到芯片制造企业，还可能改变整个产业链的格局。
+<br>3. **投资策略调整**：根据市场轮动和新技术发展，适时调整投资组合。
+
+希望以上总结对你有所帮助！如果有更多具体问题或需要进一步分析，请随时告知。</div>
   </div>
 </div>
 <div class="ep-block">
   <div class="ep-hdr" onclick="toggleEl('podcast-gooaye-1')">
     <span class="ep-arrow" id="arrow-podcast-gooaye-1">▶</span>
-    <span class="ep-title">EP656 | 🍇</span>
-    <span class="ep-date">2026-04-25</span>
+    <span class="ep-title">EP657 | 🐫</span>
+    <span class="ep-date">2026-04-29</span>
   </div>
   <div id="podcast-gooaye-1" class="ep-body hidden">
-    <pre class="pod-raw">NONE</pre>
+    <div class="pod-notes">- 聲明：近期因母亲节，討論送禮投資策略。
+- 修理可AGE極效复活緊致精華被推薦為電波V臉瓶，能模擬手術後的緊實感。
+- 推薦白天使用CE抗氧化精华以延緩老化，晚上用AGE精華加固結構。
+- 整套抗老產品有助於將短期投資轉變為長期策略。
+- 修理可品牌是長期資產配置的好選擇。</div>
   </div>
 </div>
 <div class="ep-block">
   <div class="ep-hdr" onclick="toggleEl('podcast-gooaye-2')">
     <span class="ep-arrow" id="arrow-podcast-gooaye-2">▶</span>
-    <span class="ep-title">EP655 | 🐯</span>
-    <span class="ep-date">2026-04-22</span>
+    <span class="ep-title">EP656 | 🍇</span>
+    <span class="ep-date">2026-04-25</span>
   </div>
   <div id="podcast-gooaye-2" class="ep-body hidden">
-    <pre class="pod-raw">NONE</pre>
+    <div class="pod-notes">NONE</div>
   </div>
 </div>
   </div>
@@ -678,12 +718,12 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;
     <span class="ep-date">2026-04-25</span>
   </div>
   <div id="podcast-macromicro-0" class="ep-body hidden">
-    <pre class="pod-raw">- 美伊停火談判反覆，但最終川普宣布延長停火。
+    <div class="pod-notes">- 美伊停火談判反覆，但最終川普宣布延長停火。
 - 通膨預期開始頓化，CPI公布後股市債市反應不大。
 - Q1財報普遍表現不錯，美股S&amp;P500創新高，亞股表現更強勁。
 - 原物料價格微升，黃金價格回落。
 - 聯準會維持利率不變機率小幅攀升至7成左右。
-- 企業獲利健康，AI、雲端應用等主線持續發展。</pre>
+- 企業獲利健康，AI、雲端應用等主線持續發展。</div>
   </div>
 </div>
 <div class="ep-block">
@@ -693,11 +733,11 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;
     <span class="ep-date">2026-04-18</span>
   </div>
   <div id="podcast-macromicro-1" class="ep-body hidden">
-    <pre class="pod-raw">- 台積電 Q1 表現再超預期！
+    <div class="pod-notes">- 台積電 Q1 表現再超預期！
 - 台積電對 AI 的看法改變了嗎？
 - 全球半導體庫存是什麼情況？
 - M平方獨家消息大公開！2026 展望組合包銷售倒數！即刻掌握 AI 大投資時代 https://pse.is/8pcxd2
-- 加入訂閱搶先接收完整 AI 供應鏈報告！https://pse.is/8y8rn9</pre>
+- 加入訂閱搶先接收完整 AI 供應鏈報告！https://pse.is/8y8rn9</div>
   </div>
 </div>
 <div class="ep-block">
@@ -707,10 +747,10 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;
     <span class="ep-date">2026-04-11</span>
   </div>
   <div id="podcast-macromicro-2" class="ep-body hidden">
-    <pre class="pod-raw">- 美伊三方達成停火協議，市場樂觀情緒浮現，美、亞股強勢反彈、油價大跌、美元指數與公債殖利率回落。
+    <div class="pod-notes">- 美伊三方達成停火協議，市場樂觀情緒浮現，美、亞股強勢反彈、油價大跌、美元指數與公債殖利率回落。
 - 3月美國CPI是本週至關重要的重點。
 - 「大漲價時代」下，除了油價以外，其他東西也在默默漲價。
-- 供應鏈漲價的原因。</pre>
+- 供應鏈漲價的原因。</div>
   </div>
 </div>
   </div>
@@ -731,11 +771,11 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;
     <span class="ep-date">2026-04-28</span>
   </div>
   <div id="podcast-chives-grad-0" class="ep-body hidden">
-    <pre class="pod-raw">- 台積電25%條款後資金節奏：基金和主動式ETF為主要買盤，但基金需開會討論，過程複雜。
+    <div class="pod-notes">- 台積電25%條款後資金節奏：基金和主動式ETF為主要買盤，但基金需開會討論，過程複雜。
 - 台股IC設計族群表現強勢，漲幅達60%，旺宏、怡鼎群聯等記憶體相關公司表現亦佳。
 - 台光電出現修正，台積電25%上限提高，龍頭股可能優先修正。
 - 台達電2026年第一季年增率43%，毛利率提升至31.7%，伺服器電源營收年增90%，12kW PSU需求增加，HVDC Power Rank預估上半年貢獻。
-- 台達電SST固態變壓器方案推升ASP。</pre>
+- 台達電SST固態變壓器方案推升ASP。</div>
   </div>
 </div>
 <div class="ep-block">
@@ -745,8 +785,8 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;
     <span class="ep-date">2026-04-26</span>
   </div>
   <div id="podcast-chives-grad-1" class="ep-body hidden">
-    <pre class="pod-raw">- 亞馬遜Amazon 算力供應鏈
-- CPU漲價與Intel財報</pre>
+    <div class="pod-notes">- 亞馬遜Amazon 算力供應鏈
+- CPU漲價與Intel財報</div>
   </div>
 </div>
 <div class="ep-block">
@@ -756,10 +796,10 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;
     <span class="ep-date">2026-04-22</span>
   </div>
   <div id="podcast-chives-grad-2" class="ep-body hidden">
-    <pre class="pod-raw">- 聯發科 TPU 與 ASIC 業務展望
+    <div class="pod-notes">- 聯發科 TPU 與 ASIC 業務展望
 - 力積電法說會重點與矽電容佈局
 - 信驊 BMC 需求與代理式 AI 帶動
-- 8 吋晶圓代工漲價循環</pre>
+- 8 吋晶圓代工漲價循環</div>
   </div>
 </div>
   </div>
@@ -780,8 +820,8 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;
     <span class="ep-date">2026-04-27</span>
   </div>
   <div id="podcast-stock-barrel-0" class="ep-body hidden">
-    <pre class="pod-raw">- 供應鏈上游窘境：封測大廠人員交流，台積電權重調整影響基金配置。
-- 指數調整：台積電在0050指數中佔比從10%提升至25%，其他基金需重新配置以符合規定。</pre>
+    <div class="pod-notes">- 供應鏈上游窘境：封測大廠人員交流，台積電權重調整影響基金配置。
+- 指數調整：台積電在0050指數中佔比從10%提升至25%，其他基金需重新配置以符合規定。</div>
   </div>
 </div>
 <div class="ep-block">
@@ -791,7 +831,7 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;
     <span class="ep-date">2026-04-23</span>
   </div>
   <div id="podcast-stock-barrel-1" class="ep-body hidden">
-    <pre class="pod-raw">NONE</pre>
+    <div class="pod-notes">NONE</div>
   </div>
 </div>
 <div class="ep-block">
@@ -801,7 +841,7 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;
     <span class="ep-date">2026-04-20</span>
   </div>
   <div id="podcast-stock-barrel-2" class="ep-body hidden">
-    <pre class="pod-raw">NONE</pre>
+    <div class="pod-notes">NONE</div>
   </div>
 </div>
   </div>

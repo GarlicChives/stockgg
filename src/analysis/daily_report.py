@@ -60,21 +60,25 @@ def _fmt_pct(v) -> str:
 
 
 async def _load_market_context(conn, report_date: date) -> dict:
-    snap_date = await conn.fetchval("SELECT MAX(snapshot_date) FROM market_snapshots")
-    if snap_date is None:
+    # Use DISTINCT ON so each symbol returns its own latest non-null date.
+    # This prevents symbols updated on different days from being excluded.
+    snaps = await conn.fetch("""
+        SELECT DISTINCT ON (symbol)
+            symbol, close_price, change_pct, snapshot_date, extra
+        FROM market_snapshots
+        WHERE close_price IS NOT NULL
+        ORDER BY symbol, snapshot_date DESC
+    """)
+    if not snaps:
         return {}
 
-    snaps = await conn.fetch(
-        "SELECT market, symbol, close_price, change_pct, extra "
-        "FROM market_snapshots WHERE snapshot_date=$1",
-        snap_date,
-    )
+    snap_date = max(r["snapshot_date"] for r in snaps)
     indicators = {}
     for s in snaps:
         name = (json.loads(s["extra"] or "{}")).get("name", s["symbol"])
         indicators[s["symbol"]] = {
             "name": name,
-            "close": float(s["close_price"] or 0),
+            "close": float(s["close_price"]),
             "change_pct": float(s["change_pct"]) if s["change_pct"] is not None else None,
         }
 

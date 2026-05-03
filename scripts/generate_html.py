@@ -102,12 +102,20 @@ def md_to_html(text: str) -> str:
     return '\n'.join(result)
 
 
-def podcast_content_to_html(content: str) -> str:
+def podcast_content_to_html(content: str, is_refined: bool = False) -> str:
     if not content:
         return '<p style="color:var(--muted)">（無內容）</p>'
-    if len(content) > 5000:
-        content = content[:5000] + "\n…（以下省略）"
-    return f'<pre class="pod-raw">{html_lib.escape(content)}</pre>'
+    if is_refined:
+        # Structured refined notes — render headings and bullets properly
+        text = html_lib.escape(content[:6000])
+        text = re.sub(r'【(.+?)】', r'<h4>\1</h4>', text)
+        text = re.sub(r'^(\d+\.) ', r'<br>\1 ', text, flags=re.MULTILINE)
+        return f'<div class="pod-notes">{text}</div>'
+    else:
+        # Raw transcript — show only first 800 chars with note
+        preview = content[:800]
+        note = '<p class="pod-raw-note">（以下為原始逐字稿節錄，完整分析待 AI 整理後更新）</p>' if len(content) > 800 else ''
+        return f'{note}<pre class="pod-raw">{html_lib.escape(preview)}{"…" if len(content) > 800 else ""}</pre>'
 
 
 def extract_relevant_para(content: str, ticker: str, name: str, max_chars: int = 700) -> str:
@@ -392,8 +400,9 @@ def build_notes_html(market_notes: dict | None, podcast_rows: list) -> str:
             ep_id = f"{safe_key}-{i}"
             dt = str(ep["published_at"])[:10] if ep["published_at"] else "?"
             title = html_lib.escape(ep["title"] or "（無標題）")
+            is_refined = bool(ep.get("has_refined"))
             content = ep.get("content") or ""
-            content_html = podcast_content_to_html(content)
+            content_html = podcast_content_to_html(content, is_refined=is_refined)
             ep_html_parts.append(f"""
 <div class="ep-block">
   <div class="ep-hdr" onclick="toggleEl('{ep_id}')">
@@ -494,12 +503,14 @@ async def generate():
                 if t in all_tickers:
                     ticker_arts[t].append(dict(row))
 
-    # Podcast notes (last 3 episodes per source, full content)
+    # Podcast notes (last 3 episodes per source)
+    # Use refined_content if available (structured notes), else short raw preview
     podcast_rows = []
     for src in PODCAST_SOURCES:
         rows = await conn.fetch(
             """SELECT source, title, published_at,
-                      COALESCE(refined_content, LEFT(content, 5000)) as content
+                      COALESCE(refined_content, LEFT(content, 900)) as content,
+                      (refined_content IS NOT NULL) as has_refined
                FROM articles
                WHERE source=$1 AND status='active'
                ORDER BY published_at DESC NULLS LAST
@@ -562,25 +573,6 @@ async def generate():
     tape_content = '&ensp;·&ensp;'.join(tape_items)
     # Duplicate for seamless loop; animation runs translateX(-50%)
     tape_html = f'<div class="tape-track">{tape_content}&ensp;&ensp;&ensp;&ensp;{tape_content}</div>'
-
-    # Market indicator cards
-    ind_cards = []
-    for label, sym, show_pct in INDICATORS:
-        close, chg = ind(sym)
-        if sym in ("^VIX", "^TNX", "FEAR_GREED"):
-            val = f"{close:.2f}" if close is not None else "—"
-        else:
-            val = f"{close:,.0f}" if close is not None else "—"
-        pct_html = ""
-        if show_pct:
-            pct_text, css = fmt_pct(chg)
-            pct_html = f'<div class="change {css}">{pct_text}</div>'
-        ind_cards.append(f"""
-        <div class="market-item">
-          <div class="label">{label}</div>
-          <div class="value">{val}</div>
-          {pct_html}
-        </div>""")
 
     # Direction badge
     dir_short = directions["short"]
@@ -673,13 +665,6 @@ header h1{{font-size:1rem;font-weight:700;color:var(--accent)}}
 .section-hdr{{font-size:.88rem;font-weight:700;color:var(--accent);letter-spacing:.04em;
               margin:1rem 0 .65rem}}
 
-/* ── Market grid ── */
-.grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(115px,1fr));gap:.6rem}}
-.market-item{{background:#12151f;border-radius:8px;padding:.6rem .7rem}}
-.market-item .label{{font-size:.68rem;color:var(--muted)}}
-.market-item .value{{font-size:1rem;font-weight:700;margin:.12rem 0}}
-.market-item .change{{font-size:.78rem}}
-
 /* ── Report ── */
 .report h2{{color:var(--accent);font-size:.98rem;font-weight:600;
             margin:1.1rem 0 .5rem;padding-bottom:.3rem;
@@ -757,8 +742,8 @@ tr:last-child td{{border-bottom:none}}
 /* ── Article modal ── */
 dialog#art-modal{{background:var(--card);border:1px solid var(--border);
                   border-radius:14px;color:var(--text);padding:0;
-                  width:min(680px,96vw);max-height:80vh;overflow:hidden;
-                  display:flex;flex-direction:column}}
+                  width:min(680px,96vw);max-height:80vh;overflow:hidden}}
+dialog#art-modal[open]{{display:flex;flex-direction:column}}
 dialog#art-modal::backdrop{{background:rgba(0,0,0,.65)}}
 .modal-hdr{{display:flex;align-items:center;gap:.6rem;
             padding:.85rem 1.1rem;border-bottom:1px solid var(--border);
@@ -811,6 +796,10 @@ dialog#art-modal::backdrop{{background:rgba(0,0,0,.65)}}
 .ep-body.hidden{{display:none}}
 .pod-raw{{white-space:pre-wrap;font-family:inherit;font-size:.8rem;
           color:#b0bfcf;line-height:1.75;overflow-wrap:break-word;margin:0}}
+.pod-raw-note{{font-size:.72rem;color:var(--muted);margin-bottom:.4rem;font-style:italic}}
+.pod-notes{{font-size:.82rem;color:#b0bfcf;line-height:1.75;white-space:pre-wrap;overflow-wrap:break-word}}
+.pod-notes h4{{color:var(--accent);font-size:.82rem;font-weight:700;
+               margin:.7rem 0 .2rem;border-bottom:1px solid var(--border);padding-bottom:.2rem}}
 .muted-note{{color:var(--muted);font-size:.85rem;padding:.5rem 0}}
 
 .up{{color:var(--up)}} .down{{color:var(--down)}} .neutral{{color:var(--muted)}}
@@ -846,10 +835,6 @@ footer{{text-align:center;color:var(--muted);font-size:.75rem;
 
   <!-- Tab 1: 市場行情 -->
   <div id="tab-market" class="tab-pane active">
-    <div class="card">
-      <div class="sec">市場指標（{str(snap_date) if snap_date else '—'}）</div>
-      <div class="grid">{''.join(ind_cards)}</div>
-    </div>
     <div class="card">
       <div class="sec">每日分析報告（{report_date}）</div>
       <div class="report">{report_html or '<p style="color:var(--muted)">今日報告尚未生成</p>'}</div>

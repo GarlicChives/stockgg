@@ -7,6 +7,7 @@ in analysis_reports.
 """
 import json
 import os
+import re
 import sys
 import urllib.request
 from datetime import date, timedelta
@@ -39,7 +40,11 @@ def _gemini_http(api_key: str, prompt: str) -> str:
     url = f"{GEMINI_BASE}/{GEMINI_MODEL}:generateContent?key={api_key}"
     payload = json.dumps({
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.2, "maxOutputTokens": 4096},
+        "generationConfig": {
+            "temperature": 0.2,
+            "maxOutputTokens": 4096,
+            "thinkingConfig": {"thinkingBudget": 0},
+        },
     }).encode()
     req = urllib.request.Request(
         url, data=payload, headers={"Content-Type": "application/json"}
@@ -131,11 +136,23 @@ async def generate_market_notes(conn, report_date: date, api_key: str) -> dict:
     if raw.startswith("```"):
         raw = raw[raw.find("{"):raw.rfind("}") + 1]
 
-    try:
-        notes = json.loads(raw)
-    except Exception as e:
-        print(f"  ⚠ JSON parse error: {e} — saving empty topics")
+    if not raw:
+        print(f"  ⚠ Gemini returned empty response — saving empty topics")
         notes = {"topics": []}
+    else:
+        try:
+            notes = json.loads(raw)
+        except Exception as e:
+            # Try harder to extract JSON block
+            m = re.search(r'\{[\s\S]+\}', raw)
+            if m:
+                try:
+                    notes = json.loads(m.group(0))
+                except Exception:
+                    notes = {"topics": []}
+            else:
+                print(f"  ⚠ JSON parse error: {e} — saving empty topics")
+                notes = {"topics": []}
 
     await conn.execute(
         """UPDATE analysis_reports
