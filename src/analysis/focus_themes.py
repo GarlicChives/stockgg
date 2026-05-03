@@ -1,9 +1,13 @@
 """Focus stock theme detection.
 
-Loads theme_dictionary.json, scores today's top-30 stocks against themes
-using a dual-window approach:
-  - Primary window (≤7 days):  article keyword match × weight 2
-  - Secondary window (8-60 days): keyword match × weight 1
+Loads theme_dictionary.json, scores today's top-30 stocks against themes.
+
+Gate logic (two conditions must both be true for a stock to be FOCAL):
+  1. Dictionary membership: the stock must appear in the theme's tw_stocks/us_stocks.
+     This prevents cross-sector pollution — an article mentioning DRAM and IP design
+     does NOT place a DRAM company into the IP design cluster.
+  2. Keyword confirmation: the stock's recent articles must contain the theme keyword,
+     weighted by recency (≤7 days ×2, 8-60 days ×1).
 
 DB migration path: replace _load_themes() body only — all callers unchanged.
 """
@@ -14,7 +18,7 @@ from pathlib import Path
 
 DICT_FILE    = Path(__file__).resolve().parents[2] / "data" / "theme_dictionary.json"
 PRIMARY_DAYS = 7
-MIN_SCORE    = 1.0   # minimum weighted occurrence count (keyword must appear at least once in a primary article)
+MIN_SCORE    = 1.0   # minimum weighted keyword occurrence count
 MIN_FOCAL    = 1     # minimum focal stocks for a cluster to appear
 
 
@@ -31,6 +35,7 @@ class FocalStock:
     limit_up: bool
     articles: list[dict]
     score: float          # weighted keyword score
+    primary_keyword_hits: int  # primary-window articles with keyword match
 
 
 @dataclass
@@ -47,7 +52,7 @@ class ThemeCluster:
     focal: list[FocalStock]
     watch: list[WatchStock]
     total_score: float
-    primary_art_count: int   # supporting articles in the 7-day window
+    primary_art_count: int   # sum of primary keyword hits across focal stocks
 
 
 # ── Dictionary loader (swap body for DB migration) ────────────────────────────
@@ -108,39 +113,44 @@ def detect_clusters(
     ticker_arts: dict[str, list],   # ticker → list of article dicts (needs full_content, published_at)
 ) -> list[ThemeCluster]:
     """
-    Match top-30 stocks to theme clusters using keyword scoring.
-    Returns clusters sorted by signal strength (primary articles DESC, focal count DESC, score DESC).
+    Match top-30 stocks to theme clusters using dictionary membership + keyword scoring.
+
+    A stock is FOCAL in a theme iff:
+      (a) it appears in the theme's tw_stocks (by code) or us_stocks (by ticker), AND
+      (b) its recent articles contain the theme keyword with score ≥ MIN_SCORE.
+
+    Returns clusters sorted by signal strength (primary_art_count DESC, focal count DESC, score DESC).
     Empty list if dictionary not built yet.
     """
     themes = _load_themes()
     if not themes:
         return []
 
-    focal_tickers = {t for t in ticker_arts if ticker_arts[t]}
     all_focal_codes = set(stocks.keys())
 
-    # Score every focal ticker against every theme
-    ticker_scores: dict[str, dict[str, tuple]] = {}   # ticker → {theme_id: (score, primary_count)}
-    for ticker in focal_tickers:
-        ticker_scores[ticker] = {}
-        for theme in themes:
-            keyword = theme.get("keyword", "")
-            if not keyword:
-                continue
-            score, primary = _score_articles(ticker_arts[ticker], keyword)
-            if score >= MIN_SCORE:
-                ticker_scores[ticker][theme["id"]] = (score, primary)
-
-    # Build clusters
-    clusters: dict[str, ThemeCluster] = {}
+    clusters: list[ThemeCluster] = []
     for theme in themes:
-        tid = theme["id"]
-        focal_stocks: list[FocalStock] = []
+        keyword = theme.get("keyword", "")
+        if not keyword:
+            continue
 
-        for ticker, scored_themes in ticker_scores.items():
-            if tid not in scored_themes:
+        # Gate 1: build the set of this theme's known member stocks
+        dict_tw = {s["code"] for s in theme.get("tw_stocks", [])}
+        dict_us = {s["ticker"] for s in theme.get("us_stocks", [])}
+        dict_members = dict_tw | dict_us
+
+        # Candidates = theme members that appear in today's top-30
+        candidates = [t for t in all_focal_codes if t in dict_members]
+        if not candidates:
+            continue
+
+        # Gate 2: keyword confirmation — candidate must have articles mentioning keyword
+        focal_stocks: list[FocalStock] = []
+        for ticker in candidates:
+            arts = ticker_arts.get(ticker, [])
+            score, primary_hits = _score_articles(arts, keyword)
+            if score < MIN_SCORE:
                 continue
-            score, _ = scored_themes[tid]
             info = stocks[ticker]
             focal_stocks.append(FocalStock(
                 ticker=ticker,
@@ -150,8 +160,9 @@ def detect_clusters(
                 trading_value=info.get("trading_value", 0),
                 rank=info.get("rank", 99),
                 limit_up=bool(info.get("limit_up", False)),
-                articles=ticker_arts[ticker],
+                articles=arts,
                 score=score,
+                primary_keyword_hits=primary_hits,
             ))
 
         if len(focal_stocks) < MIN_FOCAL:
@@ -159,7 +170,7 @@ def detect_clusters(
 
         focal_stocks.sort(key=lambda s: -s.score)
 
-        # Watch stocks: from dictionary, excluding today's top-30 tickers
+        # Watch stocks: theme dictionary members NOT in today's top-30
         tw_watch = [
             WatchStock(s["code"], s["name"], "TW")
             for s in theme.get("tw_stocks", [])
@@ -172,23 +183,18 @@ def detect_clusters(
         ]
 
         total_score = sum(s.score for s in focal_stocks)
-        primary_art_count = sum(
-            1 for s in focal_stocks for art in s.articles
-            if art.get("published_at") and
-            (art["published_at"].date() if hasattr(art["published_at"], "date") else art["published_at"])
-            >= date.today() - timedelta(days=PRIMARY_DAYS)
-        )
+        primary_art_count = sum(s.primary_keyword_hits for s in focal_stocks)
 
-        clusters[tid] = ThemeCluster(
-            theme_id=tid,
+        clusters.append(ThemeCluster(
+            theme_id=theme["id"],
             name=theme["name"],
             focal=focal_stocks,
             watch=(tw_watch[:6] + us_watch[:4]),
             total_score=total_score,
             primary_art_count=primary_art_count,
-        )
+        ))
 
     return sorted(
-        clusters.values(),
+        clusters,
         key=lambda c: (-c.primary_art_count, -len(c.focal), -c.total_score),
     )
