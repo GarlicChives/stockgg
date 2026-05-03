@@ -63,6 +63,12 @@ PODCASTS = [
         "rss": "https://feeds.soundon.fm/podcasts/91be014b-9f55-4bf3-a910-b232eda82d11.xml",
         "author": "兆華",
     },
+    {
+        "source": "podcast_statementdog",
+        "name": "財報狗",
+        "rss": "https://feed.firstory.me/rss/user/clcftm46z000201z45w1c47fi",
+        "author": "財報狗",
+    },
 ]
 
 NS = {

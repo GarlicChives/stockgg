@@ -30,16 +30,17 @@ load_dotenv()
 OUT_FILE = Path(__file__).resolve().parents[1] / "docs" / "index.html"
 
 SOURCE_NAMES = {
-    "macromicro":          "財經M平方",
-    "vocus":               "韭菜王",
-    "statementdog":        "財報狗",
-    "investanchors":       "投資錨點",
-    "pressplay":           "財經捕手",
-    "podcast_gooaye":      "股癌 Gooaye",
-    "podcast_macromicro":  "財經M平方",
-    "podcast_chives_grad": "韭菜畢業班",
-    "podcast_stock_barrel":"股海飯桶",
-    "podcast_zhaohua":     "兆華與股惑仔",
+    "macromicro":             "財經M平方",
+    "vocus":                  "韭菜王",
+    "statementdog":           "財報狗",
+    "investanchors":          "投資錨點",
+    "pressplay":              "財經捕手",
+    "podcast_gooaye":         "股癌 Gooaye",
+    "podcast_macromicro":     "財經M平方",
+    "podcast_chives_grad":    "韭菜畢業班",
+    "podcast_stock_barrel":   "股海飯桶",
+    "podcast_zhaohua":        "兆華與股惑仔",
+    "podcast_statementdog":   "財報狗 podcast",
 }
 
 PODCAST_SOURCES = [
@@ -48,6 +49,7 @@ PODCAST_SOURCES = [
     "podcast_chives_grad",
     "podcast_stock_barrel",
     "podcast_zhaohua",
+    "podcast_statementdog",
 ]
 
 
@@ -107,10 +109,30 @@ def podcast_content_to_html(content: str, is_refined: bool = False) -> str:
     if not content:
         return '<p style="color:var(--muted)">（無內容）</p>'
     if is_refined:
-        # Structured refined notes — render headings and bullets properly
         text = html_lib.escape(content[:6000])
+        # 【標題】 → section heading
         text = re.sub(r'【(.+?)】', r'<h4>\1</h4>', text)
-        text = re.sub(r'^(\d+\.) ', r'<br>\1 ', text, flags=re.MULTILINE)
+        # （一）、（二）、... → subsection with spacing above
+        text = re.sub(
+            r'^（([一二三四五六七八九十]+)）[、，](.+)$',
+            r'<div class="pod-subsec">（\1）、\2</div>',
+            text, flags=re.MULTILINE,
+        )
+        # 1. 2. 3. → numbered items (no br)
+        text = re.sub(
+            r'^(\d+)\.\s*(.+)$',
+            r'<div class="pod-num-item"><span class="pod-num">\1.</span>\2</div>',
+            text, flags=re.MULTILINE,
+        )
+        # - bullet items
+        text = re.sub(
+            r'^-\s+(.+)$',
+            r'<div class="pod-bul-item">• \1</div>',
+            text, flags=re.MULTILINE,
+        )
+        # collapse remaining blank lines
+        text = re.sub(r'\n{2,}', '\n', text)
+        text = text.replace('\n', '')
         return f'<div class="pod-notes">{text}</div>'
     else:
         # Raw transcript — show only first 800 chars with note
@@ -238,7 +260,7 @@ def _build_stock_cards(ticker_list: list[tuple[str, dict]],
 
 
 def build_focus_html(us_ranks: list, tw_ranks: list,
-                     ticker_arts: dict, market_notes: dict | None) -> tuple[str, dict]:
+                     ticker_arts: dict) -> tuple[str, dict]:
     """Build the 焦點股 tab content. Returns (html, modal_data)."""
     stocks: dict[str, dict] = {}
     for r in us_ranks:
@@ -270,49 +292,6 @@ def build_focus_html(us_ranks: list, tw_ranks: list,
 
     all_modal_data: dict[str, str] = {}
     sections: list[str] = []
-
-    # ── AI cross-source themes ────────────────────────────────────────────────
-    if market_notes and market_notes.get("topics"):
-        cards = []
-        for topic in market_notes["topics"]:
-            t_name = html_lib.escape(topic.get("topic", ""))
-            sentiment = topic.get("sentiment", "中立")
-            sent_cls = "sent-bull" if "偏多" in sentiment else ("sent-bear" if "偏空" in sentiment else "sent-neu")
-            sources_str = " × ".join(html_lib.escape(s) for s in topic.get("sources", []))
-            summary = html_lib.escape(topic.get("summary", ""))
-            key_points = topic.get("key_points", [])
-            kp_html = "".join(f'<li>{html_lib.escape(p)}</li>' for p in key_points[:4])
-            t_chips = []
-            for tk_raw in topic.get("tickers", []):
-                m = re.search(r'[（(]([A-Z0-9]+)[）)]', tk_raw)
-                code = m.group(1) if m else ""
-                display = html_lib.escape(tk_raw)
-                in_today = code in stocks
-                chip_cls = "focus-chip-match" if in_today else "focus-chip"
-                t_chips.append(f'<span class="{chip_cls}">{display}</span>')
-            art_items = []
-            for art in topic.get("articles", [])[:3]:
-                src = html_lib.escape(art.get("source", ""))
-                title = html_lib.escape(art.get("title", "")[:50])
-                dt = art.get("date", "")
-                art_items.append(f'<div class="art-ref">📰 [{dt} {src}] {title}</div>')
-            cards.append(f"""
-<div class="focus-theme">
-  <div class="theme-top">
-    <span class="theme-ttl">{t_name}</span>
-    <span class="sent-badge {sent_cls}">{html_lib.escape(sentiment)}</span>
-    <span class="src-note">{sources_str}</span>
-  </div>
-  {f'<p class="theme-summary">{summary}</p>' if summary else ''}
-  {f'<ul class="kp-list">{kp_html}</ul>' if kp_html else ''}
-  <div class="focus-chips">{''.join(t_chips)}</div>
-  {'<div class="theme-arts">' + ''.join(art_items) + '</div>' if art_items else ''}
-</div>""")
-        if cards:
-            sections.append(
-                '<div class="section-hdr">📌 跨來源共同議題</div>'
-                '<div class="focus-themes">' + ''.join(cards) + '</div>'
-            )
 
     # ── Sub-tabs: 台股 / 美股 ─────────────────────────────────────────────────
     tw_cards_html, tw_modal = _build_stock_cards(tw_list, ticker_arts, "TW")
@@ -563,7 +542,7 @@ async def generate():
     directions  = parse_directions(raw_report)
     report_html = md_to_html(raw_report)
     updated_at  = datetime.now(timezone.utc).strftime("%m/%d %H:%M UTC")
-    focus_html, modal_data = build_focus_html(us_ranks, tw_ranks, ticker_arts, market_notes)
+    focus_html, modal_data = build_focus_html(us_ranks, tw_ranks, ticker_arts)
     notes_html  = build_notes_html(market_notes, podcast_rows)
 
     # ── Indicator helpers ─────────────────────────────────────────────────────
@@ -815,9 +794,13 @@ dialog#art-modal::backdrop{{background:rgba(0,0,0,.65)}}
 .pod-raw{{white-space:pre-wrap;font-family:inherit;font-size:.8rem;
           color:#b0bfcf;line-height:1.75;overflow-wrap:break-word;margin:0}}
 .pod-raw-note{{font-size:.72rem;color:var(--muted);margin-bottom:.4rem;font-style:italic}}
-.pod-notes{{font-size:.82rem;color:#b0bfcf;line-height:1.75;white-space:pre-wrap;overflow-wrap:break-word}}
+.pod-notes{{font-size:.82rem;color:#b0bfcf;line-height:1.6;overflow-wrap:break-word}}
 .pod-notes h4{{color:var(--accent);font-size:.82rem;font-weight:700;
-               margin:.7rem 0 .2rem;border-bottom:1px solid var(--border);padding-bottom:.2rem}}
+               margin:.9rem 0 .35rem;border-bottom:1px solid var(--border);padding-bottom:.2rem}}
+.pod-subsec{{font-weight:600;color:#c0cfe0;font-size:.83rem;margin:.8rem 0 .15rem}}
+.pod-num-item{{padding:.1rem 0 .1rem .9rem;}}
+.pod-num{{color:var(--muted);font-size:.78rem;margin-right:.3rem}}
+.pod-bul-item{{padding:.1rem 0 .1rem .9rem;}}
 .muted-note{{color:var(--muted);font-size:.85rem;padding:.5rem 0}}
 
 .up{{color:var(--up)}} .down{{color:var(--down)}} .neutral{{color:var(--muted)}}

@@ -32,6 +32,7 @@ PODCAST_SOURCES = [
     "podcast_chives_grad",
     "podcast_stock_barrel",
     "podcast_zhaohua",
+    "podcast_statementdog",
 ]
 MAX_PER_SOURCE = 5    # episodes per source per run (paid tier, no strict quota)
 LOOKBACK_DAYS  = 30   # only process episodes from the last N days
