@@ -31,19 +31,24 @@ import asyncpg
 
 
 async def cleanup_old_data(conn) -> None:
-    """Delete articles and news items older than 180 days."""
+    """Delete stale data: articles 180 days, podcasts 30 days, news 180 days."""
     result = await conn.execute(
-        "DELETE FROM articles WHERE created_at < NOW() - INTERVAL '180 days'"
+        "DELETE FROM articles WHERE created_at < NOW() - INTERVAL '180 days' AND source NOT LIKE 'podcast_%'"
     )
     art_del = int((result.split()[-1]) if result else 0)
+
+    result = await conn.execute(
+        "DELETE FROM articles WHERE created_at < NOW() - INTERVAL '30 days' AND source LIKE 'podcast_%'"
+    )
+    pod_del = int((result.split()[-1]) if result else 0)
 
     result = await conn.execute(
         "DELETE FROM news_items WHERE created_at < NOW() - INTERVAL '180 days'"
     )
     news_del = int((result.split()[-1]) if result else 0)
 
-    if art_del or news_del:
-        print(f"  Cleaned up: {art_del} articles, {news_del} news items")
+    if art_del or pod_del or news_del:
+        print(f"  Cleaned up: {art_del} articles, {pod_del} podcasts, {news_del} news items")
 
 
 async def main():
