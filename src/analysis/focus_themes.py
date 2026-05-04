@@ -103,7 +103,16 @@ def _score_articles(articles: list[dict], keyword: str) -> tuple[float, int]:
         pub = art.get("published_at")
         if pub is None:
             continue
-        art_date = pub.date() if hasattr(pub, "date") else pub
+        if hasattr(pub, "date"):
+            art_date = pub.date()
+        elif isinstance(pub, str):
+            from datetime import date as _date
+            try:
+                art_date = _date.fromisoformat(pub[:10])
+            except ValueError:
+                continue
+        else:
+            art_date = pub
         is_primary = art_date >= cutoff_primary
         weight = 2.0 if is_primary else 1.0
 

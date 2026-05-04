@@ -14,7 +14,7 @@ import json
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-import asyncpg
+from src.utils import db
 import yfinance as yf
 from dotenv import load_dotenv
 
@@ -134,7 +134,7 @@ async def fetch_and_store(target_date: date | None = None) -> int:
     if target_date is None:
         target_date = date.today()
 
-    conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    conn = await db.connect()
 
     print(f"Fetching market data for {target_date}…")
     snapshots = fetch_yfinance_snapshot(target_date)

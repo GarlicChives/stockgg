@@ -18,7 +18,7 @@ Article crawl (08:00 / 21:00) is intentionally skipped — it requires
 Chrome on port 9222, which may not be running after reboot.
 """
 import asyncio
-import asyncpg
+from src.utils import db
 import os
 import subprocess
 import sys
@@ -50,9 +50,7 @@ def _log_ran_today(log_path: Path) -> bool:
 async def _db_status() -> dict | None:
     """Query DB for what ran today. Returns None if network/DB not ready."""
     try:
-        conn = await asyncio.wait_for(
-            asyncpg.connect(os.environ["DATABASE_URL"]), timeout=10
-        )
+        conn = await asyncio.wait_for(db.connect(), timeout=30)
     except Exception as e:
         print(f"  DB not reachable: {e}")
         return None

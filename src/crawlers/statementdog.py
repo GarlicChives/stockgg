@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-import asyncpg
+from src.utils import db
 from dotenv import load_dotenv
 from playwright.async_api import async_playwright, BrowserContext
 
@@ -182,7 +182,7 @@ async def upsert_articles(conn, articles: list[dict]) -> int:
 
 async def crawl(incremental: bool = False):
     cutoff = datetime.now(tz=timezone.utc) - timedelta(days=LOOKBACK_DAYS)
-    conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    conn = await db.connect()
 
     if incremental:
         latest = await conn.fetchval(

@@ -32,7 +32,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from src.utils.api_logger import log_usage
-import asyncpg
+from src.utils import db
 
 DICT_FILE    = Path(__file__).resolve().parents[1] / "data" / "theme_dictionary.json"
 GEMINI_MODEL = "gemini-2.5-flash"
@@ -416,7 +416,7 @@ async def main():
         print("❌ GOOGLE_API_KEY not set")
         return
 
-    conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    conn = await db.connect()
     try:
         if "--rebuild" in sys.argv:
             n = await rebuild_full(conn, api_key)
