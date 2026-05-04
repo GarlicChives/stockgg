@@ -158,6 +158,51 @@ def extract_relevant_para(content: str, ticker: str, name: str, max_chars: int =
     return result
 
 
+# ── Article segment helpers (shared module) ──────────────────────────────────
+
+def _build_art_segs(clusters) -> dict[str, dict[str, str]]:
+    """Pre-compute term→paragraph for every (article, term) combo in clusters.
+    Terms = theme keyword + focal ticker codes + focal stock names (first 6 chars).
+    Returns {article_id_str: {term: paragraph}}.  Zero API cost — text search only.
+    """
+    art_segs: dict[str, dict[str, str]] = {}
+    for c in clusters:
+        terms = [c.keyword] + [s.ticker for s in c.focal] + [s.name[:6] for s in c.focal if s.name]
+        terms = list(dict.fromkeys(t for t in terms if t))  # deduplicate, preserve order
+        for s in c.focal:
+            for art in s.articles[:6]:
+                art_id = str(art.get("id", ""))
+                if not art_id:
+                    continue
+                content = art.get("full_content") or ""
+                if art_id not in art_segs:
+                    art_segs[art_id] = {}
+                for term in terms:
+                    if term not in art_segs[art_id]:
+                        para = extract_relevant_para(content, term, term)
+                        if para:
+                            art_segs[art_id][term] = para
+    return art_segs
+
+
+def _render_art_ref(art: dict, terms: list[str], art_segs: dict) -> str:
+    """Render one article reference with clickable segment chips.
+    Chips appear only for terms that have a pre-computed paragraph in art_segs.
+    """
+    art_id = str(art.get("id", ""))
+    dt = str(art.get("published_at") or "")[:10]
+    src = html_lib.escape(SOURCE_NAMES.get(art.get("source") or "", art.get("source") or ""))
+    title = html_lib.escape((art.get("title") or "")[:50])
+    segs = art_segs.get(art_id, {})
+    chips = "".join(
+        f'<span class="art-seg-chip" onclick="showSegModal({json.dumps(art_id)},{json.dumps(term)})">'
+        f'{html_lib.escape(term)}</span>'
+        for term in terms if term in segs
+    )
+    chips_html = f'<div class="art-seg-chips">{chips}</div>' if chips else ""
+    return f'<div class="art-ref">📰 [{dt}&nbsp;{src}]&nbsp;{title}{chips_html}</div>'
+
+
 # ── Ranking rows HTML ─────────────────────────────────────────────────────────
 
 def rank_rows_html(ranks, market: str) -> str:
@@ -261,10 +306,13 @@ def _build_stock_cards(ticker_list: list[tuple[str, dict]],
     return ''.join(cards), modal_data
 
 
-def _cluster_section_html(clusters: list[ThemeCluster], stocks: dict) -> str:
-    """Render theme cluster cards above the stock grid."""
+def _cluster_section_html(clusters: list[ThemeCluster], stocks: dict,
+                          art_segs: dict | None = None) -> str:
+    """Render theme cluster cards."""
     if not clusters:
         return ""
+    if art_segs is None:
+        art_segs = {}
     cards = []
     for c in clusters:
         if c.volume_only:
@@ -289,7 +337,6 @@ def _cluster_section_html(clusters: list[ThemeCluster], stocks: dict) -> str:
                 f'<span class="mkt-badge {mkt_cls}">{s.market}</span>'
                 f'<span class="fp-name">{html_lib.escape(s.name[:8])}</span>'
                 f'<span class="fp-pct {pct_cls}">{pct_str}</span>'
-                f'<span class="fp-rank">#{s.rank}</span>'
                 f'</div>'
             )
 
@@ -308,9 +355,11 @@ def _cluster_section_html(clusters: list[ThemeCluster], stocks: dict) -> str:
             else:
                 watch_chips.append(f'<span class="{chip_cls}">{html_lib.escape(label)}</span>')
 
-        # Recent article refs (7-day primary only in the cluster card)
+        # Recent article refs (7-day primary only)
         from datetime import date, timedelta
         cutoff7 = date.today() - timedelta(days=7)
+        c_terms = [c.keyword] + [s.ticker for s in c.focal] + [s.name[:6] for s in c.focal if s.name]
+        c_terms = list(dict.fromkeys(t for t in c_terms if t))
         art_refs = []
         seen_ids: set = set()
         for s in c.focal:
@@ -333,24 +382,11 @@ def _cluster_section_html(clusters: list[ThemeCluster], stocks: dict) -> str:
                     art_date = pub
                 if art_date < cutoff7:
                     continue
-                dt = str(art_date)
-                src = html_lib.escape(SOURCE_NAMES.get(art.get("source") or "", art.get("source") or ""))
-                title = html_lib.escape((art.get("title") or "")[:45])
-                art_refs.append(f'<div class="art-ref">📰 [{dt} {src}] {title}</div>')
+                art_refs.append(_render_art_ref(art, c_terms, art_segs))
                 if len(art_refs) >= 4:
                     break
             if len(art_refs) >= 4:
                 break
-
-        # Supply chain row
-        sc_parts = []
-        if c.upstream:
-            items = " · ".join(html_lib.escape(u) for u in c.upstream[:4])
-            sc_parts.append(f'<span class="sc-label">上游</span><span class="sc-items">{items}</span>')
-        if c.downstream:
-            items = " · ".join(html_lib.escape(d) for d in c.downstream[:4])
-            sc_parts.append(f'<span class="sc-label">下游</span><span class="sc-items">{items}</span>')
-        sc_html = f'<div class="cluster-sc">{"　".join(sc_parts)}</div>' if sc_parts else ""
 
         cards.append(f"""
 <div class="cluster-card">
@@ -359,10 +395,9 @@ def _cluster_section_html(clusters: list[ThemeCluster], stocks: dict) -> str:
     <span class="cluster-strength {strength_cls}">{strength_lbl}</span>
     <span class="cluster-meta">{len(c.focal)} 檔焦點{"" if c.volume_only else f" · {c.primary_art_count} 篇近7日文章"}</span>
   </div>
-  {sc_html}
   <div class="cluster-section-label">今日焦點（在前30）</div>
   <div class="cluster-focal-stocks">{''.join(focal_pills)}</div>
-  {'<div class="cluster-section-label">前哨觀察（同族群，未在前30）</div><div class="cluster-watch-stocks">' + "".join(watch_chips) + "</div>" if watch_chips else ""}
+  {'<div class="cluster-section-label">前哨觀察</div><div class="cluster-watch-stocks">' + "".join(watch_chips) + "</div>" if watch_chips else ""}
   {'<div class="cluster-arts">' + "".join(art_refs) + "</div>" if art_refs else ""}
 </div>""")
 
@@ -398,6 +433,9 @@ def build_focus_html(us_ranks: list, tw_ranks: list,
             "limit_up": bool(r.get("is_limit_up_30m")),
         }
 
+    # Pre-compute article segments for clickable chips ($0 cost)
+    art_segs = _build_art_segs(clusters) if clusters else {}
+
     # Build modal data for cluster focal tickers
     modal_data: dict[str, str] = {}
     if clusters:
@@ -423,11 +461,11 @@ def build_focus_html(us_ranks: list, tw_ranks: list,
                 )
             modal_data[ticker] = ''.join(parts)
 
-        cluster_html = _cluster_section_html(clusters, stocks)
+        cluster_html = _cluster_section_html(clusters, stocks, art_segs)
         if cluster_html:
-            return cluster_html, modal_data
+            return cluster_html, modal_data, art_segs
 
-    return '<p class="muted-note">今日尚無熱門題材</p>', {}
+    return '<p class="muted-note">今日尚無熱門題材</p>', {}, {}
 
 
 # ── 股市筆記 tab ──────────────────────────────────────────────────────────────
@@ -695,7 +733,7 @@ async def generate():
     report_html = md_to_html(raw_report)
     updated_at  = datetime.now(timezone.utc).strftime("%m/%d %H:%M UTC")
 
-    focus_html, modal_data = build_focus_html(us_ranks, tw_ranks, ticker_arts, clusters)
+    focus_html, modal_data, art_segs = build_focus_html(us_ranks, tw_ranks, ticker_arts, clusters)
     notes_html  = build_notes_html(market_notes, podcast_rows)
 
     # ── Indicator helpers ─────────────────────────────────────────────────────
@@ -710,10 +748,10 @@ async def generate():
         ("東證 TOPIX",  "1308.T",   True),
         ("韓股 KOSPI",  "^KS11",    True),
         ("台股 TWII",   "^TWII",    True),
-        ("VIX",         "^VIX",     False),
+        ("VIX",         "^VIX",     True),
         ("10Y 殖利率",  "^TNX",     False),
         ("DXY",         "DX-Y.NYB", True),
-        ("恐慌貪婪",    "FEAR_GREED", False),
+        ("恐慌貪婪",    "FEAR_GREED", True),
     ]
 
     # Ticker tape — duplicate content for seamless loop
@@ -744,6 +782,8 @@ async def generate():
         f'  {json.dumps(k)}: {json.dumps(v)}'
         for k, v in modal_data.items()
     )
+    # Article segment data JS: {artId: {term: paragraph}}
+    art_segs_js = json.dumps(art_segs, ensure_ascii=False)
 
     # ── Page HTML ─────────────────────────────────────────────────────────────
     page = f"""<!DOCTYPE html>
@@ -756,7 +796,7 @@ async def generate():
 :root {{
   --bg:#0f1117; --card:#1a1d26; --border:#2a2e40;
   --text:#e2e8f0; --muted:#7a8ba0;
-  --up:#26a69a; --down:#ef5350; --accent:#6c8ef5;
+  --up:#ef5350; --down:#26a69a; --accent:#6c8ef5;
 }}
 *{{box-sizing:border-box;margin:0;padding:0}}
 body{{background:var(--bg);color:var(--text);
@@ -768,12 +808,12 @@ button{{cursor:pointer;border:none;outline:none}}
 /* ── Ticker tape (seamless) ── */
 .tape{{position:sticky;top:0;z-index:200;
        background:var(--card);border-bottom:1px solid var(--border);
-       height:30px;overflow:hidden;display:flex;align-items:center;
+       height:36px;overflow:hidden;display:flex;align-items:center;
        white-space:nowrap}}
 .tape-track{{display:inline-block;
              animation:tape-scroll 90s linear infinite;
              will-change:transform}}
-.tape-item{{display:inline-block;padding:0 .5rem;font-size:.8rem;color:var(--muted)}}
+.tape-item{{display:inline-block;padding:0 .5rem;font-size:1.1rem;color:var(--muted)}}
 .tape-item b{{color:var(--text)}}
 .tape-up{{color:var(--up)}} .tape-down{{color:var(--down)}}
 @keyframes tape-scroll{{0%{{transform:translateX(0)}}100%{{transform:translateX(-50%)}}}}
@@ -890,7 +930,7 @@ tr:last-child td{{border-bottom:none}}
 .watch-chip{{font-size:.78rem;padding:.15rem .45rem;border-radius:5px;font-weight:600;display:inline-flex;align-items:center;gap:.25rem}}
 .watch-chip.tw{{background:#12201a;border:1px solid #1a3a2a;color:#4caf82}}
 .watch-chip.us{{background:#121520;border:1px solid #1a2a3a;color:#6c8ef5}}
-.wc-up{{color:#4caf82;font-size:.72rem}}.wc-down{{color:#e05c5c;font-size:.72rem}}
+.wc-up{{color:#ef5350;font-size:.72rem}}.wc-down{{color:#26a69a;font-size:.72rem}}
 .cluster-sc{{font-size:.72rem;color:var(--muted);margin:.2rem 0 .35rem;display:flex;flex-wrap:wrap;gap:.4rem .8rem}}
 .sc-label{{font-weight:700;color:#6c7a8a}}.sc-items{{color:var(--muted)}}
 .cluster-arts{{margin-top:.3rem}}
@@ -986,6 +1026,11 @@ dialog#art-modal::backdrop{{background:rgba(0,0,0,.65)}}
 .pod-num{{color:var(--muted);font-size:.78rem;margin-right:.3rem}}
 .pod-bul-item{{padding:.1rem 0 .1rem .9rem;}}
 .muted-note{{color:var(--muted);font-size:.85rem;padding:.5rem 0}}
+.art-seg-chips{{display:flex;flex-wrap:wrap;gap:.25rem;margin-top:.3rem}}
+.art-seg-chip{{font-size:.7rem;font-weight:600;padding:.1rem .35rem;
+               border-radius:4px;background:#1e2235;border:1px solid #2a3050;
+               color:var(--accent);cursor:pointer;transition:.15s}}
+.art-seg-chip:hover{{background:#252a40;border-color:var(--accent)}}
 
 .up{{color:var(--up)}} .down{{color:var(--down)}} .neutral{{color:var(--muted)}}
 footer{{text-align:center;color:var(--muted);font-size:.75rem;
@@ -1077,11 +1122,23 @@ function showSubTab(name) {{
     p.classList.toggle('active', p.id === 'stab-' + name));
 }}
 
+const artSegs = {art_segs_js};
+
 function showArtModal(ticker, name) {{
   const modal = document.getElementById('art-modal');
   document.getElementById('modal-title').textContent = ticker + ' ' + name + ' — 相關文章';
   document.getElementById('modal-body').innerHTML = artModalData[ticker] || '<p style="color:#7a8ba0">無相關文章資料</p>';
   modal.showModal();
+}}
+
+function showSegModal(artId, term) {{
+  const seg = artSegs[artId] && artSegs[artId][term];
+  document.getElementById('modal-title').textContent = term + ' — 相關段落';
+  document.getElementById('modal-body').innerHTML = seg
+    ? '<div class="modal-art"><div class="modal-art-meta">關鍵字：' + term + '</div>'
+      + '<div class="modal-snip">' + seg.replace(/\n/g, '<br>') + '</div></div>'
+    : '<p style="color:#7a8ba0">無相關段落資料</p>';
+  document.getElementById('art-modal').showModal();
 }}
 
 function toggleEl(id) {{
