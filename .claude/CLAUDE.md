@@ -12,6 +12,10 @@
 - **排程**: 本機 Mac（launchd）— 全部已 load，含開機補漏機制
 - **AI 精煉**: Gemini 2.5 Flash（GOOGLE_API_KEY）主力；Ollama qwen2.5:7b 作為文章類 fallback
 - **AI 分析**: Gemini 2.5 Flash（每日報告 + 跨來源議題分析）
+- **主題字典搜尋**: Tavily Search API（TAVILY_API_KEY，app.tavily.com，免費 1000次/月）
+  - Provider：`src/theme/search.py` TavilyProvider（GoogleCSEProvider 已棄用）
+  - 分類模型：Gemini 2.5 Flash-Lite（`src/theme/classifier.py`）
+  - 字典規則參考：`data/theme_rules.md`（人工文件，非 runtime 讀取）
 - **Embedding**: sentence-transformers paraphrase-multilingual-mpnet-base-v2（本地，768 維）
 - **套件管理**: uv
 - **通知**: Telegram Bot（尚未設定，LINE Notify 已於 2025/3 停止服務）
