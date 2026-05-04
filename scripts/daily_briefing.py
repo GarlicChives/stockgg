@@ -13,6 +13,7 @@ Usage:
 """
 import asyncio
 import os
+import subprocess
 import sys
 from datetime import date
 from pathlib import Path
@@ -27,7 +28,7 @@ from src.news.us_rankings import fetch_and_store as fetch_us
 from src.news.tw_rankings import fetch_and_store as fetch_tw
 from src.analysis.daily_report import generate_report
 from src.analysis.market_notes import generate_market_notes
-import asyncpg
+from src.utils import db
 
 
 async def cleanup_old_data(conn) -> None:
@@ -77,7 +78,7 @@ async def main():
     api_key = os.environ.get("GOOGLE_API_KEY")
     if api_key:
         print("── Step 5: Cross-Source Market Notes ──")
-        conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+        conn = await db.connect()
         try:
             await generate_market_notes(conn, today, api_key)
         finally:
@@ -101,7 +102,7 @@ async def main():
         print()
 
     print("── Step 6: Cleanup Old Data (>180 days) ──")
-    conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    conn = await db.connect()
     try:
         await cleanup_old_data(conn)
     finally:
@@ -109,7 +110,6 @@ async def main():
     print()
 
     print("── Step 7: Rebuild HTML ──")
-    import subprocess
     proc = subprocess.run(
         [sys.executable, str(Path(__file__).resolve().parent / "generate_html.py")],
         cwd=Path(__file__).resolve().parents[1],

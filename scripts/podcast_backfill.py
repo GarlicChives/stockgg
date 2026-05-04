@@ -11,7 +11,7 @@ Logic:
   - Rebuilds HTML if any episodes were updated
 """
 import asyncio
-import asyncpg
+from src.utils import db
 import os
 import subprocess
 import sys
@@ -70,7 +70,7 @@ async def main() -> int:
         print("⚠ GOOGLE_API_KEY not set — skipping podcast backfill")
         return 0
 
-    conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    conn = await db.connect()
     episodes = await find_incomplete(conn)
 
     if not episodes:

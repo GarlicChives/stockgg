@@ -13,7 +13,7 @@ from urllib.request import Request, urlopen
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-import asyncpg
+from src.utils import db
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -95,7 +95,7 @@ async def fetch_and_store(target_date: date | None = None) -> int:
     if target_date is None:
         target_date = date.today()
 
-    conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    conn = await db.connect()
     print(f"Fetching US trading rankings for {target_date}…")
 
     try:

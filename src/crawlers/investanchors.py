@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-import asyncpg
+from src.utils import db
 from dotenv import load_dotenv
 from playwright.async_api import async_playwright, Browser
 
@@ -165,7 +165,7 @@ async def fetch_article(context, url: str, title: str, published_at: Optional[da
         await page.close()
 
 
-async def upsert_articles(conn: asyncpg.Connection, articles: list[dict]) -> int:
+async def upsert_articles(conn, articles: list[dict]) -> int:
     """Insert new articles, skip existing ones. Returns count of new inserts."""
     new_count = 0
     for art in articles:
@@ -194,7 +194,7 @@ async def crawl(incremental: bool = False):
     cutoff = datetime.now(tz=timezone.utc) - timedelta(days=LOOKBACK_DAYS)
 
     db_url = os.environ["DATABASE_URL"]
-    conn = await asyncpg.connect(db_url)
+    conn = await db.connect()
 
     if incremental:
         latest = await conn.fetchval(

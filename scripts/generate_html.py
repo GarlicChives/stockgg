@@ -17,12 +17,12 @@ import json
 import os
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import asyncpg
+from src.utils import db
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -322,7 +322,15 @@ def _cluster_section_html(clusters: list[ThemeCluster], stocks: dict) -> str:
                 pub = art.get("published_at")
                 if pub is None:
                     continue
-                art_date = pub.date() if hasattr(pub, "date") else pub
+                if hasattr(pub, "date"):
+                    art_date = pub.date()
+                elif isinstance(pub, str):
+                    try:
+                        art_date = date.fromisoformat(pub[:10])
+                    except ValueError:
+                        continue
+                else:
+                    art_date = pub
                 if art_date < cutoff7:
                     continue
                 dt = str(art_date)
@@ -526,7 +534,7 @@ def build_notes_html(market_notes: dict | None, podcast_rows: list) -> str:
 # ── Main generate ─────────────────────────────────────────────────────────────
 
 async def generate():
-    conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    conn = await db.connect()
 
     report = await conn.fetchrow(
         "SELECT report_date, raw_response, market_notes_json "
@@ -543,7 +551,8 @@ async def generate():
         WHERE close_price IS NOT NULL
         ORDER BY symbol, snapshot_date DESC
     """):
-        name = json.loads(row["extra"] or "{}").get("name", row["symbol"])
+        extra = row["extra"] if isinstance(row["extra"], dict) else json.loads(row["extra"] or "{}")
+        name = extra.get("name", row["symbol"])
         snaps[row["symbol"]] = {
             "name": name,
             "close": float(row["close_price"]) if row["close_price"] is not None else None,

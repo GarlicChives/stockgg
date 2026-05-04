@@ -15,7 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-import asyncpg
+from src.utils import db
 import urllib.request
 from dotenv import load_dotenv
 
@@ -84,7 +84,8 @@ async def _load_market_context(conn, report_date: date) -> dict:
     snap_date = max(r["snapshot_date"] for r in snaps)
     indicators = {}
     for s in snaps:
-        name = (json.loads(s["extra"] or "{}")).get("name", s["symbol"])
+        extra = s["extra"] if isinstance(s["extra"], dict) else json.loads(s["extra"] or "{}")
+        name = extra.get("name", s["symbol"])
         indicators[s["symbol"]] = {
             "name": name,
             "close": float(s["close_price"]),
@@ -217,7 +218,7 @@ async def generate_report(report_date: date | None = None) -> str:
         return "❌ 未設定 GOOGLE_API_KEY，請在 .env 加入後重試。"
 
 
-    conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    conn = await db.connect()
     market   = await _load_market_context(conn, report_date)
     articles = await _load_article_context(conn, REPORT_LOOKBACK_DAYS)
     await conn.close()
@@ -231,7 +232,7 @@ async def generate_report(report_date: date | None = None) -> str:
         return f"❌ Gemini 錯誤：{e}"
 
     # Persist to DB
-    conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    conn = await db.connect()
     await conn.execute(
         """INSERT INTO analysis_reports
            (report_date, macro_summary, market_summary, raw_prompt, raw_response)

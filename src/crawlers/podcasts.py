@@ -22,7 +22,7 @@ from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-import asyncpg
+from src.utils import db
 from dotenv import load_dotenv
 
 from src.utils.refine import refine_and_store
@@ -204,7 +204,7 @@ async def upsert_episode(conn, ep: dict) -> Optional[int]:
 
 async def crawl(incremental: bool = False):
     global_cutoff = datetime.now(tz=timezone.utc) - timedelta(days=LOOKBACK_DAYS)
-    conn = await asyncpg.connect(os.environ['DATABASE_URL'])
+    conn = await db.connect()
 
     total_new = 0
     for podcast in PODCASTS:
@@ -341,7 +341,7 @@ async def retranscribe_latest(conn, n: int = 1):
 if __name__ == '__main__':
     if '--retranscribe-latest' in sys.argv:
         async def run_retranscribe():
-            conn = await asyncpg.connect(os.environ['DATABASE_URL'])
+            conn = await db.connect()
             print("Retranscribing latest episode from each podcast...")
             await retranscribe_latest(conn)
             await conn.close()

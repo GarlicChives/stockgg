@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import asyncpg
+from src.utils import db
 from dotenv import load_dotenv
 
 from src.utils.refine import refine_and_store
@@ -25,7 +25,7 @@ BATCH = 10  # process N articles before printing progress
 
 
 async def main(limit: int = 0, source: str = ""):
-    conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    conn = await db.connect()
 
     where = "refined_content IS NULL"
     params: list = []
