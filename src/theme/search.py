@@ -1,10 +1,10 @@
-"""Search provider interface + Google Custom Search Engine implementation.
+"""Search provider interface + implementations.
 
 To swap provider: subclass SearchProvider and pass instance to build_theme_dictionary.run().
 
-Required env vars for GoogleCSEProvider:
-  GOOGLE_CSE_API_KEY  — Google API key with Custom Search API enabled
-  GOOGLE_CSE_CX       — Search engine ID (from cse.google.com)
+Required env vars:
+  TavilyProvider  — TAVILY_API_KEY (app.tavily.com, 1000 free calls/month)
+  GoogleCSEProvider — GOOGLE_CSE_API_KEY + GOOGLE_CSE_CX (legacy)
 """
 import json
 import os
@@ -56,6 +56,33 @@ class GoogleCSEProvider(SearchProvider):
             for item in data.get("items", [])[:num_results]:
                 raw = item.get("snippet", "")
                 cleaned = re.sub(r"<[^>]+>", "", raw).replace("\n", " ").strip()
+                if cleaned:
+                    snippets.append(cleaned)
+            return snippets
+        except Exception:
+            return []
+
+
+class TavilyProvider(SearchProvider):
+    """Tavily Search API — designed for LLM RAG, better snippet quality."""
+
+    def __init__(self, api_key: str | None = None):
+        self._api_key = api_key or os.environ.get("TAVILY_API_KEY", "")
+
+    def available(self) -> bool:
+        return bool(self._api_key)
+
+    def search(self, query: str, num_results: int = 3) -> list[str]:
+        if not self.available():
+            return []
+        try:
+            from tavily import TavilyClient
+            client = TavilyClient(api_key=self._api_key)
+            resp = client.search(query, max_results=num_results, search_depth="basic")
+            snippets = []
+            for r in resp.get("results", [])[:num_results]:
+                text = r.get("content", "") or r.get("snippet", "")
+                cleaned = re.sub(r"<[^>]+>", "", text).replace("\n", " ").strip()
                 if cleaned:
                     snippets.append(cleaned)
             return snippets

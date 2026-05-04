@@ -2,7 +2,7 @@
   "meta": {
     "version": "1",
     "generated_at": "2026-05-03T16:17:15Z",
-    "last_checked": "2026-05-04T13:21:56Z",
+    "last_checked": "2026-05-04T13:55:03Z",
     "model": "gemini-2.5-flash",
     "source_articles": 262,
     "source_podcasts": 30
@@ -125,6 +125,26 @@
         {
           "code": "6239",
           "name": "力成"
+        },
+        {
+          "code": "2313",
+          "name": "華通"
+        },
+        {
+          "code": "00981A",
+          "name": "主動統一台股增長"
+        },
+        {
+          "code": "1303",
+          "name": "南亞"
+        },
+        {
+          "code": "1785",
+          "name": "光洋科"
+        },
+        {
+          "code": "2449",
+          "name": "京元電子"
         }
       ],
       "us_stocks": [
@@ -203,6 +223,26 @@
         {
           "code": "3450",
           "name": "聯鈞"
+        },
+        {
+          "code": "4958",
+          "name": "臻鼎-KY"
+        },
+        {
+          "code": "8046",
+          "name": "南電"
+        },
+        {
+          "code": "2303",
+          "name": "聯電"
+        },
+        {
+          "code": "2455",
+          "name": "全新"
+        },
+        {
+          "code": "2345",
+          "name": "智邦"
         }
       ],
       "us_stocks": [
@@ -303,6 +343,18 @@
         {
           "code": "8996",
           "name": "高力"
+        },
+        {
+          "code": "2308",
+          "name": "台達電"
+        },
+        {
+          "code": "2301",
+          "name": "光寶科"
+        },
+        {
+          "code": "2486",
+          "name": "一詮"
         }
       ],
       "us_stocks": [
@@ -341,6 +393,10 @@
         {
           "code": "6230",
           "name": "超眾"
+        },
+        {
+          "code": "2486",
+          "name": "一詮"
         }
       ],
       "us_stocks": []
@@ -375,6 +431,10 @@
         {
           "code": "3016",
           "name": "嘉晶"
+        },
+        {
+          "code": "1303",
+          "name": "南亞"
         }
       ],
       "us_stocks": []
@@ -409,9 +469,22 @@
         {
           "code": "3016",
           "name": "嘉晶"
+        },
+        {
+          "code": "4958",
+          "name": "臻鼎-KY"
+        },
+        {
+          "code": "1303",
+          "name": "南亞"
         }
       ],
-      "us_stocks": []
+      "us_stocks": [
+        {
+          "ticker": "PLUG",
+          "name": "Plug Power, Inc."
+        }
+      ]
     },
     {
       "id": "inp_substrate",
@@ -432,6 +505,10 @@
         {
           "code": "4991",
           "name": "環宇-KY"
+        },
+        {
+          "code": "2455",
+          "name": "全新"
         }
       ],
       "us_stocks": [
@@ -465,6 +542,10 @@
         {
           "code": "5483",
           "name": "中美晶"
+        },
+        {
+          "code": "2455",
+          "name": "全新"
         }
       ],
       "us_stocks": []
@@ -497,6 +578,14 @@
         {
           "code": "4760",
           "name": "勤凱"
+        },
+        {
+          "code": "4958",
+          "name": "臻鼎-KY"
+        },
+        {
+          "code": "2327",
+          "name": "國巨*"
         }
       ],
       "us_stocks": []
@@ -528,6 +617,10 @@
         {
           "code": "1809",
           "name": "中纖"
+        },
+        {
+          "code": "2327",
+          "name": "國巨*"
         }
       ],
       "us_stocks": []
@@ -555,6 +648,10 @@
         {
           "code": "6274",
           "name": "台燿"
+        },
+        {
+          "code": "2327",
+          "name": "國巨*"
         }
       ],
       "us_stocks": []
@@ -662,6 +759,10 @@
         {
           "code": "6937",
           "name": "天虹"
+        },
+        {
+          "code": "1785",
+          "name": "光洋科"
         }
       ],
       "us_stocks": [
@@ -695,6 +796,14 @@
         {
           "code": "3363",
           "name": "華星光"
+        },
+        {
+          "code": "2455",
+          "name": "全新"
+        },
+        {
+          "code": "3081",
+          "name": "聯亞"
         }
       ],
       "us_stocks": [
@@ -745,6 +854,14 @@
         {
           "code": "3583",
           "name": "辛耘"
+        },
+        {
+          "code": "2455",
+          "name": "全新"
+        },
+        {
+          "code": "2345",
+          "name": "智邦"
         }
       ],
       "us_stocks": [
@@ -812,6 +929,10 @@
         {
           "code": "5483",
           "name": "中美晶"
+        },
+        {
+          "code": "3105",
+          "name": "穩懋"
         }
       ],
       "us_stocks": []
@@ -921,7 +1042,12 @@
           "name": "兆聯實業"
         }
       ],
-      "us_stocks": []
+      "us_stocks": [
+        {
+          "ticker": "PLUG",
+          "name": "Plug Power, Inc."
+        }
+      ]
     },
     {
       "id": "industrial_gases",
@@ -944,7 +1070,12 @@
           "name": "和淞"
         }
       ],
-      "us_stocks": []
+      "us_stocks": [
+        {
+          "ticker": "PLUG",
+          "name": "Plug Power, Inc."
+        }
+      ]
     },
     {
       "id": "abf_film",
@@ -1225,6 +1356,10 @@
         {
           "code": "4991",
           "name": "環宇-KY"
+        },
+        {
+          "code": "3081",
+          "name": "聯亞"
         }
       ],
       "us_stocks": [
@@ -1263,6 +1398,22 @@
         {
           "code": "4991",
           "name": "環宇-KY"
+        },
+        {
+          "code": "6147",
+          "name": "頎邦"
+        },
+        {
+          "code": "2455",
+          "name": "全新"
+        },
+        {
+          "code": "2345",
+          "name": "智邦"
+        },
+        {
+          "code": "3081",
+          "name": "聯亞"
         }
       ],
       "us_stocks": [
@@ -1317,7 +1468,12 @@
           "高頻PCB"
         ]
       },
-      "tw_stocks": [],
+      "tw_stocks": [
+        {
+          "code": "3189",
+          "name": "景碩"
+        }
+      ],
       "us_stocks": []
     },
     {
@@ -1344,6 +1500,14 @@
         {
           "code": "2313",
           "name": "華通"
+        },
+        {
+          "code": "3037",
+          "name": "欣興"
+        },
+        {
+          "code": "2455",
+          "name": "全新"
         }
       ],
       "us_stocks": []
@@ -1377,6 +1541,38 @@
         {
           "code": "6770",
           "name": "力積電"
+        },
+        {
+          "code": "2337",
+          "name": "旺宏"
+        },
+        {
+          "code": "2313",
+          "name": "華通"
+        },
+        {
+          "code": "2344",
+          "name": "華邦電"
+        },
+        {
+          "code": "8299",
+          "name": "群聯"
+        },
+        {
+          "code": "3260",
+          "name": "威剛"
+        },
+        {
+          "code": "0050",
+          "name": "元大台灣50"
+        },
+        {
+          "code": "1303",
+          "name": "南亞"
+        },
+        {
+          "code": "1785",
+          "name": "光洋科"
         }
       ],
       "us_stocks": [
@@ -1391,6 +1587,10 @@
         {
           "ticker": "SSNLF",
           "name": "三星電子"
+        },
+        {
+          "ticker": "INTC",
+          "name": "Intel Corporation"
         }
       ]
     },
@@ -1418,6 +1618,18 @@
         {
           "code": "2337",
           "name": "旺宏"
+        },
+        {
+          "code": "8299",
+          "name": "群聯"
+        },
+        {
+          "code": "0050",
+          "name": "元大台灣50"
+        },
+        {
+          "code": "1785",
+          "name": "光洋科"
         }
       ],
       "us_stocks": [
@@ -1589,6 +1801,10 @@
         {
           "code": "3711",
           "name": "日月光投控"
+        },
+        {
+          "code": "2449",
+          "name": "京元電子"
         }
       ],
       "us_stocks": [
@@ -1633,6 +1849,10 @@
         {
           "code": "3481",
           "name": "群創"
+        },
+        {
+          "code": "6147",
+          "name": "頎邦"
         }
       ],
       "us_stocks": []
@@ -1863,6 +2083,10 @@
         {
           "ticker": "IFX",
           "name": "英飛凌"
+        },
+        {
+          "ticker": "BB",
+          "name": "BlackBerry Limited"
         }
       ]
     },
@@ -1931,6 +2155,26 @@
         {
           "ticker": "KTOS",
           "name": "Kratos Defense & Security Solutions"
+        },
+        {
+          "ticker": "RIVN",
+          "name": "Rivian Automotive, Inc."
+        },
+        {
+          "ticker": "ONDS",
+          "name": "Ondas Inc"
+        },
+        {
+          "ticker": "BB",
+          "name": "BlackBerry Limited"
+        },
+        {
+          "ticker": "BBAI",
+          "name": "BigBear.ai, Inc."
+        },
+        {
+          "ticker": "ACHR",
+          "name": "Archer Aviation Inc."
         }
       ]
     },
@@ -1968,6 +2212,22 @@
         {
           "ticker": "RTX",
           "name": "雷神技術"
+        },
+        {
+          "ticker": "ONDS",
+          "name": "Ondas Inc"
+        },
+        {
+          "ticker": "BB",
+          "name": "BlackBerry Limited"
+        },
+        {
+          "ticker": "BBAI",
+          "name": "BigBear.ai, Inc."
+        },
+        {
+          "ticker": "ACHR",
+          "name": "Archer Aviation Inc."
         }
       ]
     },
@@ -2000,6 +2260,10 @@
         {
           "ticker": "GEV",
           "name": "GE Vernova"
+        },
+        {
+          "ticker": "BB",
+          "name": "BlackBerry Limited"
         }
       ]
     },
@@ -2032,6 +2296,14 @@
         {
           "ticker": "TSLA",
           "name": "特斯拉 (Starlink相關)"
+        },
+        {
+          "ticker": "BB",
+          "name": "BlackBerry Limited"
+        },
+        {
+          "ticker": "ACHR",
+          "name": "Archer Aviation Inc."
         }
       ]
     },
@@ -2093,6 +2365,22 @@
         {
           "ticker": "MSFT",
           "name": "微軟"
+        },
+        {
+          "ticker": "SOUN",
+          "name": "SoundHound AI, Inc."
+        },
+        {
+          "ticker": "PATH",
+          "name": "UiPath, Inc."
+        },
+        {
+          "ticker": "SNAP",
+          "name": "Snap Inc."
+        },
+        {
+          "ticker": "BBAI",
+          "name": "BigBear.ai, Inc."
         }
       ]
     },
@@ -2120,6 +2408,18 @@
         {
           "code": "6770",
           "name": "力積電"
+        },
+        {
+          "code": "6147",
+          "name": "頎邦"
+        },
+        {
+          "code": "2454",
+          "name": "聯發科"
+        },
+        {
+          "code": "2449",
+          "name": "京元電子"
         }
       ],
       "us_stocks": [
@@ -2130,6 +2430,10 @@
         {
           "ticker": "IFX",
           "name": "英飛凌"
+        },
+        {
+          "ticker": "QCOM",
+          "name": "QUALCOMM Incorporated"
         }
       ]
     },
@@ -2217,6 +2521,10 @@
         {
           "code": "6953",
           "name": "家碩"
+        },
+        {
+          "code": "1303",
+          "name": "南亞"
         }
       ],
       "us_stocks": [
@@ -2279,6 +2587,10 @@
         {
           "code": "2330",
           "name": "台積電"
+        },
+        {
+          "code": "3661",
+          "name": "世芯-KY"
         }
       ],
       "us_stocks": []
@@ -2303,6 +2615,10 @@
         {
           "code": "2330",
           "name": "台積電"
+        },
+        {
+          "code": "3661",
+          "name": "世芯-KY"
         }
       ],
       "us_stocks": []
@@ -2468,6 +2784,18 @@
         {
           "code": "3450",
           "name": "聯鈞"
+        },
+        {
+          "code": "6147",
+          "name": "頎邦"
+        },
+        {
+          "code": "2455",
+          "name": "全新"
+        },
+        {
+          "code": "3081",
+          "name": "聯亞"
         }
       ],
       "us_stocks": [
@@ -2527,6 +2855,10 @@
         {
           "code": "3450",
           "name": "聯鈞"
+        },
+        {
+          "code": "3081",
+          "name": "聯亞"
         }
       ],
       "us_stocks": [
@@ -2593,6 +2925,22 @@
         {
           "ticker": "MSFT",
           "name": "微軟"
+        },
+        {
+          "ticker": "SOUN",
+          "name": "SoundHound AI, Inc."
+        },
+        {
+          "ticker": "PATH",
+          "name": "UiPath, Inc."
+        },
+        {
+          "ticker": "SNAP",
+          "name": "Snap Inc."
+        },
+        {
+          "ticker": "BBAI",
+          "name": "BigBear.ai, Inc."
         }
       ]
     },
@@ -2620,6 +2968,46 @@
         {
           "code": "3711",
           "name": "日月光投控"
+        },
+        {
+          "code": "2313",
+          "name": "華通"
+        },
+        {
+          "code": "00981A",
+          "name": "主動統一台股增長"
+        },
+        {
+          "code": "2317",
+          "name": "鴻海"
+        },
+        {
+          "code": "3661",
+          "name": "世芯-KY"
+        },
+        {
+          "code": "6669",
+          "name": "緯穎"
+        },
+        {
+          "code": "2454",
+          "name": "聯發科"
+        },
+        {
+          "code": "2345",
+          "name": "智邦"
+        },
+        {
+          "code": "3017",
+          "name": "奇鋐"
+        },
+        {
+          "code": "2449",
+          "name": "京元電子"
+        },
+        {
+          "code": "3081",
+          "name": "聯亞"
         }
       ],
       "us_stocks": [
@@ -2630,6 +3018,38 @@
         {
           "ticker": "AMD",
           "name": "AMD"
+        },
+        {
+          "ticker": "AMZN",
+          "name": "Amazon.com, Inc."
+        },
+        {
+          "ticker": "INTC",
+          "name": "Intel Corporation"
+        },
+        {
+          "ticker": "MSFT",
+          "name": "Microsoft Corporation"
+        },
+        {
+          "ticker": "ORCL",
+          "name": "Oracle Corporation"
+        },
+        {
+          "ticker": "CRWV",
+          "name": "CoreWeave, Inc."
+        },
+        {
+          "ticker": "QCOM",
+          "name": "QUALCOMM Incorporated"
+        },
+        {
+          "ticker": "NBIS",
+          "name": "Nebius Group N.V."
+        },
+        {
+          "ticker": "RIOT",
+          "name": "Riot Platforms, Inc."
         }
       ]
     },
@@ -2657,6 +3077,22 @@
         {
           "code": "3711",
           "name": "日月光投控"
+        },
+        {
+          "code": "2317",
+          "name": "鴻海"
+        },
+        {
+          "code": "2454",
+          "name": "聯發科"
+        },
+        {
+          "code": "2449",
+          "name": "京元電子"
+        },
+        {
+          "code": "3081",
+          "name": "聯亞"
         }
       ],
       "us_stocks": [
@@ -2667,6 +3103,14 @@
         {
           "ticker": "AMD",
           "name": "AMD"
+        },
+        {
+          "ticker": "ORCL",
+          "name": "Oracle Corporation"
+        },
+        {
+          "ticker": "QCOM",
+          "name": "QUALCOMM Incorporated"
         }
       ]
     },
@@ -2698,6 +3142,30 @@
         {
           "code": "2454",
           "name": "聯發科"
+        },
+        {
+          "code": "2317",
+          "name": "鴻海"
+        },
+        {
+          "code": "3661",
+          "name": "世芯-KY"
+        },
+        {
+          "code": "6669",
+          "name": "緯穎"
+        },
+        {
+          "code": "3017",
+          "name": "奇鋐"
+        },
+        {
+          "code": "2449",
+          "name": "京元電子"
+        },
+        {
+          "code": "3081",
+          "name": "聯亞"
         }
       ],
       "us_stocks": [
@@ -2712,6 +3180,26 @@
         {
           "ticker": "AMZN",
           "name": "Amazon"
+        },
+        {
+          "ticker": "AMD",
+          "name": "Advanced Micro Devices, Inc."
+        },
+        {
+          "ticker": "INTC",
+          "name": "Intel Corporation"
+        },
+        {
+          "ticker": "ORCL",
+          "name": "Oracle Corporation"
+        },
+        {
+          "ticker": "QCOM",
+          "name": "QUALCOMM Incorporated"
+        },
+        {
+          "ticker": "NBIS",
+          "name": "Nebius Group N.V."
         }
       ]
     },
@@ -2734,6 +3222,14 @@
         {
           "code": "2408",
           "name": "南亞科"
+        },
+        {
+          "code": "2313",
+          "name": "華通"
+        },
+        {
+          "code": "2317",
+          "name": "鴻海"
         }
       ],
       "us_stocks": [
@@ -2748,6 +3244,14 @@
         {
           "ticker": "SSNLF",
           "name": "三星電子"
+        },
+        {
+          "ticker": "INTC",
+          "name": "Intel Corporation"
+        },
+        {
+          "ticker": "NBIS",
+          "name": "Nebius Group N.V."
         }
       ]
     },
@@ -2780,6 +3284,22 @@
         {
           "code": "2376",
           "name": "技嘉"
+        },
+        {
+          "code": "8046",
+          "name": "南電"
+        },
+        {
+          "code": "2317",
+          "name": "鴻海"
+        },
+        {
+          "code": "6669",
+          "name": "緯穎"
+        },
+        {
+          "code": "3017",
+          "name": "奇鋐"
         }
       ],
       "us_stocks": [
@@ -2790,6 +3310,26 @@
         {
           "ticker": "HPE",
           "name": "慧與科技"
+        },
+        {
+          "ticker": "INTC",
+          "name": "Intel Corporation"
+        },
+        {
+          "ticker": "ORCL",
+          "name": "Oracle Corporation"
+        },
+        {
+          "ticker": "NBIS",
+          "name": "Nebius Group N.V."
+        },
+        {
+          "ticker": "GBTG",
+          "name": "Global Business Travel Group, I"
+        },
+        {
+          "ticker": "RIOT",
+          "name": "Riot Platforms, Inc."
         }
       ]
     },
@@ -2851,6 +3391,10 @@
         {
           "code": "6770",
           "name": "力積電"
+        },
+        {
+          "code": "2344",
+          "name": "華邦電"
         }
       ],
       "us_stocks": []
@@ -2889,6 +3433,10 @@
         {
           "ticker": "SSNLF",
           "name": "三星電子"
+        },
+        {
+          "ticker": "INTC",
+          "name": "Intel Corporation"
         }
       ]
     },
@@ -2911,6 +3459,10 @@
         {
           "code": "2408",
           "name": "南亞科"
+        },
+        {
+          "code": "1303",
+          "name": "南亞"
         }
       ],
       "us_stocks": [
@@ -2947,6 +3499,10 @@
         {
           "code": "2408",
           "name": "南亞科"
+        },
+        {
+          "code": "1303",
+          "name": "南亞"
         }
       ],
       "us_stocks": [
@@ -2961,6 +3517,10 @@
         {
           "ticker": "SSNLF",
           "name": "三星電子"
+        },
+        {
+          "ticker": "INTC",
+          "name": "Intel Corporation"
         }
       ]
     },
@@ -2989,6 +3549,14 @@
         {
           "code": "6203",
           "name": "盛群"
+        },
+        {
+          "code": "2301",
+          "name": "光寶科"
+        },
+        {
+          "code": "2345",
+          "name": "智邦"
         }
       ],
       "us_stocks": [
@@ -3055,6 +3623,10 @@
         {
           "code": "2308",
           "name": "台達電"
+        },
+        {
+          "code": "2345",
+          "name": "智邦"
         }
       ],
       "us_stocks": [
@@ -3358,6 +3930,10 @@
         {
           "ticker": "AMD",
           "name": "AMD"
+        },
+        {
+          "ticker": "BBAI",
+          "name": "BigBear.ai, Inc."
         }
       ]
     },
@@ -3381,6 +3957,10 @@
         {
           "code": "2454",
           "name": "聯發科"
+        },
+        {
+          "code": "6789",
+          "name": "采鈺"
         }
       ],
       "us_stocks": [
@@ -3395,6 +3975,10 @@
         {
           "ticker": "SSNLF",
           "name": "三星電子"
+        },
+        {
+          "ticker": "BBAI",
+          "name": "BigBear.ai, Inc."
         }
       ]
     },
@@ -3441,6 +4025,54 @@
         {
           "code": "3324",
           "name": "雙鴻"
+        },
+        {
+          "code": "2330",
+          "name": "台積電"
+        },
+        {
+          "code": "3037",
+          "name": "欣興"
+        },
+        {
+          "code": "8046",
+          "name": "南電"
+        },
+        {
+          "code": "2313",
+          "name": "華通"
+        },
+        {
+          "code": "00981A",
+          "name": "主動統一台股增長"
+        },
+        {
+          "code": "2317",
+          "name": "鴻海"
+        },
+        {
+          "code": "2455",
+          "name": "全新"
+        },
+        {
+          "code": "2301",
+          "name": "光寶科"
+        },
+        {
+          "code": "2345",
+          "name": "智邦"
+        },
+        {
+          "code": "1303",
+          "name": "南亞"
+        },
+        {
+          "code": "1785",
+          "name": "光洋科"
+        },
+        {
+          "code": "2449",
+          "name": "京元電子"
         }
       ],
       "us_stocks": [
@@ -3463,6 +4095,34 @@
         {
           "ticker": "MSFT",
           "name": "微軟"
+        },
+        {
+          "ticker": "INTC",
+          "name": "Intel Corporation"
+        },
+        {
+          "ticker": "CRWV",
+          "name": "CoreWeave, Inc."
+        },
+        {
+          "ticker": "QCOM",
+          "name": "QUALCOMM Incorporated"
+        },
+        {
+          "ticker": "NBIS",
+          "name": "Nebius Group N.V."
+        },
+        {
+          "ticker": "GBTG",
+          "name": "Global Business Travel Group, I"
+        },
+        {
+          "ticker": "RIOT",
+          "name": "Riot Platforms, Inc."
+        },
+        {
+          "ticker": "BBAI",
+          "name": "BigBear.ai, Inc."
         }
       ]
     },
@@ -3504,6 +4164,46 @@
         {
           "code": "3017",
           "name": "奇鋐"
+        },
+        {
+          "code": "8046",
+          "name": "南電"
+        },
+        {
+          "code": "2313",
+          "name": "華通"
+        },
+        {
+          "code": "00981A",
+          "name": "主動統一台股增長"
+        },
+        {
+          "code": "2317",
+          "name": "鴻海"
+        },
+        {
+          "code": "2455",
+          "name": "全新"
+        },
+        {
+          "code": "2301",
+          "name": "光寶科"
+        },
+        {
+          "code": "2345",
+          "name": "智邦"
+        },
+        {
+          "code": "1303",
+          "name": "南亞"
+        },
+        {
+          "code": "2449",
+          "name": "京元電子"
+        },
+        {
+          "code": "3081",
+          "name": "聯亞"
         }
       ],
       "us_stocks": [
@@ -3518,6 +4218,42 @@
         {
           "ticker": "MSFT",
           "name": "微軟 (Azure)"
+        },
+        {
+          "ticker": "NVDA",
+          "name": "NVIDIA Corporation"
+        },
+        {
+          "ticker": "AMD",
+          "name": "Advanced Micro Devices, Inc."
+        },
+        {
+          "ticker": "INTC",
+          "name": "Intel Corporation"
+        },
+        {
+          "ticker": "ORCL",
+          "name": "Oracle Corporation"
+        },
+        {
+          "ticker": "CRWV",
+          "name": "CoreWeave, Inc."
+        },
+        {
+          "ticker": "NBIS",
+          "name": "Nebius Group N.V."
+        },
+        {
+          "ticker": "GBTG",
+          "name": "Global Business Travel Group, I"
+        },
+        {
+          "ticker": "RIOT",
+          "name": "Riot Platforms, Inc."
+        },
+        {
+          "ticker": "BBAI",
+          "name": "BigBear.ai, Inc."
         }
       ]
     },
@@ -3537,7 +4273,28 @@
           "企業服務"
         ]
       },
-      "tw_stocks": [],
+      "tw_stocks": [
+        {
+          "code": "00981A",
+          "name": "主動統一台股增長"
+        },
+        {
+          "code": "2317",
+          "name": "鴻海"
+        },
+        {
+          "code": "2455",
+          "name": "全新"
+        },
+        {
+          "code": "2301",
+          "name": "光寶科"
+        },
+        {
+          "code": "1303",
+          "name": "南亞"
+        }
+      ],
       "us_stocks": [
         {
           "ticker": "AMZN",
@@ -3554,6 +4311,30 @@
         {
           "ticker": "META",
           "name": "Meta"
+        },
+        {
+          "ticker": "ORCL",
+          "name": "Oracle Corporation"
+        },
+        {
+          "ticker": "CRWV",
+          "name": "CoreWeave, Inc."
+        },
+        {
+          "ticker": "NBIS",
+          "name": "Nebius Group N.V."
+        },
+        {
+          "ticker": "GBTG",
+          "name": "Global Business Travel Group, I"
+        },
+        {
+          "ticker": "RIOT",
+          "name": "Riot Platforms, Inc."
+        },
+        {
+          "ticker": "BBAI",
+          "name": "BigBear.ai, Inc."
         }
       ]
     },
@@ -3605,7 +4386,12 @@
           "AI資料中心"
         ]
       },
-      "tw_stocks": [],
+      "tw_stocks": [
+        {
+          "code": "6147",
+          "name": "頎邦"
+        }
+      ],
       "us_stocks": [
         {
           "ticker": "TXN",
@@ -3690,7 +4476,12 @@
           "物聯網"
         ]
       },
-      "tw_stocks": [],
+      "tw_stocks": [
+        {
+          "code": "2301",
+          "name": "光寶科"
+        }
+      ],
       "us_stocks": [
         {
           "ticker": "NOK",
@@ -3721,7 +4512,12 @@
           "name": "新盛力"
         }
       ],
-      "us_stocks": []
+      "us_stocks": [
+        {
+          "ticker": "PLUG",
+          "name": "Plug Power, Inc."
+        }
+      ]
     },
     {
       "id": "energy_storage_system",
@@ -3747,9 +4543,18 @@
         {
           "code": "2308",
           "name": "台達電"
+        },
+        {
+          "code": "2301",
+          "name": "光寶科"
         }
       ],
-      "us_stocks": []
+      "us_stocks": [
+        {
+          "ticker": "PLUG",
+          "name": "Plug Power, Inc."
+        }
+      ]
     },
     {
       "id": "data_center_backup_battery_module",
@@ -3774,6 +4579,10 @@
         {
           "code": "1723",
           "name": "中碳"
+        },
+        {
+          "code": "2301",
+          "name": "光寶科"
         }
       ],
       "us_stocks": []
@@ -3900,6 +4709,10 @@
         {
           "code": "4576",
           "name": "大銀微系統"
+        },
+        {
+          "code": "2360",
+          "name": "致茂"
         }
       ],
       "us_stocks": []
@@ -4201,6 +5014,10 @@
         {
           "code": "6548",
           "name": "韋僑"
+        },
+        {
+          "code": "6147",
+          "name": "頎邦"
         }
       ],
       "us_stocks": []
@@ -4223,7 +5040,12 @@
           "智慧醫療"
         ]
       },
-      "tw_stocks": [],
+      "tw_stocks": [
+        {
+          "code": "6147",
+          "name": "頎邦"
+        }
+      ],
       "us_stocks": []
     },
     {
@@ -4384,6 +5206,14 @@
         {
           "code": "4760",
           "name": "勤凱"
+        },
+        {
+          "code": "6147",
+          "name": "頎邦"
+        },
+        {
+          "code": "3711",
+          "name": "日月光投控"
         }
       ],
       "us_stocks": []
@@ -4425,6 +5255,14 @@
         {
           "code": "2464",
           "name": "盟立"
+        },
+        {
+          "code": "6147",
+          "name": "頎邦"
+        },
+        {
+          "code": "3711",
+          "name": "日月光投控"
         }
       ],
       "us_stocks": [
@@ -4504,6 +5342,18 @@
         {
           "code": "2454",
           "name": "聯發科"
+        },
+        {
+          "code": "2317",
+          "name": "鴻海"
+        },
+        {
+          "code": "3661",
+          "name": "世芯-KY"
+        },
+        {
+          "code": "2449",
+          "name": "京元電子"
         }
       ],
       "us_stocks": [
@@ -4518,6 +5368,26 @@
         {
           "ticker": "GOOG",
           "name": "Google"
+        },
+        {
+          "ticker": "MSFT",
+          "name": "Microsoft Corporation"
+        },
+        {
+          "ticker": "ORCL",
+          "name": "Oracle Corporation"
+        },
+        {
+          "ticker": "QCOM",
+          "name": "QUALCOMM Incorporated"
+        },
+        {
+          "ticker": "NBIS",
+          "name": "Nebius Group N.V."
+        },
+        {
+          "ticker": "SNAP",
+          "name": "Snap Inc."
         }
       ]
     },
@@ -4549,6 +5419,18 @@
         {
           "code": "2344",
           "name": "華邦電"
+        },
+        {
+          "code": "2313",
+          "name": "華通"
+        },
+        {
+          "code": "8299",
+          "name": "群聯"
+        },
+        {
+          "code": "3260",
+          "name": "威剛"
         }
       ],
       "us_stocks": [
@@ -4770,6 +5652,10 @@
         {
           "code": "6770",
           "name": "力積電"
+        },
+        {
+          "code": "2408",
+          "name": "南亞科"
         }
       ],
       "us_stocks": []
@@ -4909,6 +5795,14 @@
         {
           "ticker": "AMD",
           "name": "AMD"
+        },
+        {
+          "ticker": "MSFT",
+          "name": "Microsoft Corporation"
+        },
+        {
+          "ticker": "SNAP",
+          "name": "Snap Inc."
         }
       ]
     },
@@ -4948,6 +5842,14 @@
         {
           "ticker": "AMD",
           "name": "AMD"
+        },
+        {
+          "ticker": "MSFT",
+          "name": "Microsoft Corporation"
+        },
+        {
+          "ticker": "SNAP",
+          "name": "Snap Inc."
         }
       ]
     },
@@ -5017,6 +5919,18 @@
         {
           "ticker": "ANTH",
           "name": "Anthropic"
+        },
+        {
+          "ticker": "ORCL",
+          "name": "Oracle Corporation"
+        },
+        {
+          "ticker": "SOUN",
+          "name": "SoundHound AI, Inc."
+        },
+        {
+          "ticker": "SNAP",
+          "name": "Snap Inc."
         }
       ]
     },
@@ -5049,6 +5963,30 @@
         {
           "ticker": "ATLS",
           "name": "Atlassian"
+        },
+        {
+          "ticker": "MSFT",
+          "name": "Microsoft Corporation"
+        },
+        {
+          "ticker": "ORCL",
+          "name": "Oracle Corporation"
+        },
+        {
+          "ticker": "SOUN",
+          "name": "SoundHound AI, Inc."
+        },
+        {
+          "ticker": "PATH",
+          "name": "UiPath, Inc."
+        },
+        {
+          "ticker": "SNAP",
+          "name": "Snap Inc."
+        },
+        {
+          "ticker": "BBAI",
+          "name": "BigBear.ai, Inc."
         }
       ]
     },
@@ -5081,6 +6019,22 @@
         {
           "ticker": "ATLS",
           "name": "Atlassian"
+        },
+        {
+          "ticker": "ORCL",
+          "name": "Oracle Corporation"
+        },
+        {
+          "ticker": "SOUN",
+          "name": "SoundHound AI, Inc."
+        },
+        {
+          "ticker": "PATH",
+          "name": "UiPath, Inc."
+        },
+        {
+          "ticker": "SNAP",
+          "name": "Snap Inc."
         }
       ]
     },
@@ -5105,6 +6059,10 @@
         {
           "ticker": "CRM",
           "name": "Salesforce"
+        },
+        {
+          "ticker": "PATH",
+          "name": "UiPath, Inc."
         }
       ]
     },
@@ -5141,6 +6099,10 @@
         {
           "ticker": "AMZN",
           "name": "Amazon"
+        },
+        {
+          "ticker": "SNAP",
+          "name": "Snap Inc."
         }
       ]
     },
@@ -5165,6 +6127,14 @@
         {
           "code": "2330",
           "name": "台積電"
+        },
+        {
+          "code": "00981A",
+          "name": "主動統一台股增長"
+        },
+        {
+          "code": "2455",
+          "name": "全新"
         }
       ],
       "us_stocks": [
@@ -5367,6 +6337,10 @@
         {
           "ticker": "META",
           "name": "Meta"
+        },
+        {
+          "ticker": "SNAP",
+          "name": "Snap Inc."
         }
       ]
     },
@@ -5525,6 +6499,14 @@
         {
           "ticker": "BE",
           "name": "Bloom Energy"
+        },
+        {
+          "ticker": "ET",
+          "name": "Energy Transfer LP"
+        },
+        {
+          "ticker": "MARA",
+          "name": "MARA Holdings, Inc."
         }
       ]
     },
@@ -5549,6 +6531,10 @@
         {
           "ticker": "BE",
           "name": "Bloom Energy"
+        },
+        {
+          "ticker": "MARA",
+          "name": "MARA Holdings, Inc."
         }
       ]
     },
@@ -5577,6 +6563,10 @@
         {
           "ticker": "CMI",
           "name": "康明斯"
+        },
+        {
+          "ticker": "MARA",
+          "name": "MARA Holdings, Inc."
         }
       ]
     },
@@ -5695,6 +6685,14 @@
         {
           "ticker": "TSLA",
           "name": "特斯拉"
+        },
+        {
+          "ticker": "RIVN",
+          "name": "Rivian Automotive, Inc."
+        },
+        {
+          "ticker": "ONDS",
+          "name": "Ondas Inc"
         }
       ]
     },
@@ -5767,6 +6765,14 @@
         {
           "ticker": "TSLA",
           "name": "特斯拉"
+        },
+        {
+          "ticker": "RIVN",
+          "name": "Rivian Automotive, Inc."
+        },
+        {
+          "ticker": "ONDS",
+          "name": "Ondas Inc"
         }
       ]
     },
@@ -5923,7 +6929,16 @@
           "AI-RAN"
         ]
       },
-      "tw_stocks": [],
+      "tw_stocks": [
+        {
+          "code": "2301",
+          "name": "光寶科"
+        },
+        {
+          "code": "2345",
+          "name": "智邦"
+        }
+      ],
       "us_stocks": [
         {
           "ticker": "NOK",
@@ -5947,11 +6962,20 @@
           "工業自動化"
         ]
       },
-      "tw_stocks": [],
+      "tw_stocks": [
+        {
+          "code": "2345",
+          "name": "智邦"
+        }
+      ],
       "us_stocks": [
         {
           "ticker": "NOK",
           "name": "Nokia"
+        },
+        {
+          "ticker": "QCOM",
+          "name": "QUALCOMM Incorporated"
         }
       ]
     },
@@ -6394,6 +7418,14 @@
         {
           "code": "3711",
           "name": "日月光投控"
+        },
+        {
+          "code": "2313",
+          "name": "華通"
+        },
+        {
+          "code": "00981A",
+          "name": "主動統一台股增長"
         }
       ],
       "us_stocks": [
@@ -6926,6 +7958,10 @@
         {
           "code": "3491",
           "name": "昇達科"
+        },
+        {
+          "code": "2455",
+          "name": "全新"
         }
       ],
       "us_stocks": []
@@ -6998,6 +8034,14 @@
         {
           "code": "6265",
           "name": "欣銓"
+        },
+        {
+          "code": "2360",
+          "name": "致茂"
+        },
+        {
+          "code": "6147",
+          "name": "頎邦"
         }
       ],
       "us_stocks": []
