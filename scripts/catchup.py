@@ -18,7 +18,6 @@ Article crawl (08:00 / 21:00) is intentionally skipped — it requires
 Chrome on port 9222, which may not be running after reboot.
 """
 import asyncio
-from src.utils import db
 import os
 import subprocess
 import sys
@@ -28,6 +27,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from dotenv import load_dotenv
 load_dotenv()
+
+from src.utils import db
 
 BASE = Path(__file__).resolve().parent.parent
 LOG  = BASE / "logs"
