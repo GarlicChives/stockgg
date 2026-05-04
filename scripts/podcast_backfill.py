@@ -11,7 +11,6 @@ Logic:
   - Rebuilds HTML if any episodes were updated
 """
 import asyncio
-from src.utils import db
 import os
 import subprocess
 import sys
@@ -24,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from dotenv import load_dotenv
 load_dotenv()
 
+from src.utils import db
 from src.utils.refine import refine_content, embed_text
 
 PODCAST_SOURCES = [
