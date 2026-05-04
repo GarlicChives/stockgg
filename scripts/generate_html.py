@@ -622,13 +622,13 @@ async def generate():
     if us_rank_date:
         us_ranks = [dict(r) for r in await conn.fetch(
             "SELECT rank, ticker, name, trading_value, change_pct, extra "
-            "FROM trading_rankings WHERE rank_date=$1 AND market='US' ORDER BY rank LIMIT 30",
+            "FROM trading_rankings WHERE rank_date=$1 AND market='US' AND rank <= 30 ORDER BY rank",
             us_rank_date,
         )]
     if tw_rank_date:
         tw_ranks = [dict(r) for r in await conn.fetch(
             "SELECT rank, ticker, name, trading_value, change_pct, is_limit_up_30m, extra "
-            "FROM trading_rankings WHERE rank_date=$1 AND market='TW' ORDER BY rank LIMIT 30",
+            "FROM trading_rankings WHERE rank_date=$1 AND market='TW' AND rank <= 30 ORDER BY rank",
             tw_rank_date,
         )]
 
