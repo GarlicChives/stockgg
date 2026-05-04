@@ -178,7 +178,7 @@ def _stk_pill(ticker: str, stocks_info: dict, clickable: bool = True, extra_attr
     pct_str = (f"{'+' if chg >= 0 else ''}{chg:.1f}%") if chg is not None else "—"
     pct_cls = ("up" if chg >= 0 else "down") if chg is not None else "neutral"
     name_span = f'<span class="sp-name">{html_lib.escape(name[:8])}</span>' if name else ""
-    click = f' onclick="showArtModal({json.dumps(ticker)},{json.dumps(name[:12])})"' if clickable else ""
+    click = f" onclick='showArtModal({json.dumps(ticker)},{json.dumps(name[:12])})'" if clickable else ""
     extra = f" {extra_attrs}" if extra_attrs else ""
     return (
         f'<div class="stk-pill"{click}{extra}>'
@@ -392,7 +392,7 @@ def _cluster_section_html(
     if universal_tickers:
         chips = "".join(
             f'<button class="univ-chip" data-ticker="{html_lib.escape(t)}" data-market="{market}" '
-            f'onclick="toggleUniversal({json.dumps(t)},{json.dumps(market)})">'
+            f"onclick='toggleUniversal({json.dumps(t)},{json.dumps(market)})'>"
             f'{html_lib.escape(t)}&nbsp;{html_lib.escape(n[:6])}'
             f'</button>'
             for t, n in universal_tickers.items()
@@ -950,6 +950,7 @@ async def generate():
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IIA 投資情報 {report_date}</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
 <style>
 :root {{
   --bg:#0f1117; --card:#1a1d26; --border:#2a2e40;
