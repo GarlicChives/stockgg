@@ -2,7 +2,7 @@
   "meta": {
     "version": "1",
     "generated_at": "2026-05-03T16:17:15Z",
-    "last_checked": "2026-05-04T10:23:51Z",
+    "last_checked": "2026-05-04T13:21:56Z",
     "model": "gemini-2.5-flash",
     "source_articles": 262,
     "source_podcasts": 30
@@ -6901,6 +6901,106 @@
           "name": "Marvell"
         }
       ]
+    },
+    {
+      "id": "leo_satellite",
+      "name": "低軌衛星",
+      "keyword": "低軌衛星",
+      "supply_chain": {
+        "upstream": [
+          "射頻元件",
+          "天線模組",
+          "PCB"
+        ],
+        "downstream": [
+          "航太通訊",
+          "衛星物聯網",
+          "Starlink"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "2313",
+          "name": "華通"
+        },
+        {
+          "code": "3491",
+          "name": "昇達科"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "heavy_electrical_equipment",
+      "name": "重電",
+      "keyword": "重電",
+      "supply_chain": {
+        "upstream": [
+          "矽鋼片",
+          "銅線",
+          "絕緣材料"
+        ],
+        "downstream": [
+          "電網升級",
+          "AI資料中心供電",
+          "再生能源"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "1519",
+          "name": "華城"
+        },
+        {
+          "code": "1513",
+          "name": "中興電"
+        },
+        {
+          "code": "1503",
+          "name": "士電"
+        },
+        {
+          "code": "1514",
+          "name": "亞力"
+        }
+      ],
+      "us_stocks": []
+    },
+    {
+      "id": "osat_packaging_test",
+      "name": "封測",
+      "keyword": "封測",
+      "supply_chain": {
+        "upstream": [
+          "基板",
+          "導線架",
+          "封裝材料"
+        ],
+        "downstream": [
+          "AI晶片",
+          "手機SoC",
+          "車用晶片"
+        ]
+      },
+      "tw_stocks": [
+        {
+          "code": "3711",
+          "name": "日月光投控"
+        },
+        {
+          "code": "2449",
+          "name": "京元電子"
+        },
+        {
+          "code": "6239",
+          "name": "力成"
+        },
+        {
+          "code": "6265",
+          "name": "欣銓"
+        }
+      ],
+      "us_stocks": []
     }
   ]
 }
