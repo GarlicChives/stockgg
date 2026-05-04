@@ -191,6 +191,11 @@ def _fetch_with_fallback(fetch_fn, target_date: date, label: str) -> tuple[list[
 
 async def store_tw_rankings(conn, rows: list[dict], target_date: date,
                              limit_up: set[str]) -> int:
+    # Delete stale data first to prevent rank/value desync from multiple daily runs.
+    await conn.execute(
+        "DELETE FROM trading_rankings WHERE rank_date=$1 AND market='TW'",
+        target_date,
+    )
     count = 0
     for row in rows:
         is_lu = row["ticker"] in limit_up
@@ -199,10 +204,7 @@ async def store_tw_rankings(conn, rows: list[dict], target_date: date,
             """INSERT INTO trading_rankings
                (rank_date, market, rank, ticker, name, trading_value,
                 close_price, change_pct, is_limit_up_30m, extra)
-               VALUES ($1,'TW',$2,$3,$4,$5,$6,$7,$8,$9)
-               ON CONFLICT (rank_date, market, ticker) DO UPDATE
-               SET rank=$2, trading_value=$5, close_price=$6,
-                   change_pct=$7, is_limit_up_30m=$8, extra=$9""",
+               VALUES ($1,'TW',$2,$3,$4,$5,$6,$7,$8,$9)""",
             target_date, row["rank"], row["ticker"], row.get("name"),
             row["trading_value"], row.get("close_price"), row.get("change_pct"),
             is_lu, extra,
