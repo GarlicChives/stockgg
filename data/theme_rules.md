@@ -1,8 +1,52 @@
 # 台美股投資主題字典 — 建構規則文件
 
-> 此文件由 `build_theme_dictionary.py` 在 runtime 讀取，作為 Gemini prompt 的規則章節。
-> 修改此文件即可調整 AI 的主題識別行為，無須修改 Python 程式碼。
+> **⚠️ 此文件為人工參考文件，不由程式 runtime 讀取。**
+> 分類邏輯位於 `src/theme/classifier.py` 的 `_SYSTEM` 常數；如需調整 prompt 請直接修改該檔案。
 > 上次人工審閱：2026-05-04
+
+---
+
+## 零、架構概覽（每次 session 必讀）
+
+```
+每日 top-30 TW+US stocks (DB)
+    │
+    ▼ TTL 快取檢查 (data/search_cache.json, 30天)
+    │
+    ▼ Tavily Search API → 3 snippets
+    │   TAVILY_API_KEY（app.tavily.com，免費 1000次/月）
+    │
+    ▼ Gemini 2.5 Flash-Lite 分類
+    │   GOOGLE_API_KEY（現有 Gemini key 即可）
+    │   prompt: src/theme/classifier.py _SYSTEM
+    │
+    ▼ Upsert 至 data/theme_dictionary.json
+    │   只插入 tw_stocks / us_stocks 股票條目
+    │   不覆寫 name / keyword / supply_chain
+    │
+    ▼ 更新快取 + 儲存
+```
+
+執行方式：
+- 全量（daily_briefing Step 5.5）：`uv run scripts/build_theme_dictionary.py`
+- 單股 debug：`uv run scripts/build_theme_dictionary.py --ticker 2449`
+- 清除快取重跑：`uv run scripts/build_theme_dictionary.py --reset-cache`
+
+---
+
+## 欄位語義（重要）
+
+| 欄位 | 維護者 | 說明 |
+|------|--------|------|
+| `id` | 人工 | snake_case 英文，永久識別碼，不可改 |
+| `name` | **人工維護** | 台灣金融媒體常見中文名稱，程式不覆寫 |
+| `keyword` | 人工 | 用於文章計數的核心識別詞（見規則三）|
+| `supply_chain` | 人工 | 上下游關係，程式不覆寫 |
+| `tw_stocks` | **程式自動插入** | 由 Search+LLM pipeline 維護 |
+| `us_stocks` | **程式自動插入** | 由 Search+LLM pipeline 維護 |
+
+> `name` 顯示優先於 `keyword`（HTML 頁面以中文名稱為主）。
+> 新增主題時先填 `id`/`name`/`keyword`，程式會自動補 `tw_stocks`/`us_stocks`。
 
 ---
 
