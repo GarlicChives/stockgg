@@ -1,23 +1,14 @@
-"""Focus stock theme detection.
+"""Focus theme detection — 熱門題材.
 
-Loads theme_dictionary.json, scores today's top-30 stocks against themes.
+Loads theme_dictionary.json, matches today's top-30 stocks against themes.
 
-Two pathways for a cluster to surface (Gate 1 always required):
+Selection rule (see data/hot_theme_rules.md for full spec):
+  A theme is "hot" when ≥ MIN_VOLUME (2) of its dictionary members
+  appear simultaneously in the combined US+TW top-30 by trading value.
 
-  Gate 1 — Dictionary membership (mandatory):
-    The stock must appear in the theme's tw_stocks/us_stocks.
-    Prevents cross-sector pollution (DRAM article ≠ IP design cluster).
-
-  Gate 2a — Keyword discussion (primary):
-    Stock's recent articles contain the theme keyword (weighted by recency).
-    Indicates the theme is actively being written about for this stock.
-
-  Gate 2b — Volume rotation (secondary, requires ≥2 members):
-    ≥2 dictionary members simultaneously in top-30 by trading value.
-    Pure price/volume signal; no article confirmation needed.
-    Displayed with a distinct "量能輪動" badge.
-
-Cluster is included if Gate 1 AND (Gate 2a OR Gate 2b).
+  volume_only flag:
+    False — at least one member also has keyword article hits (stronger signal).
+    True  — pure volume/price signal, no article confirmation.
 
 DB migration path: replace _load_themes() body only — all callers unchanged.
 """
@@ -28,9 +19,8 @@ from pathlib import Path
 
 DICT_FILE    = Path(__file__).resolve().parents[2] / "data" / "theme_dictionary.json"
 PRIMARY_DAYS = 7
-MIN_SCORE    = 1.0   # minimum weighted keyword occurrence count
-MIN_FOCAL    = 1     # minimum focal stocks for a cluster to appear
-MIN_VOLUME   = 2     # minimum top-30 members to trigger volume-rotation pathway
+MIN_SCORE    = 1.0   # minimum weighted keyword occurrence count for article confirmation
+MIN_VOLUME   = 2     # minimum top-30 members required for a theme to be "hot"
 
 
 # ── Data classes (DB-migration-ready field naming) ────────────────────────────
@@ -153,22 +143,21 @@ def detect_clusters(
         if not keyword:
             continue
 
-        # Gate 1: theme's known member stocks that are in today's top-30
+        # Gate: ≥ MIN_VOLUME dictionary members must appear in today's top-30
         dict_tw = {s["code"] for s in theme.get("tw_stocks", [])}
         dict_us = {s["ticker"] for s in theme.get("us_stocks", [])}
         dict_members = dict_tw | dict_us
         candidates = [t for t in all_focal_codes if t in dict_members]
-        if not candidates:
+        if len(candidates) < MIN_VOLUME:
             continue
 
-        # Gate 2a: keyword scoring per candidate
-        keyword_focal: list[FocalStock] = []
-        all_candidate_focal: list[FocalStock] = []
+        # Score all candidates (for display & sorting; not a gate)
+        focal_stocks: list[FocalStock] = []
         for ticker in candidates:
             arts = ticker_arts.get(ticker, [])
             score, primary_hits = _score_articles(arts, keyword)
             info = stocks[ticker]
-            fs = FocalStock(
+            focal_stocks.append(FocalStock(
                 ticker=ticker,
                 name=info.get("name", ticker),
                 market=info.get("market", ""),
@@ -179,23 +168,11 @@ def detect_clusters(
                 articles=arts,
                 score=score,
                 primary_keyword_hits=primary_hits,
-            )
-            all_candidate_focal.append(fs)
-            if score >= MIN_SCORE:
-                keyword_focal.append(fs)
+            ))
 
-        # Decide which pathway applies
-        keyword_confirmed = len(keyword_focal) >= MIN_FOCAL
-        volume_signal = len(all_candidate_focal) >= MIN_VOLUME
-
-        if keyword_confirmed:
-            focal_stocks = keyword_focal
-            volume_only = False
-        elif volume_signal:
-            focal_stocks = all_candidate_focal
-            volume_only = True
-        else:
-            continue
+        # volume_only: True when no member has keyword article confirmation
+        has_keyword = any(fs.score >= MIN_SCORE for fs in focal_stocks)
+        volume_only = not has_keyword
 
         focal_stocks.sort(key=lambda s: (-s.score, s.rank))
 
