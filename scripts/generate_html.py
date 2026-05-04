@@ -158,49 +158,27 @@ def extract_relevant_para(content: str, ticker: str, name: str, max_chars: int =
     return result
 
 
-# ── Article segment helpers (shared module) ──────────────────────────────────
+# ── Unified stock pill (全站統一顯示模組) ─────────────────────────────────────
 
-def _build_art_segs(clusters) -> dict[str, dict[str, str]]:
-    """Pre-compute term→paragraph for every (article, term) combo in clusters.
-    Terms = theme keyword + focal ticker codes + focal stock names (first 6 chars).
-    Returns {article_id_str: {term: paragraph}}.  Zero API cost — text search only.
-    """
-    art_segs: dict[str, dict[str, str]] = {}
-    for c in clusters:
-        terms = [c.keyword] + [s.ticker for s in c.focal] + [s.name[:6] for s in c.focal if s.name]
-        terms = list(dict.fromkeys(t for t in terms if t))  # deduplicate, preserve order
-        for s in c.focal:
-            for art in s.articles[:6]:
-                art_id = str(art.get("id", ""))
-                if not art_id:
-                    continue
-                content = art.get("full_content") or ""
-                if art_id not in art_segs:
-                    art_segs[art_id] = {}
-                for term in terms:
-                    if term not in art_segs[art_id]:
-                        para = extract_relevant_para(content, term, term)
-                        if para:
-                            art_segs[art_id][term] = para
-    return art_segs
-
-
-def _render_art_ref(art: dict, terms: list[str], art_segs: dict) -> str:
-    """Render one article reference with clickable segment chips.
-    Chips appear only for terms that have a pre-computed paragraph in art_segs.
-    """
-    art_id = str(art.get("id", ""))
-    dt = str(art.get("published_at") or "")[:10]
-    src = html_lib.escape(SOURCE_NAMES.get(art.get("source") or "", art.get("source") or ""))
-    title = html_lib.escape((art.get("title") or "")[:50])
-    segs = art_segs.get(art_id, {})
-    chips = "".join(
-        f'<span class="art-seg-chip" onclick="showSegModal({json.dumps(art_id)},{json.dumps(term)})">'
-        f'{html_lib.escape(term)}</span>'
-        for term in terms if term in segs
+def _stk_pill(ticker: str, stocks_info: dict, clickable: bool = True) -> str:
+    """Unified stock chip: ticker + market badge + name + change%."""
+    info = stocks_info.get(ticker, {})
+    market = info.get("market") or ("TW" if ticker.replace(".", "").isdigit() else "US")
+    name = info.get("name", "")
+    chg = info.get("change_pct")
+    mkt_cls = "mkt-tw" if market == "TW" else "mkt-us"
+    pct_str = (f"{'+' if chg >= 0 else ''}{chg:.1f}%") if chg is not None else "—"
+    pct_cls = ("up" if chg >= 0 else "down") if chg is not None else "neutral"
+    name_span = f'<span class="sp-name">{html_lib.escape(name[:8])}</span>' if name else ""
+    click = f' onclick="showArtModal({json.dumps(ticker)},{json.dumps(name[:12])})"' if clickable else ""
+    return (
+        f'<div class="stk-pill"{click}>'
+        f'<span class="sp-ticker">{html_lib.escape(ticker)}</span>'
+        f'<span class="mkt-badge {mkt_cls}">{market}</span>'
+        f'{name_span}'
+        f'<span class="sp-pct {pct_cls}">{pct_str}</span>'
+        f'</div>'
     )
-    chips_html = f'<div class="art-seg-chips">{chips}</div>' if chips else ""
-    return f'<div class="art-ref">📰 [{dt}&nbsp;{src}]&nbsp;{title}{chips_html}</div>'
 
 
 # ── Ranking rows HTML ─────────────────────────────────────────────────────────
@@ -306,13 +284,22 @@ def _build_stock_cards(ticker_list: list[tuple[str, dict]],
     return ''.join(cards), modal_data
 
 
-def _cluster_section_html(clusters: list[ThemeCluster], stocks: dict,
-                          art_segs: dict | None = None) -> str:
+def _cluster_section_html(clusters: list[ThemeCluster], stocks: dict) -> str:
     """Render theme cluster cards."""
     if not clusters:
         return ""
-    if art_segs is None:
-        art_segs = {}
+    # Merge watch stocks into lookup dict for _stk_pill (they carry change_pct from DB)
+    all_stocks = dict(stocks)
+    for c in clusters:
+        for w in c.watch:
+            if w.code_or_ticker not in all_stocks:
+                all_stocks[w.code_or_ticker] = {
+                    "name": w.name,
+                    "market": w.market,
+                    "change_pct": w.change_pct,
+                    "trading_value": 0,
+                    "rank": 99,
+                }
     cards = []
     for c in clusters:
         if c.volume_only:
@@ -325,80 +312,19 @@ def _cluster_section_html(clusters: list[ThemeCluster], stocks: dict,
             strength_cls = "strength-mid"
             strength_lbl = "觀察"
 
-        # Focal stock pills
-        focal_pills = []
-        for s in c.focal:
-            pct_str = f"{'+' if (s.change_pct or 0) >= 0 else ''}{s.change_pct:.1f}%" if s.change_pct is not None else "—"
-            pct_cls = "up" if (s.change_pct or 0) >= 0 else "down"
-            mkt_cls = "mkt-tw" if s.market == "TW" else "mkt-us"
-            focal_pills.append(
-                f'<div class="focal-pill" onclick="showArtModal({json.dumps(s.ticker)},{json.dumps(s.name[:12])})">'
-                f'<span class="fp-ticker">{html_lib.escape(s.ticker)}</span>'
-                f'<span class="mkt-badge {mkt_cls}">{s.market}</span>'
-                f'<span class="fp-name">{html_lib.escape(s.name[:8])}</span>'
-                f'<span class="fp-pct {pct_cls}">{pct_str}</span>'
-                f'</div>'
-            )
-
-        # Watch stock chips (with change% if available)
-        watch_chips = []
-        for w in c.watch:
-            chip_cls = "watch-chip tw" if w.market == "TW" else "watch-chip us"
-            label = f"{w.name}({w.code_or_ticker})" if w.market == "TW" else f"{w.code_or_ticker} {w.name}"
-            if w.change_pct is not None:
-                pct_str = f"{'+' if w.change_pct >= 0 else ''}{w.change_pct:.1f}%"
-                pct_cls = "wc-up" if w.change_pct >= 0 else "wc-down"
-                watch_chips.append(
-                    f'<span class="{chip_cls}">{html_lib.escape(label)}'
-                    f'<span class="{pct_cls}"> {pct_str}</span></span>'
-                )
-            else:
-                watch_chips.append(f'<span class="{chip_cls}">{html_lib.escape(label)}</span>')
-
-        # Recent article refs (7-day primary only)
-        from datetime import date, timedelta
-        cutoff7 = date.today() - timedelta(days=7)
-        c_terms = [c.keyword] + [s.ticker for s in c.focal] + [s.name[:6] for s in c.focal if s.name]
-        c_terms = list(dict.fromkeys(t for t in c_terms if t))
-        art_refs = []
-        seen_ids: set = set()
-        for s in c.focal:
-            for art in s.articles:
-                aid = art.get("id")
-                if aid in seen_ids:
-                    continue
-                seen_ids.add(aid)
-                pub = art.get("published_at")
-                if pub is None:
-                    continue
-                if hasattr(pub, "date"):
-                    art_date = pub.date()
-                elif isinstance(pub, str):
-                    try:
-                        art_date = date.fromisoformat(pub[:10])
-                    except ValueError:
-                        continue
-                else:
-                    art_date = pub
-                if art_date < cutoff7:
-                    continue
-                art_refs.append(_render_art_ref(art, c_terms, art_segs))
-                if len(art_refs) >= 4:
-                    break
-            if len(art_refs) >= 4:
-                break
+        focal_pills = [_stk_pill(s.ticker, all_stocks) for s in c.focal]
+        watch_pills = [_stk_pill(w.code_or_ticker, all_stocks, clickable=False) for w in c.watch]
 
         cards.append(f"""
 <div class="cluster-card">
   <div class="cluster-hdr">
     <span class="cluster-name">🔷 {html_lib.escape(c.name)}</span>
     <span class="cluster-strength {strength_cls}">{strength_lbl}</span>
-    <span class="cluster-meta">{len(c.focal)} 檔焦點{"" if c.volume_only else f" · {c.primary_art_count} 篇近7日文章"}</span>
+    <span class="cluster-meta">{len(c.focal)} 檔焦點</span>
   </div>
   <div class="cluster-section-label">今日焦點（在前30）</div>
   <div class="cluster-focal-stocks">{''.join(focal_pills)}</div>
-  {'<div class="cluster-section-label">前哨觀察</div><div class="cluster-watch-stocks">' + "".join(watch_chips) + "</div>" if watch_chips else ""}
-  {'<div class="cluster-arts">' + "".join(art_refs) + "</div>" if art_refs else ""}
+  {'<div class="cluster-section-label">前哨觀察</div><div class="cluster-watch-stocks">' + "".join(watch_pills) + "</div>" if watch_pills else ""}
 </div>""")
 
     return (
@@ -433,9 +359,6 @@ def build_focus_html(us_ranks: list, tw_ranks: list,
             "limit_up": bool(r.get("is_limit_up_30m")),
         }
 
-    # Pre-compute article segments for clickable chips ($0 cost)
-    art_segs = _build_art_segs(clusters) if clusters else {}
-
     # Build modal data for cluster focal tickers
     modal_data: dict[str, str] = {}
     if clusters:
@@ -461,16 +384,17 @@ def build_focus_html(us_ranks: list, tw_ranks: list,
                 )
             modal_data[ticker] = ''.join(parts)
 
-        cluster_html = _cluster_section_html(clusters, stocks, art_segs)
+        cluster_html = _cluster_section_html(clusters, stocks)
         if cluster_html:
-            return cluster_html, modal_data, art_segs
+            return cluster_html, modal_data
 
-    return '<p class="muted-note">今日尚無熱門題材</p>', {}, {}
+    return '<p class="muted-note">今日尚無熱門題材</p>', {}
 
 
 # ── 股市筆記 tab ──────────────────────────────────────────────────────────────
 
-def build_notes_html(market_notes: dict | None, podcast_rows: list) -> str:
+def build_notes_html(market_notes: dict | None, podcast_rows: list,
+                     stocks_info: dict | None = None) -> str:
     parts = []
 
     if market_notes and market_notes.get("topics"):
@@ -485,7 +409,8 @@ def build_notes_html(market_notes: dict | None, podcast_rows: list) -> str:
             key_points = topic.get("key_points", [])
             kp_html = "".join(f'<li>{html_lib.escape(p)}</li>' for p in key_points[:5])
             tickers = topic.get("tickers", [])
-            tk_html = "".join(f'<span class="tk-chip">{html_lib.escape(t)}</span>' for t in tickers)
+            _si = stocks_info or {}
+            tk_html = "".join(_stk_pill(t, _si) for t in tickers)
             art_refs = "".join(
                 f'<div class="art-ref">📰 [{a.get("date","?")} {html_lib.escape(a.get("source",""))}] '
                 f'{html_lib.escape(a.get("title","")[:60])}</div>'
@@ -721,20 +646,47 @@ async def generate():
                 for w in c.watch:
                     w.change_pct = watch_prices.get(w.code_or_ticker)
 
-    await conn.close()
-
-    raw_report   = (report["raw_response"] or "") if report else ""
-    report_date  = report["report_date"].strftime("%Y/%m/%d") if report else "—"
+    # Parse market_notes before closing (needed for tickers query)
     market_notes = None
     if report and report["market_notes_json"]:
         mn = report["market_notes_json"]
         market_notes = mn if isinstance(mn, dict) else json.loads(mn)
+
+    # Extend stocks_info with change% for market notes tickers not already in top-30
+    if market_notes and market_notes.get("topics"):
+        notes_tickers = list({
+            t for topic in market_notes["topics"]
+            for t in topic.get("tickers", [])
+            if t not in stocks_info
+        })
+        if notes_tickers:
+            nr = await conn.fetch(
+                """SELECT DISTINCT ON (ticker) ticker, name, change_pct
+                   FROM trading_rankings WHERE ticker = ANY($1::text[])
+                   ORDER BY ticker, rank_date DESC""",
+                notes_tickers,
+            )
+            for r in nr:
+                mkt = "TW" if r["ticker"].replace(".", "").isdigit() else "US"
+                stocks_info[r["ticker"]] = {
+                    "name": r["name"] or r["ticker"],
+                    "market": mkt,
+                    "change_pct": float(r["change_pct"]) if r["change_pct"] is not None else None,
+                    "trading_value": 0,
+                    "rank": 99,
+                    "limit_up": False,
+                }
+
+    await conn.close()
+
+    raw_report   = (report["raw_response"] or "") if report else ""
+    report_date  = report["report_date"].strftime("%Y/%m/%d") if report else "—"
     directions  = parse_directions(raw_report)
     report_html = md_to_html(raw_report)
     updated_at  = datetime.now(timezone.utc).strftime("%m/%d %H:%M UTC")
 
-    focus_html, modal_data, art_segs = build_focus_html(us_ranks, tw_ranks, ticker_arts, clusters)
-    notes_html  = build_notes_html(market_notes, podcast_rows)
+    focus_html, modal_data = build_focus_html(us_ranks, tw_ranks, ticker_arts, clusters)
+    notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)
 
     # ── Indicator helpers ─────────────────────────────────────────────────────
     def ind(sym):
@@ -782,9 +734,6 @@ async def generate():
         f'  {json.dumps(k)}: {json.dumps(v)}'
         for k, v in modal_data.items()
     )
-    # Article segment data JS: {artId: {term: paragraph}}
-    art_segs_js = json.dumps(art_segs, ensure_ascii=False)
-
     # ── Page HTML ─────────────────────────────────────────────────────────────
     page = f"""<!DOCTYPE html>
 <html lang="zh-TW">
@@ -1032,6 +981,16 @@ dialog#art-modal::backdrop{{background:rgba(0,0,0,.65)}}
                color:var(--accent);cursor:pointer;transition:.15s}}
 .art-seg-chip:hover{{background:#252a40;border-color:var(--accent)}}
 
+/* ── Unified stock pill (全站統一模組) ── */
+.stk-pill{{display:inline-flex;align-items:center;gap:.28rem;
+           background:var(--card);border:1px solid var(--border);border-radius:7px;
+           padding:.3rem .6rem;cursor:pointer;transition:.15s;font-size:.82rem}}
+.stk-pill:hover{{border-color:var(--accent)}}
+.stk-pill[onclick=""],.stk-pill:not([onclick]){{cursor:default}}
+.sp-ticker{{font-weight:800;font-size:.85rem}}
+.sp-name{{font-size:.72rem;color:var(--muted)}}
+.sp-pct{{font-weight:700;font-size:.8rem}}
+
 .up{{color:var(--up)}} .down{{color:var(--down)}} .neutral{{color:var(--muted)}}
 footer{{text-align:center;color:var(--muted);font-size:.75rem;
         padding:1.5rem 1rem;border-top:1px solid var(--border);margin-top:.5rem}}
@@ -1122,23 +1081,11 @@ function showSubTab(name) {{
     p.classList.toggle('active', p.id === 'stab-' + name));
 }}
 
-const artSegs = {art_segs_js};
-
 function showArtModal(ticker, name) {{
   const modal = document.getElementById('art-modal');
   document.getElementById('modal-title').textContent = ticker + ' ' + name + ' — 相關文章';
   document.getElementById('modal-body').innerHTML = artModalData[ticker] || '<p style="color:#7a8ba0">無相關文章資料</p>';
   modal.showModal();
-}}
-
-function showSegModal(artId, term) {{
-  const seg = artSegs[artId] && artSegs[artId][term];
-  document.getElementById('modal-title').textContent = term + ' — 相關段落';
-  document.getElementById('modal-body').innerHTML = seg
-    ? '<div class="modal-art"><div class="modal-art-meta">關鍵字：' + term + '</div>'
-      + '<div class="modal-snip">' + seg.replace(/\\n/g, '<br>') + '</div></div>'
-    : '<p style="color:#7a8ba0">無相關段落資料</p>';
-  document.getElementById('art-modal').showModal();
 }}
 
 function toggleEl(id) {{
