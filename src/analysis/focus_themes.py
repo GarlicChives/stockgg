@@ -51,6 +51,7 @@ class WatchStock:
 class ThemeCluster:
     theme_id: str
     name: str
+    keyword: str             # primary keyword used for article scoring & segment extraction
     focal: list[FocalStock]
     watch: list[WatchStock]
     total_score: float
@@ -195,6 +196,7 @@ def detect_clusters(
         clusters.append(ThemeCluster(
             theme_id=theme["id"],
             name=theme["name"],
+            keyword=keyword,
             focal=focal_stocks,
             watch=(tw_watch[:6] + us_watch[:4]),
             total_score=total_score,
