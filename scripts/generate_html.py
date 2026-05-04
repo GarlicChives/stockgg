@@ -415,7 +415,7 @@ def _cluster_section_html(
             strength_cls, strength_lbl = "strength-mid", "觀察"
 
         mkt_focal = [s for s in c.focal if s.market == market]
-        mkt_watch = [w for w in c.watch if w.market == market]
+        mkt_watch = [w for w in c.watch if w.market == market and not _is_etf(w.code_or_ticker, w.name)]
         focal_pills = [
             _stk_pill(s.ticker, all_stocks,
                       extra_attrs=f'data-cluster-ticker="{html_lib.escape(s.ticker)}" data-tv="{int(s.trading_value)}"')
@@ -695,14 +695,22 @@ async def generate():
     us_ranks, tw_ranks = [], []
     if us_rank_date:
         us_ranks = [dict(r) for r in await conn.fetch(
-            "SELECT rank, ticker, name, trading_value, change_pct, extra "
-            "FROM trading_rankings WHERE rank_date=$1 AND market='US' AND rank <= 30 ORDER BY rank",
+            """SELECT ROW_NUMBER() OVER (ORDER BY trading_value DESC NULLS LAST)::int AS rank,
+                      ticker, name, trading_value, change_pct, extra
+               FROM trading_rankings
+               WHERE rank_date=$1 AND market='US'
+               ORDER BY trading_value DESC NULLS LAST
+               LIMIT 30""",
             us_rank_date,
         )]
     if tw_rank_date:
         tw_ranks = [dict(r) for r in await conn.fetch(
-            "SELECT rank, ticker, name, trading_value, change_pct, is_limit_up_30m, extra "
-            "FROM trading_rankings WHERE rank_date=$1 AND market='TW' AND rank <= 30 ORDER BY rank",
+            """SELECT ROW_NUMBER() OVER (ORDER BY trading_value DESC NULLS LAST)::int AS rank,
+                      ticker, name, trading_value, change_pct, is_limit_up_30m, extra
+               FROM trading_rankings
+               WHERE rank_date=$1 AND market='TW'
+               ORDER BY trading_value DESC NULLS LAST
+               LIMIT 30""",
             tw_rank_date,
         )]
 
@@ -868,7 +876,9 @@ async def generate():
                 d = yf_data.get(w.code_or_ticker, {})
                 if w.change_pct is None and d.get("change_pct") is not None:
                     w.change_pct = d["change_pct"]
-                # Step 2: accumulate watch TV into per-market cluster total
+                # Step 2: accumulate watch TV — skip ETFs
+                if _is_etf(w.code_or_ticker, w.name):
+                    continue
                 tv = d.get("trading_value") or 0.0
                 if w.market == "TW":
                     c.tw_trading_value += tv

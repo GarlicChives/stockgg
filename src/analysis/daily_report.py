@@ -96,8 +96,10 @@ async def _load_market_context(conn, report_date: date) -> dict:
     us_ranks, tw_ranks = [], []
     if rank_date:
         for row in await conn.fetch(
-            "SELECT rank, ticker, name, trading_value, change_pct, is_limit_up_30m "
-            "FROM trading_rankings WHERE rank_date=$1 AND market='US' ORDER BY rank",
+            """SELECT ROW_NUMBER() OVER (ORDER BY trading_value DESC NULLS LAST)::int AS rank,
+                      ticker, name, trading_value, change_pct, is_limit_up_30m
+               FROM trading_rankings WHERE rank_date=$1 AND market='US'
+               ORDER BY trading_value DESC NULLS LAST LIMIT 30""",
             rank_date,
         ):
             us_ranks.append({
@@ -106,8 +108,10 @@ async def _load_market_context(conn, report_date: date) -> dict:
                 "change_pct": float(row["change_pct"]) if row["change_pct"] is not None else None,
             })
         for row in await conn.fetch(
-            "SELECT rank, ticker, name, trading_value, change_pct, is_limit_up_30m "
-            "FROM trading_rankings WHERE rank_date=$1 AND market='TW' ORDER BY rank",
+            """SELECT ROW_NUMBER() OVER (ORDER BY trading_value DESC NULLS LAST)::int AS rank,
+                      ticker, name, trading_value, change_pct, is_limit_up_30m
+               FROM trading_rankings WHERE rank_date=$1 AND market='TW'
+               ORDER BY trading_value DESC NULLS LAST LIMIT 30""",
             rank_date,
         ):
             tw_ranks.append({

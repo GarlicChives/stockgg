@@ -76,14 +76,18 @@ def fetch_us_top30() -> list[dict]:
 
 
 async def store_us_rankings(conn, rows: list[dict], target_date: date) -> int:
+    # Delete stale data first — multiple daily runs would otherwise accumulate
+    # >30 rows with rank≤30 and cause display ordering to break.
+    await conn.execute(
+        "DELETE FROM trading_rankings WHERE rank_date=$1 AND market='US'",
+        target_date,
+    )
     count = 0
     for row in rows:
         await conn.execute(
             """INSERT INTO trading_rankings
                (rank_date, market, rank, ticker, name, trading_value, close_price, change_pct)
-               VALUES ($1,'US',$2,$3,$4,$5,$6,$7)
-               ON CONFLICT (rank_date, market, ticker) DO UPDATE
-               SET rank=$2, trading_value=$5, close_price=$6, change_pct=$7""",
+               VALUES ($1,'US',$2,$3,$4,$5,$6,$7)""",
             target_date, row["rank"], row["ticker"], row["name"],
             row["trading_value"], row["close_price"], row.get("change_pct"),
         )
