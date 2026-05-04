@@ -17,8 +17,16 @@ Requires env vars:
 """
 import asyncio
 import json
+import re
 import sys
 from pathlib import Path
+
+_ETF_TW_RE = re.compile(r'^00\d')
+
+def _is_etf(ticker: str, name: str = "") -> bool:
+    if _ETF_TW_RE.match(ticker):
+        return True
+    return "ETF" in (name or "").upper()
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -132,6 +140,12 @@ async def run(
         ticker = stock["ticker"]
         name   = stock["name"]
         market = stock["market"]
+
+        if _is_etf(ticker, name):
+            stats["skipped"] += 1
+            if verbose:
+                print(f"  [skip]   {ticker:8s} {name[:16]:16s} (ETF)")
+            continue
 
         if cache.is_fresh(ticker):
             stats["skipped"] += 1
