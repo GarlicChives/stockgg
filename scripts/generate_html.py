@@ -375,7 +375,7 @@ def _cluster_section_html(clusters: list[ThemeCluster], stocks: dict) -> str:
 def build_focus_html(us_ranks: list, tw_ranks: list,
                      ticker_arts: dict,
                      clusters: list | None = None) -> tuple[str, dict]:
-    """Build the 焦點股 tab content. Returns (html, modal_data)."""
+    """Build the 熱門題材 tab content. Returns (html, modal_data)."""
     stocks: dict[str, dict] = {}
     for r in us_ranks:
         stocks[r["ticker"]] = {
@@ -398,44 +398,36 @@ def build_focus_html(us_ranks: list, tw_ranks: list,
             "limit_up": bool(r.get("is_limit_up_30m")),
         }
 
-    tw_list = [(t, i) for t, i in stocks.items() if i["market"] == "TW"]
-    us_list = [(t, i) for t, i in stocks.items() if i["market"] == "US"]
-    # Sort: stocks with more articles first, then by trading value
-    tw_list.sort(key=lambda x: (-len(ticker_arts.get(x[0], [])), -x[1]["trading_value"]))
-    us_list.sort(key=lambda x: (-len(ticker_arts.get(x[0], [])), -x[1]["trading_value"]))
-
-    all_modal_data: dict[str, str] = {}
-    sections: list[str] = []
-
-    # ── Theme clusters ────────────────────────────────────────────────────────
+    # Build modal data for cluster focal tickers
+    modal_data: dict[str, str] = {}
     if clusters:
+        focal_tickers = {s.ticker for c in clusters for s in c.focal}
+        for ticker in focal_tickers:
+            arts = ticker_arts.get(ticker, [])
+            if not arts:
+                continue
+            info = stocks.get(ticker, {})
+            parts = []
+            for a in arts[:5]:
+                src_name = html_lib.escape(SOURCE_NAMES.get(a["source"] or "", a["source"] or ""))
+                dt = str(a["published_at"])[:10] if a["published_at"] else "?"
+                title = html_lib.escape((a["title"] or "")[:70])
+                relevant = extract_relevant_para(a.get("full_content") or "", ticker, info.get("name", ticker))
+                snippet_html = f'<div class="modal-snip">{html_lib.escape(relevant)}</div>' if relevant else ""
+                parts.append(
+                    f'<div class="modal-art">'
+                    f'<div class="modal-art-meta">📰 {dt} · {src_name}</div>'
+                    f'<div class="modal-art-title">{title}</div>'
+                    f'{snippet_html}'
+                    f'</div>'
+                )
+            modal_data[ticker] = ''.join(parts)
+
         cluster_html = _cluster_section_html(clusters, stocks)
         if cluster_html:
-            sections.append(cluster_html)
+            return cluster_html, modal_data
 
-    # ── Sub-tabs: 台股 / 美股 ─────────────────────────────────────────────────
-    tw_cards_html, tw_modal = _build_stock_cards(tw_list, ticker_arts, "TW")
-    us_cards_html, us_modal = _build_stock_cards(us_list, ticker_arts, "US")
-    all_modal_data.update(tw_modal)
-    all_modal_data.update(us_modal)
-
-    tw_count = tw_cards_html.count('class="stock-card"')
-    us_count = us_cards_html.count('class="stock-card"')
-
-    sections.append(f"""
-<div class="section-hdr">📊 焦點股（有爬蟲覆蓋）</div>
-<div class="sub-tabs">
-  <button class="sub-tab-btn active" data-stab="tw" onclick="showSubTab('tw')">台股 ({tw_count})</button>
-  <button class="sub-tab-btn" data-stab="us" onclick="showSubTab('us')">美股 ({us_count})</button>
-</div>
-<div id="stab-tw" class="sub-tab-pane active">
-  {('<div class="stock-grid">' + tw_cards_html + '</div>') if tw_cards_html else '<p class="muted-note">尚無符合條件的台股</p>'}
-</div>
-<div id="stab-us" class="sub-tab-pane">
-  {('<div class="stock-grid">' + us_cards_html + '</div>') if us_cards_html else '<p class="muted-note">尚無符合條件的美股</p>'}
-</div>""")
-
-    return '\n'.join(sections), all_modal_data
+    return '<p class="muted-note">今日尚無熱門題材</p>', {}
 
 
 # ── 股市筆記 tab ──────────────────────────────────────────────────────────────
@@ -1012,7 +1004,7 @@ footer{{text-align:center;color:var(--muted);font-size:.75rem;
 <div class="wrap">
   <nav class="tabs">
     <button class="tab-btn active" data-tab="market" onclick="showTab('market')">市場行情</button>
-    <button class="tab-btn"        data-tab="focus"  onclick="showTab('focus')">焦點股</button>
+    <button class="tab-btn"        data-tab="focus"  onclick="showTab('focus')">熱門題材</button>
     <button class="tab-btn"        data-tab="notes"  onclick="showTab('notes')">股市筆記</button>
   </nav>
 
@@ -1024,7 +1016,7 @@ footer{{text-align:center;color:var(--muted);font-size:.75rem;
     </div>
     <div class="ranks">
       <div class="card">
-        <div class="sec">美股 成交值前 30（{str(us_rank_date) if us_rank_date else '—'}）</div>
+        <div class="sec">美股 成交值前 30</div>
         <table>
           <thead><tr><th>#</th><th>代號</th><th>名稱</th>
             <th style="text-align:right">成交值</th>
@@ -1033,7 +1025,7 @@ footer{{text-align:center;color:var(--muted);font-size:.75rem;
         </table>
       </div>
       <div class="card">
-        <div class="sec">台股 成交值前 30（上市+上櫃）（{str(tw_rank_date) if tw_rank_date else '—'}）</div>
+        <div class="sec">台股 成交值前 30</div>
         <table>
           <thead><tr><th>#</th><th>代號</th><th>名稱</th>
             <th style="text-align:right">成交值</th>
@@ -1044,7 +1036,7 @@ footer{{text-align:center;color:var(--muted);font-size:.75rem;
     </div>
   </div>
 
-  <!-- Tab 2: 焦點股 -->
+  <!-- Tab 2: 熱門題材 -->
   <div id="tab-focus" class="tab-pane">
     {focus_html}
   </div>
