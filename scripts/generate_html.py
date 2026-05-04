@@ -206,8 +206,11 @@ def _normalize_ticker(raw: str) -> str:
     return s
 
 
-def _yf_batch_chg(entries: list[tuple[str, str]]) -> dict[str, float | None]:
-    """Sync: batch-fetch latest change% via yfinance. entries = [(ticker, market), ...]"""
+def _yf_batch_fetch(entries: list[tuple[str, str]]) -> dict[str, dict]:
+    """Sync: batch-fetch change% and today's trading value via yfinance.
+    entries = [(ticker, market), ...]
+    Returns {ticker: {"change_pct": float|None, "trading_value": float|None}}
+    """
     try:
         import yfinance as yf
     except ImportError:
@@ -216,7 +219,7 @@ def _yf_batch_chg(entries: list[tuple[str, str]]) -> dict[str, float | None]:
     for orig, market in entries:
         yf_sym = (orig + ".TW") if market == "TW" and not orig.upper().endswith(".TW") else orig
         yf_map[yf_sym] = orig
-    result: dict[str, float | None] = {}
+    result: dict[str, dict] = {}
     if not yf_map:
         return result
     try:
@@ -226,9 +229,16 @@ def _yf_batch_chg(entries: list[tuple[str, str]]) -> dict[str, float | None]:
             return result
         for yf_sym, orig in yf_map.items():
             try:
-                c = (raw[yf_sym]["Close"] if len(syms) > 1 else raw["Close"]).dropna()
-                if len(c) >= 2:
-                    result[orig] = round(float((c.iloc[-1] - c.iloc[-2]) / c.iloc[-2] * 100), 2)
+                close = (raw[yf_sym]["Close"] if len(syms) > 1 else raw["Close"]).dropna()
+                vol   = (raw[yf_sym]["Volume"] if len(syms) > 1 else raw["Volume"]).dropna()
+                entry: dict = {"change_pct": None, "trading_value": None}
+                if len(close) >= 2:
+                    entry["change_pct"] = round(
+                        float((close.iloc[-1] - close.iloc[-2]) / close.iloc[-2] * 100), 2
+                    )
+                if len(close) >= 1 and len(vol) >= 1:
+                    entry["trading_value"] = float(close.iloc[-1] * vol.iloc[-1])
+                result[orig] = entry
             except Exception:
                 pass
     except Exception:
@@ -339,13 +349,20 @@ def _build_stock_cards(ticker_list: list[tuple[str, dict]],
     return ''.join(cards), modal_data
 
 
-def _cluster_section_html(clusters: list[ThemeCluster], stocks: dict) -> str:
-    """Render theme cluster cards."""
-    if not clusters:
-        return ""
-    # Merge watch stocks into lookup dict for _stk_pill (they carry change_pct from DB)
+def _cluster_section_html(clusters: list[ThemeCluster], stocks: dict, market: str) -> str:
+    """Render theme cluster cards for a specific market (TW or US), sorted by that market's TV."""
+    mkt_label = "台股" if market == "TW" else "美股"
+    # Filter to clusters with focal stocks in this market; sort by this market's TV (Step 3)
+    mkt_clusters = sorted(
+        [c for c in clusters if any(s.market == market for s in c.focal)],
+        key=lambda c: -(c.tw_trading_value if market == "TW" else c.us_trading_value),
+    )
+    if not mkt_clusters:
+        return f'<p class="muted-note">今日尚無{mkt_label}熱門題材</p>'
+
+    # Merge watch stocks into lookup dict for _stk_pill
     all_stocks = dict(stocks)
-    for c in clusters:
+    for c in mkt_clusters:
         for w in c.watch:
             if w.code_or_ticker not in all_stocks:
                 all_stocks[w.code_or_ticker] = {
@@ -355,8 +372,9 @@ def _cluster_section_html(clusters: list[ThemeCluster], stocks: dict) -> str:
                     "trading_value": 0,
                     "rank": 99,
                 }
+
     cards = []
-    for c in clusters:
+    for c in mkt_clusters:
         if c.volume_only:
             strength_cls = "strength-vol"
             strength_lbl = "量能輪動"
@@ -367,15 +385,21 @@ def _cluster_section_html(clusters: list[ThemeCluster], stocks: dict) -> str:
             strength_cls = "strength-mid"
             strength_lbl = "觀察"
 
-        focal_pills = [_stk_pill(s.ticker, all_stocks) for s in c.focal]
-        watch_pills = [_stk_pill(w.code_or_ticker, all_stocks, clickable=False) for w in c.watch]
+        mkt_focal = [s for s in c.focal if s.market == market]
+        mkt_watch = [w for w in c.watch if w.market == market]
+        focal_pills = [_stk_pill(s.ticker, all_stocks) for s in mkt_focal]
+        watch_pills = [_stk_pill(w.code_or_ticker, all_stocks, clickable=False) for w in mkt_watch]
+
+        tv_val = c.tw_trading_value if market == "TW" else c.us_trading_value
+        tv_str = (f"{tv_val/1e8:.0f}億" if market == "TW" else f"${tv_val/1e9:.1f}B") if tv_val > 0 else ""
+        meta_text = f"{len(mkt_focal)} 檔焦點{' · ' + tv_str if tv_str else ''}"
 
         cards.append(f"""
 <div class="cluster-card">
   <div class="cluster-hdr">
     <span class="cluster-name">🔷 {html_lib.escape(c.name)}</span>
     <span class="cluster-strength {strength_cls}">{strength_lbl}</span>
-    <span class="cluster-meta">{len(c.focal)} 檔焦點</span>
+    <span class="cluster-meta">{meta_text}</span>
   </div>
   <div class="cluster-section-label">今日焦點（在前30）</div>
   <div class="cluster-focal-stocks">{''.join(focal_pills)}</div>
@@ -383,7 +407,7 @@ def _cluster_section_html(clusters: list[ThemeCluster], stocks: dict) -> str:
 </div>""")
 
     return (
-        '<div class="section-hdr">🎯 題材族群分析</div>'
+        f'<div class="section-hdr">🎯 {mkt_label}題材族群</div>'
         '<div class="focus-clusters">' + ''.join(cards) + '</div>'
     )
 
@@ -391,7 +415,7 @@ def _cluster_section_html(clusters: list[ThemeCluster], stocks: dict) -> str:
 def build_focus_html(us_ranks: list, tw_ranks: list,
                      ticker_arts: dict,
                      clusters: list | None = None) -> tuple[str, dict]:
-    """Build the 熱門題材 tab content. Returns (html, modal_data)."""
+    """Build the 熱門題材 tab with 台股題材 / 美股題材 sub-tabs. Returns (html, modal_data)."""
     stocks: dict[str, dict] = {}
     for r in us_ranks:
         stocks[r["ticker"]] = {
@@ -414,36 +438,49 @@ def build_focus_html(us_ranks: list, tw_ranks: list,
             "limit_up": bool(r.get("is_limit_up_30m")),
         }
 
+    if not clusters:
+        return '<p class="muted-note">今日尚無熱門題材</p>', {}
+
     # Build modal data for cluster focal tickers
     modal_data: dict[str, str] = {}
-    if clusters:
-        focal_tickers = {s.ticker for c in clusters for s in c.focal}
-        for ticker in focal_tickers:
-            arts = ticker_arts.get(ticker, [])
-            if not arts:
-                continue
-            info = stocks.get(ticker, {})
-            parts = []
-            for a in arts[:5]:
-                src_name = html_lib.escape(SOURCE_NAMES.get(a["source"] or "", a["source"] or ""))
-                dt = str(a["published_at"])[:10] if a["published_at"] else "?"
-                title = html_lib.escape((a["title"] or "")[:70])
-                relevant = extract_relevant_para(a.get("full_content") or "", ticker, info.get("name", ticker))
-                snippet_html = f'<div class="modal-snip">{html_lib.escape(relevant)}</div>' if relevant else ""
-                parts.append(
-                    f'<div class="modal-art">'
-                    f'<div class="modal-art-meta">📰 {dt} · {src_name}</div>'
-                    f'<div class="modal-art-title">{title}</div>'
-                    f'{snippet_html}'
-                    f'</div>'
-                )
-            modal_data[ticker] = ''.join(parts)
+    for ticker in {s.ticker for c in clusters for s in c.focal}:
+        arts = ticker_arts.get(ticker, [])
+        if not arts:
+            continue
+        info = stocks.get(ticker, {})
+        parts = []
+        for a in arts[:5]:
+            src_name = html_lib.escape(SOURCE_NAMES.get(a["source"] or "", a["source"] or ""))
+            dt = str(a["published_at"])[:10] if a["published_at"] else "?"
+            title = html_lib.escape((a["title"] or "")[:70])
+            relevant = extract_relevant_para(a.get("full_content") or "", ticker, info.get("name", ticker))
+            snippet_html = f'<div class="modal-snip">{html_lib.escape(relevant)}</div>' if relevant else ""
+            parts.append(
+                f'<div class="modal-art">'
+                f'<div class="modal-art-meta">📰 {dt} · {src_name}</div>'
+                f'<div class="modal-art-title">{title}</div>'
+                f'{snippet_html}'
+                f'</div>'
+            )
+        modal_data[ticker] = ''.join(parts)
 
-        cluster_html = _cluster_section_html(clusters, stocks)
-        if cluster_html:
-            return cluster_html, modal_data
-
-    return '<p class="muted-note">今日尚無熱門題材</p>', {}
+    tw_section = _cluster_section_html(clusters, stocks, "TW")
+    us_section = _cluster_section_html(clusters, stocks, "US")
+    html = (
+        '<div class="sub-tabs">'
+        '<button class="sub-tab-btn active" data-stab="tw-themes"'
+        ' onclick="showSubTab(\'tw-themes\')">台股題材</button>'
+        '<button class="sub-tab-btn" data-stab="us-themes"'
+        ' onclick="showSubTab(\'us-themes\')">美股題材</button>'
+        '</div>'
+        '<div id="stab-tw-themes" class="sub-tab-pane active">'
+        + tw_section +
+        '</div>'
+        '<div id="stab-us-themes" class="sub-tab-pane">'
+        + us_section +
+        '</div>'
+    )
+    return html, modal_data
 
 
 # ── 股市筆記 tab ──────────────────────────────────────────────────────────────
@@ -737,12 +774,11 @@ async def generate():
 
     await conn.close()
 
-    # yfinance fallback for stocks not in trading_rankings
+    # yfinance: fetch change% AND trading_value for ALL watch stocks + notes tickers not in rankings
     _yf_needed: list[tuple[str, str]] = []
     for c in clusters:
         for w in c.watch:
-            if w.change_pct is None:
-                _yf_needed.append((w.code_or_ticker, w.market))
+            _yf_needed.append((w.code_or_ticker, w.market))  # ALL watch (Step 2: TV)
     if market_notes and market_notes.get("topics"):
         for topic in market_notes["topics"]:
             for t in topic.get("tickers", []):
@@ -751,17 +787,27 @@ async def generate():
                     _yf_needed.append((t, "TW" if _core.isdigit() else "US"))
     if _yf_needed:
         _yf_needed = list({t[0]: t for t in _yf_needed}.values())  # dedup by ticker
-        yf_chg = await asyncio.to_thread(_yf_batch_chg, _yf_needed)
+        yf_data = await asyncio.to_thread(_yf_batch_fetch, _yf_needed)
         for c in clusters:
             for w in c.watch:
-                if w.change_pct is None:
-                    w.change_pct = yf_chg.get(w.code_or_ticker)
+                d = yf_data.get(w.code_or_ticker, {})
+                if w.change_pct is None and d.get("change_pct") is not None:
+                    w.change_pct = d["change_pct"]
+                # Step 2: accumulate watch TV into per-market cluster total
+                tv = d.get("trading_value") or 0.0
+                if w.market == "TW":
+                    c.tw_trading_value += tv
+                else:
+                    c.us_trading_value += tv
+        # Re-sort after Step 2 watch TV added (Step 3 sorting happens in _cluster_section_html per market)
+        clusters.sort(key=lambda c: -(c.tw_trading_value + c.us_trading_value))
         for ticker, market in _yf_needed:
             if ticker not in stocks_info:
+                d = yf_data.get(ticker, {})
                 stocks_info[ticker] = {
                     "name": ticker,
                     "market": market,
-                    "change_pct": yf_chg.get(ticker),
+                    "change_pct": d.get("change_pct"),
                     "trading_value": 0,
                     "rank": 99,
                     "limit_up": False,
