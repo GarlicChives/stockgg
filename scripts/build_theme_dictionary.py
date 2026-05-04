@@ -27,7 +27,7 @@ load_dotenv()
 
 from src.utils import db
 from src.theme.cache import CacheManager
-from src.theme.search import GoogleCSEProvider, SearchProvider, build_query
+from src.theme.search import GoogleCSEProvider, TavilyProvider, SearchProvider, build_query
 from src.theme.classifier import GeminiClassifier, ClassifierProvider
 
 DICT_FILE = Path(__file__).resolve().parents[1] / "data" / "theme_dictionary.json"
@@ -97,7 +97,7 @@ async def run(
 
     Returns stats dict: checked / skipped / searched / inserted.
     """
-    search = search_provider     or GoogleCSEProvider()
+    search = search_provider     or TavilyProvider()
     clf    = classifier_provider or GeminiClassifier()
     cache  = CacheManager()
 
@@ -197,7 +197,7 @@ async def main():
     if args.ticker:
         # Single-ticker debug mode
         ticker = args.ticker.upper()
-        search = GoogleCSEProvider()
+        search = TavilyProvider()
         clf    = GeminiClassifier()
         themes_data = _load_dict()
         themes_meta = [
@@ -205,8 +205,20 @@ async def main():
             for t in themes_data["themes"] if t.get("keyword")
         ]
         market = "TW" if ticker.isdigit() else "US"
-        name   = ticker
-        query  = build_query(name, ticker, market)
+
+        # Try to resolve real company name from DB
+        try:
+            conn = await db.connect()
+            row  = await conn.fetchrow(
+                "SELECT name FROM trading_rankings WHERE ticker=$1 AND market=$2 "
+                "ORDER BY rank_date DESC LIMIT 1",
+                ticker, market,
+            )
+            await conn.close()
+            name = row["name"] if row and row["name"] else ticker
+        except Exception:
+            name = ticker
+        query = build_query(name, ticker, market)
         print(f"  Query: {query}")
         snippets = search.search(query)
         print(f"  Snippets ({len(snippets)}):")
