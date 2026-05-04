@@ -1136,7 +1136,7 @@ function showSegModal(artId, term) {{
   document.getElementById('modal-title').textContent = term + ' — 相關段落';
   document.getElementById('modal-body').innerHTML = seg
     ? '<div class="modal-art"><div class="modal-art-meta">關鍵字：' + term + '</div>'
-      + '<div class="modal-snip">' + seg.replace(/\n/g, '<br>') + '</div></div>'
+      + '<div class="modal-snip">' + seg.replace(/\\n/g, '<br>') + '</div></div>'
     : '<p style="color:#7a8ba0">無相關段落資料</p>';
   document.getElementById('art-modal').showModal();
 }}
