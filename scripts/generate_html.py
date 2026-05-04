@@ -163,7 +163,8 @@ def extract_relevant_para(content: str, ticker: str, name: str, max_chars: int =
 def _stk_pill(ticker: str, stocks_info: dict, clickable: bool = True) -> str:
     """Unified stock chip: ticker + market badge + name + change%."""
     info = stocks_info.get(ticker, {})
-    market = info.get("market") or ("TW" if ticker.replace(".", "").isdigit() else "US")
+    _core = ticker.split(".")[0]
+    market = info.get("market") or ("TW" if _core.isdigit() else "US")
     name = info.get("name", "")
     chg = info.get("change_pct")
     mkt_cls = "mkt-tw" if market == "TW" else "mkt-us"
@@ -179,6 +180,60 @@ def _stk_pill(ticker: str, stocks_info: dict, clickable: bool = True) -> str:
         f'<span class="sp-pct {pct_cls}">{pct_str}</span>'
         f'</div>'
     )
+
+
+_TICKER_PAREN_RE = re.compile(r'\(([^)]+)\)$')
+
+def _normalize_ticker(raw: str) -> str:
+    """Normalize Gemini-formatted tickers.
+    '台積電(2330)' -> '2330'
+    'MU(US)' -> 'MU'
+    '2330.TW' -> '2330'
+    'NVDA' -> 'NVDA'
+    """
+    s = raw.strip()
+    m = _TICKER_PAREN_RE.search(s)
+    if m:
+        inner = m.group(1).strip()
+        outer = s[:m.start()].strip()
+        if inner.upper() in ("US", "TW", "HK", "JP", "KR"):
+            return outer   # "MU(US)" -> "MU"
+        if re.match(r'^[A-Z0-9]{2,8}$', inner, re.IGNORECASE):
+            return inner   # "台積電(2330)" -> "2330"
+    # Strip .TW suffix (keep just code for DB queries; yfinance re-adds it)
+    if re.match(r'^[0-9]{4,6}\.(TW|TWO)$', s, re.IGNORECASE):
+        return s.split(".")[0]
+    return s
+
+
+def _yf_batch_chg(entries: list[tuple[str, str]]) -> dict[str, float | None]:
+    """Sync: batch-fetch latest change% via yfinance. entries = [(ticker, market), ...]"""
+    try:
+        import yfinance as yf
+    except ImportError:
+        return {}
+    yf_map: dict[str, str] = {}  # yf_sym -> original_ticker
+    for orig, market in entries:
+        yf_sym = (orig + ".TW") if market == "TW" and not orig.upper().endswith(".TW") else orig
+        yf_map[yf_sym] = orig
+    result: dict[str, float | None] = {}
+    if not yf_map:
+        return result
+    try:
+        syms = list(yf_map)
+        raw = yf.download(syms, period="2d", progress=False, auto_adjust=True, group_by="ticker")
+        if raw.empty:
+            return result
+        for yf_sym, orig in yf_map.items():
+            try:
+                c = (raw[yf_sym]["Close"] if len(syms) > 1 else raw["Close"]).dropna()
+                if len(c) >= 2:
+                    result[orig] = round(float((c.iloc[-1] - c.iloc[-2]) / c.iloc[-2] * 100), 2)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return result
 
 
 # ── Ranking rows HTML ─────────────────────────────────────────────────────────
@@ -651,6 +706,10 @@ async def generate():
     if report and report["market_notes_json"]:
         mn = report["market_notes_json"]
         market_notes = mn if isinstance(mn, dict) else json.loads(mn)
+    # Normalize Gemini-formatted tickers: "台積電(2330)"→"2330", "MU(US)"→"MU"
+    if market_notes and market_notes.get("topics"):
+        for _topic in market_notes["topics"]:
+            _topic["tickers"] = [_normalize_ticker(t) for t in _topic.get("tickers", [])]
 
     # Extend stocks_info with change% for market notes tickers not already in top-30
     if market_notes and market_notes.get("topics"):
@@ -661,16 +720,15 @@ async def generate():
         })
         if notes_tickers:
             nr = await conn.fetch(
-                """SELECT DISTINCT ON (ticker) ticker, name, change_pct
+                """SELECT DISTINCT ON (ticker) ticker, name, change_pct, market
                    FROM trading_rankings WHERE ticker = ANY($1::text[])
                    ORDER BY ticker, rank_date DESC""",
                 notes_tickers,
             )
             for r in nr:
-                mkt = "TW" if r["ticker"].replace(".", "").isdigit() else "US"
                 stocks_info[r["ticker"]] = {
                     "name": r["name"] or r["ticker"],
-                    "market": mkt,
+                    "market": r["market"],
                     "change_pct": float(r["change_pct"]) if r["change_pct"] is not None else None,
                     "trading_value": 0,
                     "rank": 99,
@@ -678,6 +736,36 @@ async def generate():
                 }
 
     await conn.close()
+
+    # yfinance fallback for stocks not in trading_rankings
+    _yf_needed: list[tuple[str, str]] = []
+    for c in clusters:
+        for w in c.watch:
+            if w.change_pct is None:
+                _yf_needed.append((w.code_or_ticker, w.market))
+    if market_notes and market_notes.get("topics"):
+        for topic in market_notes["topics"]:
+            for t in topic.get("tickers", []):
+                if t not in stocks_info:
+                    _core = t.split(".")[0]
+                    _yf_needed.append((t, "TW" if _core.isdigit() else "US"))
+    if _yf_needed:
+        _yf_needed = list({t[0]: t for t in _yf_needed}.values())  # dedup by ticker
+        yf_chg = await asyncio.to_thread(_yf_batch_chg, _yf_needed)
+        for c in clusters:
+            for w in c.watch:
+                if w.change_pct is None:
+                    w.change_pct = yf_chg.get(w.code_or_ticker)
+        for ticker, market in _yf_needed:
+            if ticker not in stocks_info:
+                stocks_info[ticker] = {
+                    "name": ticker,
+                    "market": market,
+                    "change_pct": yf_chg.get(ticker),
+                    "trading_value": 0,
+                    "rank": 99,
+                    "limit_up": False,
+                }
 
     raw_report   = (report["raw_response"] or "") if report else ""
     report_date  = report["report_date"].strftime("%Y/%m/%d") if report else "—"
