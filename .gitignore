@@ -14,3 +14,4 @@ wheels/
 
 # Playwright MCP artifacts
 .playwright-mcp/
+data/search_cache.json

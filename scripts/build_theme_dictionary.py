@@ -1,423 +1,234 @@
 #!/usr/bin/env python3
-"""Investment theme dictionary builder — append-only, Gemini-powered.
+"""Theme dictionary maintenance via Search + LLM classification.
 
-Two modes:
-  Full rebuild (manual, first-time):
-      uv run python scripts/build_theme_dictionary.py --rebuild
+Flow per uncached stock (TTL = 30 days):
+  1. Fetch TW+US top-30 from DB
+  2. Skip tickers fresh in cache (< 30 days)
+  3. Search → collect snippets
+  4. LLM classify → list of matching theme IDs
+  5. Upsert stock into theme_dictionary.json
+  6. Update cache + persist
 
-  Incremental append (called after each crawl cycle):
-      uv run python scripts/build_theme_dictionary.py
-      OR imported: await append_new_themes(conn, api_key)
-
-Schema per theme (maps 1:1 to future DB columns):
-  id          TEXT PRIMARY KEY  — snake_case slug
-  name        TEXT              — display name
-  keyword     TEXT              — single precise match term (used for article matching)
-  tw_stocks   JSONB             — [{"code":"2330","name":"台積電"}]
-  us_stocks   JSONB             — [{"ticker":"NVDA","name":"Nvidia"}]
-
-DB migration: replace _load_dict() / _save_dict() implementations only.
+Provider swap: pass search_provider= / classifier_provider= to run().
+Requires env vars:
+  GOOGLE_API_KEY     — Gemini (classifier)
+  GOOGLE_CSE_API_KEY — Google Custom Search
+  GOOGLE_CSE_CX      — Custom Search Engine ID
 """
 import asyncio
 import json
-import os
-import re
 import sys
-import urllib.request
-from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from dotenv import load_dotenv
 load_dotenv()
 
-from src.utils.api_logger import log_usage
 from src.utils import db
+from src.theme.cache import CacheManager
+from src.theme.search import GoogleCSEProvider, SearchProvider, build_query
+from src.theme.classifier import GeminiClassifier, ClassifierProvider
 
-DICT_FILE    = Path(__file__).resolve().parents[1] / "data" / "theme_dictionary.json"
-RULES_FILE   = Path(__file__).resolve().parents[1] / "data" / "theme_rules.md"
-GEMINI_MODEL = "gemini-2.5-flash"
-GEMINI_BASE  = "https://generativelanguage.googleapis.com/v1beta/models"
-
-ARTICLE_TRUNC  = 250
-PODCAST_TRUNC  = 400
-PODCAST_DAYS   = 30
+DICT_FILE = Path(__file__).resolve().parents[1] / "data" / "theme_dictionary.json"
 
 
-def _load_rules() -> str:
-    """Load theme rules from data/theme_rules.md (runtime-editable without code changes)."""
-    if RULES_FILE.exists():
-        return RULES_FILE.read_text(encoding="utf-8")
-    return ""  # fallback: rules omitted if file missing
-
-
-# ── Dictionary I/O (swap for DB migration) ────────────────────────────────────
+# ── Dictionary I/O ────────────────────────────────────────────────────────────
 
 def _load_dict() -> dict:
     if not DICT_FILE.exists():
-        return {"meta": {}, "themes": []}
-    with DICT_FILE.open(encoding="utf-8") as f:
-        return json.load(f)
+        return {"themes": []}
+    return json.loads(DICT_FILE.read_text(encoding="utf-8"))
 
 
 def _save_dict(data: dict) -> None:
-    DICT_FILE.parent.mkdir(parents=True, exist_ok=True)
     DICT_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-# ── Gemini call ───────────────────────────────────────────────────────────────
+def _upsert_stock(
+    themes_data: dict,
+    theme_id: str,
+    ticker: str,
+    name: str,
+    market: str,
+) -> bool:
+    """Insert stock into theme if not already present. Returns True if newly added."""
+    for theme in themes_data["themes"]:
+        if theme["id"] != theme_id:
+            continue
+        key   = "tw_stocks" if market == "TW" else "us_stocks"
+        field = "code"      if market == "TW" else "ticker"
+        existing = {s[field] for s in theme.get(key, [])}
+        if ticker not in existing:
+            theme.setdefault(key, []).append({field: ticker, "name": name})
+            return True
+        return False
+    return False  # theme_id not found in dictionary
 
-def _call_gemini(api_key: str, prompt: str) -> str:
-    url = f"{GEMINI_BASE}/{GEMINI_MODEL}:generateContent?key={api_key}"
-    payload = json.dumps({
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "temperature": 0.1,
-            "maxOutputTokens": 32000,
-            "thinkingConfig": {"thinkingBudget": 0},
-        },
-    }).encode()
-    req = urllib.request.Request(
-        url, data=payload, headers={"Content-Type": "application/json"}
+
+# ── DB helpers ────────────────────────────────────────────────────────────────
+
+async def _fetch_top30(conn, market: str) -> list[dict]:
+    rank_date = await conn.fetchval(
+        "SELECT MAX(rank_date) FROM trading_rankings WHERE market=$1", market
     )
-    with urllib.request.urlopen(req, timeout=300) as r:
-        data = json.loads(r.read())
-    usage = data.get("usageMetadata", {})
-    log_usage(
-        "gemini", GEMINI_MODEL, "build_theme_dict",
-        usage.get("promptTokenCount", 0),
-        usage.get("candidatesTokenCount", 0),
-        usage.get("thoughtsTokenCount", 0),
-    )
-    parts = data["candidates"][0]["content"]["parts"]
-    text = "".join(
-        p["text"] for p in parts if "text" in p and not p.get("thought", False)
-    ).strip()
-    return text or "".join(p.get("text", "") for p in parts).strip()
-
-
-# ── JSON parsing (handles truncated responses) ────────────────────────────────
-
-def _extract_theme_objects(text: str) -> list[dict]:
-    """Extract complete JSON theme objects even from a truncated response."""
-    start_bracket = text.find('"themes"')
-    if start_bracket == -1:
+    if not rank_date:
         return []
-    bracket = text.find('[', start_bracket)
-    if bracket == -1:
-        return []
+    rows = await conn.fetch(
+        "SELECT ticker, name FROM trading_rankings "
+        "WHERE rank_date=$1 AND market=$2 AND rank <= 30 ORDER BY rank",
+        rank_date, market,
+    )
+    return [
+        {"ticker": r["ticker"], "name": r["name"] or r["ticker"], "market": market}
+        for r in rows
+    ]
 
-    results = []
-    depth = 0
-    obj_start = None
-    in_string = False
-    escape_next = False
 
-    for i, c in enumerate(text[bracket + 1:], start=bracket + 1):
-        if escape_next:
-            escape_next = False
+# ── Main pipeline ─────────────────────────────────────────────────────────────
+
+async def run(
+    search_provider:     SearchProvider     | None = None,
+    classifier_provider: ClassifierProvider | None = None,
+    verbose: bool = True,
+) -> dict:
+    """
+    Classify today's top-30 TW+US stocks and update theme_dictionary.json.
+
+    Returns stats dict: checked / skipped / searched / inserted.
+    """
+    search = search_provider     or GoogleCSEProvider()
+    clf    = classifier_provider or GeminiClassifier()
+    cache  = CacheManager()
+
+    themes_data = _load_dict()
+    # Build compact theme list for classifier prompt (id + keyword + name)
+    themes_meta = [
+        {"id": t["id"], "name": t["name"], "keyword": t.get("keyword", "")}
+        for t in themes_data["themes"]
+        if t.get("keyword")
+    ]
+
+    conn = await db.connect()
+    tw_stocks = await _fetch_top30(conn, "TW")
+    us_stocks = await _fetch_top30(conn, "US")
+    await conn.close()
+
+    all_stocks = tw_stocks + us_stocks
+    stats = {"checked": len(all_stocks), "skipped": 0, "searched": 0, "inserted": 0}
+
+    search_ok = search.available()
+    clf_ok    = clf.available()
+    if not search_ok and verbose:
+        print("  [theme_dict] ⚠ Search provider not available (GOOGLE_CSE_API_KEY / GOOGLE_CSE_CX not set)")
+    if not clf_ok and verbose:
+        print("  [theme_dict] ⚠ Classifier not available (GOOGLE_API_KEY not set)")
+    if not search_ok or not clf_ok:
+        return stats
+
+    dict_updated = False
+
+    for stock in all_stocks:
+        ticker = stock["ticker"]
+        name   = stock["name"]
+        market = stock["market"]
+
+        if cache.is_fresh(ticker):
+            stats["skipped"] += 1
+            if verbose:
+                print(f"  [skip]   {ticker:8s} {name[:16]:16s} (cached)")
             continue
-        if c == '\\' and in_string:
-            escape_next = True
+
+        query    = build_query(name, ticker, market)
+        snippets = search.search(query)
+        stats["searched"] += 1
+
+        if verbose:
+            print(f"  [search] {ticker:8s} {name[:16]:16s} → {len(snippets)} snippets")
+
+        if not snippets:
+            cache.set(ticker, name, market, [])
             continue
-        if c == '"':
-            in_string = not in_string
-            continue
-        if in_string:
-            continue
-        if c == '{':
-            if depth == 0:
-                obj_start = i
-            depth += 1
-        elif c == '}':
-            depth -= 1
-            if depth == 0 and obj_start is not None:
-                try:
-                    obj = json.loads(text[obj_start:i + 1])
-                    if "id" in obj and "name" in obj and "keyword" in obj:
-                        results.append(obj)
-                except Exception:
-                    pass
-                obj_start = None
-    return results
 
+        snippets_text = "\n---\n".join(snippets)
+        matched_ids   = clf.classify(snippets_text, themes_meta)
 
-def _parse_themes(raw: str) -> list[dict]:
-    raw = raw.strip()
-    if raw.startswith("```"):
-        raw = raw[raw.find("{"):] if "{" in raw else raw
-    try:
-        data = json.loads(raw)
-        themes = data.get("themes", [])
-        if themes:
-            return themes
-    except Exception:
-        pass
-    return _extract_theme_objects(raw)
+        if verbose:
+            label = ", ".join(matched_ids) if matched_ids else "—"
+            print(f"           → {label}")
 
+        inserted_now = []
+        for theme_id in matched_ids:
+            if _upsert_stock(themes_data, theme_id, ticker, name, market):
+                stats["inserted"] += 1
+                inserted_now.append(theme_id)
+                dict_updated = True
 
-# ── DB fetch helpers ──────────────────────────────────────────────────────────
+        if verbose and inserted_now:
+            print(f"           ✅ inserted into: {inserted_now}")
 
-async def _fetch_all(conn) -> tuple[list[dict], list[dict]]:
-    """Full rebuild: all refined articles + 30-day podcasts."""
-    articles = await conn.fetch(
-        f"""SELECT source, title, published_at,
-                  LEFT(refined_content, {ARTICLE_TRUNC}) AS body
-           FROM articles
-           WHERE status='active' AND source NOT LIKE 'podcast_%'
-             AND refined_content IS NOT NULL AND LENGTH(refined_content) > 50
-           ORDER BY published_at DESC LIMIT 350"""
-    )
-    cutoff = date.today() - timedelta(days=PODCAST_DAYS)
-    podcasts = await conn.fetch(
-        f"""SELECT source, title, published_at,
-                  LEFT(refined_content, {PODCAST_TRUNC}) AS body
-           FROM articles
-           WHERE status='active' AND source LIKE 'podcast_%'
-             AND refined_content IS NOT NULL AND LENGTH(refined_content) > 50
-             AND published_at >= $1
-           ORDER BY published_at DESC""",
-        cutoff,
-    )
-    return [dict(r) for r in articles], [dict(r) for r in podcasts]
+        cache.set(ticker, name, market, matched_ids)
 
+    if dict_updated:
+        _save_dict(themes_data)
+    cache.save()
 
-async def _fetch_since(conn, since: str | None) -> tuple[list[dict], list[dict]]:
-    """Incremental: fetch only content newer than `since` (ISO date string)."""
-    cutoff = date.fromisoformat(since[:10]) if since else (date.today() - timedelta(days=3))
-    articles = await conn.fetch(
-        f"""SELECT source, title, published_at,
-                  LEFT(refined_content, {ARTICLE_TRUNC}) AS body
-           FROM articles
-           WHERE status='active' AND source NOT LIKE 'podcast_%'
-             AND refined_content IS NOT NULL AND LENGTH(refined_content) > 50
-             AND published_at::date > $1
-           ORDER BY published_at DESC LIMIT 80""",
-        cutoff,
-    )
-    podcasts = await conn.fetch(
-        f"""SELECT source, title, published_at,
-                  LEFT(refined_content, {PODCAST_TRUNC}) AS body
-           FROM articles
-           WHERE status='active' AND source LIKE 'podcast_%'
-             AND refined_content IS NOT NULL AND LENGTH(refined_content) > 50
-             AND published_at::date > $1
-           ORDER BY published_at DESC""",
-        cutoff,
-    )
-    return [dict(r) for r in articles], [dict(r) for r in podcasts]
-
-
-def _build_content_block(articles: list[dict], podcasts: list[dict]) -> str:
-    lines = []
-    for r in articles:
-        dt = str(r["published_at"])[:10]
-        lines.append(f"[{dt}|{r['source']}] {r['title']}\n{r['body']}")
-    if podcasts:
-        lines.append("\n--- Podcast ---")
-        for r in podcasts:
-            dt = str(r["published_at"])[:10]
-            lines.append(f"[{dt}|{r['source']}] {r['title']}\n{r['body']}")
-    return "\n---\n".join(lines)
-
-
-# ── Prompts ───────────────────────────────────────────────────────────────────
-
-_REBUILD_PROMPT = """\
-你是一位專精台美股供應鏈的資深投資分析師。以下是台灣主流投資分析平台及 Podcast 的精煉內容。
-
-【任務】
-建立一份完整的「台美股投資主題字典」，目標 150 個以上主題。
-
-=== 建構規則（請嚴格遵守）===
-{rules}
-=== 規則結束 ===
-
-=== 文章與 Podcast 內容 ===
-{content}
-=== 內容結束 ===
-
-只輸出 JSON，不要任何說明：
-{{
-  "themes": [
-    {{
-      "id": "abf_substrate",
-      "name": "ABF載板",
-      "keyword": "ABF",
-      "supply_chain": {{
-        "upstream": ["玻纖布", "銅箔", "樹脂"],
-        "downstream": ["AI伺服器", "CoWoS先進封裝"]
-      }},
-      "tw_stocks": [{{"code":"3037","name":"欣興"}},{{"code":"8046","name":"南電"}},{{"code":"3189","name":"景碩"}}],
-      "us_stocks": []
-    }}
-  ]
-}}"""
-
-_APPEND_PROMPT = """\
-你是台美股供應鏈投資分析師。以下是最新的投資分析內容。
-
-【現有主題列表（name / keyword）】
-{existing}
-
-【任務】
-分析新內容，判斷是否出現「現有主題清單中沒有的」新投資主題。
-若有，輸出新主題；若無，只輸出：NO_NEW_THEMES
-
-=== keyword 與主題規則摘要（請遵守）===
-{rules_summary}
-=== 規則結束 ===
-
-=== 新內容 ===
-{content}
-=== 結束 ===
-
-若有新主題，只輸出 JSON：
-{{
-  "themes": [
-    {{
-      "id": "new_theme_id",
-      "name": "新主題名稱",
-      "keyword": "精準識別詞",
-      "supply_chain": {{"upstream": [], "downstream": []}},
-      "tw_stocks": [],
-      "us_stocks": []
-    }}
-  ]
-}}
-若無新主題，只輸出：NO_NEW_THEMES"""
-
-
-# ── Public API ────────────────────────────────────────────────────────────────
-
-async def rebuild_full(conn, api_key: str) -> int:
-    """Full rebuild from all DB content. Returns theme count."""
-    articles, podcasts = await _fetch_all(conn)
-    print(f"  Full rebuild: {len(articles)} articles + {len(podcasts)} podcasts")
-    content = _build_content_block(articles, podcasts)
-    rules   = _load_rules()
-    prompt  = _REBUILD_PROMPT.format(rules=rules, content=content)
-    print(f"  Prompt: {len(prompt):,} chars (~{len(prompt)//3:,} tokens) → {GEMINI_MODEL}…")
-
-    raw    = _call_gemini(api_key, prompt)
-    themes = _parse_themes(raw)
-    if not themes:
-        print(f"  ❌ Could not parse themes. First 300 chars: {raw[:300]}")
-        return 0
-
-    data = {
-        "meta": {
-            "version": "1",
-            "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "last_checked": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "model": GEMINI_MODEL,
-            "source_articles": len(articles),
-            "source_podcasts": len(podcasts),
-        },
-        "themes": themes,
-    }
-    _save_dict(data)
-    return len(themes)
-
-
-async def append_new_themes(conn, api_key: str) -> int:
-    """Incremental: check new content for emerging themes. Returns count added."""
-    existing_data = _load_dict()
-    existing      = existing_data.get("themes", [])
-    last_checked  = existing_data.get("meta", {}).get("last_checked")
-
-    articles, podcasts = await _fetch_since(conn, last_checked)
-    if not articles and not podcasts:
-        print("  [theme_dict] No new content since last check")
-        _update_last_checked(existing_data)
-        return 0
-
-    print(f"  [theme_dict] {len(articles)} new articles + {len(podcasts)} new podcasts → checking for new themes…")
-
-    existing_summary = "\n".join(
-        f"- {t['name']} (keyword: \"{t.get('keyword','')}\")"
-        for t in existing
-    )
-    content = _build_content_block(articles, podcasts)
-    # For append mode, only inject the keyword rules section (smaller prompt)
-    rules_full = _load_rules()
-    rules_summary = ""
-    if rules_full:
-        # Extract sections 三 and 七 (keyword rules + append rules) from the markdown
-        lines, capture = [], False
-        for line in rules_full.splitlines():
-            if line.startswith("## 三") or line.startswith("## 七"):
-                capture = True
-            elif line.startswith("## ") and capture:
-                capture = False
-            if capture:
-                lines.append(line)
-        rules_summary = "\n".join(lines).strip() or rules_full[:1500]
-    prompt  = _APPEND_PROMPT.format(
-        existing=existing_summary,
-        rules_summary=rules_summary,
-        content=content,
-    )
-
-    try:
-        raw = _call_gemini(api_key, prompt)
-    except Exception as e:
-        print(f"  [theme_dict] Gemini error: {e}")
-        return 0
-
-    if "NO_NEW_THEMES" in raw.upper()[:50]:
-        print("  [theme_dict] No new themes detected")
-        _update_last_checked(existing_data)
-        return 0
-
-    new_themes = _parse_themes(raw)
-    if not new_themes:
-        print("  [theme_dict] Could not parse response, skipping")
-        _update_last_checked(existing_data)
-        return 0
-
-    # Deduplicate by id
-    existing_ids = {t["id"] for t in existing}
-    added = [t for t in new_themes if t["id"] not in existing_ids]
-    if not added:
-        print("  [theme_dict] All returned themes already exist")
-        _update_last_checked(existing_data)
-        return 0
-
-    existing_data["themes"].extend(added)
-    _update_last_checked(existing_data)
-    print(f"  [theme_dict] ✅ Added {len(added)} new theme(s): {[t['name'] for t in added]}")
-    return len(added)
-
-
-def _update_last_checked(data: dict) -> None:
-    data.setdefault("meta", {})["last_checked"] = (
-        datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    )
-    _save_dict(data)
+    return stats
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 async def main():
-    api_key = os.environ.get("GOOGLE_API_KEY")
-    if not api_key:
-        print("❌ GOOGLE_API_KEY not set")
+    import argparse
+    parser = argparse.ArgumentParser(description="Build theme dictionary via Search+LLM")
+    parser.add_argument("--reset-cache", action="store_true",
+                        help="Clear classification cache — forces re-search for all tickers")
+    parser.add_argument("--ticker",      help="Classify a single ticker (bypasses TTL)")
+    args = parser.parse_args()
+
+    print("[theme_dict] Search+LLM theme classification...")
+
+    if args.reset_cache:
+        c = CacheManager()
+        c.reset()
+        c.save()
+        print("[theme_dict] Cache cleared")
+
+    if args.ticker:
+        # Single-ticker debug mode
+        ticker = args.ticker.upper()
+        search = GoogleCSEProvider()
+        clf    = GeminiClassifier()
+        themes_data = _load_dict()
+        themes_meta = [
+            {"id": t["id"], "name": t["name"], "keyword": t.get("keyword", "")}
+            for t in themes_data["themes"] if t.get("keyword")
+        ]
+        market = "TW" if ticker.isdigit() else "US"
+        name   = ticker
+        query  = build_query(name, ticker, market)
+        print(f"  Query: {query}")
+        snippets = search.search(query)
+        print(f"  Snippets ({len(snippets)}):")
+        for s in snippets:
+            print(f"    · {s[:120]}")
+        if snippets:
+            matched = clf.classify("\n---\n".join(snippets), themes_meta)
+            print(f"  Matched: {matched}")
         return
 
-    conn = await db.connect()
-    try:
-        if "--rebuild" in sys.argv:
-            n = await rebuild_full(conn, api_key)
-            print(f"\n✅ {n} themes written to {DICT_FILE}")
-        else:
-            n = await append_new_themes(conn, api_key)
-            if n:
-                print(f"\n✅ Dictionary updated (+{n} themes)")
-            else:
-                print(f"\n✅ Dictionary up to date")
-    finally:
-        await conn.close()
+    stats = await run()
+    print(
+        f"[theme_dict] Done — "
+        f"checked={stats['checked']}, "
+        f"skipped={stats['skipped']}, "
+        f"searched={stats['searched']}, "
+        f"inserted={stats['inserted']}"
+    )
+    if stats["inserted"]:
+        print(f"[theme_dict] ✅ Dictionary updated (+{stats['inserted']} stock entries)")
+    else:
+        print("[theme_dict] ✅ Dictionary up to date")
 
 
 if __name__ == "__main__":

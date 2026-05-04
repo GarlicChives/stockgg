@@ -89,7 +89,7 @@ async def main():
         print()
 
     if api_key:
-        print("── Step 5.5: Theme Dictionary (Incremental Append) ──")
+        print("── Step 5.5: Theme Dictionary (Search+LLM Classification) ──")
         proc = subprocess.run(
             [sys.executable, str(Path(__file__).resolve().parent / "build_theme_dictionary.py")],
             cwd=Path(__file__).resolve().parents[1],
