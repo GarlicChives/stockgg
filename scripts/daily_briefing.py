@@ -7,9 +7,16 @@
 4. Generate cross-source market notes via Gemini
 5. Cleanup articles/news older than 180 days
 
+Idempotency:
+  Steps 4 & 5 hit Gemini (paid). On re-run within the same date, they skip if
+  the row already has output, to avoid wasting quota and overwriting a good
+  result with a potentially noisier one. Use --force to override (e.g. after
+  changing prompt or model).
+
 Usage:
-    uv run scripts/daily_briefing.py              # full pipeline
-    uv run scripts/daily_briefing.py --skip-fetch # use existing DB data, only regen reports
+    uv run scripts/daily_briefing.py              # full pipeline (skip if today done)
+    uv run scripts/daily_briefing.py --skip-fetch # skip Steps 1-3 (use DB data)
+    uv run scripts/daily_briefing.py --force      # force re-run paid steps
 """
 import asyncio
 import os
@@ -52,8 +59,21 @@ async def cleanup_old_data(conn) -> None:
         print(f"  Cleaned up: {art_del} articles, {pod_del} podcasts, {news_del} news items")
 
 
+async def _existing_today(conn, today: date) -> tuple[bool, bool]:
+    """Return (has_report, has_notes) for today's analysis_reports row."""
+    row = await conn.fetchrow(
+        "SELECT raw_response IS NOT NULL AS has_report, "
+        "       market_notes_json IS NOT NULL AS has_notes "
+        "FROM analysis_reports WHERE report_date=$1",
+        today,
+    )
+    return (bool(row and row["has_report"]),
+            bool(row and row["has_notes"]))
+
+
 async def main():
     skip_fetch = "--skip-fetch" in sys.argv
+    force      = "--force"      in sys.argv
     today = date.today()
 
     if not skip_fetch:
@@ -67,22 +87,35 @@ async def main():
         await fetch_tw()
         print()
 
+    conn = await db.connect()
+    try:
+        has_report, has_notes = await _existing_today(conn, today)
+    finally:
+        await conn.close()
+
     print("── Step 4: M3 Analysis Report ──")
-    report = await generate_report(today)
-    print()
-    print("=" * 60)
-    print(report)
-    print("=" * 60)
+    if has_report and not force:
+        print(f"  ⏭  今日已有日報（{today}）— 跳過以節省 Gemini quota。"
+              f" 如改了 prompt/model 需重產，加 --force")
+    else:
+        report = await generate_report(today)
+        print()
+        print("=" * 60)
+        print(report)
+        print("=" * 60)
     print()
 
     api_key = os.environ.get("GOOGLE_API_KEY")
     if api_key:
         print("── Step 5: Cross-Source Market Notes ──")
-        conn = await db.connect()
-        try:
-            await generate_market_notes(conn, today, api_key)
-        finally:
-            await conn.close()
+        if has_notes and not force:
+            print(f"  ⏭  今日已有 market_notes — 跳過。需重產加 --force")
+        else:
+            conn = await db.connect()
+            try:
+                await generate_market_notes(conn, today, api_key)
+            finally:
+                await conn.close()
         print()
     else:
         print("── Step 5: Market Notes skipped (no GOOGLE_API_KEY) ──")

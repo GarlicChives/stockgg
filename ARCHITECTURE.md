@@ -82,6 +82,28 @@ Step 8: api_cost_check    → 印出 logs/api_usage.jsonl 的成本摘要
 
 `generate_html.py` 自身的子流程（純讀 DB → 組 HTML）：抓 analysis_reports / market_snapshots / trading_rankings / articles → `focus_themes.detect_clusters()` 偵測題材叢集 → yfinance 補齊 watch 標的成交值與漲跌 → 渲染 3 分頁（市場行情 / 焦點股 / 股市筆記）→ 寫 `docs/index.html`。
 
+### 冪等性與防呆
+
+同一天重跑 `daily_briefing.py` 不會汙染資料：
+
+| Step | 重跑行為 | 機制 |
+|---|---|---|
+| 1-3 市場/成交值 | 重新抓取覆蓋 | `DELETE WHERE rank_date=$1` 後 INSERT，不會累積過時 rank |
+| 4 daily_report（Gemini，付費） | **跳過** | 檢查 `analysis_reports.raw_response IS NOT NULL` |
+| 5 market_notes（Gemini，付費） | **跳過** | 檢查 `analysis_reports.market_notes_json IS NOT NULL` |
+| 5.5 theme_dict（Tavily+Gemini，付費） | 全部跳過 | per-ticker 30 天快取（`src/theme/cache.py`） |
+| 6 cleanup | 重新執行 | 冪等的 `DELETE ... WHERE created_at < NOW() - INTERVAL` |
+| 7 generate_html | 重新生成 | 純讀 DB，無副作用 |
+| 8 cost report | 重新印 | 純讀 jsonl |
+
+**強制重產**（改了 prompt 或 model 需要重新呼叫 Gemini）：
+```bash
+uv run scripts/daily_briefing.py --force            # 強制重跑 Step 4 + 5
+uv run scripts/daily_briefing.py --skip-fetch --force # 跳過資料抓取，只重產 AI 部分
+```
+
+`--force` 不影響 5.5；要清空主題字典快取另用 `uv run scripts/build_theme_dictionary.py --reset-cache`。
+
 ---
 
 ## 5. AI 模型使用矩陣
