@@ -92,7 +92,51 @@ TW+US Top30 ── (per-ticker 30天快取) ──┐
 jq '.themes[] | select(.auto_created==true) | {id, name, auto_created_at}' data/theme_dictionary.json
 ```
 
-## 5. `daily_briefing.py` 執行 DAG
+## 5. 熱門題材選取邏輯（焦點股頁面）
+
+對應程式：`src/analysis/focus_themes.py:detect_clusters()`，顯示：`scripts/generate_html.py:build_focus_html()`
+
+### 入選條件
+
+**台美股合計前 30（成交值排名）中，同一題材字典內成員股票達 ≥ 2 檔，該題材即為熱門題材。**
+
+| 參數 | 位置 | 預設 | 說明 |
+|---|---|---|---|
+| `MIN_VOLUME` | `focus_themes.py` | `2` | 最低入選成員數 |
+| `MIN_SCORE` | `focus_themes.py` | `1.0` | 文章關鍵字確認門檻（僅影響 badge） |
+| `PRIMARY_DAYS` | `focus_themes.py` | `7` | 近期文章定義（天數，加權 ×2） |
+
+### 顯示規則
+
+熱門題材 tab 內分兩個子分頁：
+
+| 子分頁 | 對象 | 排序 |
+|---|---|---|
+| 台股題材 | 含台股焦點 | `tw_trading_value` 遞減 |
+| 美股題材 | 含美股焦點 | `us_trading_value` 遞減 |
+
+成交值三步驟累加：
+1. **Step 1**（detect_clusters）：今日前 30 焦點股的市場成交值
+2. **Step 2**（yfinance fetch 後）：加入前哨觀察股（`close × volume`）
+3. **Step 3**（渲染時）：每個市場各自按累計成交值排序
+
+### 強度 Badge
+
+| 條件 | Badge |
+|---|---|
+| 任一成員關鍵字命中 + `primary_art_count ≥ 2` 或焦點 ≥ 2 | 強勢 |
+| 其他有文章命中 | 觀察 |
+| 無文章命中 | 量能輪動（純量價，無文章佐證） |
+
+### 與 Step 5.5（自動發現）的互動
+
+- 新建立的 auto_created theme 通常只有 1 支股票（剛被 LLM 分類進來那支）
+- `MIN_VOLUME=2` 表示要等到字典裡同族群第 2 支也進入前 30 成交值，這個 theme 才會出現在熱門題材頁
+- 若想立刻看到單檔成立的小眾題材：人工編輯 `theme_dictionary.json` 把同族群其他股票加進 `tw_stocks` / `us_stocks`，下次 generate_html 就會顯示
+
+---
+
+## 6. `daily_briefing.py` 執行 DAG
 
 ```
 Step 1: market_data       → market_snapshots
@@ -133,7 +177,7 @@ uv run scripts/daily_briefing.py --skip-fetch --force # 跳過資料抓取，只
 
 ---
 
-## 6. AI 模型使用矩陣
+## 7. AI 模型使用矩陣
 
 | 呼叫點 | 模型 | temperature | maxOutputTokens | 用途 | 對應 prompt |
 |---|---|---|---|---|---|
@@ -153,7 +197,7 @@ uv run scripts/daily_briefing.py --skip-fetch --force # 跳過資料抓取，只
 
 ---
 
-## 7. 資料庫 Schema 概覽
+## 8. 資料庫 Schema 概覽
 
 | 資料表 | 主要欄位 | 用途 |
 |---|---|---|
@@ -166,7 +210,7 @@ uv run scripts/daily_briefing.py --skip-fetch --force # 跳過資料抓取，只
 
 ---
 
-## 8. 環境變數清單
+## 9. 環境變數清單
 
 | 變數 | 必要 | 用途 | 設定位置 |
 |---|---|---|---|
@@ -181,7 +225,7 @@ uv run scripts/daily_briefing.py --skip-fetch --force # 跳過資料抓取，只
 
 ---
 
-## 9. 主要程式檔案地圖
+## 10. 主要程式檔案地圖
 
 ```
 scripts/
@@ -218,7 +262,7 @@ src/
 
 ---
 
-## 10. 已知限制與待辦
+## 11. 已知限制與待辦
 
 - ⏳ `brew install ffmpeg` — 啟用完整 Whisper 轉錄（目前 fallback show notes）
 - ⏳ Telegram Bot token — daily_briefing 推播

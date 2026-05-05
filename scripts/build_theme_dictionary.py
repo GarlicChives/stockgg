@@ -37,10 +37,40 @@ load_dotenv()
 
 from src.utils import db
 from src.theme.cache import CacheManager
-from src.theme.search import GoogleCSEProvider, TavilyProvider, SearchProvider, build_query
+from src.theme.search import TavilyProvider, SearchProvider, build_query
 from src.theme.classifier import GeminiClassifier, ClassifierProvider
 
 DICT_FILE = Path(__file__).resolve().parents[1] / "data" / "theme_dictionary.json"
+LOCK_FILE = DICT_FILE.with_suffix(".lock")
+
+
+# ── File lock (prevent parallel runs from corrupting the dict) ────────────────
+
+class _DictLock:
+    """Best-effort cross-process lock via O_EXCL on a sidecar file.
+
+    If another build is running we ABORT — better to skip than to race-write.
+    Stale locks are auto-cleared after 30 minutes.
+    """
+    def __init__(self):
+        self.acquired = False
+
+    def __enter__(self):
+        import time
+        if LOCK_FILE.exists():
+            age = time.time() - LOCK_FILE.stat().st_mtime
+            if age < 1800:
+                raise RuntimeError(
+                    f"theme_dictionary already being built (lock {age:.0f}s old). "
+                    f"Remove {LOCK_FILE} to force.")
+            LOCK_FILE.unlink()  # stale
+        LOCK_FILE.write_text(str(__import__('os').getpid()))
+        self.acquired = True
+        return self
+
+    def __exit__(self, *exc):
+        if self.acquired and LOCK_FILE.exists():
+            LOCK_FILE.unlink()
 
 
 # ── Dictionary I/O ────────────────────────────────────────────────────────────
@@ -155,8 +185,28 @@ async def run(
     """
     Classify today's top-30 TW+US stocks and update theme_dictionary.json.
 
-    Returns stats dict: checked / skipped / searched / inserted.
+    Returns stats dict: checked / skipped / searched / themes_created / inserted.
+    Aborts (returns empty stats) if another build is already running.
     """
+    try:
+        lock_ctx = _DictLock().__enter__()
+    except RuntimeError as e:
+        if verbose:
+            print(f"  [theme_dict] ⚠ {e}")
+        return {"checked": 0, "skipped": 0, "searched": 0,
+                "themes_created": 0, "inserted": 0}
+
+    try:
+        return await _run_inner(search_provider, classifier_provider, verbose)
+    finally:
+        lock_ctx.__exit__(None, None, None)
+
+
+async def _run_inner(
+    search_provider:     SearchProvider     | None,
+    classifier_provider: ClassifierProvider | None,
+    verbose: bool,
+) -> dict:
     search = search_provider     or TavilyProvider()
     clf    = classifier_provider or GeminiClassifier()
     cache  = CacheManager()
