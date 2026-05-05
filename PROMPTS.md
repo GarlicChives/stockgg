@@ -61,11 +61,12 @@
 - **變數**：
   - `$snippets` — Tavily 搜尋回傳的 3 條摘要拼接（`\n---\n` 分隔）
   - `$theme_lines` — 字典每個 theme 渲染為 `- {id}: {keyword} ({name})`
-- **輸出**：純 JSON 陣列，最多 10 個 theme ID，例：`["cowos_advanced_packaging", "hbm_memory"]`
+- **輸出**：純 JSON 陣列，最多 5 個 theme ID，例：`["cowos_advanced_packaging", "hbm_memory"]`
 - **修改注意**：
   - 「主要參與者」門檻是核心規則，影響字典精準度。放寬會把次要供應商塞進來，收緊會漏掉真正的受惠股
+  - 「概念股」規則（rule 2）讓媒體標籤直接帶入分類，避免低估「市場已普遍認知」的題材
   - 程式有 markdown fence 容錯（`re.sub(r"^```[a-z]*\n?", ...)`），即使 Gemini 偶爾包 ` ```json ... ``` ` 也能解
-  - 上限 10 個 — 改數字記得在 prompt 與 `data/theme_rules.md` 同步說明
+  - 上限 5 個 — 收緊到「最相關」分類，避免一支股被打太多標籤稀釋訊號
 
 ---
 
