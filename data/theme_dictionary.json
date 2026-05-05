@@ -83,6 +83,10 @@
         {
           "code": "6196",
           "name": "帆宣"
+        },
+        {
+          "code": "3443",
+          "name": "創意"
         }
       ],
       "us_stocks": [
@@ -145,6 +149,10 @@
         {
           "code": "2449",
           "name": "京元電子"
+        },
+        {
+          "code": "3443",
+          "name": "創意"
         }
       ],
       "us_stocks": [
@@ -243,6 +251,10 @@
         {
           "code": "2345",
           "name": "智邦"
+        },
+        {
+          "code": "3163",
+          "name": "波若威"
         }
       ],
       "us_stocks": [
@@ -257,6 +269,10 @@
         {
           "ticker": "MRVL",
           "name": "Marvell"
+        },
+        {
+          "ticker": "NOK",
+          "name": "Nokia Corporation Sponsored"
         }
       ]
     },
@@ -546,6 +562,10 @@
         {
           "code": "2455",
           "name": "全新"
+        },
+        {
+          "code": "6488",
+          "name": "環球晶"
         }
       ],
       "us_stocks": []
@@ -586,6 +606,10 @@
         {
           "code": "2327",
           "name": "國巨*"
+        },
+        {
+          "code": "6274",
+          "name": "台燿"
         }
       ],
       "us_stocks": []
@@ -621,6 +645,10 @@
         {
           "code": "2327",
           "name": "國巨*"
+        },
+        {
+          "code": "6274",
+          "name": "台燿"
         }
       ],
       "us_stocks": []
@@ -804,6 +832,14 @@
         {
           "code": "3081",
           "name": "聯亞"
+        },
+        {
+          "code": "3450",
+          "name": "聯鈞"
+        },
+        {
+          "code": "3163",
+          "name": "波若威"
         }
       ],
       "us_stocks": [
@@ -814,6 +850,10 @@
         {
           "ticker": "COHR",
           "name": "Coherent"
+        },
+        {
+          "ticker": "NOK",
+          "name": "Nokia Corporation Sponsored"
         }
       ]
     },
@@ -862,6 +902,10 @@
         {
           "code": "2345",
           "name": "智邦"
+        },
+        {
+          "code": "3163",
+          "name": "波若威"
         }
       ],
       "us_stocks": [
@@ -902,6 +946,10 @@
         {
           "code": "3016",
           "name": "嘉晶"
+        },
+        {
+          "code": "6488",
+          "name": "環球晶"
         }
       ],
       "us_stocks": []
@@ -1360,6 +1408,10 @@
         {
           "code": "3081",
           "name": "聯亞"
+        },
+        {
+          "code": "3450",
+          "name": "聯鈞"
         }
       ],
       "us_stocks": [
@@ -1400,10 +1452,6 @@
           "name": "環宇-KY"
         },
         {
-          "code": "6147",
-          "name": "頎邦"
-        },
-        {
           "code": "2455",
           "name": "全新"
         },
@@ -1414,6 +1462,10 @@
         {
           "code": "3081",
           "name": "聯亞"
+        },
+        {
+          "code": "3163",
+          "name": "波若威"
         }
       ],
       "us_stocks": [
@@ -1428,6 +1480,10 @@
         {
           "ticker": "FN",
           "name": "Fabrinet"
+        },
+        {
+          "ticker": "NOK",
+          "name": "Nokia Corporation Sponsored"
         }
       ]
     },
@@ -1508,6 +1564,10 @@
         {
           "code": "2455",
           "name": "全新"
+        },
+        {
+          "code": "3715",
+          "name": "定穎投控"
         }
       ],
       "us_stocks": []
@@ -1563,16 +1623,20 @@
           "name": "威剛"
         },
         {
-          "code": "0050",
-          "name": "元大台灣50"
-        },
-        {
           "code": "1303",
           "name": "南亞"
         },
         {
           "code": "1785",
           "name": "光洋科"
+        },
+        {
+          "code": "3715",
+          "name": "定穎投控"
+        },
+        {
+          "code": "6239",
+          "name": "力成"
         }
       ],
       "us_stocks": [
@@ -1624,12 +1688,12 @@
           "name": "群聯"
         },
         {
-          "code": "0050",
-          "name": "元大台灣50"
-        },
-        {
           "code": "1785",
           "name": "光洋科"
+        },
+        {
+          "code": "6239",
+          "name": "力成"
         }
       ],
       "us_stocks": [
@@ -1849,10 +1913,6 @@
         {
           "code": "3481",
           "name": "群創"
-        },
-        {
-          "code": "6147",
-          "name": "頎邦"
         }
       ],
       "us_stocks": []
@@ -1881,6 +1941,10 @@
         {
           "code": "3037",
           "name": "欣興"
+        },
+        {
+          "code": "1802",
+          "name": "台玻"
         }
       ],
       "us_stocks": [
@@ -2169,12 +2233,12 @@
           "name": "BlackBerry Limited"
         },
         {
-          "ticker": "BBAI",
-          "name": "BigBear.ai, Inc."
-        },
-        {
           "ticker": "ACHR",
           "name": "Archer Aviation Inc."
+        },
+        {
+          "ticker": "BBAI",
+          "name": "BigBear.ai, Inc."
         }
       ]
     },
@@ -2222,12 +2286,12 @@
           "name": "BlackBerry Limited"
         },
         {
-          "ticker": "BBAI",
-          "name": "BigBear.ai, Inc."
-        },
-        {
           "ticker": "ACHR",
           "name": "Archer Aviation Inc."
+        },
+        {
+          "ticker": "BBAI",
+          "name": "BigBear.ai, Inc."
         }
       ]
     },
@@ -2381,6 +2445,10 @@
         {
           "ticker": "BBAI",
           "name": "BigBear.ai, Inc."
+        },
+        {
+          "ticker": "NU",
+          "name": "Nu Holdings Ltd."
         }
       ]
     },
@@ -2408,10 +2476,6 @@
         {
           "code": "6770",
           "name": "力積電"
-        },
-        {
-          "code": "6147",
-          "name": "頎邦"
         },
         {
           "code": "2454",
@@ -2786,10 +2850,6 @@
           "name": "聯鈞"
         },
         {
-          "code": "6147",
-          "name": "頎邦"
-        },
-        {
           "code": "2455",
           "name": "全新"
         },
@@ -3008,6 +3068,10 @@
         {
           "code": "3081",
           "name": "聯亞"
+        },
+        {
+          "code": "3443",
+          "name": "創意"
         }
       ],
       "us_stocks": [
@@ -3166,6 +3230,10 @@
         {
           "code": "3081",
           "name": "聯亞"
+        },
+        {
+          "code": "3443",
+          "name": "創意"
         }
       ],
       "us_stocks": [
@@ -3916,6 +3984,10 @@
         {
           "code": "2382",
           "name": "廣達"
+        },
+        {
+          "code": "3481",
+          "name": "群創"
         }
       ],
       "us_stocks": [
@@ -4073,6 +4145,14 @@
         {
           "code": "2449",
           "name": "京元電子"
+        },
+        {
+          "code": "3715",
+          "name": "定穎投控"
+        },
+        {
+          "code": "3163",
+          "name": "波若威"
         }
       ],
       "us_stocks": [
@@ -4204,6 +4284,10 @@
         {
           "code": "3081",
           "name": "聯亞"
+        },
+        {
+          "code": "3163",
+          "name": "波若威"
         }
       ],
       "us_stocks": [
@@ -4386,12 +4470,7 @@
           "AI資料中心"
         ]
       },
-      "tw_stocks": [
-        {
-          "code": "6147",
-          "name": "頎邦"
-        }
-      ],
+      "tw_stocks": [],
       "us_stocks": [
         {
           "ticker": "TXN",
@@ -5014,10 +5093,6 @@
         {
           "code": "6548",
           "name": "韋僑"
-        },
-        {
-          "code": "6147",
-          "name": "頎邦"
         }
       ],
       "us_stocks": []
@@ -5040,12 +5115,7 @@
           "智慧醫療"
         ]
       },
-      "tw_stocks": [
-        {
-          "code": "6147",
-          "name": "頎邦"
-        }
-      ],
+      "tw_stocks": [],
       "us_stocks": []
     },
     {
@@ -5206,14 +5276,6 @@
         {
           "code": "4760",
           "name": "勤凱"
-        },
-        {
-          "code": "6147",
-          "name": "頎邦"
-        },
-        {
-          "code": "3711",
-          "name": "日月光投控"
         }
       ],
       "us_stocks": []
@@ -5255,14 +5317,6 @@
         {
           "code": "2464",
           "name": "盟立"
-        },
-        {
-          "code": "6147",
-          "name": "頎邦"
-        },
-        {
-          "code": "3711",
-          "name": "日月光投控"
         }
       ],
       "us_stocks": [
@@ -5431,6 +5485,10 @@
         {
           "code": "3260",
           "name": "威剛"
+        },
+        {
+          "code": "3715",
+          "name": "定穎投控"
         }
       ],
       "us_stocks": [
@@ -5505,6 +5563,10 @@
         {
           "code": "2464",
           "name": "盟立"
+        },
+        {
+          "code": "3715",
+          "name": "定穎投控"
         }
       ],
       "us_stocks": []
@@ -5931,6 +5993,10 @@
         {
           "ticker": "SNAP",
           "name": "Snap Inc."
+        },
+        {
+          "ticker": "NU",
+          "name": "Nu Holdings Ltd."
         }
       ]
     },
@@ -5987,6 +6053,10 @@
         {
           "ticker": "BBAI",
           "name": "BigBear.ai, Inc."
+        },
+        {
+          "ticker": "NU",
+          "name": "Nu Holdings Ltd."
         }
       ]
     },
@@ -6035,6 +6105,10 @@
         {
           "ticker": "SNAP",
           "name": "Snap Inc."
+        },
+        {
+          "ticker": "NU",
+          "name": "Nu Holdings Ltd."
         }
       ]
     },
@@ -6103,6 +6177,10 @@
         {
           "ticker": "SNAP",
           "name": "Snap Inc."
+        },
+        {
+          "ticker": "NU",
+          "name": "Nu Holdings Ltd."
         }
       ]
     },
@@ -6165,6 +6243,10 @@
         {
           "ticker": "META",
           "name": "Meta"
+        },
+        {
+          "ticker": "NU",
+          "name": "Nu Holdings Ltd."
         }
       ]
     },
@@ -6206,6 +6288,10 @@
         {
           "ticker": "META",
           "name": "Meta"
+        },
+        {
+          "ticker": "NU",
+          "name": "Nu Holdings Ltd."
         }
       ]
     },
@@ -6247,6 +6333,10 @@
         {
           "ticker": "META",
           "name": "Meta"
+        },
+        {
+          "ticker": "NU",
+          "name": "Nu Holdings Ltd."
         }
       ]
     },
@@ -6267,7 +6357,12 @@
         ]
       },
       "tw_stocks": [],
-      "us_stocks": []
+      "us_stocks": [
+        {
+          "ticker": "NU",
+          "name": "Nu Holdings Ltd."
+        }
+      ]
     },
     {
       "id": "free_cash_flow",
@@ -6661,6 +6756,10 @@
         {
           "ticker": "TSLA",
           "name": "特斯拉"
+        },
+        {
+          "ticker": "AUR",
+          "name": "Aurora Innovation, Inc."
         }
       ]
     },
@@ -6693,6 +6792,10 @@
         {
           "ticker": "ONDS",
           "name": "Ondas Inc"
+        },
+        {
+          "ticker": "AUR",
+          "name": "Aurora Innovation, Inc."
         }
       ]
     },
@@ -6773,6 +6876,10 @@
         {
           "ticker": "ONDS",
           "name": "Ondas Inc"
+        },
+        {
+          "ticker": "AUR",
+          "name": "Aurora Innovation, Inc."
         }
       ]
     },
@@ -6904,6 +7011,10 @@
         {
           "code": "3450",
           "name": "聯鈞"
+        },
+        {
+          "code": "3163",
+          "name": "波若威"
         }
       ],
       "us_stocks": [
@@ -8038,10 +8149,6 @@
         {
           "code": "2360",
           "name": "致茂"
-        },
-        {
-          "code": "6147",
-          "name": "頎邦"
         }
       ],
       "us_stocks": []
