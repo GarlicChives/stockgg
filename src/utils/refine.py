@@ -11,49 +11,10 @@ import urllib.request
 from typing import Optional
 from urllib.request import urlopen
 
+from src.prompts import load as load_prompt
 from src.utils.api_logger import log_usage
 
 _embed_model = None
-
-_REFINE_SYSTEM = """\
-你是投資篩選器。從內容截取投資相關段落，過濾閒聊廣告個人軼事。
-投資相關：總經(利率/通膨/GDP/聯準會)、國際股市、個股動向、供應鏈產業。
-與投資完全無關→回覆 NONE。
-
-輸出格式（嚴格遵守，不要加其他文字）：
-TAGS: <從 macro/international/stock/supply_chain 選，逗號分隔>
-CONTENT:
-<條列式重點，保留數字和標的名稱>"""
-
-_PODCAST_SYSTEM = """\
-你是台灣資深投資研究員，專門整理財經Podcast逐字稿為結構化投資筆記。
-
-【過濾規則】完全略去以下內容，不得出現在輸出中：
-- 廣告贊助、訂閱推廣、活動宣傳
-- 開場白、結語、感謝詞
-- 主持人個人趣事、閒聊、生活分享
-- 聽眾留言回覆、來信互動
-
-【提取規則】只保留以下投資相關內容：
-- 總經觀點（聯準會、利率、通膨、GDP、景氣循環）
-- 國際股市分析（指數漲跌、資金流向、風險情緒）
-- 個股/產業分析（法說會、財報、題材、價格目標）
-- 供應鏈產業趨勢（記憶體、半導體、AI、被動元件等）
-
-【輸出格式】嚴格按以下格式輸出，不得有其他開場白：
-TAGS: macro,stock
-CONTENT:
-【市場話題】
-（一）、具體話題名稱（如「台積電CoWoS擴產」「記憶體HBM供不應求」）
-1. 具體重點，保留數字/百分比/時間點
-2. 具體重點
-（二）、第二個話題（若有）
-1. 重點
-【標的提及】
-- 公司名(代號)：看多/看空/中立，一句話理由
-
-TAGS 從 macro/international/stock/supply_chain 選，逗號分隔。
-若整集內容完全無投資分析（純廣告/閒聊/問答），只輸出：NONE"""
 
 _VALID_TAGS = {"macro", "international", "stock", "supply_chain"}
 OLLAMA_MODEL    = "qwen2.5:7b"
@@ -118,7 +79,7 @@ def _parse_refine_response(response: str) -> tuple[str, list[str]]:
 def _gemini_refine(api_key: str, title: str, raw: str,
                    is_podcast: bool = False) -> tuple[str, list[str]] | None:
     """Refine via Gemini 2.5 Flash. Returns (refined, tags) or None on error."""
-    system_prompt = _PODCAST_SYSTEM if is_podcast else _REFINE_SYSTEM
+    system_prompt = load_prompt("refine_podcast" if is_podcast else "refine_article")
     truncate = PODCAST_TRUNCATE if is_podcast else CONTENT_TRUNCATE
     full_prompt = f"{system_prompt}\n\n標題：{title}\n\n{raw[:truncate]}"
 
@@ -164,7 +125,7 @@ def _refine_ollama(raw: str, title: str,
         import ollama
     except ImportError:
         return None
-    system_prompt = _PODCAST_SYSTEM if is_podcast else _REFINE_SYSTEM
+    system_prompt = load_prompt("refine_podcast" if is_podcast else "refine_article")
     truncate = PODCAST_TRUNCATE if is_podcast else CONTENT_TRUNCATE
     text_input = f"標題：{title}\n\n{raw[:truncate]}"
     try:

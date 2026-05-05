@@ -1,0 +1,179 @@
+# Investment Intelligence Analyst (IIA) — 系統架構
+
+自動化整合台美股市場數據、訂閱專欄與 Podcast，產出每日投資簡報並發布到 GitHub Pages。
+
+詳細 Prompt 內容見 [PROMPTS.md](./PROMPTS.md)。
+
+---
+
+## 1. 專案目標與資料流
+
+```
+┌─────────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ 訂閱專欄/Podcast│───▶│ 精煉(Gemini/ │───▶│ 跨來源議題   │───▶│  HTML 發布   │
+│   爬蟲           │    │  Ollama)     │    │ + 焦點題材  │    │ (GitHub Pages)│
+└─────────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+                                                  ▲
+┌─────────────────┐    ┌──────────────┐           │
+│ 市場數據(yf,TWSE,│───▶│ 主題字典分類 │───────────┘
+│  TPEX)          │    │ (Tavily+LLM) │
+└─────────────────┘    └──────────────┘
+```
+
+每日輸出：[https://garlicchives.github.io/Stock-test/](https://garlicchives.github.io/Stock-test/)
+
+---
+
+## 2. 技術棧
+
+| 類別 | 選用 |
+|---|---|
+| 語言 | Python 3.12+ |
+| 套件管理 | `uv` |
+| 資料庫 | Supabase PostgreSQL（透過自建 Edge Function `db-proxy` 走 HTTPS port 443） |
+| DB adapter | `src/utils/db.py` — asyncpg 相容介面 |
+| 向量檢索 | pgvector + sentence-transformers `paraphrase-multilingual-mpnet-base-v2`（768 維） |
+| 瀏覽器自動化 | Playwright（連接使用者 Chrome `--remote-debugging-port=9222`） |
+| AI 精煉/分析 | Gemini 2.5 Flash / Flash-Lite + Ollama qwen2.5:7b（fallback） |
+| 主題搜尋 | Tavily Search API（免費 1000 次/月） |
+| 排程 | macOS launchd（本機）+ GitHub Actions（雲端備份） |
+| 通知 | Telegram Bot（待設定） |
+
+---
+
+## 3. 每日排程總覽（時間皆為台灣時間）
+
+### 本機 launchd（5 個 job，全部已 load）
+
+| 時間 | Job | 腳本 | 用途 | 相依輸入 |
+|---|---|---|---|---|
+| 06:00 | `com.iia.podcast-crawl` | `src/crawlers/podcasts.py --incremental` | RSS 抓取 + Whisper 轉錄 + Gemini 精煉 | RSS feeds（5 個 podcast 來源） |
+| 07:00 | `com.iia.podcast-backfill` | `scripts/podcast_backfill.py` | 補跑 `content_tags` 為空的集數 | 06:00 的產出 |
+| 07:30 | `com.iia.daily-briefing` | `scripts/daily_briefing.py` | 主流程（Step 1-8，見 §4） | articles + 06:00/07:00 podcast |
+| 08:00 / 21:00 | `com.iia.article-crawl` | `scripts/run_all_crawlers.py --incremental` | 5 個訂閱專欄爬蟲（**需 Chrome 9222**） | Chrome session cookies |
+| 開機 / 連網 / 每 30 分 | `com.iia.catchup` | `scripts/catchup.py` | 補跑漏掉的任務（DB 驅動，冪等） | DB 上次執行時間 |
+
+`catchup` 觸發條件：`RunAtLoad: true`、`WatchPaths: /private/var/run/resolv.conf`、`StartInterval: 1800`。article-crawl 因需 Chrome 不會被補跑。
+
+### GitHub Actions（雲端備援）
+
+| 觸發 | Workflow | 步驟 |
+|---|---|---|
+| Cron `30 23 * * 1-5`（07:30 TW 平日）+ `workflow_dispatch` | `.github/workflows/market_briefing.yml` | `daily_briefing.py` → `generate_html.py` → push `docs/index.html` |
+
+⚠️ **本機與 CI 同時跑 07:30** — 兩邊都會 push 到 main。launchd 跑得快通常會贏；CI 偶爾 push 失敗會被拒（`non-fast-forward`）但不影響資料正確性。若要避免衝突可考慮：（a）關掉 CI cron 改純 backup、（b）讓 CI 只在 launchd 沒跑成功時觸發（需額外的 sentinel 檔）。
+
+---
+
+## 4. `daily_briefing.py` 執行 DAG
+
+```
+Step 1: market_data       → market_snapshots
+Step 2: us_rankings       → trading_rankings (US)
+Step 3: tw_rankings       → trading_rankings (TW)   [TWSE + TPEX 合併]
+        ↓
+Step 4: daily_report      → analysis_reports.raw_response       [Gemini 2.5 Flash]
+Step 5: market_notes      → analysis_reports.market_notes_json  [Gemini 2.5 Flash]
+Step 5.5: build_theme_dict → data/theme_dictionary.json          [Tavily + Gemini Flash-Lite]
+Step 6: cleanup_old_data  (articles >180d / podcasts >30d / news >180d)
+Step 7: generate_html     → docs/index.html
+Step 8: api_cost_check    → 印出 logs/api_usage.jsonl 的成本摘要
+```
+
+`generate_html.py` 自身的子流程（純讀 DB → 組 HTML）：抓 analysis_reports / market_snapshots / trading_rankings / articles → `focus_themes.detect_clusters()` 偵測題材叢集 → yfinance 補齊 watch 標的成交值與漲跌 → 渲染 3 分頁（市場行情 / 焦點股 / 股市筆記）→ 寫 `docs/index.html`。
+
+---
+
+## 5. AI 模型使用矩陣
+
+| 呼叫點 | 模型 | temperature | maxOutputTokens | 用途 | 對應 prompt |
+|---|---|---|---|---|---|
+| `src/utils/refine.py:_gemini_refine` (article) | gemini-2.5-flash-lite | 0 | 8000 | 文章精煉、標 tags | `refine_article.md` |
+| `src/utils/refine.py:_gemini_refine` (podcast) | gemini-2.5-flash-lite | 0 | 8000 | Podcast 逐字稿結構化 | `refine_podcast.md` |
+| `src/utils/refine.py:_refine_ollama` | qwen2.5:7b（本機 Ollama） | 0 | — | 文章精煉 fallback（podcast 不用） | 同上兩個 |
+| `src/theme/classifier.py:GeminiClassifier` | gemini-2.5-flash-lite | 0 | 512 | 將 Tavily 搜尋摘要分類到主題 ID | `theme_classifier.md` |
+| `src/analysis/daily_report.py:_gemini_http` | gemini-2.5-flash | 0.3 | 8192 | 每日總經 + 多空判斷 | `daily_report.md` |
+| `src/analysis/market_notes.py:_gemini_http` | gemini-2.5-flash | 0.2 | 8192 | 跨來源共同議題擷取 JSON | `market_notes.md` |
+
+**Routing：**
+- Podcast 精煉：Gemini only（qwen 格式遵從度不足）
+- Article 精煉：Ollama 優先 → Gemini fallback（Ollama 沒跑時）
+- Gemini 免費額度約 50–100 RPD；密集 debug 當天可能耗盡（隔天恢復）
+
+成本紀錄：`logs/api_usage.jsonl`（`src/utils/api_logger.py`），每次呼叫一行 JSON。
+
+---
+
+## 6. 資料庫 Schema 概覽
+
+| 資料表 | 主要欄位 | 用途 |
+|---|---|---|
+| `articles` | source, title, content, **refined_content**, **content_tags**, **embedding** (vec768), tickers, published_at | 文章 + Podcast 逐字稿；`content_tags='{}'` 代表精煉失敗或無投資內容 |
+| `market_snapshots` | symbol, close_price, change_pct, snapshot_date, extra(jsonb) | 每日指數 + VIX + Fear&Greed |
+| `trading_rankings` | rank_date, market(US/TW), rank, ticker, name, trading_value, change_pct, is_limit_up_30m | 每日成交值前 30 |
+| `analysis_reports` | report_date, raw_response, **market_notes_json**(jsonb) | Gemini 日報 + 跨來源議題 |
+| `news_items` | （預留） | 每日金融新聞 |
+| `watchlist` | （預留） | 使用者追蹤標的 |
+
+---
+
+## 7. 環境變數清單
+
+| 變數 | 必要 | 用途 | 設定位置 |
+|---|---|---|---|
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | DB Edge Function 認證 | `.env`（本機）+ GitHub Secret |
+| `GOOGLE_API_KEY` | ✅ | Gemini（精煉、日報、議題、分類） | 同上 |
+| `TAVILY_API_KEY` | ✅ | 主題字典搜尋 | 同上 |
+| `HF_TOKEN` | 選用 | Hugging Face token；下載 sentence-transformer 避開 rate limit | `.env` |
+| `CHROME_DEBUG_PORT` | 選用 | 預設 9222 | `.env` |
+| `ANTHROPIC_API_KEY` | （未來） | 設定後可遷移精煉/分析至 Claude | — |
+
+**注意：** `DATABASE_URL` 為棄用變數；HTTPS 遷移後不再使用，舊 `.env` 內可保留但不影響運作。
+
+---
+
+## 8. 主要程式檔案地圖
+
+```
+scripts/
+├── daily_briefing.py         # 8 步驟主流程
+├── generate_html.py          # 純 DB → HTML
+├── build_theme_dictionary.py # Tavily + Gemini 分類，每日 Step 5.5
+├── podcast_backfill.py       # 補跑未精煉的 podcast
+├── catchup.py                # 開機/連網補漏
+└── run_all_crawlers.py       # 5 個專欄爬蟲依序執行
+
+src/
+├── crawlers/                 # macromicro / vocus / statementdog / investanchors / pressplay / podcasts
+├── news/                     # market_data, us_rankings, tw_rankings (TWSE + TPEX 合併)
+├── analysis/
+│   ├── daily_report.py       # Gemini 日報
+│   ├── market_notes.py       # Gemini 跨來源議題
+│   └── focus_themes.py       # 焦點題材叢集偵測（雙閘門）
+├── theme/
+│   ├── search.py             # TavilyProvider
+│   ├── classifier.py         # GeminiClassifier
+│   └── cache.py              # 30-day TTL
+├── prompts/                  # ★ 5 個 prompt 檔（編輯不需 commit code）
+│   ├── __init__.py           # load() / render()
+│   ├── refine_article.md
+│   ├── refine_podcast.md
+│   ├── theme_classifier.md
+│   ├── daily_report.md
+│   └── market_notes.md
+└── utils/
+    ├── db.py                 # asyncpg 相容 adapter（HTTPS Edge Function）
+    ├── refine.py             # 精煉 pipeline
+    └── api_logger.py         # 成本紀錄
+```
+
+---
+
+## 9. 已知限制與待辦
+
+- ⏳ `brew install ffmpeg` — 啟用完整 Whisper 轉錄（目前 fallback show notes）
+- ⏳ Telegram Bot token — daily_briefing 推播
+- ⏳ `ANTHROPIC_API_KEY` — 遷移精煉至 Claude Haiku、分析至 Sonnet，解決 Gemini 429
+- ⚠️ Article crawl 需 Chrome 在 9222；開機後需手動啟動（或用 `.chrome-profile/` launchd job）
+- ⚠️ Podcast 廣告/問答集數精煉結果為 NONE，不顯示在頁面（過濾條件 `content_tags != '{}'`）
+- ⚠️ launchd 與 GitHub Actions 兩邊同時 07:30 跑，偶有 push 競爭（不致資料錯誤）

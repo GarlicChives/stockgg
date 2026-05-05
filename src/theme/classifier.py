@@ -10,23 +10,11 @@ import re
 import urllib.request
 from abc import ABC, abstractmethod
 
+from src.prompts import render as render_prompt
 from src.utils.api_logger import log_usage
 
 GEMINI_MODEL = "gemini-2.5-flash-lite"
 GEMINI_BASE  = "https://generativelanguage.googleapis.com/v1beta/models"
-
-_SYSTEM = """\
-你是一個精準的產業分類系統。
-請根據以下搜尋摘要文本，判斷這家公司屬於我方字典中的哪些分類。
-
-規則：
-1. 只標記公司為「主要參與者」（核心供應商 / 製造商 / 直接受惠者）的分類
-2. 若公司只是邊緣提及或為次要供應商，請勿標記
-3. 最多回傳 10 個分類；若無符合項目請回傳空陣列 []
-4. 僅回傳 JSON 陣列，禁止輸出任何其他文字
-
-輸出格式範例（嚴格遵守）：
-["cowos_advanced_packaging", "hbm_memory"]"""
 
 
 class ClassifierProvider(ABC):
@@ -57,10 +45,10 @@ class GeminiClassifier(ClassifierProvider):
             for t in themes
             if t.get("keyword")
         )
-        return (
-            f"{_SYSTEM}\n\n"
-            f"搜尋摘要：\n{snippets_text}\n\n"
-            f"分類清單：\n{theme_lines}"
+        return render_prompt(
+            "theme_classifier",
+            snippets=snippets_text,
+            theme_lines=theme_lines,
         )
 
     def classify(self, snippets_text: str, themes: list[dict]) -> list[str]:
