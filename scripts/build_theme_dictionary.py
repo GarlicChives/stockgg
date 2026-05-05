@@ -5,20 +5,22 @@ Flow per uncached stock (TTL = 30 days):
   1. Fetch TW+US top-30 from DB
   2. Skip tickers fresh in cache (< 30 days)
   3. Search → collect snippets
-  4. LLM classify → list of matching theme IDs
-  5. Upsert stock into theme_dictionary.json
-  6. Update cache + persist
+  4. LLM classify → {matched: [...], new_themes: [{id,name,keyword}, ...]}
+  5. Dedup new_themes against existing dict (LLM may miss near-matches)
+  6. Auto-create truly-new themes (flagged auto_created=True)
+  7. Upsert stock into all matched themes
+  8. Update cache + persist
 
 Provider swap: pass search_provider= / classifier_provider= to run().
 Requires env vars:
-  GOOGLE_API_KEY     — Gemini (classifier)
-  GOOGLE_CSE_API_KEY — Google Custom Search
-  GOOGLE_CSE_CX      — Custom Search Engine ID
+  GOOGLE_API_KEY  — Gemini (classifier)
+  TAVILY_API_KEY  — Tavily search
 """
 import asyncio
 import json
 import re
 import sys
+from datetime import date
 from pathlib import Path
 
 _ETF_TW_RE = re.compile(r'^00\d')
@@ -74,6 +76,56 @@ def _upsert_stock(
     return False  # theme_id not found in dictionary
 
 
+# ── Auto-discovery dedup + creation ───────────────────────────────────────────
+
+_NAME_NOISE_RE = re.compile(r"[概念股的之、，,。.\s]")
+
+
+def _normalize_theme_name(s: str) -> str:
+    """Strip noise so '機器人概念股' / '機器人' / '智慧機器人' match-fuzzy."""
+    return _NAME_NOISE_RE.sub("", (s or "").lower())
+
+
+def _find_existing_theme(name: str, keyword: str, themes: list[dict]) -> str | None:
+    """Match a proposed new theme against the dict by normalized name/keyword.
+    Returns the existing theme ID if a near-match found, else None."""
+    n = _normalize_theme_name(name)
+    k = _normalize_theme_name(keyword)
+    if not n and not k:
+        return None
+    for t in themes:
+        existing_n = _normalize_theme_name(t.get("name", ""))
+        existing_k = _normalize_theme_name(t.get("keyword", ""))
+        if n and (n == existing_n or n == existing_k):
+            return t["id"]
+        if k and (k == existing_n or k == existing_k):
+            return t["id"]
+    return None
+
+
+def _create_theme(themes_data: dict, proposal: dict) -> str:
+    """Append a new theme to the dict. Resolves ID collisions with _2, _3 suffixes.
+    Returns the final ID written."""
+    existing_ids = {t["id"] for t in themes_data["themes"]}
+    base_id = proposal["id"]
+    new_id  = base_id
+    n = 2
+    while new_id in existing_ids:
+        new_id = f"{base_id}_{n}"
+        n += 1
+    themes_data["themes"].append({
+        "id":            new_id,
+        "name":          proposal["name"],
+        "keyword":       proposal.get("keyword", proposal["name"]),
+        "supply_chain":  {"upstream": [], "downstream": []},
+        "tw_stocks":     [],
+        "us_stocks":     [],
+        "auto_created":  True,
+        "auto_created_at": str(date.today()),
+    })
+    return new_id
+
+
 # ── DB helpers ────────────────────────────────────────────────────────────────
 
 async def _fetch_top30(conn, market: str) -> list[dict]:
@@ -123,12 +175,13 @@ async def run(
     await conn.close()
 
     all_stocks = tw_stocks + us_stocks
-    stats = {"checked": len(all_stocks), "skipped": 0, "searched": 0, "inserted": 0}
+    stats = {"checked": len(all_stocks), "skipped": 0, "searched": 0,
+             "inserted": 0, "themes_created": 0}
 
     search_ok = search.available()
     clf_ok    = clf.available()
     if not search_ok and verbose:
-        print("  [theme_dict] ⚠ Search provider not available (GOOGLE_CSE_API_KEY / GOOGLE_CSE_CX not set)")
+        print("  [theme_dict] ⚠ Search provider not available (TAVILY_API_KEY not set)")
     if not clf_ok and verbose:
         print("  [theme_dict] ⚠ Classifier not available (GOOGLE_API_KEY not set)")
     if not search_ok or not clf_ok:
@@ -165,11 +218,35 @@ async def run(
             continue
 
         snippets_text = "\n---\n".join(snippets)
-        matched_ids   = clf.classify(snippets_text, themes_meta)
+        result = clf.classify(snippets_text, themes_meta)
+        matched_ids = list(result.get("matched", []))
+
+        # Auto-discovery: dedup against existing dict; create if truly new
+        for proposal in result.get("new_themes", []):
+            existing_id = _find_existing_theme(
+                proposal["name"], proposal.get("keyword", ""),
+                themes_data["themes"],
+            )
+            if existing_id:
+                if existing_id not in matched_ids:
+                    matched_ids.append(existing_id)
+                if verbose:
+                    print(f"           ↳ '{proposal['name']}' 對到既有 → {existing_id}")
+                continue
+            new_id = _create_theme(themes_data, proposal)
+            themes_meta.append({
+                "id": new_id, "name": proposal["name"],
+                "keyword": proposal.get("keyword", proposal["name"]),
+            })
+            matched_ids.append(new_id)
+            stats["themes_created"] += 1
+            dict_updated = True
+            if verbose:
+                print(f"           ➕ 新主題建立: {new_id} ({proposal['name']})")
 
         if verbose:
             label = ", ".join(matched_ids) if matched_ids else "—"
-            print(f"           → {label}")
+            print(f"           → matched: {label}")
 
         inserted_now = []
         for theme_id in matched_ids:
@@ -239,8 +316,16 @@ async def main():
         for s in snippets:
             print(f"    · {s[:120]}")
         if snippets:
-            matched = clf.classify("\n---\n".join(snippets), themes_meta)
-            print(f"  Matched: {matched}")
+            result = clf.classify("\n---\n".join(snippets), themes_meta)
+            print(f"  Matched (existing): {result.get('matched', [])}")
+            new_themes = result.get("new_themes", [])
+            if new_themes:
+                print(f"  New themes proposed:")
+                for t in new_themes:
+                    existing = _find_existing_theme(
+                        t["name"], t.get("keyword", ""), themes_data["themes"])
+                    flag = f"→ 對到 {existing}" if existing else "★ 真新主題"
+                    print(f"    · {t['id']:30s} {t['name']:10s} {flag}")
         return
 
     stats = await run()
@@ -249,10 +334,12 @@ async def main():
         f"checked={stats['checked']}, "
         f"skipped={stats['skipped']}, "
         f"searched={stats['searched']}, "
+        f"themes_created={stats['themes_created']}, "
         f"inserted={stats['inserted']}"
     )
-    if stats["inserted"]:
-        print(f"[theme_dict] ✅ Dictionary updated (+{stats['inserted']} stock entries)")
+    if stats["themes_created"] or stats["inserted"]:
+        print(f"[theme_dict] ✅ 字典更新：新主題 +{stats['themes_created']}，"
+              f"股票歸類 +{stats['inserted']}")
     else:
         print("[theme_dict] ✅ Dictionary up to date")
 
