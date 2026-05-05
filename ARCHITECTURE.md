@@ -65,7 +65,34 @@
 
 ---
 
-## 4. `daily_briefing.py` 執行 DAG
+## 4. 主題字典自動發現（Step 5.5）
+
+每天 daily_briefing 跑 `build_theme_dictionary.py`：
+
+```
+TW+US Top30 ── (per-ticker 30天快取) ──┐
+                                       │
+  cache miss ──► Tavily 搜尋 ──► snippets ──► Gemini 分類
+                                                   │
+                            雙輸出 ┌──── matched: 對到字典已有 theme ──► upsert 股票
+                                   └──── new_themes: 字典沒有的概念股
+                                                   │
+                          dedup（去除「概念股」、標點，名字正規化比對）
+                                                   │
+                                ├─ 對到既有 → 加進 matched
+                                └─ 真新 → 寫入字典（auto_created=true）
+                                                   │
+                                            cache.set(ticker, ids)
+```
+
+**設計理念：** 字典是會自我成長的資產。當媒體把某股標為新概念股（如「機器人概念股」「量子運算概念股」），系統會自動把該主題加進字典並收錄該股，不需人工逐一新增。
+
+**品質控制：** `auto_created: true` 旗標讓使用者隨時撈出最近自動建立的 theme review／合併／刪除：
+```bash
+jq '.themes[] | select(.auto_created==true) | {id, name, auto_created_at}' data/theme_dictionary.json
+```
+
+## 5. `daily_briefing.py` 執行 DAG
 
 ```
 Step 1: market_data       → market_snapshots
@@ -91,7 +118,7 @@ Step 8: api_cost_check    → 印出 logs/api_usage.jsonl 的成本摘要
 | 1-3 市場/成交值 | 重新抓取覆蓋 | `DELETE WHERE rank_date=$1` 後 INSERT，不會累積過時 rank |
 | 4 daily_report（Gemini，付費） | **跳過** | 檢查 `analysis_reports.raw_response IS NOT NULL` |
 | 5 market_notes（Gemini，付費） | **跳過** | 檢查 `analysis_reports.market_notes_json IS NOT NULL` |
-| 5.5 theme_dict（Tavily+Gemini，付費） | 全部跳過 | per-ticker 30 天快取（`src/theme/cache.py`） |
+| 5.5 theme_dict（Tavily+Gemini，付費） | 全部跳過 | per-ticker 30 天快取（`src/theme/cache.py`）；快取期間不重打 API |
 | 6 cleanup | 重新執行 | 冪等的 `DELETE ... WHERE created_at < NOW() - INTERVAL` |
 | 7 generate_html | 重新生成 | 純讀 DB，無副作用 |
 | 8 cost report | 重新印 | 純讀 jsonl |
@@ -106,7 +133,7 @@ uv run scripts/daily_briefing.py --skip-fetch --force # 跳過資料抓取，只
 
 ---
 
-## 5. AI 模型使用矩陣
+## 6. AI 模型使用矩陣
 
 | 呼叫點 | 模型 | temperature | maxOutputTokens | 用途 | 對應 prompt |
 |---|---|---|---|---|---|
@@ -126,7 +153,7 @@ uv run scripts/daily_briefing.py --skip-fetch --force # 跳過資料抓取，只
 
 ---
 
-## 6. 資料庫 Schema 概覽
+## 7. 資料庫 Schema 概覽
 
 | 資料表 | 主要欄位 | 用途 |
 |---|---|---|
@@ -139,7 +166,7 @@ uv run scripts/daily_briefing.py --skip-fetch --force # 跳過資料抓取，只
 
 ---
 
-## 7. 環境變數清單
+## 8. 環境變數清單
 
 | 變數 | 必要 | 用途 | 設定位置 |
 |---|---|---|---|
@@ -154,7 +181,7 @@ uv run scripts/daily_briefing.py --skip-fetch --force # 跳過資料抓取，只
 
 ---
 
-## 8. 主要程式檔案地圖
+## 9. 主要程式檔案地圖
 
 ```
 scripts/
@@ -191,7 +218,7 @@ src/
 
 ---
 
-## 9. 已知限制與待辦
+## 10. 已知限制與待辦
 
 - ⏳ `brew install ffmpeg` — 啟用完整 Whisper 轉錄（目前 fallback show notes）
 - ⏳ Telegram Bot token — daily_briefing 推播

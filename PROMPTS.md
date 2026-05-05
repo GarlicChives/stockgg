@@ -57,16 +57,31 @@
 
 - **呼叫點**：`src/theme/classifier.py:GeminiClassifier._build_prompt`（line 54）
 - **模型**：Gemini 2.5 Flash-Lite（`response_mime_type=application/json`）
-- **參數**：`temperature=0`, `maxOutputTokens=512`
+- **參數**：`temperature=0`, `maxOutputTokens=1024`
 - **變數**：
   - `$snippets` — Tavily 搜尋回傳的 3 條摘要拼接（`\n---\n` 分隔）
   - `$theme_lines` — 字典每個 theme 渲染為 `- {id}: {keyword} ({name})`
-- **輸出**：純 JSON 陣列，最多 5 個 theme ID，例：`["cowos_advanced_packaging", "hbm_memory"]`
+- **輸出**（雙輸出 JSON）：
+  ```json
+  {
+    "matched": ["cowos_advanced_packaging", "hbm_memory"],
+    "new_themes": [
+      {"id": "robotics_concept", "name": "機器人", "keyword": "機器人"}
+    ]
+  }
+  ```
+  - `matched`：對到字典已有 theme 的 ID（從 `$theme_lines` 挑）
+  - `new_themes`：在 snippets 中發現、但字典還沒收的概念股／產業分類
+  - 兩者合計上限 5
+- **後處理**（`scripts/build_theme_dictionary.py`）：
+  - `_find_existing_theme()` 對 new_themes 做正規化比對（去除「概念股」、空白、標點），若撞到既有 theme → 改算進 matched
+  - 真新主題透過 `_create_theme()` 寫入字典，標 `auto_created: true` 與 `auto_created_at`
+  - ID 撞名自動加 `_2`、`_3` 後綴
 - **修改注意**：
-  - 「主要參與者」門檻是核心規則，影響字典精準度。放寬會把次要供應商塞進來，收緊會漏掉真正的受惠股
-  - 「概念股」規則（rule 2）讓媒體標籤直接帶入分類，避免低估「市場已普遍認知」的題材
-  - 程式有 markdown fence 容錯（`re.sub(r"^```[a-z]*\n?", ...)`），即使 Gemini 偶爾包 ` ```json ... ``` ` 也能解
-  - 上限 5 個 — 收緊到「最相關」分類，避免一支股被打太多標籤稀釋訊號
+  - **概念股優先**：rule 3 確保媒體普遍認知的概念股不會漏。若效果不夠，可加範例
+  - **id 命名規則**：英文 snake_case，3-40 字元，過於模糊的 ID（如 `concept_1`）會被 regex `^[a-z][a-z0-9_]{2,40}$` 過濾掉
+  - **品質風險**：LLM 偶爾會建出太籠統（`financial_analysis`）或語意重複（`mobile_payment` vs `digital_payment`）的 theme。建議定期 `jq '.themes[] | select(.auto_created==true)'` 撈出 review，把不要的整併或刪掉
+  - **與 cache 的關聯**：cache 存 ticker → theme_id 對映。新主題建立後加進 cache。若手動刪 theme，cache 會殘留死 ID（不致出錯，30 天後 TTL 過期會自動覆蓋）
 
 ---
 

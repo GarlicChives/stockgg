@@ -22,10 +22,16 @@ class ClassifierProvider(ABC):
     def available(self) -> bool: ...
 
     @abstractmethod
-    def classify(self, snippets_text: str, themes: list[dict]) -> list[str]:
+    def classify(self, snippets_text: str, themes: list[dict]) -> dict:
         """
         themes: list of {"id": str, "name": str, "keyword": str}
-        Returns list of matching theme IDs.
+        Returns:
+          {
+            "matched":    [theme_id, ...],                    # IDs from input list
+            "new_themes": [{"id","name","keyword"}, ...],     # concepts not in dict
+          }
+        Caller is responsible for deduping new_themes against the live dict
+        (LLM may miss near-matches) and for actually creating dictionary entries.
         """
         ...
 
@@ -51,9 +57,10 @@ class GeminiClassifier(ClassifierProvider):
             theme_lines=theme_lines,
         )
 
-    def classify(self, snippets_text: str, themes: list[dict]) -> list[str]:
+    def classify(self, snippets_text: str, themes: list[dict]) -> dict:
+        empty = {"matched": [], "new_themes": []}
         if not self.available() or not snippets_text.strip():
-            return []
+            return empty
 
         prompt = self._build_prompt(snippets_text, themes)
         url = f"{GEMINI_BASE}/{GEMINI_MODEL}:generateContent?key={self._api_key}"
@@ -61,7 +68,7 @@ class GeminiClassifier(ClassifierProvider):
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {
                 "temperature": 0,
-                "maxOutputTokens": 512,
+                "maxOutputTokens": 1024,
                 "response_mime_type": "application/json",
             },
         }).encode()
@@ -82,11 +89,24 @@ class GeminiClassifier(ClassifierProvider):
                 p["text"] for p in parts
                 if "text" in p and not p.get("thought", False)
             ).strip()
-            # Strip markdown fences if model wraps anyway
             text = re.sub(r"^```[a-z]*\n?", "", text).rstrip("`").strip()
             result = json.loads(text)
+            if isinstance(result, dict):
+                matched = [s for s in result.get("matched", []) if isinstance(s, str)]
+                new_themes = []
+                for t in result.get("new_themes", []):
+                    if not isinstance(t, dict):
+                        continue
+                    tid   = t.get("id", "")
+                    tname = t.get("name", "")
+                    tkw   = t.get("keyword", tname)
+                    if tid and tname and re.match(r"^[a-z][a-z0-9_]{2,40}$", tid):
+                        new_themes.append({"id": tid, "name": tname, "keyword": tkw})
+                return {"matched": matched, "new_themes": new_themes}
+            # Backwards compat: if model returns a bare list, treat as matched.
             if isinstance(result, list):
-                return [s for s in result if isinstance(s, str)]
+                return {"matched": [s for s in result if isinstance(s, str)],
+                        "new_themes": []}
         except Exception:
             pass
-        return []
+        return empty

@@ -153,6 +153,10 @@
         {
           "code": "3443",
           "name": "創意"
+        },
+        {
+          "code": "2408",
+          "name": "南亞科"
         }
       ],
       "us_stocks": [
@@ -167,6 +171,10 @@
         {
           "ticker": "SSNLF",
           "name": "三星電子"
+        },
+        {
+          "ticker": "CYTK",
+          "name": "Cytokinetics, Incorporated"
         }
       ]
     },
@@ -255,6 +263,10 @@
         {
           "code": "3163",
           "name": "波若威"
+        },
+        {
+          "code": "6274",
+          "name": "台燿"
         }
       ],
       "us_stocks": [
@@ -273,6 +285,10 @@
         {
           "ticker": "NOK",
           "name": "Nokia Corporation Sponsored"
+        },
+        {
+          "ticker": "CRCL",
+          "name": "Circle Internet Group, Inc."
         }
       ]
     },
@@ -610,6 +626,10 @@
         {
           "code": "6274",
           "name": "台燿"
+        },
+        {
+          "code": "1303",
+          "name": "南亞"
         }
       ],
       "us_stocks": []
@@ -649,6 +669,10 @@
         {
           "code": "6274",
           "name": "台燿"
+        },
+        {
+          "code": "1303",
+          "name": "南亞"
         }
       ],
       "us_stocks": []
@@ -840,6 +864,10 @@
         {
           "code": "3163",
           "name": "波若威"
+        },
+        {
+          "code": "1303",
+          "name": "南亞"
         }
       ],
       "us_stocks": [
@@ -854,6 +882,10 @@
         {
           "ticker": "NOK",
           "name": "Nokia Corporation Sponsored"
+        },
+        {
+          "ticker": "CRCL",
+          "name": "Circle Internet Group, Inc."
         }
       ]
     },
@@ -906,6 +938,10 @@
         {
           "code": "3163",
           "name": "波若威"
+        },
+        {
+          "code": "1303",
+          "name": "南亞"
         }
       ],
       "us_stocks": [
@@ -920,6 +956,10 @@
         {
           "ticker": "TER",
           "name": "泰瑞達"
+        },
+        {
+          "ticker": "CRCL",
+          "name": "Circle Internet Group, Inc."
         }
       ]
     },
@@ -981,6 +1021,10 @@
         {
           "code": "3105",
           "name": "穩懋"
+        },
+        {
+          "code": "6488",
+          "name": "環球晶"
         }
       ],
       "us_stocks": []
@@ -1466,6 +1510,18 @@
         {
           "code": "3163",
           "name": "波若威"
+        },
+        {
+          "code": "3105",
+          "name": "穩懋"
+        },
+        {
+          "code": "3481",
+          "name": "群創"
+        },
+        {
+          "code": "1303",
+          "name": "南亞"
         }
       ],
       "us_stocks": [
@@ -1484,6 +1540,10 @@
         {
           "ticker": "NOK",
           "name": "Nokia Corporation Sponsored"
+        },
+        {
+          "ticker": "CRCL",
+          "name": "Circle Internet Group, Inc."
         }
       ]
     },
@@ -1637,6 +1697,10 @@
         {
           "code": "6239",
           "name": "力成"
+        },
+        {
+          "code": "2454",
+          "name": "聯發科"
         }
       ],
       "us_stocks": [
@@ -1694,6 +1758,10 @@
         {
           "code": "6239",
           "name": "力成"
+        },
+        {
+          "code": "3260",
+          "name": "威剛"
         }
       ],
       "us_stocks": [
@@ -2347,7 +2415,16 @@
           "國防"
         ]
       },
-      "tw_stocks": [],
+      "tw_stocks": [
+        {
+          "code": "2313",
+          "name": "華通"
+        },
+        {
+          "code": "3105",
+          "name": "穩懋"
+        }
+      ],
       "us_stocks": [
         {
           "ticker": "SPCE",
@@ -2589,6 +2666,10 @@
         {
           "code": "1303",
           "name": "南亞"
+        },
+        {
+          "code": "2408",
+          "name": "南亞科"
         }
       ],
       "us_stocks": [
@@ -2856,6 +2937,10 @@
         {
           "code": "3081",
           "name": "聯亞"
+        },
+        {
+          "code": "1303",
+          "name": "南亞"
         }
       ],
       "us_stocks": [
@@ -2929,6 +3014,10 @@
         {
           "ticker": "NOK",
           "name": "Nokia"
+        },
+        {
+          "ticker": "CRCL",
+          "name": "Circle Internet Group, Inc."
         }
       ]
     },
@@ -3072,6 +3161,10 @@
         {
           "code": "3443",
           "name": "創意"
+        },
+        {
+          "code": "8299",
+          "name": "群聯"
         }
       ],
       "us_stocks": [
@@ -3114,6 +3207,18 @@
         {
           "ticker": "RIOT",
           "name": "Riot Platforms, Inc."
+        },
+        {
+          "ticker": "WULF",
+          "name": "TeraWulf Inc."
+        },
+        {
+          "ticker": "PLTR",
+          "name": "Palantir Technologies Inc."
+        },
+        {
+          "ticker": "IREN",
+          "name": "IREN LIMITED"
         }
       ]
     },
@@ -3234,6 +3339,10 @@
         {
           "code": "3443",
           "name": "創意"
+        },
+        {
+          "code": "2327",
+          "name": "國巨*"
         }
       ],
       "us_stocks": [
@@ -3398,6 +3507,10 @@
         {
           "ticker": "RIOT",
           "name": "Riot Platforms, Inc."
+        },
+        {
+          "ticker": "AMZN",
+          "name": "Amazon.com, Inc."
         }
       ]
     },
@@ -3487,6 +3600,10 @@
         {
           "code": "2330",
           "name": "台積電"
+        },
+        {
+          "code": "2408",
+          "name": "南亞科"
         }
       ],
       "us_stocks": [
@@ -3531,6 +3648,10 @@
         {
           "code": "1303",
           "name": "南亞"
+        },
+        {
+          "code": "3260",
+          "name": "威剛"
         }
       ],
       "us_stocks": [
@@ -3571,6 +3692,10 @@
         {
           "code": "1303",
           "name": "南亞"
+        },
+        {
+          "code": "3260",
+          "name": "威剛"
         }
       ],
       "us_stocks": [
@@ -3625,6 +3750,14 @@
         {
           "code": "2345",
           "name": "智邦"
+        },
+        {
+          "code": "6274",
+          "name": "台燿"
+        },
+        {
+          "code": "2327",
+          "name": "國巨*"
         }
       ],
       "us_stocks": [
@@ -4153,6 +4286,34 @@
         {
           "code": "3163",
           "name": "波若威"
+        },
+        {
+          "code": "2408",
+          "name": "南亞科"
+        },
+        {
+          "code": "2308",
+          "name": "台達電"
+        },
+        {
+          "code": "3105",
+          "name": "穩懋"
+        },
+        {
+          "code": "8299",
+          "name": "群聯"
+        },
+        {
+          "code": "6274",
+          "name": "台燿"
+        },
+        {
+          "code": "2327",
+          "name": "國巨*"
+        },
+        {
+          "code": "6488",
+          "name": "環球晶"
         }
       ],
       "us_stocks": [
@@ -4203,6 +4364,22 @@
         {
           "ticker": "BBAI",
           "name": "BigBear.ai, Inc."
+        },
+        {
+          "ticker": "WULF",
+          "name": "TeraWulf Inc."
+        },
+        {
+          "ticker": "MU",
+          "name": "Micron Technology, Inc."
+        },
+        {
+          "ticker": "PLTR",
+          "name": "Palantir Technologies Inc."
+        },
+        {
+          "ticker": "IREN",
+          "name": "IREN LIMITED"
         }
       ]
     },
@@ -4288,6 +4465,14 @@
         {
           "code": "3163",
           "name": "波若威"
+        },
+        {
+          "code": "2408",
+          "name": "南亞科"
+        },
+        {
+          "code": "2327",
+          "name": "國巨*"
         }
       ],
       "us_stocks": [
@@ -4338,6 +4523,22 @@
         {
           "ticker": "BBAI",
           "name": "BigBear.ai, Inc."
+        },
+        {
+          "ticker": "CIFR",
+          "name": "Cipher Digital Inc."
+        },
+        {
+          "ticker": "WULF",
+          "name": "TeraWulf Inc."
+        },
+        {
+          "ticker": "PLTR",
+          "name": "Palantir Technologies Inc."
+        },
+        {
+          "ticker": "IREN",
+          "name": "IREN LIMITED"
         }
       ]
     },
@@ -4377,6 +4578,22 @@
         {
           "code": "1303",
           "name": "南亞"
+        },
+        {
+          "code": "2308",
+          "name": "台達電"
+        },
+        {
+          "code": "6274",
+          "name": "台燿"
+        },
+        {
+          "code": "3260",
+          "name": "威剛"
+        },
+        {
+          "code": "6669",
+          "name": "緯穎"
         }
       ],
       "us_stocks": [
@@ -4536,6 +4753,10 @@
         {
           "ticker": "CIEN",
           "name": "Ciena"
+        },
+        {
+          "ticker": "CRCL",
+          "name": "Circle Internet Group, Inc."
         }
       ]
     },
@@ -4632,6 +4853,10 @@
         {
           "ticker": "PLUG",
           "name": "Plug Power, Inc."
+        },
+        {
+          "ticker": "TSLA",
+          "name": "Tesla, Inc."
         }
       ]
     },
@@ -5093,6 +5318,10 @@
         {
           "code": "6548",
           "name": "韋僑"
+        },
+        {
+          "code": "6147",
+          "name": "頎邦"
         }
       ],
       "us_stocks": []
@@ -5317,6 +5546,10 @@
         {
           "code": "2464",
           "name": "盟立"
+        },
+        {
+          "code": "3711",
+          "name": "日月光投控"
         }
       ],
       "us_stocks": [
@@ -5442,6 +5675,18 @@
         {
           "ticker": "SNAP",
           "name": "Snap Inc."
+        },
+        {
+          "ticker": "INTC",
+          "name": "Intel Corporation"
+        },
+        {
+          "ticker": "AMZN",
+          "name": "Amazon.com, Inc."
+        },
+        {
+          "ticker": "CRCL",
+          "name": "Circle Internet Group, Inc."
         }
       ]
     },
@@ -5489,6 +5734,10 @@
         {
           "code": "3715",
           "name": "定穎投控"
+        },
+        {
+          "code": "3481",
+          "name": "群創"
         }
       ],
       "us_stocks": [
@@ -5750,6 +5999,10 @@
         {
           "code": "3481",
           "name": "群創"
+        },
+        {
+          "code": "2449",
+          "name": "京元電子"
         }
       ],
       "us_stocks": []
@@ -6213,6 +6466,14 @@
         {
           "code": "2455",
           "name": "全新"
+        },
+        {
+          "code": "3711",
+          "name": "日月光投控"
+        },
+        {
+          "code": "2303",
+          "name": "聯電"
         }
       ],
       "us_stocks": [
@@ -6602,6 +6863,10 @@
         {
           "ticker": "MARA",
           "name": "MARA Holdings, Inc."
+        },
+        {
+          "ticker": "WULF",
+          "name": "TeraWulf Inc."
         }
       ]
     },
@@ -6630,6 +6895,10 @@
         {
           "ticker": "MARA",
           "name": "MARA Holdings, Inc."
+        },
+        {
+          "ticker": "WULF",
+          "name": "TeraWulf Inc."
         }
       ]
     },
@@ -7021,6 +7290,10 @@
         {
           "ticker": "NOK",
           "name": "Nokia"
+        },
+        {
+          "ticker": "CRCL",
+          "name": "Circle Internet Group, Inc."
         }
       ]
     },
@@ -8149,9 +8422,1132 @@
         {
           "code": "2360",
           "name": "致茂"
+        },
+        {
+          "code": "6147",
+          "name": "頎邦"
         }
       ],
       "us_stocks": []
+    },
+    {
+      "id": "semiconductor_manufacturing_concept",
+      "name": "半導體製造",
+      "keyword": "半導體製造",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "2330",
+          "name": "台積電"
+        },
+        {
+          "code": "6488",
+          "name": "環球晶"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "uwio_memory",
+      "name": "客製化AI記憶體",
+      "keyword": "UWIO記憶體",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "2408",
+          "name": "南亞科"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "satellite_communication_board",
+      "name": "衛星通訊板",
+      "keyword": "衛星通訊板",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "2313",
+          "name": "華通"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "flexible_printed_circuit",
+      "name": "軟板",
+      "keyword": "軟板",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "2313",
+          "name": "華通"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "asic_design_service",
+      "name": "ASIC設計",
+      "keyword": "ASIC設計",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "2454",
+          "name": "聯發科"
+        },
+        {
+          "code": "2449",
+          "name": "京元電子"
+        },
+        {
+          "code": "3443",
+          "name": "創意"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "tesla_ai_chip_supplier",
+      "name": "Tesla AI晶片",
+      "keyword": "Tesla AI",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "2337",
+          "name": "旺宏"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "TSLA",
+          "name": "Tesla, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "ai_chip_application",
+      "name": "AI應用",
+      "keyword": "AI應用",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "3037",
+          "name": "欣興"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "TSLA",
+          "name": "Tesla, Inc."
+        },
+        {
+          "ticker": "AMZN",
+          "name": "Amazon.com, Inc."
+        },
+        {
+          "ticker": "CRCL",
+          "name": "Circle Internet Group, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "automation_concept",
+      "name": "自動化",
+      "keyword": "自動化",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "2308",
+          "name": "台達電"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "advanced_process_service",
+      "name": "先進製程",
+      "keyword": "先進製程",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "3711",
+          "name": "日月光投控"
+        },
+        {
+          "code": "2303",
+          "name": "聯電"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "optical_communication_cpo",
+      "name": "光通訊CPO",
+      "keyword": "光通訊CPO",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "3105",
+          "name": "穩懋"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "controller_ic",
+      "name": "控制器IC",
+      "keyword": "控制器IC",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "8299",
+          "name": "群聯"
+        },
+        {
+          "code": "6147",
+          "name": "頎邦"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "pcie_gen6",
+      "name": "PCIe Gen6",
+      "keyword": "PCIe Gen6",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "8299",
+          "name": "群聯"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "ai_server_power_supply_materials",
+      "name": "AI伺服器電源材料",
+      "keyword": "AI伺服器電源材料",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "6274",
+          "name": "台燿"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "lpo_concept",
+      "name": "LPO",
+      "keyword": "LPO",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "6147",
+          "name": "頎邦"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "global_semiconductor_collaboration",
+      "name": "國際晶圓合作",
+      "keyword": "國際晶圓合作",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "2303",
+          "name": "聯電"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "ai_application_components",
+      "name": "AI應用元件",
+      "keyword": "AI應用元件",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "2327",
+          "name": "國巨*"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "display_panel_manufacturer",
+      "name": "顯示面板",
+      "keyword": "顯示面板",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "3481",
+          "name": "群創"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "consumer_electronics",
+      "name": "消費性電子",
+      "keyword": "消費性電子",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "3481",
+          "name": "群創"
+        },
+        {
+          "code": "1303",
+          "name": "南亞"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "ai_hpc_materials",
+      "name": "AI/HPC材料",
+      "keyword": "AI/HPC材料",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "1303",
+          "name": "南亞"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "CRCL",
+          "name": "Circle Internet Group, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "silicon_wafer_manufacturer",
+      "name": "矽晶圓",
+      "keyword": "矽晶圓",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "6488",
+          "name": "環球晶"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "server_platform_development",
+      "name": "伺服器平台",
+      "keyword": "伺服器平台",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "6669",
+          "name": "緯穎"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "low_dk_fiberglass_cloth_concept",
+      "name": "低介電玻纖布",
+      "keyword": "Low DK 玻璃纖維布",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "1802",
+          "name": "台玻"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "low_e_glass_concept",
+      "name": "節能玻璃",
+      "keyword": "Low-E 玻璃",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "1802",
+          "name": "台玻"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "flat_glass_concept",
+      "name": "平板玻璃",
+      "keyword": "平板玻璃",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "1802",
+          "name": "台玻"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "glass_ware_concept",
+      "name": "玻璃器皿",
+      "keyword": "玻璃器皿",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "1802",
+          "name": "台玻"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "compute_and_networking_segment",
+      "name": "運算網路",
+      "keyword": "運算網路",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "NVDA",
+          "name": "NVIDIA Corporation"
+        },
+        {
+          "ticker": "AMZN",
+          "name": "Amazon.com, Inc."
+        },
+        {
+          "ticker": "CRCL",
+          "name": "Circle Internet Group, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "amd_ai_chip_concept",
+      "name": "AMD AI",
+      "keyword": "AMD AI",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "AMD",
+          "name": "Advanced Micro Devices, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "cell_therapy_biotech",
+      "name": "細胞治療",
+      "keyword": "細胞治療",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "ACLX",
+          "name": "Arcellx, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "immunotherapy_biotech",
+      "name": "免疫療法",
+      "keyword": "免疫療法",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "ACLX",
+          "name": "Arcellx, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "stablecoin_payments",
+      "name": "穩定幣",
+      "keyword": "穩定幣",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "CRCL",
+          "name": "Circle Internet Group, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "blockchain_arc",
+      "name": "區塊鏈",
+      "keyword": "區塊鏈",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "CRCL",
+          "name": "Circle Internet Group, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "digital_payment_platform",
+      "name": "數位支付",
+      "keyword": "數位支付",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "PYPL",
+          "name": "PayPal Holdings, Inc."
+        },
+        {
+          "ticker": "GRAB",
+          "name": "Grab Holdings Limited"
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "mobile_payment_app",
+      "name": "行動支付",
+      "keyword": "行動支付",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "PYPL",
+          "name": "PayPal Holdings, Inc."
+        },
+        {
+          "ticker": "GRAB",
+          "name": "Grab Holdings Limited"
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "social_media_platform",
+      "name": "社群媒體",
+      "keyword": "社群媒體",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "PINS",
+          "name": "Pinterest, Inc."
+        },
+        {
+          "ticker": "GRAB",
+          "name": "Grab Holdings Limited"
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "online_advertising",
+      "name": "線上廣告",
+      "keyword": "線上廣告",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "PINS",
+          "name": "Pinterest, Inc."
+        },
+        {
+          "ticker": "GRAB",
+          "name": "Grab Holdings Limited"
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "digital_content_platform",
+      "name": "數位內容",
+      "keyword": "數位內容",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "PINS",
+          "name": "Pinterest, Inc."
+        },
+        {
+          "ticker": "GRAB",
+          "name": "Grab Holdings Limited"
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "telecommunication_equipment",
+      "name": "電信設備",
+      "keyword": "電信設備",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "NOK",
+          "name": "Nokia Corporation Sponsored"
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "bitcoin_mining",
+      "name": "比特幣挖礦",
+      "keyword": "比特幣挖礦",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "IREN",
+          "name": "IREN LIMITED"
+        },
+        {
+          "ticker": "CIFR",
+          "name": "Cipher Digital Inc."
+        },
+        {
+          "ticker": "BMNR",
+          "name": "BitMine Immersion Technologies,"
+        },
+        {
+          "ticker": "MARA",
+          "name": "MARA Holdings, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "digital_infrastructure_company",
+      "name": "數位基建",
+      "keyword": "數位基建",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "CIFR",
+          "name": "Cipher Digital Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "hyperscale_compute",
+      "name": "超大規模運算",
+      "keyword": "超大規模運算",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "CIFR",
+          "name": "Cipher Digital Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "hpc_hosting",
+      "name": "HPC託管",
+      "keyword": "HPC託管",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "CIFR",
+          "name": "Cipher Digital Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "pharmaceutical_company",
+      "name": "藥廠",
+      "keyword": "藥廠",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "PFE",
+          "name": "Pfizer, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "financial_analysis",
+      "name": "財報分析",
+      "keyword": "財報分析",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "PFE",
+          "name": "Pfizer, Inc."
+        },
+        {
+          "ticker": "SOFI",
+          "name": "SoFi Technologies, Inc."
+        },
+        {
+          "ticker": "BMNR",
+          "name": "BitMine Immersion Technologies,"
+        },
+        {
+          "ticker": "PUMP",
+          "name": "ProPetro Holding Corp."
+        },
+        {
+          "ticker": "F",
+          "name": "Ford Motor Company"
+        },
+        {
+          "ticker": "GRAB",
+          "name": "Grab Holdings Limited"
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "cruise_line",
+      "name": "郵輪",
+      "keyword": "郵輪",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "CCL",
+          "name": "Carnival Corporation"
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "oil_and_gas_services",
+      "name": "油氣服務",
+      "keyword": "油氣服務",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "PUMP",
+          "name": "ProPetro Holding Corp."
+        },
+        {
+          "ticker": "RIG",
+          "name": "Transocean Ltd (Switzerland)"
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "oil_and_gas_exploration_production",
+      "name": "油氣探勘生產",
+      "keyword": "油氣探勘生產",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "PUMP",
+          "name": "ProPetro Holding Corp."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "hydraulic_fracturing",
+      "name": "水力壓裂",
+      "keyword": "水力壓裂",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "PUMP",
+          "name": "ProPetro Holding Corp."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "power_generation_services",
+      "name": "發電服務",
+      "keyword": "發電服務",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "PUMP",
+          "name": "ProPetro Holding Corp."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "private_wireless_solutions",
+      "name": "私有無線",
+      "keyword": "私有無線解決方案",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "ONDS",
+          "name": "Ondas Inc"
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "direct_lending_bdc",
+      "name": " مباشر借貸",
+      "keyword": " مباشر借貸",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "OWL",
+          "name": "Blue Owl Capital Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "private_markets_solutions",
+      "name": "私募市場",
+      "keyword": "私募市場",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "OWL",
+          "name": "Blue Owl Capital Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "conversational_ai",
+      "name": "對話式AI",
+      "keyword": "對話式AI",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "SOUN",
+          "name": "SoundHound AI, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "voice_ai",
+      "name": "語音AI",
+      "keyword": "語音AI",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "SOUN",
+          "name": "SoundHound AI, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "automotive_manufacturing",
+      "name": "汽車製造",
+      "keyword": "汽車製造",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "F",
+          "name": "Ford Motor Company"
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "hydrogen_economy",
+      "name": "氫能",
+      "keyword": "氫能",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "PLUG",
+          "name": "Plug Power, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "electrolyzer_business",
+      "name": "電解槽",
+      "keyword": "電解槽",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "PLUG",
+          "name": "Plug Power, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-05"
     }
   ]
 }
