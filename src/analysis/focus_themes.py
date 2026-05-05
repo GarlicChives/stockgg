@@ -59,6 +59,9 @@ class ThemeCluster:
     volume_only: bool = False  # True when surfaced via volume-rotation pathway (no keyword confirm)
     upstream: list[str] = field(default_factory=list)    # upstream theme/material names
     downstream: list[str] = field(default_factory=list)  # downstream application names
+    tw_trading_value: float = 0.0  # Step1: sum of TW focal stocks' trading value (TWD)
+    us_trading_value: float = 0.0  # Step1: sum of US focal stocks' trading value (USD)
+    # Steps 2&3 (watch stock TV) are added in generate_html.py after yfinance fetch
 
 
 # ── Dictionary loader (swap body for DB migration) ────────────────────────────
@@ -191,6 +194,8 @@ def detect_clusters(
 
         total_score = sum(s.score for s in focal_stocks)
         primary_art_count = sum(s.primary_keyword_hits for s in focal_stocks)
+        tw_tv = sum(s.trading_value for s in focal_stocks if s.market == "TW")
+        us_tv = sum(s.trading_value for s in focal_stocks if s.market == "US")
 
         sc = theme.get("supply_chain", {})
         clusters.append(ThemeCluster(
@@ -204,10 +209,11 @@ def detect_clusters(
             volume_only=volume_only,
             upstream=sc.get("upstream", []),
             downstream=sc.get("downstream", []),
+            tw_trading_value=tw_tv,
+            us_trading_value=us_tv,
         ))
 
-    return sorted(
-        clusters,
-        # keyword-confirmed first, then volume-only; within each group by members & score
-        key=lambda c: (c.volume_only, -c.primary_art_count, -len(c.focal), -c.total_score),
-    )
+    # Sort by total theme trading value (Step1 focal; Steps2&3 watch TV added in generate_html.py)
+    # US values are in USD, TW in TWD — same-market themes are directly comparable;
+    # cross-market sort is approximate (USD ≈ 30× TWD for equal economic weight).
+    return sorted(clusters, key=lambda c: -(c.tw_trading_value + c.us_trading_value))
