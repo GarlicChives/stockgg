@@ -21,6 +21,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from src.prompts import render as render_prompt
 from src.utils.api_logger import log_usage
 
 GEMINI_MODEL = "gemini-2.5-flash"
@@ -180,37 +181,24 @@ def _build_prompt(market: dict, articles: str) -> str:
         for r in market.get("tw_top30", [])
     )
 
-    return f"""你是資深投資研究員，根據市場數據與近期文章，用繁體中文產出每日投資簡報。
-嚴格要求：直接從第一個 ## 開始輸出，不要加任何開場白、問候語或日期說明。
-
-=== 市場數據 {market.get('snap_date','')} ===
-美股 S&P500={sp500_c:.0f}({_fmt_pct(sp500_p)}) NASDAQ={nasdaq_c:.0f}({_fmt_pct(nasdaq_p)}) SOX={sox_c:.0f}({_fmt_pct(sox_p)})
-日股東證TOPIX={topix_c:.0f}({_fmt_pct(topix_p)}) 韓股KOSPI={kospi_c:.0f}({_fmt_pct(kospi_p)}) 台股 TWII={taiex_c:.0f}({_fmt_pct(taiex_p)})
-VIX={vix_c:.1f} 10Y={yield10_c:.2f}% DXY={dxy_c:.2f}({_fmt_pct(dxy_p)}) 恐慌貪婪={fg_c:.0f}
-
-=== 成交值排行 {market.get('rank_date','')} ===
-US前30:
-{us_lines or '(無資料)'}
-TW前30:
-{tw_lines or '(無資料)'}
-
-=== 近期研究文章 ===
-{articles}
-
-=== 輸出格式（嚴格依序，不得增減） ===
-## 總經近況
-（100字內）
-
-## 國際股市
-（條列各指數漲跌+驅動因素）
-
-## 綜合多空判斷
-- 短期(1-2週)：[偏多/中立/偏空] — 理由
-- 中期(1-3月)：[偏多/中立/偏空] — 理由
-- 長期(3-12月)：[偏多/中立/偏空] — 理由
-- 關鍵風險：
-
-"""
+    return render_prompt(
+        "daily_report",
+        snap_date=market.get("snap_date", ""),
+        rank_date=market.get("rank_date", ""),
+        sp500=f"{sp500_c:.0f}",   sp500_pct=_fmt_pct(sp500_p),
+        nasdaq=f"{nasdaq_c:.0f}", nasdaq_pct=_fmt_pct(nasdaq_p),
+        sox=f"{sox_c:.0f}",       sox_pct=_fmt_pct(sox_p),
+        topix=f"{topix_c:.0f}",   topix_pct=_fmt_pct(topix_p),
+        kospi=f"{kospi_c:.0f}",   kospi_pct=_fmt_pct(kospi_p),
+        taiex=f"{taiex_c:.0f}",   taiex_pct=_fmt_pct(taiex_p),
+        vix=f"{vix_c:.1f}",
+        yield10=f"{yield10_c:.2f}",
+        dxy=f"{dxy_c:.2f}",       dxy_pct=_fmt_pct(dxy_p),
+        fg=f"{fg_c:.0f}",
+        us_lines=us_lines or "(無資料)",
+        tw_lines=tw_lines or "(無資料)",
+        articles=articles,
+    )
 
 
 async def generate_report(report_date: date | None = None) -> str:
