@@ -1,35 +1,18 @@
 {
   "permissions": {
     "allow": [
-      "Bash(claude mcp *)",
-      "mcp__playwright__browser_navigate",
-      "Bash(uv init *)",
-      "Bash(pip3 --version)",
-      "Bash(curl -LsSf https://astral.sh/uv/install.sh)",
-      "Bash(sh)",
-      "Bash(export PATH=\"$HOME/.local/bin:$PATH\")",
-      "Bash(uv add *)",
-      "Bash(uv run *)",
-      "Bash(curl -s http://localhost:9222/json/version)",
-      "Bash(curl *)",
-      "Bash(awk '{print $2, $11, $12}')",
-      "Bash(ps -p 81186 -o args)",
-      "mcp__playwright__browser_take_screenshot",
-      "Bash(sysctl -n machdep.cpu.brand_string)",
-      "Bash(system_profiler SPHardwareDataType)",
-      "Bash(ffmpeg -version)",
-      "Bash(python3 -c \"import torch; print\\('torch:', torch.__version__\\); print\\('MPS:', torch.backends.mps.is_available\\(\\)\\)\")",
-      "Bash(brew list *)",
-      "Bash(brew --version)",
-      "Bash(brew install *)",
-      "Bash(kill 37195 37194)",
-      "Bash(wait 94547)",
-      "Bash(echo \"Exit: $?\")",
-      "Bash(uv --version)",
-      "Bash(uv remove *)",
-      "Bash(awk '{print \"進行中 PID:\",$2}')",
-      "Bash(python -c ' *)",
-      "Bash(uv sync *)"
+      "Read(.env*)",
+      "Write(.env*)",
+      "mcp__playwright__*",
+      "Bash(uv *)",
+      "Bash(pip3 *)",
+      "Bash(supabase *)",
+      "Bash(git *)",
+      "Bash(brew *)"
+    ],
+    "deny": [
+      "Bash(rm *)",
+      "Bash(rmdir *)"
     ]
   }
 }
