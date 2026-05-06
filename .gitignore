@@ -16,6 +16,7 @@ wheels/
 .playwright-mcp/
 data/search_cache.json
 *.lock
+.chrome-profile/
 
 # wrangler files
 .wrangler
