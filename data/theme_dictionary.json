@@ -81,6 +81,14 @@
         {
           "code": "6274",
           "name": "台燿"
+        },
+        {
+          "code": "2301",
+          "name": "光寶科"
+        },
+        {
+          "code": "2345",
+          "name": "智邦"
         }
       ],
       "us_stocks": [
@@ -139,6 +147,10 @@
         {
           "code": "8046",
           "name": "南電"
+        },
+        {
+          "code": "2383",
+          "name": "台光電"
         }
       ],
       "us_stocks": [],
@@ -229,6 +241,30 @@
         {
           "code": "1802",
           "name": "台玻"
+        },
+        {
+          "code": "2383",
+          "name": "台光電"
+        },
+        {
+          "code": "3665",
+          "name": "貿聯-KY"
+        },
+        {
+          "code": "2301",
+          "name": "光寶科"
+        },
+        {
+          "code": "3189",
+          "name": "景碩"
+        },
+        {
+          "code": "2345",
+          "name": "智邦"
+        },
+        {
+          "code": "2360",
+          "name": "致茂"
         }
       ],
       "us_stocks": [
@@ -318,6 +354,10 @@
         {
           "code": "6669",
           "name": "緯穎"
+        },
+        {
+          "code": "2360",
+          "name": "致茂"
         }
       ],
       "us_stocks": [],
@@ -370,6 +410,10 @@
         {
           "ticker": "AMD",
           "name": "Advanced Micro Devices, Inc."
+        },
+        {
+          "ticker": "NVTS",
+          "name": "Navitas Semiconductor Corporati"
         }
       ],
       "auto_created": true,
@@ -472,6 +516,10 @@
         {
           "code": "8046",
           "name": "南電"
+        },
+        {
+          "code": "3189",
+          "name": "景碩"
         }
       ],
       "us_stocks": [],
@@ -516,6 +564,10 @@
         {
           "code": "2308",
           "name": "台達電"
+        },
+        {
+          "code": "2345",
+          "name": "智邦"
         }
       ],
       "us_stocks": [],
@@ -542,6 +594,10 @@
         {
           "code": "6147",
           "name": "頎邦"
+        },
+        {
+          "code": "2360",
+          "name": "致茂"
         }
       ],
       "us_stocks": [],
@@ -625,6 +681,10 @@
         {
           "code": "2455",
           "name": "全新"
+        },
+        {
+          "code": "2360",
+          "name": "致茂"
         }
       ],
       "us_stocks": [],
@@ -783,6 +843,14 @@
         {
           "code": "2455",
           "name": "全新"
+        },
+        {
+          "code": "2345",
+          "name": "智邦"
+        },
+        {
+          "code": "2360",
+          "name": "致茂"
         }
       ],
       "us_stocks": [
@@ -862,6 +930,10 @@
         {
           "code": "1802",
           "name": "台玻"
+        },
+        {
+          "code": "2383",
+          "name": "台光電"
         }
       ],
       "us_stocks": [],
@@ -880,6 +952,10 @@
         {
           "code": "6274",
           "name": "台燿"
+        },
+        {
+          "code": "2383",
+          "name": "台光電"
         }
       ],
       "us_stocks": [],
@@ -1190,7 +1266,16 @@
         "upstream": [],
         "downstream": []
       },
-      "tw_stocks": [],
+      "tw_stocks": [
+        {
+          "code": "2301",
+          "name": "光寶科"
+        },
+        {
+          "code": "2360",
+          "name": "致茂"
+        }
+      ],
       "us_stocks": [
         {
           "ticker": "TSLA",
@@ -1243,6 +1328,10 @@
         {
           "ticker": "GRAB",
           "name": "Grab Holdings Limited"
+        },
+        {
+          "ticker": "SHOP",
+          "name": "Shopify Inc."
         }
       ],
       "auto_created": true,
@@ -1269,6 +1358,10 @@
         {
           "ticker": "SOFI",
           "name": "SoFi Technologies, Inc."
+        },
+        {
+          "ticker": "SNAP",
+          "name": "Snap Inc."
         }
       ],
       "auto_created": true,
@@ -1295,6 +1388,10 @@
         {
           "ticker": "GRAB",
           "name": "Grab Holdings Limited"
+        },
+        {
+          "ticker": "SNAP",
+          "name": "Snap Inc."
         }
       ],
       "auto_created": true,
@@ -1424,7 +1521,24 @@
         "upstream": [],
         "downstream": []
       },
-      "tw_stocks": [],
+      "tw_stocks": [
+        {
+          "code": "3665",
+          "name": "貿聯-KY"
+        },
+        {
+          "code": "2301",
+          "name": "光寶科"
+        },
+        {
+          "code": "3189",
+          "name": "景碩"
+        },
+        {
+          "code": "2345",
+          "name": "智邦"
+        }
+      ],
       "us_stocks": [
         {
           "ticker": "BMNR",
@@ -1447,6 +1561,10 @@
         {
           "ticker": "CCL",
           "name": "Carnival Corporation"
+        },
+        {
+          "ticker": "AAL",
+          "name": "American Airlines Group, Inc."
         }
       ],
       "auto_created": true,
@@ -1563,6 +1681,114 @@
       ],
       "auto_created": true,
       "auto_created_at": "2026-05-05"
+    },
+    {
+      "id": "advanced_air_mobility_concept",
+      "name": "空中計程車",
+      "keyword": "空中計程車",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "ACHR",
+          "name": "Archer Aviation Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-06"
+    },
+    {
+      "id": "social_media_platform",
+      "name": "社群媒體",
+      "keyword": "社群媒體",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "SNAP",
+          "name": "Snap Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-06"
+    },
+    {
+      "id": "high_end_materials_concept",
+      "name": "高階材料",
+      "keyword": "高階材料",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "2383",
+          "name": "台光電"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-06"
+    },
+    {
+      "id": "power_management_system_concept",
+      "name": "電源管理",
+      "keyword": "電源管理",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "2301",
+          "name": "光寶科"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-06"
+    },
+    {
+      "id": "cpo_testing_concept",
+      "name": "CPO測試",
+      "keyword": "CPO測試",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "2360",
+          "name": "致茂"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-06"
+    },
+    {
+      "id": "measurement_and_testing_equipment",
+      "name": "量測設備",
+      "keyword": "量測設備",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "2360",
+          "name": "致茂"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-06"
     }
   ]
 }
