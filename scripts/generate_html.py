@@ -829,10 +829,37 @@ async def generate():
     if report and report["market_notes_json"]:
         mn = report["market_notes_json"]
         market_notes = mn if isinstance(mn, dict) else json.loads(mn)
-    # Normalize Gemini-formatted tickers: "台積電(2330)"→"2330", "MU(US)"→"MU"
+    # Normalize Gemini-formatted tickers and extract embedded Chinese names
+    _gemini_name_lookup: dict[str, str] = {}
     if market_notes and market_notes.get("topics"):
         for _topic in market_notes["topics"]:
-            _topic["tickers"] = [_normalize_ticker(t) for t in _topic.get("tickers", [])]
+            _normalized = []
+            for _raw in _topic.get("tickers", []):
+                _tick = _normalize_ticker(_raw)
+                _normalized.append(_tick)
+                _m = _TICKER_PAREN_RE.search(_raw.strip())
+                if _m:
+                    _inner = _m.group(1).strip()
+                    _outer = _raw.strip()[:_m.start()].strip()
+                    if (re.match(r'^[A-Z0-9]{2,8}$', _inner, re.IGNORECASE)
+                            and _outer and not _outer.isascii()):
+                        _gemini_name_lookup[_tick] = _outer
+            _topic["tickers"] = _normalized
+
+    # Build name fallback from theme_dictionary.json
+    _theme_name_lookup: dict[str, str] = {}
+    try:
+        _td_path = Path(__file__).resolve().parent.parent / "data" / "theme_dictionary.json"
+        _td = json.loads(_td_path.read_text(encoding="utf-8"))
+        for _t in _td.get("themes", []):
+            for _s in _t.get("tw_stocks", []):
+                if _s.get("code") and _s.get("name"):
+                    _theme_name_lookup[_s["code"]] = _s["name"]
+            for _s in _t.get("us_stocks", []):
+                if _s.get("ticker") and _s.get("name"):
+                    _theme_name_lookup[_s["ticker"]] = _s["name"]
+    except Exception:
+        pass
 
     # Extend stocks_info with change% for market notes tickers not already in top-30
     if market_notes and market_notes.get("topics"):
@@ -877,8 +904,8 @@ async def generate():
         for c in clusters:
             for w in c.watch:
                 d = yf_data.get(w.code_or_ticker, {})
-                if w.change_pct is None and d.get("change_pct") is not None:
-                    w.change_pct = d["change_pct"]
+                if d.get("change_pct") is not None:
+                    w.change_pct = d["change_pct"]  # yfinance 永遠比 DB 歷史值新
                 # Step 2: accumulate watch TV — skip ETFs
                 if _is_etf(w.code_or_ticker, w.name):
                     continue
@@ -893,7 +920,7 @@ async def generate():
             if ticker not in stocks_info:
                 d = yf_data.get(ticker, {})
                 stocks_info[ticker] = {
-                    "name": ticker,
+                    "name": _gemini_name_lookup.get(ticker) or _theme_name_lookup.get(ticker) or ticker,
                     "market": market,
                     "change_pct": d.get("change_pct"),
                     "trading_value": 0,
