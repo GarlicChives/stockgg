@@ -21,9 +21,9 @@ from src.utils.api_logger import log_usage
 GEMINI_MODEL = "gemini-2.5-flash"
 GEMINI_BASE  = "https://generativelanguage.googleapis.com/v1beta/models"
 
-LOOKBACK_DAYS = 7
-MAX_ARTICLES  = 40
-BODY_CHARS    = 800
+PODCAST_EPISODES_PER_SOURCE = 4   # 每個節目取最近幾集
+ARTICLE_LOOKBACK_DAYS       = 90  # 訂閱文章回溯 3 個月
+BODY_CHARS                  = 800
 
 SOURCE_NAMES = {
     "macromicro":          "財經M平方",
@@ -46,7 +46,7 @@ def _gemini_http(api_key: str, prompt: str) -> str:
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
             "temperature": 0.2,
-            "maxOutputTokens": 8192,
+            "maxOutputTokens": 32768,
             "thinkingConfig": {"thinkingBudget": 0},
         },
     }).encode()
@@ -74,11 +74,7 @@ def _build_prompt(articles: list[dict]) -> str:
         f"[{a['date']}|{a['source_name']}] {a['title']}\n{a['body']}"
         for a in articles
     )
-    return render_prompt(
-        "market_notes",
-        lookback_days=str(LOOKBACK_DAYS),
-        articles=art_text,
-    )
+    return render_prompt("market_notes", articles=art_text)
 
 
 async def generate_market_notes(conn, report_date: date, api_key: str) -> dict:
@@ -89,17 +85,34 @@ async def generate_market_notes(conn, report_date: date, api_key: str) -> dict:
         "ALTER TABLE analysis_reports ADD COLUMN IF NOT EXISTS market_notes_json JSONB"
     )
 
-    cutoff = date.today() - timedelta(days=LOOKBACK_DAYS)
-    rows = await conn.fetch(
+    podcast_rows = await conn.fetch(
         f"""SELECT source, title, published_at,
-                  LEFT(COALESCE(refined_content, content), {BODY_CHARS}) AS body
-           FROM articles
-           WHERE published_at >= $1 AND status='active'
-             AND COALESCE(LENGTH(refined_content), LENGTH(content), 0) > 100
-           ORDER BY published_at DESC
-           LIMIT {MAX_ARTICLES}""",
-        cutoff,
+                   LEFT(COALESCE(refined_content, content), {BODY_CHARS}) AS body
+            FROM (
+                SELECT *, ROW_NUMBER() OVER (
+                    PARTITION BY source ORDER BY published_at DESC
+                ) AS rn
+                FROM articles
+                WHERE source LIKE 'podcast_%' AND status='active'
+                  AND content_tags != '{{}}'
+                  AND COALESCE(LENGTH(refined_content), LENGTH(content), 0) > 100
+            ) t
+            WHERE rn <= {PODCAST_EPISODES_PER_SOURCE}"""
     )
+
+    article_cutoff = date.today() - timedelta(days=ARTICLE_LOOKBACK_DAYS)
+    article_rows = await conn.fetch(
+        f"""SELECT source, title, published_at,
+                   LEFT(COALESCE(refined_content, content), {BODY_CHARS}) AS body
+            FROM articles
+            WHERE source NOT LIKE 'podcast_%' AND status='active'
+              AND published_at >= $1
+              AND COALESCE(LENGTH(refined_content), LENGTH(content), 0) > 100
+            ORDER BY published_at DESC""",
+        article_cutoff,
+    )
+
+    rows = list(podcast_rows) + list(article_rows)
 
     articles = []
     for r in rows:
@@ -114,7 +127,7 @@ async def generate_market_notes(conn, report_date: date, api_key: str) -> dict:
     if not articles:
         return {"topics": []}
 
-    print(f"  Market notes: {len(articles)} articles → Gemini…")
+    print(f"  Market notes: {len(podcast_rows)} podcast eps + {len(article_rows)} articles → Gemini…")
     raw = _gemini_http(api_key, _build_prompt(articles))
 
     # Strip markdown code fences if present

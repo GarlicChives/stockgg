@@ -565,7 +565,10 @@ def build_notes_html(market_notes: dict | None, podcast_rows: list,
 
     if market_notes and market_notes.get("topics"):
         topic_cards = []
-        for topic in market_notes["topics"]:
+        def _topic_latest_date(t):
+            dates = [a.get("date", "") for a in t.get("articles", []) if a.get("date")]
+            return max(dates) if dates else "1900-01-01"
+        for topic in sorted(market_notes["topics"], key=_topic_latest_date, reverse=True):
             t_name = html_lib.escape(topic.get("topic", ""))
             sentiment = topic.get("sentiment", "中立")
             sent_cls = "sent-bull" if "偏多" in sentiment else ("sent-bear" if "偏空" in sentiment else "sent-neu")

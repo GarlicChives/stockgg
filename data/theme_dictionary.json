@@ -24,6 +24,10 @@
         {
           "code": "6669",
           "name": "緯穎"
+        },
+        {
+          "code": "5289",
+          "name": "宜鼎"
         }
       ],
       "us_stocks": [],
@@ -89,6 +93,10 @@
         {
           "code": "2345",
           "name": "智邦"
+        },
+        {
+          "code": "6285",
+          "name": "啟碁"
         }
       ],
       "us_stocks": [
@@ -265,6 +273,30 @@
         {
           "code": "2360",
           "name": "致茂"
+        },
+        {
+          "code": "4979",
+          "name": "華星光"
+        },
+        {
+          "code": "3661",
+          "name": "世芯-KY"
+        },
+        {
+          "code": "5289",
+          "name": "宜鼎"
+        },
+        {
+          "code": "1815",
+          "name": "富喬"
+        },
+        {
+          "code": "1785",
+          "name": "光洋科"
+        },
+        {
+          "code": "8210",
+          "name": "勤誠"
         }
       ],
       "us_stocks": [
@@ -279,6 +311,14 @@
         {
           "ticker": "IREN",
           "name": "IREN LIMITED"
+        },
+        {
+          "ticker": "SMCI",
+          "name": "Super Micro Computer, Inc."
+        },
+        {
+          "ticker": "WULF",
+          "name": "TeraWulf Inc."
         }
       ],
       "auto_created": true,
@@ -358,6 +398,10 @@
         {
           "code": "2360",
           "name": "致茂"
+        },
+        {
+          "code": "3661",
+          "name": "世芯-KY"
         }
       ],
       "us_stocks": [],
@@ -400,6 +444,10 @@
         {
           "code": "6488",
           "name": "環球晶"
+        },
+        {
+          "code": "3661",
+          "name": "世芯-KY"
         }
       ],
       "us_stocks": [
@@ -451,6 +499,14 @@
         {
           "code": "6669",
           "name": "緯穎"
+        },
+        {
+          "code": "6770",
+          "name": "力積電"
+        },
+        {
+          "code": "5289",
+          "name": "宜鼎"
         }
       ],
       "us_stocks": [
@@ -490,6 +546,10 @@
         {
           "code": "2303",
           "name": "聯電"
+        },
+        {
+          "code": "5289",
+          "name": "宜鼎"
         }
       ],
       "us_stocks": [],
@@ -520,6 +580,10 @@
         {
           "code": "3189",
           "name": "景碩"
+        },
+        {
+          "code": "3661",
+          "name": "世芯-KY"
         }
       ],
       "us_stocks": [],
@@ -568,6 +632,10 @@
         {
           "code": "2345",
           "name": "智邦"
+        },
+        {
+          "code": "5289",
+          "name": "宜鼎"
         }
       ],
       "us_stocks": [],
@@ -685,9 +753,18 @@
         {
           "code": "2360",
           "name": "致茂"
+        },
+        {
+          "code": "3081",
+          "name": "聯亞"
         }
       ],
-      "us_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "GLW",
+          "name": "Corning Incorporated"
+        }
+      ],
       "auto_created": true,
       "auto_created_at": "2026-05-05"
     },
@@ -732,7 +809,12 @@
           "name": "創意"
         }
       ],
-      "us_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "AUR",
+          "name": "Aurora Innovation, Inc."
+        }
+      ],
       "auto_created": true,
       "auto_created_at": "2026-05-05"
     },
@@ -756,6 +838,10 @@
         {
           "code": "6488",
           "name": "環球晶"
+        },
+        {
+          "code": "6770",
+          "name": "力積電"
         }
       ],
       "us_stocks": [
@@ -851,12 +937,28 @@
         {
           "code": "2360",
           "name": "致茂"
+        },
+        {
+          "code": "4979",
+          "name": "華星光"
+        },
+        {
+          "code": "3081",
+          "name": "聯亞"
+        },
+        {
+          "code": "6285",
+          "name": "啟碁"
         }
       ],
       "us_stocks": [
         {
           "ticker": "NOK",
           "name": "Nokia Corporation Sponsored"
+        },
+        {
+          "ticker": "GLW",
+          "name": "Corning Incorporated"
         }
       ],
       "auto_created": true,
@@ -896,6 +998,10 @@
         {
           "code": "8299",
           "name": "群聯"
+        },
+        {
+          "code": "5289",
+          "name": "宜鼎"
         }
       ],
       "us_stocks": [],
@@ -934,6 +1040,18 @@
         {
           "code": "2383",
           "name": "台光電"
+        },
+        {
+          "code": "1815",
+          "name": "富喬"
+        },
+        {
+          "code": "8358",
+          "name": "金居"
+        },
+        {
+          "code": "8210",
+          "name": "勤誠"
         }
       ],
       "us_stocks": [],
@@ -956,6 +1074,14 @@
         {
           "code": "2383",
           "name": "台光電"
+        },
+        {
+          "code": "1815",
+          "name": "富喬"
+        },
+        {
+          "code": "8358",
+          "name": "金居"
         }
       ],
       "us_stocks": [],
@@ -992,6 +1118,10 @@
         {
           "code": "2303",
           "name": "聯電"
+        },
+        {
+          "code": "6770",
+          "name": "力積電"
         }
       ],
       "us_stocks": [],
@@ -1064,6 +1194,10 @@
         {
           "code": "3260",
           "name": "威剛"
+        },
+        {
+          "code": "5289",
+          "name": "宜鼎"
         }
       ],
       "us_stocks": [
@@ -1074,6 +1208,10 @@
         {
           "ticker": "SOUN",
           "name": "SoundHound AI, Inc."
+        },
+        {
+          "ticker": "BBAI",
+          "name": "BigBear.ai, Inc."
         }
       ],
       "auto_created": true,
@@ -1093,7 +1231,12 @@
           "name": "群創"
         }
       ],
-      "us_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "GLW",
+          "name": "Corning Incorporated"
+        }
+      ],
       "auto_created": true,
       "auto_created_at": "2026-05-05"
     },
@@ -1123,6 +1266,10 @@
         {
           "ticker": "F",
           "name": "Ford Motor Company"
+        },
+        {
+          "ticker": "NIO",
+          "name": "NIO Inc."
         }
       ],
       "auto_created": true,
@@ -1146,7 +1293,12 @@
           "name": "台玻"
         }
       ],
-      "us_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "GLW",
+          "name": "Corning Incorporated"
+        }
+      ],
       "auto_created": true,
       "auto_created_at": "2026-05-05"
     },
@@ -1234,6 +1386,10 @@
         {
           "code": "1802",
           "name": "台玻"
+        },
+        {
+          "code": "1815",
+          "name": "富喬"
         }
       ],
       "us_stocks": [],
@@ -1298,6 +1454,10 @@
         {
           "ticker": "TSLA",
           "name": "Tesla, Inc."
+        },
+        {
+          "ticker": "GLW",
+          "name": "Corning Incorporated"
         }
       ],
       "auto_created": true,
@@ -1332,6 +1492,18 @@
         {
           "ticker": "SHOP",
           "name": "Shopify Inc."
+        },
+        {
+          "ticker": "UBER",
+          "name": "Uber Technologies, Inc."
+        },
+        {
+          "ticker": "CPNG",
+          "name": "Coupang, Inc."
+        },
+        {
+          "ticker": "COMP",
+          "name": "Compass, Inc."
         }
       ],
       "auto_created": true,
@@ -1362,6 +1534,14 @@
         {
           "ticker": "SNAP",
           "name": "Snap Inc."
+        },
+        {
+          "ticker": "UBER",
+          "name": "Uber Technologies, Inc."
+        },
+        {
+          "ticker": "BBAI",
+          "name": "BigBear.ai, Inc."
         }
       ],
       "auto_created": true,
@@ -1392,6 +1572,10 @@
         {
           "ticker": "SNAP",
           "name": "Snap Inc."
+        },
+        {
+          "ticker": "UBER",
+          "name": "Uber Technologies, Inc."
         }
       ],
       "auto_created": true,
@@ -1468,6 +1652,14 @@
         {
           "ticker": "IREN",
           "name": "IREN LIMITED"
+        },
+        {
+          "ticker": "WULF",
+          "name": "TeraWulf Inc."
+        },
+        {
+          "ticker": "CORZ",
+          "name": "Core Scientific, Inc."
         }
       ],
       "auto_created": true,
@@ -1490,6 +1682,10 @@
         {
           "ticker": "GRAB",
           "name": "Grab Holdings Limited"
+        },
+        {
+          "ticker": "ITUB",
+          "name": "Itau Unibanco Banco Holding SA"
         }
       ],
       "auto_created": true,
@@ -1537,12 +1733,36 @@
         {
           "code": "2345",
           "name": "智邦"
+        },
+        {
+          "code": "4979",
+          "name": "華星光"
+        },
+        {
+          "code": "8210",
+          "name": "勤誠"
         }
       ],
       "us_stocks": [
         {
           "ticker": "BMNR",
           "name": "BitMine Immersion Technologies,"
+        },
+        {
+          "ticker": "GLW",
+          "name": "Corning Incorporated"
+        },
+        {
+          "ticker": "SMCI",
+          "name": "Super Micro Computer, Inc."
+        },
+        {
+          "ticker": "WULF",
+          "name": "TeraWulf Inc."
+        },
+        {
+          "ticker": "BBAI",
+          "name": "BigBear.ai, Inc."
         }
       ],
       "auto_created": true,
@@ -1623,6 +1843,14 @@
         {
           "ticker": "ABEV",
           "name": "Ambev S.A."
+        },
+        {
+          "ticker": "CRBG",
+          "name": "Corebridge Financial Inc."
+        },
+        {
+          "ticker": "ITUB",
+          "name": "Itau Unibanco Banco Holding SA"
         }
       ],
       "auto_created": true,
@@ -1641,6 +1869,10 @@
         {
           "ticker": "RIG",
           "name": "Transocean Ltd (Switzerland)"
+        },
+        {
+          "ticker": "CTRA",
+          "name": "Coterra Energy Inc."
         }
       ],
       "auto_created": true,
@@ -1695,6 +1927,10 @@
         {
           "ticker": "ACHR",
           "name": "Archer Aviation Inc."
+        },
+        {
+          "ticker": "JOBY",
+          "name": "Joby Aviation, Inc."
         }
       ],
       "auto_created": true,
@@ -1730,6 +1966,10 @@
         {
           "code": "2383",
           "name": "台光電"
+        },
+        {
+          "code": "1785",
+          "name": "光洋科"
         }
       ],
       "us_stocks": [],
@@ -1748,6 +1988,10 @@
         {
           "code": "2301",
           "name": "光寶科"
+        },
+        {
+          "code": "6770",
+          "name": "力積電"
         }
       ],
       "us_stocks": [],
@@ -1789,6 +2033,271 @@
       "us_stocks": [],
       "auto_created": true,
       "auto_created_at": "2026-05-06"
+    },
+    {
+      "id": "semiconductor_materials_concept",
+      "name": "半導體材料",
+      "keyword": "半導體材料",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "1815",
+          "name": "富喬"
+        },
+        {
+          "code": "1785",
+          "name": "光洋科"
+        },
+        {
+          "code": "8358",
+          "name": "金居"
+        }
+      ],
+      "us_stocks": [
+        {
+          "ticker": "GLW",
+          "name": "Corning Incorporated"
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-06"
+    },
+    {
+      "id": "solar_wafer_concept",
+      "name": "太陽能矽晶圓",
+      "keyword": "太陽能矽晶圓",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "GLW",
+          "name": "Corning Incorporated"
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-06"
+    },
+    {
+      "id": "quantum_computing_concept",
+      "name": "量子運算",
+      "keyword": "量子運算",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "IONQ",
+          "name": "IonQ, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-06"
+    },
+    {
+      "id": "digital_asset_mining",
+      "name": "數位資產挖礦",
+      "keyword": "數位資產挖礦",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "CORZ",
+          "name": "Core Scientific, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-06"
+    },
+    {
+      "id": "autonomous_driving_concept",
+      "name": "自動駕駛",
+      "keyword": "自動駕駛",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "AUR",
+          "name": "Aurora Innovation, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-06"
+    },
+    {
+      "id": "autonomous_trucking_concept",
+      "name": "自動駕駛卡車",
+      "keyword": "自動駕駛卡車",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "AUR",
+          "name": "Aurora Innovation, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-06"
+    },
+    {
+      "id": "small_modular_reactor_concept",
+      "name": "小型模組化反應爐",
+      "keyword": "小型模組化反應爐",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "SMR",
+          "name": "NuScale Power Corporation"
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-07"
+    },
+    {
+      "id": "predictive_analytics_software",
+      "name": "預測分析",
+      "keyword": "預測分析軟體",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "BBAI",
+          "name": "BigBear.ai, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-07"
+    },
+    {
+      "id": "cyber_engineering",
+      "name": "網路工程",
+      "keyword": "網路工程",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "BBAI",
+          "name": "BigBear.ai, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-07"
+    },
+    {
+      "id": "cpo_concept",
+      "name": "CPO",
+      "keyword": "CPO",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "4979",
+          "name": "華星光"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-07"
+    },
+    {
+      "id": "lpddr_memory_concept",
+      "name": "低功耗記憶體",
+      "keyword": "LPDDR",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "5289",
+          "name": "宜鼎"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-07"
+    },
+    {
+      "id": "cxl_memory_concept",
+      "name": "CXL記憶體",
+      "keyword": "CXL",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "5289",
+          "name": "宜鼎"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-07"
+    },
+    {
+      "id": "circular_economy_concept",
+      "name": "循環經濟",
+      "keyword": "循環經濟",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "1785",
+          "name": "光洋科"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-07"
+    },
+    {
+      "id": "precious_metals_trading",
+      "name": "貴金屬",
+      "keyword": "貴金屬",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "1785",
+          "name": "光洋科"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-07"
     }
   ]
 }
