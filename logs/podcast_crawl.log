@@ -68,3 +68,53 @@ Done. 0 new podcast episodes saved.
     Already saved — skipping
 
 Done. 1 new podcast episodes saved.
+
+=== 股癌 Gooaye (after 2026-05-02) ===
+  2 episode(s) in window
+  [2026-05-06] 'EP659 | 🦤'
+    Downloading audio…
+    Downloaded 46.9 MB — transcribing…
+    Transcription error: [Errno 2] No such file or directory: 'ffmpeg'
+    Using show notes as fallback (141 chars)
+    Saved id=554 (141 chars transcript)
+  [2026-05-02] 'EP658 | 🪿'
+    Already saved — skipping
+
+=== 財經M平方 podcast (after 2026-05-02) ===
+  1 episode(s) in window
+  [2026-05-02] 'After Meeting EP. 197｜鮑威爾最後一舞，卻是聯準會最大分歧'
+    Already saved — skipping
+
+=== 韭菜畢業班 (after 2026-05-03) ===
+  2 episode(s) in window
+  [2026-05-06] 'EP223 | 台、美股重點一次說， 記憶體與矽晶圓，NVIDIA設計變更對散熱族群的影響和後勢，AMD財報亮點與宜鼎產'
+    Downloading audio…
+    Downloaded 51.1 MB — transcribing…
+    Transcription error: [Errno 2] No such file or directory: 'ffmpeg'
+    Using show notes as fallback (243 chars)
+    Saved id=555 (243 chars transcript)
+  [2026-05-03] 'EP222 | 台、美股重點一次說， 美股巨頭財報總結，臻鼎-KY與mSAP需求，致茂與鴻勁的產品結構差異與互補'
+    Already saved — skipping
+
+=== 股海飯桶 WilsonRice (after 2026-05-04) ===
+  1 episode(s) in window
+  [2026-05-04] 'EP72｜開課都去ㄏㄍ ETF影響 封測'
+    Already saved — skipping
+
+=== 兆華與股惑仔 (after 2026-05-05) ===
+  2 episode(s) in window
+  [2026-05-06] 'EP1091｜再爆1.8兆量，台股洗完續強，放心的理由？載板回檔給機會，記憶體超強財報+法說續攻，散熱集體跌停，這次有大'
+    Downloading audio…
+    Downloaded 101.8 MB — transcribing…
+    Transcription error: [Errno 2] No such file or directory: 'ffmpeg'
+    Using show notes as fallback (257 chars)
+    Saved id=556 (257 chars transcript)
+  [2026-05-05] 'EP1090｜美伊吵也不怕，不休息的台股要硬買嗎？散戶開槓桿會爆掉嗎？下跌敢撿的人，上漲更有底氣進場？手中不動的持股如何'
+    Already saved — skipping
+
+=== 財報狗 (after 2026-04-30) ===
+  1 episode(s) in window
+  [2026-04-30] '519.【財經時事放大鏡】Event Trade？台積電 & Google'
+    Already saved — skipping
+
+Done. 3 new podcast episodes saved.

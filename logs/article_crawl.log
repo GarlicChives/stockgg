@@ -401,3 +401,119 @@ Call log:
 
 
 All crawlers done. 0 new articles saved.
+
+==================================================
+  MacroMicro
+==================================================
+Incremental: fetching after 2026-05-03
+  ERROR: BrowserType.connect_over_cdp: Timeout 180000ms exceeded.
+Call log:
+  - <ws preparing> retrieving websocket url from http://localhost:9222
+  - <ws connecting> ws://localhost:9222/devtools/browser/cbcb4491-cea5-41aa-ab56-933430514ea7
+  - <ws connected> ws://localhost:9222/devtools/browser/cbcb4491-cea5-41aa-ab56-933430514ea7
+
+
+==================================================
+  Vocus 韭菜王
+==================================================
+Incremental: fetching after 2026-05-04
+  ERROR: BrowserType.connect_over_cdp: Timeout 180000ms exceeded.
+Call log:
+  - <ws preparing> retrieving websocket url from http://localhost:9222
+  - <ws connecting> ws://localhost:9222/devtools/browser/cbcb4491-cea5-41aa-ab56-933430514ea7
+  - <ws connected> ws://localhost:9222/devtools/browser/cbcb4491-cea5-41aa-ab56-933430514ea7
+
+
+==================================================
+  StatementDog
+==================================================
+Incremental: fetching after 2026-04-30
+  ERROR: BrowserType.connect_over_cdp: Timeout 180000ms exceeded.
+Call log:
+  - <ws preparing> retrieving websocket url from http://localhost:9222
+  - <ws connecting> ws://localhost:9222/devtools/browser/cbcb4491-cea5-41aa-ab56-933430514ea7
+  - <ws connected> ws://localhost:9222/devtools/browser/cbcb4491-cea5-41aa-ab56-933430514ea7
+
+
+==================================================
+  InvestAnchors
+==================================================
+Incremental mode: fetching articles after 2026-12-30
+  ERROR: BrowserType.connect_over_cdp: Timeout 180000ms exceeded.
+Call log:
+  - <ws preparing> retrieving websocket url from http://localhost:9222
+  - <ws connecting> ws://localhost:9222/devtools/browser/cbcb4491-cea5-41aa-ab56-933430514ea7
+  - <ws connected> ws://localhost:9222/devtools/browser/cbcb4491-cea5-41aa-ab56-933430514ea7
+
+
+==================================================
+  PressPlay
+==================================================
+Incremental: fetching after 2026-05-03
+  ERROR: BrowserType.connect_over_cdp: Timeout 180000ms exceeded.
+Call log:
+  - <ws preparing> retrieving websocket url from http://localhost:9222
+  - <ws connecting> ws://localhost:9222/devtools/browser/cbcb4491-cea5-41aa-ab56-933430514ea7
+  - <ws connected> ws://localhost:9222/devtools/browser/cbcb4491-cea5-41aa-ab56-933430514ea7
+
+
+
+All crawlers done. 0 new articles saved.
+
+==================================================
+  MacroMicro
+==================================================
+Incremental: fetching after 2026-05-03
+  ERROR: BrowserType.connect_over_cdp: Timeout 180000ms exceeded.
+Call log:
+  - <ws preparing> retrieving websocket url from http://localhost:9222
+  - <ws connecting> ws://localhost:9222/devtools/browser/cbcb4491-cea5-41aa-ab56-933430514ea7
+  - <ws connected> ws://localhost:9222/devtools/browser/cbcb4491-cea5-41aa-ab56-933430514ea7
+
+
+==================================================
+  Vocus 韭菜王
+==================================================
+Incremental: fetching after 2026-05-04
+  ERROR: BrowserType.connect_over_cdp: Timeout 180000ms exceeded.
+Call log:
+  - <ws preparing> retrieving websocket url from http://localhost:9222
+  - <ws connecting> ws://localhost:9222/devtools/browser/cbcb4491-cea5-41aa-ab56-933430514ea7
+  - <ws connected> ws://localhost:9222/devtools/browser/cbcb4491-cea5-41aa-ab56-933430514ea7
+
+
+==================================================
+  StatementDog
+==================================================
+Incremental: fetching after 2026-04-30
+  ERROR: BrowserType.connect_over_cdp: Timeout 180000ms exceeded.
+Call log:
+  - <ws preparing> retrieving websocket url from http://localhost:9222
+  - <ws connecting> ws://localhost:9222/devtools/browser/cbcb4491-cea5-41aa-ab56-933430514ea7
+  - <ws connected> ws://localhost:9222/devtools/browser/cbcb4491-cea5-41aa-ab56-933430514ea7
+
+
+==================================================
+  InvestAnchors
+==================================================
+Incremental mode: fetching articles after 2026-12-30
+  ERROR: BrowserType.connect_over_cdp: Timeout 180000ms exceeded.
+Call log:
+  - <ws preparing> retrieving websocket url from http://localhost:9222
+  - <ws connecting> ws://localhost:9222/devtools/browser/cbcb4491-cea5-41aa-ab56-933430514ea7
+  - <ws connected> ws://localhost:9222/devtools/browser/cbcb4491-cea5-41aa-ab56-933430514ea7
+
+
+==================================================
+  PressPlay
+==================================================
+Incremental: fetching after 2026-05-03
+  ERROR: BrowserType.connect_over_cdp: Timeout 180000ms exceeded.
+Call log:
+  - <ws preparing> retrieving websocket url from http://localhost:9222
+  - <ws connecting> ws://localhost:9222/devtools/browser/cbcb4491-cea5-41aa-ab56-933430514ea7
+  - <ws connected> ws://localhost:9222/devtools/browser/cbcb4491-cea5-41aa-ab56-933430514ea7
+
+
+
+All crawlers done. 0 new articles saved.
