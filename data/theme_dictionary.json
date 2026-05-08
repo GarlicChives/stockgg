@@ -462,6 +462,18 @@
         {
           "ticker": "NVTS",
           "name": "Navitas Semiconductor Corporati"
+        },
+        {
+          "ticker": "ARM",
+          "name": "Arm Holdings plc"
+        },
+        {
+          "ticker": "HIMX",
+          "name": "Himax Technologies, Inc."
+        },
+        {
+          "ticker": "QCOM",
+          "name": "QUALCOMM Incorporated"
         }
       ],
       "auto_created": true,
@@ -606,6 +618,10 @@
         {
           "code": "2308",
           "name": "台達電"
+        },
+        {
+          "code": "3653",
+          "name": "健策"
         }
       ],
       "us_stocks": [],
@@ -763,6 +779,10 @@
         {
           "ticker": "GLW",
           "name": "Corning Incorporated"
+        },
+        {
+          "ticker": "HIMX",
+          "name": "Himax Technologies, Inc."
         }
       ],
       "auto_created": true,
@@ -790,6 +810,10 @@
         {
           "ticker": "AMD",
           "name": "Advanced Micro Devices, Inc."
+        },
+        {
+          "ticker": "ARM",
+          "name": "Arm Holdings plc"
         }
       ],
       "auto_created": true,
@@ -893,7 +917,12 @@
           "name": "聯電"
         }
       ],
-      "us_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "QCOM",
+          "name": "QUALCOMM Incorporated"
+        }
+      ],
       "auto_created": true,
       "auto_created_at": "2026-05-05"
     },
@@ -959,6 +988,10 @@
         {
           "ticker": "GLW",
           "name": "Corning Incorporated"
+        },
+        {
+          "ticker": "HIMX",
+          "name": "Himax Technologies, Inc."
         }
       ],
       "auto_created": true,
@@ -1102,7 +1135,12 @@
           "name": "頎邦"
         }
       ],
-      "us_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "QCOM",
+          "name": "QUALCOMM Incorporated"
+        }
+      ],
       "auto_created": true,
       "auto_created_at": "2026-05-05"
     },
@@ -1178,7 +1216,12 @@
           "name": "國巨*"
         }
       ],
-      "us_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "HIMX",
+          "name": "Himax Technologies, Inc."
+        }
+      ],
       "auto_created": true,
       "auto_created_at": "2026-05-05"
     },
@@ -1235,6 +1278,10 @@
         {
           "ticker": "GLW",
           "name": "Corning Incorporated"
+        },
+        {
+          "ticker": "HIMX",
+          "name": "Himax Technologies, Inc."
         }
       ],
       "auto_created": true,
@@ -1270,6 +1317,10 @@
         {
           "ticker": "NIO",
           "name": "NIO Inc."
+        },
+        {
+          "ticker": "HIMX",
+          "name": "Himax Technologies, Inc."
         }
       ],
       "auto_created": true,
@@ -1436,6 +1487,14 @@
         {
           "ticker": "TSLA",
           "name": "Tesla, Inc."
+        },
+        {
+          "ticker": "FLNC",
+          "name": "Fluence Energy, Inc."
+        },
+        {
+          "ticker": "AMPX",
+          "name": "Amprius Technologies, Inc."
         }
       ],
       "auto_created": true,
@@ -1504,6 +1563,10 @@
         {
           "ticker": "COMP",
           "name": "Compass, Inc."
+        },
+        {
+          "ticker": "U",
+          "name": "Unity Software Inc."
         }
       ],
       "auto_created": true,
@@ -1542,6 +1605,18 @@
         {
           "ticker": "BBAI",
           "name": "BigBear.ai, Inc."
+        },
+        {
+          "ticker": "DDOG",
+          "name": "Datadog, Inc."
+        },
+        {
+          "ticker": "ORCL",
+          "name": "Oracle Corporation"
+        },
+        {
+          "ticker": "U",
+          "name": "Unity Software Inc."
         }
       ],
       "auto_created": true,
@@ -1576,6 +1651,10 @@
         {
           "ticker": "UBER",
           "name": "Uber Technologies, Inc."
+        },
+        {
+          "ticker": "U",
+          "name": "Unity Software Inc."
         }
       ],
       "auto_created": true,
@@ -1594,6 +1673,10 @@
         {
           "ticker": "ACLX",
           "name": "Arcellx, Inc."
+        },
+        {
+          "ticker": "TERN",
+          "name": "Terns Pharmaceuticals, Inc."
         }
       ],
       "auto_created": true,
@@ -1612,6 +1695,10 @@
         {
           "ticker": "ACLX",
           "name": "Arcellx, Inc."
+        },
+        {
+          "ticker": "TERN",
+          "name": "Terns Pharmaceuticals, Inc."
         }
       ],
       "auto_created": true,
@@ -1686,6 +1773,10 @@
         {
           "ticker": "ITUB",
           "name": "Itau Unibanco Banco Holding SA"
+        },
+        {
+          "ticker": "BBD",
+          "name": "Banco Bradesco Sa"
         }
       ],
       "auto_created": true,
@@ -1763,6 +1854,10 @@
         {
           "ticker": "BBAI",
           "name": "BigBear.ai, Inc."
+        },
+        {
+          "ticker": "DDOG",
+          "name": "Datadog, Inc."
         }
       ],
       "auto_created": true,
@@ -1785,6 +1880,10 @@
         {
           "ticker": "AAL",
           "name": "American Airlines Group, Inc."
+        },
+        {
+          "ticker": "CUK",
+          "name": "Carnival Plc"
         }
       ],
       "auto_created": true,
@@ -1803,6 +1902,10 @@
         {
           "ticker": "OWL",
           "name": "Blue Owl Capital Inc."
+        },
+        {
+          "ticker": "BBD",
+          "name": "Banco Bradesco Sa"
         }
       ],
       "auto_created": true,
@@ -1821,6 +1924,10 @@
         {
           "ticker": "OWL",
           "name": "Blue Owl Capital Inc."
+        },
+        {
+          "ticker": "BBD",
+          "name": "Banco Bradesco Sa"
         }
       ],
       "auto_created": true,
@@ -1851,6 +1958,10 @@
         {
           "ticker": "ITUB",
           "name": "Itau Unibanco Banco Holding SA"
+        },
+        {
+          "ticker": "BBD",
+          "name": "Banco Bradesco Sa"
         }
       ],
       "auto_created": true,
@@ -2223,7 +2334,12 @@
           "name": "華星光"
         }
       ],
-      "us_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "HIMX",
+          "name": "Himax Technologies, Inc."
+        }
+      ],
       "auto_created": true,
       "auto_created_at": "2026-05-07"
     },
@@ -2295,9 +2411,198 @@
           "name": "光洋科"
         }
       ],
-      "us_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "BTG",
+          "name": "B2Gold Corp"
+        }
+      ],
       "auto_created": true,
       "auto_created_at": "2026-05-07"
+    },
+    {
+      "id": "connected_fitness_equipment",
+      "name": "智慧健身",
+      "keyword": "智慧健身",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "PTON",
+          "name": "Peloton Interactive, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-07"
+    },
+    {
+      "id": "fitness_subscription_service",
+      "name": "健身訂閱",
+      "keyword": "健身訂閱",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "PTON",
+          "name": "Peloton Interactive, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-07"
+    },
+    {
+      "id": "enterprise_software_maker",
+      "name": "企業軟體",
+      "keyword": "企業軟體",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "DDOG",
+          "name": "Datadog, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-07"
+    },
+    {
+      "id": "oracle_cloud_infrastructure",
+      "name": "Oracle雲",
+      "keyword": "Oracle雲",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "ORCL",
+          "name": "Oracle Corporation"
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-07"
+    },
+    {
+      "id": "wiseeye_ai_sensing",
+      "name": "AI感測",
+      "keyword": "AI感測",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "HIMX",
+          "name": "Himax Technologies, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-07"
+    },
+    {
+      "id": "endpoint_ai",
+      "name": "邊緣AI",
+      "keyword": "邊緣AI",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "HIMX",
+          "name": "Himax Technologies, Inc."
+        },
+        {
+          "ticker": "QCOM",
+          "name": "QUALCOMM Incorporated"
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-07"
+    },
+    {
+      "id": "silicon_anode_battery_concept",
+      "name": "矽負極電池",
+      "keyword": "矽負極電池",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "AMPX",
+          "name": "Amprius Technologies, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-07"
+    },
+    {
+      "id": "intelligent_edge_concept",
+      "name": "智慧邊緣",
+      "keyword": "智慧邊緣",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "QCOM",
+          "name": "QUALCOMM Incorporated"
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-07"
+    },
+    {
+      "id": "lead_frame_concept",
+      "name": "導線架",
+      "keyword": "導線架",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "3653",
+          "name": "健策"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-08"
+    },
+    {
+      "id": "electronic_components_concept",
+      "name": "電子零件",
+      "keyword": "電子零件",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "3653",
+          "name": "健策"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-08"
     }
   ]
 }
