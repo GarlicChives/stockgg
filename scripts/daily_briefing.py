@@ -80,11 +80,25 @@ async def main():
         print("── Step 1: Market Indicators ──")
         await fetch_indicators(today)
         print()
+
+        _ck = await db.connect()
+        _has_us = await _ck.fetchval(
+            "SELECT 1 FROM trading_rankings WHERE rank_date=$1 AND market='US' LIMIT 1", today)
+        _has_tw = await _ck.fetchval(
+            "SELECT 1 FROM trading_rankings WHERE rank_date=$1 AND market='TW' LIMIT 1", today)
+        await _ck.close()
+
         print("── Step 2: US Trading Rankings ──")
-        await fetch_us(today)
+        if _has_us and not force:
+            print("  ⏭  今日 US ranking 已存在 — 跳過")
+        else:
+            await fetch_us(today)
         print()
         print("── Step 3: TW Trading Rankings (TWSE + TPEX) ──")
-        await fetch_tw()
+        if _has_tw and not force:
+            print("  ⏭  今日 TW ranking 已存在 — 跳過")
+        else:
+            await fetch_tw()
         print()
 
     conn = await db.connect()
