@@ -5,10 +5,13 @@ Called by launchd after each market closes:
   - TW: 17:30 Taiwan time (after TWSE data is available)
   - US: 04:30 + 06:00 Taiwan time (04:30 catches summer/EDT, 06:00 catches winter/EST)
 
-The script skips silently if today's data already exists (idempotent).
-For US, it also checks that NYSE has actually closed before fetching.
-After a successful fetch, rebuilds HTML and deploys to Cloudflare Workers.
-CLOUDFLARE_API_TOKEN is read from .env only (never committed to git).
+Retry logic:
+  - If fetch returns 0 rows or raises an exception, retries up to MAX_RETRIES times,
+    each RETRY_INTERVAL_S seconds apart (default: 3 retries × 1 hour).
+  - After exhausting retries with 0 rows, the day is treated as a holiday/non-trading day:
+    existing DB data (last trading day) is preserved and no deploy is triggered.
+
+CLOUDFLARE_API_TOKEN is read from .env only — never committed to git.
 """
 import argparse
 import asyncio
@@ -28,8 +31,10 @@ from src.utils import db
 from src.news.tw_rankings import fetch_and_store as fetch_tw
 from src.news.us_rankings import fetch_and_store as fetch_us
 
-BASE = Path(__file__).resolve().parent.parent
-UV   = str(Path(os.environ.get("HOME", "")) / ".local/bin/uv")
+BASE              = Path(__file__).resolve().parent.parent
+UV                = str(Path(os.environ.get("HOME", "")) / ".local/bin/uv")
+MAX_RETRIES       = 3
+RETRY_INTERVAL_S  = 3600  # 1 hour between retries
 
 
 def _nyse_closed() -> bool:
@@ -55,6 +60,43 @@ def _rebuild_and_deploy() -> None:
         print("  ⚠ CLOUDFLARE_API_TOKEN 未設定，跳過部署")
 
 
+async def _fetch_with_retry(market: str, today: date) -> int:
+    """Fetch rankings, retry on failure or empty result. Returns row count.
+
+    Returns 0 after MAX_RETRIES exhausted — caller treats this as a holiday.
+    """
+    for attempt in range(MAX_RETRIES + 1):
+        try:
+            print(f"  ▶ 抓取 {market} rankings ({today})"
+                  + (f" [重試 {attempt}/{MAX_RETRIES}]" if attempt else "") + " …")
+            n = await (fetch_us(today) if market == "US" else fetch_tw(today))
+            if n > 0:
+                print(f"  ✅ 儲存 {n} 筆 {market} ranking")
+                return n
+
+            # n=0: data not ready yet or holiday
+            if attempt < MAX_RETRIES:
+                wait_min = RETRY_INTERVAL_S // 60
+                print(f"  ⚠ 取得 0 筆資料（API 尚未就緒？），"
+                      f"{wait_min} 分鐘後重試（{attempt + 1}/{MAX_RETRIES}）…")
+                await asyncio.sleep(RETRY_INTERVAL_S)
+            else:
+                print(f"  ⏭  {MAX_RETRIES} 次重試後仍無資料"
+                      f"，判定為假日 — 保留最近交易日資料，不部署")
+
+        except Exception as e:
+            if attempt < MAX_RETRIES:
+                wait_min = RETRY_INTERVAL_S // 60
+                print(f"  ⚠ API 錯誤：{e}，"
+                      f"{wait_min} 分鐘後重試（{attempt + 1}/{MAX_RETRIES}）…")
+                await asyncio.sleep(RETRY_INTERVAL_S)
+            else:
+                print(f"  ❌ 重試 {MAX_RETRIES} 次後仍失敗：{e}")
+                raise
+
+    return 0
+
+
 async def main(market: str, force: bool) -> None:
     today = date.today()
 
@@ -69,18 +111,14 @@ async def main(market: str, force: bool) -> None:
         print(f"  ⏭  {market} ranking 今日已存在（{today}）— 跳過")
         return
 
-    if market == "US":
-        if not _nyse_closed():
-            now_et = datetime.now(ZoneInfo("America/New_York"))
-            print(f"  ⏭  NYSE 尚未收盤（現在 ET: {now_et.strftime('%H:%M')}）— 跳過")
-            return
-        print(f"  ▶ 抓取 US rankings ({today}) …")
-        n = await fetch_us(today)
-        print(f"  ✅ 儲存 {n} 筆 US ranking")
-    else:
-        print(f"  ▶ 抓取 TW rankings ({today}) …")
-        n = await fetch_tw(today)
-        print(f"  ✅ 儲存 {n} 筆 TW ranking")
+    if market == "US" and not _nyse_closed():
+        now_et = datetime.now(ZoneInfo("America/New_York"))
+        print(f"  ⏭  NYSE 尚未收盤（現在 ET: {now_et.strftime('%H:%M')}）— 跳過")
+        return
+
+    n = await _fetch_with_retry(market, today)
+    if n == 0:
+        return  # holiday or persistent API failure — keep existing data, skip deploy
 
     _rebuild_and_deploy()
 
