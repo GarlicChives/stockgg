@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.iia.tw-rankings</string>
+
+    <!-- caffeinate -is: prevent idle + system sleep during execution -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/caffeinate</string>
+        <string>-is</string>
+        <string>/Users/edward.song/.local/bin/uv</string>
+        <string>run</string>
+        <string>/Users/edward.song/Desktop/Stock/scripts/fetch_rankings.py</string>
+        <string>--market</string>
+        <string>TW</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/edward.song/Desktop/Stock</string>
+
+    <!-- 17:30 Taiwan time, Mon-Fri (TWSE afterTrading data available ~17:00) -->
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict><key>Hour</key><integer>17</integer><key>Minute</key><integer>30</integer><key>Weekday</key><integer>1</integer></dict>
+        <dict><key>Hour</key><integer>17</integer><key>Minute</key><integer>30</integer><key>Weekday</key><integer>2</integer></dict>
+        <dict><key>Hour</key><integer>17</integer><key>Minute</key><integer>30</integer><key>Weekday</key><integer>3</integer></dict>
+        <dict><key>Hour</key><integer>17</integer><key>Minute</key><integer>30</integer><key>Weekday</key><integer>4</integer></dict>
+        <dict><key>Hour</key><integer>17</integer><key>Minute</key><integer>30</integer><key>Weekday</key><integer>5</integer></dict>
+    </array>
+
+    <key>StandardOutPath</key>
+    <string>/Users/edward.song/Desktop/Stock/logs/tw_rankings.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/edward.song/Desktop/Stock/logs/tw_rankings_err.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/edward.song/.local/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/edward.song</string>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>
