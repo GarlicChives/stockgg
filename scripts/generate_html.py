@@ -214,6 +214,99 @@ def _normalize_ticker(raw: str) -> str:
     return s
 
 
+_REC_LABEL: dict[str, tuple[str, str]] = {
+    "strong_buy":   ("強力買入", "#22c55e"),
+    "buy":          ("買入",     "#4ade80"),
+    "hold":         ("持有",     "#f59e0b"),
+    "underperform": ("落後",     "#f97316"),
+    "sell":         ("賣出",     "#ef4444"),
+}
+
+
+def _yf_analyst_batch(tickers: list[str]) -> dict[str, dict]:
+    """Concurrently fetch analyst consensus (target price + recommendation) via yfinance.
+    Returns {ticker: {target_mean, target_median, target_high, target_low, n_analysts,
+                       recommendation, currency}} for tickers that have data.
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    try:
+        import yfinance as yf
+    except ImportError:
+        return {}
+
+    def _fetch_one(orig: str) -> tuple[str, dict | None]:
+        core = orig.split(".")[0]
+        yf_sym = (core + ".TW") if core.isdigit() else orig
+        try:
+            info = yf.Ticker(yf_sym).info
+            mean = info.get("targetMeanPrice")
+            if not mean:
+                return orig, None
+            return orig, {
+                "target_mean":   mean,
+                "target_median": info.get("targetMedianPrice"),
+                "target_high":   info.get("targetHighPrice"),
+                "target_low":    info.get("targetLowPrice"),
+                "n_analysts":    info.get("numberOfAnalystOpinions"),
+                "recommendation": info.get("recommendationKey", ""),
+                "currency":      info.get("currency", "USD"),
+            }
+        except Exception:
+            return orig, None
+
+    result: dict[str, dict] = {}
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        futures = {ex.submit(_fetch_one, t): t for t in tickers}
+        for fut in as_completed(futures):
+            orig, data = fut.result()
+            if data:
+                result[orig] = data
+    return result
+
+
+def _build_analyst_html(data: dict) -> str:
+    """Build analyst consensus HTML section for a modal. Returns '' if no data."""
+    if not data or not data.get("target_mean"):
+        return ""
+
+    rec = data.get("recommendation", "")
+    rec_label, rec_color = _REC_LABEL.get(rec, ("", "#7a8ba0"))
+
+    currency = data.get("currency", "USD")
+    if currency == "TWD":
+        def _fp(p: float | None) -> str:
+            return f"NT${p:,.0f}" if p else "—"
+    else:
+        def _fp(p: float | None) -> str:
+            return f"${p:,.2f}" if p else "—"
+
+    mean   = _fp(data.get("target_mean"))
+    median = _fp(data.get("target_median"))
+    high   = _fp(data.get("target_high"))
+    low    = _fp(data.get("target_low"))
+    n      = data.get("n_analysts")
+
+    meta_parts = []
+    if rec_label:
+        meta_parts.append(f'<span class="analyst-rec" style="color:{rec_color}">{rec_label}</span>')
+    if n:
+        meta_parts.append(f'{n} 位分析師')
+    meta_html = " &middot; ".join(meta_parts)
+
+    return (
+        '<div class="modal-section">'
+        '<div class="modal-section-hdr">📊 機構目標價共識</div>'
+        '<div class="analyst-grid">'
+        f'<div class="ag-cell"><span class="ag-label">均值</span><span class="ag-val">{mean}</span></div>'
+        f'<div class="ag-cell"><span class="ag-label">中位數</span><span class="ag-val">{median}</span></div>'
+        f'<div class="ag-cell"><span class="ag-label">高</span><span class="ag-val ag-high">{high}</span></div>'
+        f'<div class="ag-cell"><span class="ag-label">低</span><span class="ag-val ag-low">{low}</span></div>'
+        '</div>'
+        f'<div class="ag-meta">{meta_html}</div>'
+        '</div>'
+    )
+
+
 def _yf_batch_fetch(entries: list[tuple[str, str]]) -> dict[str, dict]:
     """Sync: batch-fetch change% and today's trading value via yfinance.
     entries = [(ticker, market), ...]
@@ -523,7 +616,7 @@ def build_focus_html(us_ranks: list, tw_ranks: list,
             continue
         info = stocks.get(ticker, {})
         parts = []
-        for a in arts[:5]:
+        for a in arts[:3]:
             src_name = html_lib.escape(SOURCE_NAMES.get(a["source"] or "", a["source"] or ""))
             dt = str(a["published_at"])[:10] if a["published_at"] else "?"
             title = html_lib.escape((a["title"] or "")[:70])
@@ -937,6 +1030,34 @@ async def generate():
     focus_html, modal_data = build_focus_html(us_ranks, tw_ranks, ticker_arts, clusters)
     notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)
 
+    # ── Analyst target prices: batch-fetch then inject into every modal ────────
+    _all_modal_tickers: set[str] = set(modal_data.keys())
+    if market_notes and market_notes.get("topics"):
+        for _topic in market_notes["topics"]:
+            _all_modal_tickers.update(_topic.get("tickers", []))
+    if _all_modal_tickers:
+        print(f"  Fetching analyst data for {len(_all_modal_tickers)} tickers…")
+        _analyst = await asyncio.to_thread(_yf_analyst_batch, list(_all_modal_tickers))
+    else:
+        _analyst = {}
+
+    # Rebuild modal content: [analyst section] + [articles section]
+    for _tk in list(modal_data.keys()):
+        _a_html = _build_analyst_html(_analyst.get(_tk, {}))
+        _arts   = modal_data[_tk]
+        _art_section = (
+            '<div class="modal-section">'
+            '<div class="modal-section-hdr">📰 相關文章</div>'
+            + _arts + '</div>'
+        ) if _arts else ""
+        modal_data[_tk] = _a_html + _art_section
+    # Notes-only tickers not yet in modal_data
+    for _tk in _all_modal_tickers:
+        if _tk not in modal_data:
+            _a_html = _build_analyst_html(_analyst.get(_tk, {}))
+            if _a_html:
+                modal_data[_tk] = _a_html
+
     # ── Indicator helpers ─────────────────────────────────────────────────────
     def ind(sym):
         d = snaps.get(sym, {})
@@ -1187,6 +1308,16 @@ dialog#art-modal::backdrop{{background:rgba(0,0,0,.65)}}
 .modal-art-meta{{font-size:.72rem;color:var(--muted);margin-bottom:.25rem}}
 .modal-art-title{{font-size:.85rem;font-weight:600;color:#c8d8ea;margin-bottom:.35rem}}
 .modal-snip{{font-size:.82rem;color:#b0bfcf;white-space:pre-wrap;line-height:1.65}}
+.modal-section{{margin-bottom:.9rem}}
+.modal-section-hdr{{font-size:.68rem;font-weight:600;color:var(--muted);
+                    text-transform:uppercase;letter-spacing:.07em;margin-bottom:.5rem}}
+.analyst-grid{{display:grid;grid-template-columns:1fr 1fr;gap:.4rem;margin-bottom:.4rem}}
+.ag-cell{{background:#0f1117;border-radius:7px;padding:.45rem .65rem}}
+.ag-label{{font-size:.66rem;color:var(--muted);display:block;margin-bottom:.1rem}}
+.ag-val{{font-size:.95rem;font-weight:700}}
+.ag-high{{color:var(--up)}}.ag-low{{color:var(--down)}}
+.ag-meta{{font-size:.74rem;color:var(--muted)}}
+.analyst-rec{{font-weight:700}}
 
 /* ── Cross-source topics (tab 3) ── */
 .topics-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));
@@ -1343,8 +1474,8 @@ function showSubTab(name) {{
 
 function showArtModal(ticker, name) {{
   const modal = document.getElementById('art-modal');
-  document.getElementById('modal-title').textContent = ticker + ' ' + name + ' — 相關文章';
-  document.getElementById('modal-body').innerHTML = artModalData[ticker] || '<p style="color:#7a8ba0">無相關文章資料</p>';
+  document.getElementById('modal-title').textContent = ticker + ' ' + name;
+  document.getElementById('modal-body').innerHTML = artModalData[ticker] || '<p style="color:#7a8ba0">尚無分析師或文章資料</p>';
   modal.showModal();
 }}
 
