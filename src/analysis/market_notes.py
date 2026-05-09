@@ -154,10 +154,14 @@ async def generate_market_notes(conn, report_date: date, api_key: str) -> dict:
                 notes = {"topics": []}
 
     await conn.execute(
-        """INSERT INTO analysis_reports (report_date, market_notes_json)
-           VALUES ($1, $2::jsonb)
+        "ALTER TABLE analysis_reports ADD COLUMN IF NOT EXISTS market_notes_run_at TIMESTAMPTZ"
+    )
+    await conn.execute(
+        """INSERT INTO analysis_reports (report_date, market_notes_json, market_notes_run_at)
+           VALUES ($1, $2::jsonb, NOW())
            ON CONFLICT (report_date) DO UPDATE
-           SET market_notes_json = EXCLUDED.market_notes_json""",
+           SET market_notes_json    = EXCLUDED.market_notes_json,
+               market_notes_run_at  = NOW()""",
         report_date,
         json.dumps(notes),
     )
