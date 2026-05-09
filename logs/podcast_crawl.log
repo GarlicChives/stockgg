@@ -162,3 +162,47 @@ Done. 3 new podcast episodes saved.
     Already saved — skipping
 
 Done. 2 new podcast episodes saved.
+
+=== 股癌 Gooaye (after 2026-05-06) ===
+  1 episode(s) in window
+  [2026-05-06] 'EP659 | 🦤'
+    Already saved — skipping
+
+=== 財經M平方 podcast (after 2026-05-02) ===
+  1 episode(s) in window
+  [2026-05-02] 'After Meeting EP. 197｜鮑威爾最後一舞，卻是聯準會最大分歧'
+    Already saved — skipping
+
+=== 韭菜畢業班 (after 2026-05-06) ===
+  1 episode(s) in window
+  [2026-05-06] 'EP223 | 台、美股重點一次說， 記憶體與矽晶圓，NVIDIA設計變更對散熱族群的影響和後勢，AMD財報亮點與宜鼎產'
+    Already saved — skipping
+
+=== 股海飯桶 WilsonRice (after 2026-05-07) ===
+  1 episode(s) in window
+  [2026-05-07] 'EP73｜演講收穫良多 RUBIN狀況不順 國內資金枯竭'
+    Already saved — skipping
+
+=== 兆華與股惑仔 (after 2026-05-07) ===
+  2 episode(s) in window
+  [2026-05-08] 'EP1093｜盤中洗一下，兩股力量撐著，Q3才休息？台積電營收月減，IC龍頭股來補漲？載板、CPO、散熱震盪看法？操盤手'
+    Downloading audio…
+    Downloaded 86.9 MB — transcribing…
+    Transcription error: [Errno 2] No such file or directory: 'ffmpeg'
+    Using show notes as fallback (225 chars)
+    Saved id=559 (225 chars transcript)
+  [2026-05-07] 'EP1092｜美伊和平利多用掉了，下一個刺激市場的會是降息？投信一定要買，低位階、有權值的被動元件、老AI、電源來了！f'
+    Already saved — skipping
+
+=== 財報狗 (after 2026-04-30) ===
+  2 episode(s) in window
+  [2026-05-07] '520.【財經時事放大鏡】機器人 x 矽晶圓'
+    Downloading audio…
+    Downloaded 31.4 MB — transcribing…
+    Transcription error: [Errno 2] No such file or directory: 'ffmpeg'
+    Using show notes as fallback (403 chars)
+    Saved id=560 (403 chars transcript)
+  [2026-04-30] '519.【財經時事放大鏡】Event Trade？台積電 & Google'
+    Already saved — skipping
+
+Done. 2 new podcast episodes saved.

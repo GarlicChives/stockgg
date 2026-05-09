@@ -58,6 +58,14 @@
         {
           "code": "3481",
           "name": "群創"
+        },
+        {
+          "code": "3211",
+          "name": "順達"
+        },
+        {
+          "code": "8069",
+          "name": "元太"
         }
       ],
       "us_stocks": [
@@ -159,9 +167,22 @@
         {
           "code": "2383",
           "name": "台光電"
+        },
+        {
+          "code": "6187",
+          "name": "萬潤"
         }
       ],
-      "us_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "RKLB",
+          "name": "Rocket Lab Corporation"
+        },
+        {
+          "ticker": "RDW",
+          "name": "Redwire Corporation"
+        }
+      ],
       "auto_created": true,
       "auto_created_at": "2026-05-05"
     },
@@ -297,6 +318,26 @@
         {
           "code": "8210",
           "name": "勤誠"
+        },
+        {
+          "code": "5274",
+          "name": "信驊"
+        },
+        {
+          "code": "8086",
+          "name": "宏捷科"
+        },
+        {
+          "code": "3264",
+          "name": "欣銓"
+        },
+        {
+          "code": "3324",
+          "name": "雙鴻"
+        },
+        {
+          "code": "4991",
+          "name": "環宇-KY"
         }
       ],
       "us_stocks": [
@@ -319,6 +360,10 @@
         {
           "ticker": "WULF",
           "name": "TeraWulf Inc."
+        },
+        {
+          "ticker": "CRWV",
+          "name": "CoreWeave, Inc."
         }
       ],
       "auto_created": true,
@@ -402,6 +447,10 @@
         {
           "code": "3661",
           "name": "世芯-KY"
+        },
+        {
+          "code": "3264",
+          "name": "欣銓"
         }
       ],
       "us_stocks": [],
@@ -448,6 +497,26 @@
         {
           "code": "3661",
           "name": "世芯-KY"
+        },
+        {
+          "code": "5274",
+          "name": "信驊"
+        },
+        {
+          "code": "3211",
+          "name": "順達"
+        },
+        {
+          "code": "3529",
+          "name": "力旺"
+        },
+        {
+          "code": "3008",
+          "name": "大立光"
+        },
+        {
+          "code": "4966",
+          "name": "譜瑞-KY"
         }
       ],
       "us_stocks": [
@@ -519,6 +588,14 @@
         {
           "code": "5289",
           "name": "宜鼎"
+        },
+        {
+          "code": "3529",
+          "name": "力旺"
+        },
+        {
+          "code": "3264",
+          "name": "欣銓"
         }
       ],
       "us_stocks": [
@@ -562,6 +639,14 @@
         {
           "code": "5289",
           "name": "宜鼎"
+        },
+        {
+          "code": "4749",
+          "name": "新應材"
+        },
+        {
+          "code": "6187",
+          "name": "萬潤"
         }
       ],
       "us_stocks": [],
@@ -622,6 +707,14 @@
         {
           "code": "3653",
           "name": "健策"
+        },
+        {
+          "code": "3324",
+          "name": "雙鴻"
+        },
+        {
+          "code": "6187",
+          "name": "萬潤"
         }
       ],
       "us_stocks": [],
@@ -652,6 +745,14 @@
         {
           "code": "5289",
           "name": "宜鼎"
+        },
+        {
+          "code": "3324",
+          "name": "雙鴻"
+        },
+        {
+          "code": "6187",
+          "name": "萬潤"
         }
       ],
       "us_stocks": [],
@@ -682,6 +783,22 @@
         {
           "code": "2360",
           "name": "致茂"
+        },
+        {
+          "code": "6223",
+          "name": "旺矽"
+        },
+        {
+          "code": "3374",
+          "name": "精材"
+        },
+        {
+          "code": "3211",
+          "name": "順達"
+        },
+        {
+          "code": "3264",
+          "name": "欣銓"
         }
       ],
       "us_stocks": [],
@@ -708,6 +825,10 @@
         {
           "code": "3481",
           "name": "群創"
+        },
+        {
+          "code": "4749",
+          "name": "新應材"
         }
       ],
       "us_stocks": [],
@@ -726,6 +847,10 @@
         {
           "code": "3711",
           "name": "日月光投控"
+        },
+        {
+          "code": "6187",
+          "name": "萬潤"
         }
       ],
       "us_stocks": [
@@ -893,6 +1018,10 @@
         {
           "code": "2303",
           "name": "聯電"
+        },
+        {
+          "code": "8086",
+          "name": "宏捷科"
         }
       ],
       "us_stocks": [],
@@ -915,6 +1044,10 @@
         {
           "code": "2303",
           "name": "聯電"
+        },
+        {
+          "code": "8086",
+          "name": "宏捷科"
         }
       ],
       "us_stocks": [
@@ -978,6 +1111,18 @@
         {
           "code": "6285",
           "name": "啟碁"
+        },
+        {
+          "code": "8086",
+          "name": "宏捷科"
+        },
+        {
+          "code": "3264",
+          "name": "欣銓"
+        },
+        {
+          "code": "4991",
+          "name": "環宇-KY"
         }
       ],
       "us_stocks": [
@@ -1035,6 +1180,10 @@
         {
           "code": "5289",
           "name": "宜鼎"
+        },
+        {
+          "code": "3529",
+          "name": "力旺"
         }
       ],
       "us_stocks": [],
@@ -1133,6 +1282,10 @@
         {
           "code": "6147",
           "name": "頎邦"
+        },
+        {
+          "code": "3264",
+          "name": "欣銓"
         }
       ],
       "us_stocks": [
@@ -1160,6 +1313,18 @@
         {
           "code": "6770",
           "name": "力積電"
+        },
+        {
+          "code": "5347",
+          "name": "世界"
+        },
+        {
+          "code": "8086",
+          "name": "宏捷科"
+        },
+        {
+          "code": "4991",
+          "name": "環宇-KY"
         }
       ],
       "us_stocks": [],
@@ -1178,6 +1343,10 @@
         {
           "code": "2327",
           "name": "國巨*"
+        },
+        {
+          "code": "6187",
+          "name": "萬潤"
         }
       ],
       "us_stocks": [],
@@ -1214,6 +1383,14 @@
         {
           "code": "2327",
           "name": "國巨*"
+        },
+        {
+          "code": "3529",
+          "name": "力旺"
+        },
+        {
+          "code": "3406",
+          "name": "玉晶光"
         }
       ],
       "us_stocks": [
@@ -1255,6 +1432,10 @@
         {
           "ticker": "BBAI",
           "name": "BigBear.ai, Inc."
+        },
+        {
+          "ticker": "NU",
+          "name": "Nu Holdings Ltd."
         }
       ],
       "auto_created": true,
@@ -1272,6 +1453,14 @@
         {
           "code": "3481",
           "name": "群創"
+        },
+        {
+          "code": "4749",
+          "name": "新應材"
+        },
+        {
+          "code": "8069",
+          "name": "元太"
         }
       ],
       "us_stocks": [
@@ -1303,6 +1492,26 @@
         {
           "code": "6488",
           "name": "環球晶"
+        },
+        {
+          "code": "3211",
+          "name": "順達"
+        },
+        {
+          "code": "3529",
+          "name": "力旺"
+        },
+        {
+          "code": "8086",
+          "name": "宏捷科"
+        },
+        {
+          "code": "3264",
+          "name": "欣銓"
+        },
+        {
+          "code": "3406",
+          "name": "玉晶光"
         }
       ],
       "us_stocks": [
@@ -1321,6 +1530,10 @@
         {
           "ticker": "HIMX",
           "name": "Himax Technologies, Inc."
+        },
+        {
+          "ticker": "BB",
+          "name": "BlackBerry Limited"
         }
       ],
       "auto_created": true,
@@ -1383,6 +1596,10 @@
         {
           "code": "2455",
           "name": "全新"
+        },
+        {
+          "code": "8086",
+          "name": "宏捷科"
         }
       ],
       "us_stocks": [],
@@ -1401,6 +1618,10 @@
         {
           "code": "6488",
           "name": "環球晶"
+        },
+        {
+          "code": "6182",
+          "name": "合晶"
         }
       ],
       "us_stocks": [],
@@ -1419,6 +1640,10 @@
         {
           "code": "6488",
           "name": "環球晶"
+        },
+        {
+          "code": "8086",
+          "name": "宏捷科"
         }
       ],
       "us_stocks": [],
@@ -1495,6 +1720,10 @@
         {
           "ticker": "AMPX",
           "name": "Amprius Technologies, Inc."
+        },
+        {
+          "ticker": "EOSE",
+          "name": "Eos Energy Enterprises, Inc."
         }
       ],
       "auto_created": true,
@@ -1567,6 +1796,14 @@
         {
           "ticker": "U",
           "name": "Unity Software Inc."
+        },
+        {
+          "ticker": "NU",
+          "name": "Nu Holdings Ltd."
+        },
+        {
+          "ticker": "OPEN",
+          "name": "Opendoor Technologies Inc"
         }
       ],
       "auto_created": true,
@@ -1617,6 +1854,14 @@
         {
           "ticker": "U",
           "name": "Unity Software Inc."
+        },
+        {
+          "ticker": "CRWV",
+          "name": "CoreWeave, Inc."
+        },
+        {
+          "ticker": "NU",
+          "name": "Nu Holdings Ltd."
         }
       ],
       "auto_created": true,
@@ -1655,6 +1900,10 @@
         {
           "ticker": "U",
           "name": "Unity Software Inc."
+        },
+        {
+          "ticker": "TTD",
+          "name": "The Trade Desk, Inc."
         }
       ],
       "auto_created": true,
@@ -1777,6 +2026,10 @@
         {
           "ticker": "BBD",
           "name": "Banco Bradesco Sa"
+        },
+        {
+          "ticker": "NU",
+          "name": "Nu Holdings Ltd."
         }
       ],
       "auto_created": true,
@@ -1832,6 +2085,14 @@
         {
           "code": "8210",
           "name": "勤誠"
+        },
+        {
+          "code": "5274",
+          "name": "信驊"
+        },
+        {
+          "code": "3324",
+          "name": "雙鴻"
         }
       ],
       "us_stocks": [
@@ -1858,6 +2119,10 @@
         {
           "ticker": "DDOG",
           "name": "Datadog, Inc."
+        },
+        {
+          "ticker": "CRWV",
+          "name": "CoreWeave, Inc."
         }
       ],
       "auto_created": true,
@@ -1962,6 +2227,14 @@
         {
           "ticker": "BBD",
           "name": "Banco Bradesco Sa"
+        },
+        {
+          "ticker": "NU",
+          "name": "Nu Holdings Ltd."
+        },
+        {
+          "ticker": "OPEN",
+          "name": "Opendoor Technologies Inc"
         }
       ],
       "auto_created": true,
@@ -2002,6 +2275,10 @@
         {
           "ticker": "SOUN",
           "name": "SoundHound AI, Inc."
+        },
+        {
+          "ticker": "NU",
+          "name": "Nu Holdings Ltd."
         }
       ],
       "auto_created": true,
@@ -2103,6 +2380,14 @@
         {
           "code": "6770",
           "name": "力積電"
+        },
+        {
+          "code": "3211",
+          "name": "順達"
+        },
+        {
+          "code": "3529",
+          "name": "力旺"
         }
       ],
       "us_stocks": [],
@@ -2121,6 +2406,10 @@
         {
           "code": "2360",
           "name": "致茂"
+        },
+        {
+          "code": "6223",
+          "name": "旺矽"
         }
       ],
       "us_stocks": [],
@@ -2139,6 +2428,10 @@
         {
           "code": "2360",
           "name": "致茂"
+        },
+        {
+          "code": "3008",
+          "name": "大立光"
         }
       ],
       "us_stocks": [],
@@ -2165,6 +2458,14 @@
         {
           "code": "8358",
           "name": "金居"
+        },
+        {
+          "code": "6223",
+          "name": "旺矽"
+        },
+        {
+          "code": "4749",
+          "name": "新應材"
         }
       ],
       "us_stocks": [
@@ -2315,6 +2616,10 @@
         {
           "ticker": "BBAI",
           "name": "BigBear.ai, Inc."
+        },
+        {
+          "ticker": "BB",
+          "name": "BlackBerry Limited"
         }
       ],
       "auto_created": true,
@@ -2603,6 +2908,370 @@
       "us_stocks": [],
       "auto_created": true,
       "auto_created_at": "2026-05-08"
+    },
+    {
+      "id": "probe_card_concept",
+      "name": "探針卡",
+      "keyword": "探針卡",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "6223",
+          "name": "旺矽"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-09"
+    },
+    {
+      "id": "bmc_chip_concept",
+      "name": "BMC晶片",
+      "keyword": "BMC晶片",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "5274",
+          "name": "信驊"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-09"
+    },
+    {
+      "id": "lithography_materials_concept",
+      "name": "微影材料",
+      "keyword": "微影製程特化材料",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "4749",
+          "name": "新應材"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-09"
+    },
+    {
+      "id": "bbu_battery_concept",
+      "name": "BBU電池",
+      "keyword": "BBU電池",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "3211",
+          "name": "順達"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-09"
+    },
+    {
+      "id": "embedded_nvm_ip_concept",
+      "name": "嵌入式NVM",
+      "keyword": "嵌入式NVM",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "3529",
+          "name": "力旺"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-09"
+    },
+    {
+      "id": "high_speed_optical_module_components",
+      "name": "高速光模組",
+      "keyword": "高速光模組",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "8086",
+          "name": "宏捷科"
+        },
+        {
+          "code": "4991",
+          "name": "環宇-KY"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-09"
+    },
+    {
+      "id": "cw_laser_concept",
+      "name": "CW雷射",
+      "keyword": "CW雷射",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "4991",
+          "name": "環宇-KY"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-09"
+    },
+    {
+      "id": "pd_component_concept",
+      "name": "PD元件",
+      "keyword": "PD元件",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "4991",
+          "name": "環宇-KY"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-09"
+    },
+    {
+      "id": "high_speed_interface_chip",
+      "name": "高速介面",
+      "keyword": "高速介面晶片",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "4966",
+          "name": "譜瑞-KY"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-09"
+    },
+    {
+      "id": "ai_pc_concept",
+      "name": "AI PC",
+      "keyword": "AI PC",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "4966",
+          "name": "譜瑞-KY"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-09"
+    },
+    {
+      "id": "camera_module_concept",
+      "name": "鏡頭模組",
+      "keyword": "鏡頭模組",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [
+        {
+          "code": "3406",
+          "name": "玉晶光"
+        }
+      ],
+      "us_stocks": [],
+      "auto_created": true,
+      "auto_created_at": "2026-05-09"
+    },
+    {
+      "id": "space_launch_services",
+      "name": "太空發射",
+      "keyword": "太空發射",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "RKLB",
+          "name": "Rocket Lab Corporation"
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-09"
+    },
+    {
+      "id": "rocket_manufacturing",
+      "name": "火箭製造",
+      "keyword": "火箭製造",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "RKLB",
+          "name": "Rocket Lab Corporation"
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-09"
+    },
+    {
+      "id": "ai_cloud_services",
+      "name": "AI雲服務",
+      "keyword": "AI雲服務",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "CRWV",
+          "name": "CoreWeave, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-09"
+    },
+    {
+      "id": "space_infrastructure_supplier",
+      "name": "太空基礎設施",
+      "keyword": "太空基礎設施",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "RDW",
+          "name": "Redwire Corporation"
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-09"
+    },
+    {
+      "id": "solar_array_manufacturer",
+      "name": "太陽能陣列",
+      "keyword": "太陽能陣列",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "RDW",
+          "name": "Redwire Corporation"
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-09"
+    },
+    {
+      "id": "mortgage_lending_platform",
+      "name": "房貸平台",
+      "keyword": "房貸",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "RKT",
+          "name": "Rocket Companies, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-09"
+    },
+    {
+      "id": "financial_reporting_software",
+      "name": "財報軟體",
+      "keyword": "財報",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "RKT",
+          "name": "Rocket Companies, Inc."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-09"
+    },
+    {
+      "id": "digital_banking_platform",
+      "name": "數位銀行",
+      "keyword": "數位銀行",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "NU",
+          "name": "Nu Holdings Ltd."
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-09"
+    },
+    {
+      "id": "secure_communication_concept",
+      "name": "安全通訊",
+      "keyword": "安全通訊",
+      "supply_chain": {
+        "upstream": [],
+        "downstream": []
+      },
+      "tw_stocks": [],
+      "us_stocks": [
+        {
+          "ticker": "BB",
+          "name": "BlackBerry Limited"
+        }
+      ],
+      "auto_created": true,
+      "auto_created_at": "2026-05-09"
     }
   ]
 }
