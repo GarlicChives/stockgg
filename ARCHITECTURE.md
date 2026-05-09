@@ -55,6 +55,17 @@
 
 `catchup` 觸發條件：`RunAtLoad: true`、`WatchPaths: /private/var/run/resolv.conf`、`StartInterval: 1800`。article-crawl 因需 Chrome 不會被補跑。
 
+> **⚠️ launchd PATH 規則（Apple Silicon 必讀）**
+> 所有 plist 的 `EnvironmentVariables/PATH` 必須包含 `/opt/homebrew/bin`：
+> ```xml
+> <key>PATH</key>
+> <string>/opt/homebrew/bin:/Users/edward.song/.local/bin:/usr/local/bin:/usr/bin:/bin</string>
+> ```
+> Apple Silicon Homebrew 安裝路徑為 `/opt/homebrew/bin`（Intel 為 `/usr/local/bin`）。
+> launchd 不繼承使用者 shell 的 PATH，缺少此路徑會導致 `ffmpeg`、`npx` 等工具 not found，
+> Podcast Whisper 轉錄會靜默 fallback 到 show notes（短內容），而且不報錯。
+> 新增 plist 時務必照此格式填寫，否則重新 load 後才會生效。
+
 ### GitHub Actions（雲端備援）
 
 | 觸發 | Workflow | 步驟 |
@@ -264,7 +275,7 @@ src/
 
 ## 11. 已知限制與待辦
 
-- ⏳ `brew install ffmpeg` — 啟用完整 Whisper 轉錄（目前 fallback show notes）
+- ✅ `ffmpeg` 已安裝（`/opt/homebrew/bin/ffmpeg`），Whisper 轉錄正常運作
 - ⏳ Telegram Bot token — daily_briefing 推播
 - ⏳ `ANTHROPIC_API_KEY` — 遷移精煉至 Claude Haiku、分析至 Sonnet，解決 Gemini 429
 - ⚠️ Article crawl 需 Chrome 在 9222；開機後需手動啟動（或用 `.chrome-profile/` launchd job）
