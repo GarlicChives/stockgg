@@ -122,6 +122,7 @@ async def main():
     print("── Step 5: Cross-Source Market Notes — 由獨立排程執行（18:00 / 23:00）──")
     print()
 
+    api_key = os.environ.get("GOOGLE_API_KEY")
     if api_key:
         print("── Step 5.5: Theme Dictionary (Search+LLM Classification) ──")
         proc = subprocess.run(
