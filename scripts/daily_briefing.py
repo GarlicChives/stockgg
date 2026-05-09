@@ -34,7 +34,6 @@ from src.news.market_data import fetch_and_store as fetch_indicators
 from src.news.us_rankings import fetch_and_store as fetch_us
 from src.news.tw_rankings import fetch_and_store as fetch_tw
 from src.analysis.daily_report import generate_report
-from src.analysis.market_notes import generate_market_notes
 from src.utils import db
 
 
@@ -119,21 +118,9 @@ async def main():
         print("=" * 60)
     print()
 
-    api_key = os.environ.get("GOOGLE_API_KEY")
-    if api_key:
-        print("── Step 5: Cross-Source Market Notes ──")
-        if has_notes and not force:
-            print(f"  ⏭  今日已有 market_notes — 跳過。需重產加 --force")
-        else:
-            conn = await db.connect()
-            try:
-                await generate_market_notes(conn, today, api_key)
-            finally:
-                await conn.close()
-        print()
-    else:
-        print("── Step 5: Market Notes skipped (no GOOGLE_API_KEY) ──")
-        print()
+    # Step 5 moved to dedicated schedule (run_market_notes.py at 18:00 & 23:00)
+    print("── Step 5: Cross-Source Market Notes — 由獨立排程執行（18:00 / 23:00）──")
+    print()
 
     if api_key:
         print("── Step 5.5: Theme Dictionary (Search+LLM Classification) ──")
