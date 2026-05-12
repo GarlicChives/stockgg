@@ -190,6 +190,52 @@ def _stk_pill(ticker: str, stocks_info: dict, clickable: bool = True, extra_attr
     )
 
 
+def _pillify_in_html(html: str, stocks_info: dict) -> str:
+    """Replace ticker codes & known Chinese names in HTML text with stock pills.
+
+    Operates only on text segments (skips content inside HTML tags so we don't
+    corrupt attributes). Replacement happens only when the resolved ticker is
+    present in stocks_info — unknown tokens (VIX, AI, US, EP, etc.) stay as
+    plain text, which gives us a free false-positive filter.
+    """
+    if not html or not stocks_info:
+        return html
+
+    name_to_ticker: dict[str, str] = {}
+    for tk, info in stocks_info.items():
+        nm = (info.get("name") or "").strip()
+        if nm and len(nm) >= 2:
+            name_to_ticker[nm] = tk
+
+    names_sorted = sorted(name_to_ticker.keys(), key=len, reverse=True)
+    name_alt = "|".join(re.escape(n) for n in names_sorted)
+    if name_alt:
+        token_re = re.compile(rf"({name_alt})|\b(\d{{4}}|[A-Z]{{2,5}})\b")
+    else:
+        token_re = re.compile(r"\b(\d{4}|[A-Z]{2,5})\b")
+
+    def _sub_in_text(text: str) -> str:
+        def _one(m):
+            matched = m.group(0)
+            tk = name_to_ticker.get(matched) or (matched if matched in stocks_info else None)
+            if not tk or tk not in stocks_info:
+                return matched
+            return _stk_pill(tk, stocks_info)
+        return token_re.sub(_one, text)
+
+    # Tokenize by HTML tags so we don't replace inside attributes / script.
+    parts = re.split(r"(<[^>]+>)", html)
+    out = []
+    for i, p in enumerate(parts):
+        if not p:
+            continue
+        if i % 2 == 1:  # an HTML tag
+            out.append(p)
+        else:
+            out.append(_sub_in_text(p))
+    return "".join(out)
+
+
 _TICKER_PAREN_RE = re.compile(r'\(([^)]+)\)$')
 
 def _normalize_ticker(raw: str) -> str:
@@ -1117,6 +1163,7 @@ async def generate():
     report_date  = report["report_date"].strftime("%Y/%m/%d") if report else "—"
     directions  = parse_directions(raw_report)
     report_html = md_to_html(raw_report)
+    report_html = _pillify_in_html(report_html, stocks_info)
     updated_at  = datetime.now(timezone.utc).strftime("%m/%d %H:%M UTC")
 
     focus_html, modal_data = build_focus_html(us_ranks, tw_ranks, ticker_arts, clusters)
@@ -1270,13 +1317,6 @@ header h1{{font-size:1rem;font-weight:700;color:var(--accent)}}
 .report h2{{color:var(--accent);font-size:.98rem;font-weight:600;
             margin:1.1rem 0 .5rem;padding-bottom:.3rem;
             border-bottom:1px solid var(--border)}}
-/* Morning-note "Top Call" — first ## section is the headline takeaway */
-.report h2:first-of-type{{
-    background:linear-gradient(135deg,rgba(124,165,194,.18) 0%,rgba(124,165,194,.04) 100%);
-    border:1px solid rgba(124,165,194,.35);border-radius:6px;
-    padding:.5rem .75rem;border-bottom:none;font-size:1rem}}
-.report h2:first-of-type + p strong:first-child{{
-    color:var(--accent);font-size:1rem;display:inline-block;margin-right:.25rem}}
 .report h3{{color:#a0b0cc;font-size:.9rem;font-weight:600;margin:.9rem 0 .35rem}}
 .report p{{margin-bottom:.55rem;font-size:.9rem}}
 .report ul{{padding-left:1.3rem;margin-bottom:.55rem}}
