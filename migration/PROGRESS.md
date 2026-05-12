@@ -24,9 +24,9 @@
 
 ## Cursor
 
-- **Current phase**: Phase 0 — finishing
-- **Last completed step**: 0.5 — design complete, apply deferred to Phase 3.1
-- **Next action**: 0.6 commit, then Phase 1.1 (confirm new repo name with user)
+- **Current phase**: Phase 1 — Build new private repo (parallel, no cutover)
+- **Last completed step**: 0.6 — Phase 0 design committed (`d9661c85`)
+- **Next action**: 1.2 Create private GitHub repo `GarlicChives/StockGG-ingest`
 
 ---
 
@@ -66,18 +66,37 @@ code. Output of Phase 0 = a green-light or a re-scope decision for Phase 1+.
 Goal: stand up `iia-ingest` with full copy of code; verify it can run, but
 keep all its launchd jobs disabled.
 
-- [ ] **1.1 Confirm name**. Recommended: `iia-ingest`. Confirmed: ___
-- [ ] **1.2 Create private GitHub repo** under user account, empty.
-- [ ] **1.3 Mirror current code** into new repo (full history copy via
-      `git clone --mirror` then push, or fresh clone with squash).
+- [x] **1.1 Confirm name** — `StockGG-ingest`. Local path:
+      `~/Desktop/StockGG-ingest`. Admin UI: FastAPI + HTMX. Remote
+      access: Cloudflare Tunnel. Git history: full mirror.
+      → 2026-05-12: user confirmed all 4 decisions.
+- [ ] **1.2 Create private GitHub repo** `GarlicChives/StockGG-ingest`
+      via `gh repo create ... --private`.
+- [ ] **1.3 Clone current repo into new local path + push** (full
+      history of `main` branch).
+      ```
+      cd ~/Desktop && git clone git@github.com:GarlicChives/Stock-test.git StockGG-ingest
+      cd StockGG-ingest
+      git remote set-url origin git@github.com:GarlicChives/StockGG-ingest.git
+      git push -u origin main
+      ```
 - [ ] **1.4 Update launchd plists in new repo**: change WorkingDirectory
-      to new repo path; add `<key>Disabled</key><true/>` to prevent
-      auto-load.
-- [ ] **1.5 Local smoke test**: run one of the crawlers from new repo dir,
-      confirm it writes DB.
-- [ ] **1.6 Admin UI scaffold**: FastAPI + HTMX minimal app, single
-      `/healthz` endpoint, running on `localhost:8765`.
-- [ ] **1.7 Commit baseline** in new repo.
+      to `/Users/edward.song/Desktop/StockGG-ingest`; add
+      `<key>Disabled</key><true/>` so they don't auto-load on next reboot.
+- [ ] **1.5 Local smoke test**: from new repo dir, run something light
+      that proves DB connection works (no crawl, no LLM call yet). E.g.
+      `uv run python -c "import asyncio; from src.utils import db;
+       print(asyncio.run(db.connect().__aenter__()))"`.
+- [ ] **1.6 Admin UI scaffold**: `admin/` package with FastAPI + HTMX.
+      `uv add fastapi uvicorn jinja2`. Single `/healthz` page.
+      Run via `uv run uvicorn admin.main:app --port 8765 --reload`.
+- [ ] **1.7 Cloudflare Tunnel setup**: install `cloudflared` via brew,
+      auth, create named tunnel `stockgg-ingest-admin`, route a
+      hostname (e.g. `admin.stockgg.something`) to `localhost:8765`,
+      add as launchd job. **Note**: needs interactive user login —
+      pause here for user when reached.
+- [ ] **1.8 Commit baseline** in new repo:
+      `git commit -m "scaffold: forked from Stock-test, plists disabled, admin UI bootstrap"`.
 
 **Rollback**: delete new repo. Current repo untouched throughout.
 
