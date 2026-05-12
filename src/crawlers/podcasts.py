@@ -8,11 +8,13 @@ Flow per episode:
   4. Store full transcript as content in DB
 """
 import asyncio
+import fcntl
 import os
 import re
 import subprocess
 import sys
 import tempfile
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -30,7 +32,9 @@ from src.utils.refine import refine_and_store
 load_dotenv()
 
 LOOKBACK_DAYS = 180
-WHISPER_MODEL = "mlx-community/whisper-large-v3-mlx-4bit"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+TRANSCRIBE_WORKER = REPO_ROOT / 'scripts' / 'transcribe_one.py'
+LOCKFILE = REPO_ROOT / 'logs' / '.podcast_crawl.lock'
 
 PODCASTS = [
     {
@@ -105,39 +109,59 @@ def parse_pub_date(s: str) -> Optional[datetime]:
 
 
 def transcribe_audio(audio_url: str, episode_title: str) -> str:
-    """Download MP3 and transcribe with mlx-whisper (M1 optimised). Returns full transcript."""
-    import mlx_whisper
+    """Transcribe a podcast audio file in an isolated subprocess.
 
-    print(f"    Downloading audio…")
-    req = Request(audio_url, headers={'User-Agent': 'Mozilla/5.0 IIA-Podcast-Crawler'})
+    Each call spawns scripts/transcribe_one.py so macOS reclaims all unified
+    memory (MLX/Metal buffers, decoder state, activations) when the worker
+    exits. Mandatory: sequential mlx-whisper.transcribe() calls inside one
+    process accumulate memory until the kernel OOMs the parent.
 
-    with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as f:
-        tmp_path = f.name
-        with urlopen(req, timeout=120) as r:
-            while True:
-                chunk = r.read(1024 * 1024)
-                if not chunk:
-                    break
-                f.write(chunk)
-
-    size_mb = os.path.getsize(tmp_path) / 1024 / 1024
-    print(f"    Downloaded {size_mb:.1f} MB — transcribing…")
+    Raises RuntimeError on subprocess failure (matches the old contract:
+    callers wrap in try/except and fall back to show notes).
+    """
+    out_fd, out_path = tempfile.mkstemp(suffix='.txt')
+    os.close(out_fd)
 
     try:
-        result = mlx_whisper.transcribe(
-            tmp_path,
-            path_or_hf_repo=WHISPER_MODEL,
-            language="zh",
-            verbose=False,
+        proc = subprocess.run(
+            [sys.executable, str(TRANSCRIBE_WORKER), audio_url, out_path],
         )
-        transcript = (result.get('text') or '').strip()
-        print(f"    Transcript: {len(transcript)} chars")
-        return transcript
+        if proc.returncode != 0:
+            raise RuntimeError(f"transcribe_one subprocess exited {proc.returncode}")
+        return Path(out_path).read_text(encoding='utf-8').strip()
     finally:
         try:
-            os.unlink(tmp_path)
+            os.unlink(out_path)
+        except FileNotFoundError:
+            pass
+
+
+@contextmanager
+def single_instance():
+    """Refuse to start if another podcast crawler is already running.
+
+    Prevents launchd's hourly trigger from stacking instances on top of a
+    long retranscribe, which would multiply Whisper memory load and OOM
+    the Mac (May 2026 incident).
+    """
+    LOCKFILE.parent.mkdir(parents=True, exist_ok=True)
+    fp = open(LOCKFILE, 'w')
+    try:
+        try:
+            fcntl.flock(fp.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print(f"⚠ Another podcast crawl is already running (lock: {LOCKFILE}) — exiting.")
+            fp.close()
+            sys.exit(0)
+        fp.write(str(os.getpid()))
+        fp.flush()
+        yield
+    finally:
+        try:
+            fcntl.flock(fp.fileno(), fcntl.LOCK_UN)
         except Exception:
             pass
+        fp.close()
 
 
 def fetch_rss_items(podcast: dict, cutoff: datetime) -> list[dict]:
@@ -339,12 +363,13 @@ async def retranscribe_latest(conn, n: int = 1):
 
 
 if __name__ == '__main__':
-    if '--retranscribe-latest' in sys.argv:
-        async def run_retranscribe():
-            conn = await db.connect()
-            print("Retranscribing latest episode from each podcast...")
-            await retranscribe_latest(conn)
-            await conn.close()
-        asyncio.run(run_retranscribe())
-    else:
-        asyncio.run(crawl(incremental='--incremental' in sys.argv))
+    with single_instance():
+        if '--retranscribe-latest' in sys.argv:
+            async def run_retranscribe():
+                conn = await db.connect()
+                print("Retranscribing latest episode from each podcast...")
+                await retranscribe_latest(conn)
+                await conn.close()
+            asyncio.run(run_retranscribe())
+        else:
+            asyncio.run(crawl(incremental='--incremental' in sys.argv))
