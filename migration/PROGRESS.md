@@ -24,9 +24,11 @@
 
 ## Cursor
 
-- **Current phase**: Phase 1 — Build new private repo (parallel, no cutover)
-- **Last completed step**: 0.6 — Phase 0 design committed (`d9661c85`)
-- **Next action**: 1.2 Create private GitHub repo `GarlicChives/StockGG-ingest`
+- **Current phase**: Phase 1 — almost done; one user-interactive step pending
+- **Last completed step**: 1.8 — new repo baseline committed (`1c6efc6`)
+- **Next action**: 1.7 — user runs `cloudflared tunnel login` flow (see
+  `~/Desktop/StockGG-ingest/infra/cloudflared/README.md`). After that,
+  proceed to Phase 2.1 backup of current launchctl state.
 
 ---
 
@@ -70,33 +72,24 @@ keep all its launchd jobs disabled.
       `~/Desktop/StockGG-ingest`. Admin UI: FastAPI + HTMX. Remote
       access: Cloudflare Tunnel. Git history: full mirror.
       → 2026-05-12: user confirmed all 4 decisions.
-- [ ] **1.2 Create private GitHub repo** `GarlicChives/StockGG-ingest`
-      via `gh repo create ... --private`.
-- [ ] **1.3 Clone current repo into new local path + push** (full
-      history of `main` branch).
-      ```
-      cd ~/Desktop && git clone git@github.com:GarlicChives/Stock-test.git StockGG-ingest
-      cd StockGG-ingest
-      git remote set-url origin git@github.com:GarlicChives/StockGG-ingest.git
-      git push -u origin main
-      ```
-- [ ] **1.4 Update launchd plists in new repo**: change WorkingDirectory
-      to `/Users/edward.song/Desktop/StockGG-ingest`; add
-      `<key>Disabled</key><true/>` so they don't auto-load on next reboot.
-- [ ] **1.5 Local smoke test**: from new repo dir, run something light
-      that proves DB connection works (no crawl, no LLM call yet). E.g.
-      `uv run python -c "import asyncio; from src.utils import db;
-       print(asyncio.run(db.connect().__aenter__()))"`.
-- [ ] **1.6 Admin UI scaffold**: `admin/` package with FastAPI + HTMX.
-      `uv add fastapi uvicorn jinja2`. Single `/healthz` page.
-      Run via `uv run uvicorn admin.main:app --port 8765 --reload`.
-- [ ] **1.7 Cloudflare Tunnel setup**: install `cloudflared` via brew,
-      auth, create named tunnel `stockgg-ingest-admin`, route a
-      hostname (e.g. `admin.stockgg.something`) to `localhost:8765`,
-      add as launchd job. **Note**: needs interactive user login —
-      pause here for user when reached.
-- [ ] **1.8 Commit baseline** in new repo:
-      `git commit -m "scaffold: forked from Stock-test, plists disabled, admin UI bootstrap"`.
+- [x] **1.2 Create private GitHub repo** `GarlicChives/StockGG-ingest`.
+      → https://github.com/GarlicChives/StockGG-ingest
+- [x] **1.3 Clone + push to new remote** (`~/Desktop/StockGG-ingest`).
+- [x] **1.4 Launchd plists updated** in new repo: all 8 plists repointed
+      to `/Users/edward.song/Desktop/StockGG-ingest` + `Disabled: true`.
+- [x] **1.5 Local smoke test** — DB connection works, 565 articles
+      visible from new repo dir.
+- [x] **1.6 Admin UI scaffold** — FastAPI + HTMX at
+      `admin/`. `uv sync` brings in fastapi/uvicorn/jinja2.
+      Verified `/healthz` + `/` render correctly on localhost:8765.
+- [!] **1.7 Cloudflare Tunnel setup** — **NEEDS USER INTERACTION**.
+      `cloudflared` installed via brew. Boilerplate ready:
+      - `infra/cloudflared/config.yml.example`
+      - `infra/cloudflared/README.md` (step-by-step)
+      - `launchd/com.iia.admin-ui.plist` (Disabled: true)
+      User runs the 5 commands in the README. When done, mark this ✅.
+- [x] **1.8 Commit baseline** in new repo — `1c6efc6` on
+      `GarlicChives/StockGG-ingest:main`.
 
 **Rollback**: delete new repo. Current repo untouched throughout.
 
@@ -184,7 +177,9 @@ done
 
 ## Open blockers
 
-(none yet)
+- **1.7 Cloudflare Tunnel** waits on user — `cloudflared tunnel login`
+  must run interactively in the user's browser. Boilerplate is ready;
+  follow the README in `~/Desktop/StockGG-ingest/infra/cloudflared/`.
 
 ---
 
