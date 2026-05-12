@@ -19,6 +19,7 @@ load_dotenv()
 
 from src.utils import db
 from src.analysis.market_notes import generate_market_notes
+from src.analysis.thesis_check import check_all_theses
 
 BASE = Path(__file__).resolve().parent.parent
 UV   = str(Path(os.environ.get("HOME", "")) / ".local/bin/uv")
@@ -75,6 +76,12 @@ async def main(force: bool = False) -> None:
             print("  ▶ --force 模式，強制執行跨來源議題分析…")
 
         await generate_market_notes(conn, date.today(), api_key)
+
+        print("  ▶ 檢查 watchlist 論點是否被今日新聞支持／矛盾 …")
+        try:
+            await check_all_theses(conn, api_key, max_calls=10)
+        except Exception as exc:
+            print(f"  ⚠ thesis_check 失敗（{exc}）— 不影響後續部署")
     finally:
         await conn.close()
 
