@@ -33,6 +33,7 @@ load_dotenv()
 from src.news.market_data import fetch_and_store as fetch_indicators
 from src.news.us_rankings import fetch_and_store as fetch_us
 from src.news.tw_rankings import fetch_and_store as fetch_tw
+from src.news.catalyst_calendar import fetch_and_store as fetch_catalysts
 from src.analysis.daily_report import generate_report
 from src.utils import db
 
@@ -54,8 +55,13 @@ async def cleanup_old_data(conn) -> None:
     )
     news_del = int((result.split()[-1]) if result else 0)
 
-    if art_del or pod_del or news_del:
-        print(f"  Cleaned up: {art_del} articles, {pod_del} podcasts, {news_del} news items")
+    result = await conn.execute(
+        "DELETE FROM catalyst_events WHERE event_date < CURRENT_DATE - INTERVAL '14 days'"
+    )
+    cat_del = int((result.split()[-1]) if result else 0)
+
+    if art_del or pod_del or news_del or cat_del:
+        print(f"  Cleaned up: {art_del} articles, {pod_del} podcasts, {news_del} news items, {cat_del} catalyst events")
 
 
 async def _existing_today(conn, today: date) -> tuple[bool, bool]:
@@ -98,6 +104,14 @@ async def main():
             print("  ⏭  今日 TW ranking 已存在 — 跳過")
         else:
             await fetch_tw()
+        print()
+
+    if not skip_fetch:
+        print("── Step 3.5: Catalyst Calendar (earnings + macro events) ──")
+        try:
+            await fetch_catalysts()
+        except Exception as exc:
+            print(f"  ⚠ catalyst calendar 抓取失敗（{exc}）— 不影響後續步驟")
         print()
 
     conn = await db.connect()
