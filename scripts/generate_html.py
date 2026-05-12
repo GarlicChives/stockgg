@@ -705,6 +705,45 @@ def build_focus_html(us_ranks: list, tw_ranks: list,
 
 # ── 股市筆記 tab ──────────────────────────────────────────────────────────────
 
+_VERDICT_CLS = {"supportive": "th-up", "neutral": "th-neu", "contradicting": "th-down"}
+_VERDICT_LABEL = {"supportive": "✅ 今日新聞支持", "neutral": "▫ 今日中性", "contradicting": "⚠ 今日有矛盾訊號"}
+
+
+def build_thesis_html(theses: list[dict], stocks_info: dict | None = None) -> str:
+    if not theses:
+        return ""
+
+    cards = []
+    for th in theses:
+        ticker = th["ticker"]
+        verdict = th.get("last_verdict")
+        v_cls = _VERDICT_CLS.get(verdict, "th-pending")
+        v_label = _VERDICT_LABEL.get(verdict, "（今日尚無新聞）")
+        name = (th.get("name") or "").strip()
+        head = f'{html_lib.escape(ticker)} {html_lib.escape(name)}'.strip()
+        summary = html_lib.escape(th.get("last_summary") or "")
+        evidence = th.get("last_evidence") or []
+        ev_html = "".join(f"<li>{html_lib.escape(e)}</li>" for e in evidence[:3])
+        thesis_text = html_lib.escape(th.get("thesis") or "")
+        target = th.get("target_price")
+        tgt_html = f'<span class="th-target">目標 ${float(target):.0f}</span>' if target else ""
+        cards.append(f"""
+<div class="th-card {v_cls}">
+  <div class="th-head">
+    <span class="th-ticker">{head}</span>
+    {tgt_html}
+    <span class="th-verdict">{v_label}</span>
+  </div>
+  <div class="th-thesis">{thesis_text}</div>
+  {f'<div class="th-sum">{summary}</div>' if summary else ''}
+  {f'<ul class="th-ev">{ev_html}</ul>' if ev_html else ''}
+</div>""")
+    return (
+        '<div class="section-hdr">📌 個人 Watchlist 論點追蹤</div>'
+        '<div class="th-grid">' + "".join(cards) + "</div>"
+    )
+
+
 def build_notes_html(market_notes: dict | None, podcast_rows: list,
                      stocks_info: dict | None = None) -> str:
     parts = []
@@ -1031,7 +1070,7 @@ async def generate():
                     "limit_up": False,
                 }
 
-    # Catalyst events — next 14 days, ordered by date then importance
+    # Catalyst events — next 21 days, ordered by date then importance
     catalyst_events = []
     try:
         catalyst_events = [dict(r) for r in await conn.fetch(
@@ -1043,6 +1082,29 @@ async def generate():
         )]
     except Exception as exc:
         print(f"  ⚠ catalyst_events query failed: {exc}")
+
+    # Active watchlist theses + latest signal per item
+    theses = []
+    try:
+        theses = [dict(r) for r in await conn.fetch(
+            """SELECT w.id, w.ticker, w.market, w.name, w.thesis, w.target_price,
+                      s.verdict      AS last_verdict,
+                      s.summary      AS last_summary,
+                      s.key_evidence AS last_evidence,
+                      s.check_date   AS last_check_date
+               FROM watchlist w
+               LEFT JOIN LATERAL (
+                   SELECT verdict, summary, key_evidence, check_date
+                   FROM thesis_signals
+                   WHERE watchlist_id = w.id
+                   ORDER BY check_date DESC LIMIT 1
+               ) s ON TRUE
+               WHERE w.is_active = TRUE AND w.thesis IS NOT NULL AND w.thesis != ''
+               ORDER BY w.id"""
+        )]
+    except Exception as exc:
+        # Tables might not exist on first ever run; this is fine.
+        print(f"  ⚠ watchlist/thesis_signals query: {exc}")
 
     await conn.close()
 
@@ -1094,7 +1156,8 @@ async def generate():
     updated_at  = datetime.now(timezone.utc).strftime("%m/%d %H:%M UTC")
 
     focus_html, modal_data = build_focus_html(us_ranks, tw_ranks, ticker_arts, clusters)
-    notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)
+    thesis_html = build_thesis_html(theses, stocks_info)
+    notes_html  = thesis_html + build_notes_html(market_notes, podcast_rows, stocks_info)
     catalyst_html = build_catalyst_html(catalyst_events, stocks_info)
 
     # ── Analyst target prices: batch-fetch then inject into every modal ────────
@@ -1271,6 +1334,24 @@ header h1{{font-size:1rem;font-weight:700;color:var(--accent)}}
 .cal-ev.cal-fomc{{background:rgba(255,100,120,.18);color:#ff9aa8;font-weight:600}}
 .cal-ev.cal-conference{{background:rgba(120,180,255,.15);color:#a8c8e8}}
 .cal-ev.cal-policy{{background:rgba(200,160,255,.15);color:#c8b0e8}}
+
+/* ── Thesis tracker ── */
+.th-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:.7rem}}
+.th-card{{padding:.7rem .85rem;border-radius:8px;border-left:3px solid var(--border);
+          background:rgba(255,255,255,.025);font-size:.85rem}}
+.th-card.th-up{{border-left-color:#5ec488;background:rgba(94,196,136,.05)}}
+.th-card.th-down{{border-left-color:#e8786a;background:rgba(232,120,106,.05)}}
+.th-card.th-neu{{border-left-color:#88a4c2}}
+.th-card.th-pending{{border-left-color:#4a5870}}
+.th-head{{display:flex;flex-wrap:wrap;gap:.4rem;align-items:baseline;margin-bottom:.35rem}}
+.th-ticker{{font-weight:700;color:#dde4ee;font-size:.92rem}}
+.th-target{{font-size:.75rem;color:var(--muted)}}
+.th-verdict{{font-size:.75rem;color:var(--muted);margin-left:auto}}
+.th-thesis{{color:#c0cad8;line-height:1.45;margin-bottom:.4rem;font-size:.82rem}}
+.th-sum{{color:#a8bccd;font-size:.8rem;padding:.35rem .5rem;background:rgba(0,0,0,.18);
+        border-radius:4px;margin-bottom:.35rem;line-height:1.4}}
+.th-ev{{padding-left:1.1rem;font-size:.78rem;color:var(--muted);margin:0}}
+.th-ev li{{margin-bottom:.15rem}}
 
 /* ── Rankings ── */
 .ranks{{display:grid;grid-template-columns:1fr 1fr;gap:1.1rem}}
