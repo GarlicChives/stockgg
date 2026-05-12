@@ -544,6 +544,59 @@ def _cluster_section_html(
     )
 
 
+_WEEKDAY_TW = ["週一", "週二", "週三", "週四", "週五", "週六", "週日"]
+
+
+def build_catalyst_html(events: list[dict], stocks_info: dict | None = None) -> str:
+    if not events:
+        return ('<div class="cal-empty">'
+                '近 14 日無已知重要事件（每日 07:30 自動更新）</div>')
+
+    from datetime import date as _date_cls, datetime as _dt_cls
+
+    def _to_date(v):
+        if isinstance(v, _date_cls) and not isinstance(v, _dt_cls):
+            return v
+        if isinstance(v, _dt_cls):
+            return v.date()
+        if isinstance(v, str):
+            return _dt_cls.fromisoformat(v.replace("Z", "+00:00")).date()
+        return None
+
+    by_date: dict = collections.OrderedDict()
+    for ev in events:
+        d = _to_date(ev["event_date"])
+        if d is None:
+            continue
+        by_date.setdefault(d, []).append(ev)
+
+    day_html = []
+    for d, evs in by_date.items():
+        date_label = f"{d.month}/{d.day} {_WEEKDAY_TW[d.weekday()]}"
+        chips = []
+        for ev in evs:
+            imp = ev.get("importance", 2)
+            typ = ev["event_type"]
+            cls = f"cal-ev cal-{typ}"
+            if imp >= 3:
+                cls += " imp-3"
+            tk = ev.get("ticker") or ""
+            if typ == "earnings" and tk:
+                name = ""
+                if stocks_info:
+                    info = stocks_info.get(tk) or {}
+                    name = (info.get("name") or "").strip()
+                label = f"{tk} {name}".strip() + " 法說"
+                chips.append(f'<span class="{cls}" data-ticker="{html_lib.escape(tk)}">{html_lib.escape(label)}</span>')
+            else:
+                chips.append(f'<span class="{cls}">{html_lib.escape(ev["title"])}</span>')
+        day_html.append(
+            f'<div class="cal-day"><div class="cal-date">{date_label}</div>'
+            f'<div class="cal-events">{"".join(chips)}</div></div>'
+        )
+    return '<div class="cal-list">' + "".join(day_html) + "</div>"
+
+
 def build_focus_html(us_ranks: list, tw_ranks: list,
                      ticker_arts: dict,
                      clusters: list | None = None) -> tuple[str, dict]:
@@ -978,6 +1031,19 @@ async def generate():
                     "limit_up": False,
                 }
 
+    # Catalyst events — next 14 days, ordered by date then importance
+    catalyst_events = []
+    try:
+        catalyst_events = [dict(r) for r in await conn.fetch(
+            """SELECT event_date, event_type, ticker, market, title, importance
+               FROM catalyst_events
+               WHERE event_date >= CURRENT_DATE
+                 AND event_date <= CURRENT_DATE + INTERVAL '21 days'
+               ORDER BY event_date, importance DESC, ticker"""
+        )]
+    except Exception as exc:
+        print(f"  ⚠ catalyst_events query failed: {exc}")
+
     await conn.close()
 
     # yfinance: fetch change% AND trading_value for ALL watch stocks + notes tickers not in rankings
@@ -1029,6 +1095,7 @@ async def generate():
 
     focus_html, modal_data = build_focus_html(us_ranks, tw_ranks, ticker_arts, clusters)
     notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)
+    catalyst_html = build_catalyst_html(catalyst_events, stocks_info)
 
     # ── Analyst target prices: batch-fetch then inject into every modal ────────
     _all_modal_tickers: set[str] = set(modal_data.keys())
@@ -1189,6 +1256,21 @@ header h1{{font-size:1rem;font-weight:700;color:var(--accent)}}
 .report ul{{padding-left:1.3rem;margin-bottom:.55rem}}
 .report li{{margin-bottom:.25rem;font-size:.9rem}}
 .report strong{{color:#c0cfe0}}
+
+/* ── Catalyst calendar ── */
+.cal-empty{{color:var(--muted);font-size:.85rem;padding:.4rem 0}}
+.cal-list{{display:flex;flex-direction:column;gap:.1rem}}
+.cal-day{{display:grid;grid-template-columns:90px 1fr;gap:.65rem;
+          padding:.4rem 0;border-bottom:1px solid var(--border);font-size:.85rem}}
+.cal-day:last-child{{border-bottom:none}}
+.cal-date{{color:var(--muted);font-weight:600;font-variant-numeric:tabular-nums}}
+.cal-events{{display:flex;flex-wrap:wrap;gap:.3rem}}
+.cal-ev{{padding:.15rem .45rem;border-radius:4px;
+        background:rgba(255,255,255,.04);color:#c8d4e5;font-size:.82rem}}
+.cal-ev.imp-3{{background:rgba(255,150,80,.18);color:#ffba88;font-weight:600}}
+.cal-ev.cal-fomc{{background:rgba(255,100,120,.18);color:#ff9aa8;font-weight:600}}
+.cal-ev.cal-conference{{background:rgba(120,180,255,.15);color:#a8c8e8}}
+.cal-ev.cal-policy{{background:rgba(200,160,255,.15);color:#c8b0e8}}
 
 /* ── Rankings ── */
 .ranks{{display:grid;grid-template-columns:1fr 1fr;gap:1.1rem}}
@@ -1415,6 +1497,10 @@ footer{{text-align:center;color:var(--muted);font-size:.75rem;
     <div class="card">
       <div class="sec">每日分析報告（{report_date}）</div>
       <div class="report">{report_html or '<p style="color:var(--muted)">今日報告尚未生成</p>'}</div>
+    </div>
+    <div class="card">
+      <div class="sec">📅 未來事件日曆（3 週內）</div>
+      {catalyst_html}
     </div>
     <div class="ranks">
       <div class="card">
