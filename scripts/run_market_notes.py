@@ -28,15 +28,20 @@ def _rebuild_and_deploy() -> None:
     print("  ▶ 重建 HTML …")
     subprocess.run([UV, "run", "scripts/generate_html.py"], cwd=BASE, check=True)
     token = os.environ.get("CLOUDFLARE_API_TOKEN")
-    if token:
-        print("  ▶ 部署至 Cloudflare …")
+    if not token:
+        print("  ⚠ CLOUDFLARE_API_TOKEN 未設定，跳過部署")
+        return
+    print("  ▶ 部署至 Cloudflare …")
+    try:
         subprocess.run(
             ["npx", "wrangler", "deploy"],
             cwd=BASE, check=True,
             env={**os.environ, "CLOUDFLARE_API_TOKEN": token},
         )
-    else:
-        print("  ⚠ CLOUDFLARE_API_TOKEN 未設定，跳過部署")
+    except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+        # Local wrangler may fail (e.g. Node version mismatch). The DB write
+        # already succeeded above; CI's 07:30 cron will redeploy from origin.
+        print(f"  ⚠ Cloudflare 部署失敗（{type(exc).__name__}）— DB 已更新，CI cron 會代為部署")
 
 
 async def main(force: bool = False) -> None:
