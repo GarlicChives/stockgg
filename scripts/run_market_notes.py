@@ -21,6 +21,7 @@ from src.utils import db
 from src.analysis.market_notes import generate_market_notes
 from src.analysis.thesis_check import check_all_theses
 from src.analysis.earnings_preview import generate_previews
+from src.analysis.weekly_theme import generate_weekly_themes
 
 BASE = Path(__file__).resolve().parent.parent
 UV   = str(Path(os.environ.get("HOME", "")) / ".local/bin/uv")
@@ -89,6 +90,14 @@ async def main(force: bool = False) -> None:
             await generate_previews(conn, api_key, days_ahead=3, max_calls=5)
         except Exception as exc:
             print(f"  ⚠ earnings_preview 失敗（{exc}）— 不影響後續部署")
+
+        # Sunday only: weekly theme deep-dive (Python weekday(): Mon=0..Sun=6)
+        if date.today().weekday() == 6:
+            print("  ▶ 週日：本週熱門議題深度報告 …")
+            try:
+                await generate_weekly_themes(conn, api_key, top_n=2)
+            except Exception as exc:
+                print(f"  ⚠ weekly_theme 失敗（{exc}）— 不影響後續部署")
     finally:
         await conn.close()
 

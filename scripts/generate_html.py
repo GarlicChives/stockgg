@@ -547,6 +547,51 @@ def _cluster_section_html(
 _WEEKDAY_TW = ["週一", "週二", "週三", "週四", "週五", "週六", "週日"]
 
 
+def build_weekly_themes_html(reports: list[dict]) -> str:
+    if not reports:
+        return ""
+
+    def _md_inline(text: str) -> str:
+        text = html_lib.escape(text)
+        text = re.sub(r"^### (.+)$", r'<h4 class="wk-h">\1</h4>', text, flags=re.MULTILINE)
+        text = re.sub(r"^## (.+)$",  r'<h3 class="wk-h">\1</h3>', text, flags=re.MULTILINE)
+        text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
+        # Bullet lines → list items
+        def _wrap_list(m):
+            items = re.sub(r"^[\*\-]\s+(.+)$", r"<li>\1</li>", m.group(0), flags=re.MULTILINE)
+            return f"<ul>{items}</ul>"
+        text = re.sub(r"(?m)(^[\*\-] .+\n?)+", _wrap_list, text)
+        # Paragraph wrapping
+        blocks = re.split(r"\n{2,}", text)
+        out = []
+        for b in blocks:
+            b = b.strip()
+            if not b:
+                continue
+            if re.match(r"^<(h[1-6]|ul|ol)", b):
+                out.append(b)
+            else:
+                out.append(f"<p>{b.replace(chr(10), '<br>')}</p>")
+        return "\n".join(out)
+
+    cards = []
+    for r in reports:
+        body = _md_inline(r.get("report_text") or "")
+        tickers = r.get("related_tickers") or []
+        tag_html = "".join(f'<span class="wk-tk">{html_lib.escape(t)}</span>' for t in tickers[:10])
+        cards.append(
+            f'<div class="wk-card">'
+            f'<div class="wk-head"><span class="wk-title">{html_lib.escape(r["theme_name"])}</span>'
+            f'{tag_html}</div>'
+            f'<div class="wk-body">{body}</div></div>'
+        )
+
+    return (
+        '<div class="section-hdr">📚 本週深度議題</div>'
+        '<div class="wk-grid">' + "".join(cards) + "</div>"
+    )
+
+
 def build_catalyst_html(events: list[dict], stocks_info: dict | None = None) -> str:
     if not events:
         return ('<div class="cal-empty">'
@@ -1109,6 +1154,18 @@ async def generate():
     except Exception as exc:
         print(f"  ⚠ catalyst_events query failed: {exc}")
 
+    # Weekly theme deep-dive — current ISO week
+    weekly_themes = []
+    try:
+        weekly_themes = [dict(r) for r in await conn.fetch(
+            """SELECT theme_name, theme_summary, report_text, related_tickers, created_at
+               FROM weekly_theme_reports
+               WHERE report_week >= CURRENT_DATE - INTERVAL '7 days'
+               ORDER BY created_at DESC LIMIT 3"""
+        )]
+    except Exception as exc:
+        print(f"  ⚠ weekly_theme_reports query: {exc}")
+
     # Active watchlist theses + latest signal per item
     theses = []
     try:
@@ -1181,7 +1238,9 @@ async def generate():
     report_html = md_to_html(raw_report)
     updated_at  = datetime.now(timezone.utc).strftime("%m/%d %H:%M UTC")
 
-    focus_html, modal_data = build_focus_html(us_ranks, tw_ranks, ticker_arts, clusters)
+    focus_html_inner, modal_data = build_focus_html(us_ranks, tw_ranks, ticker_arts, clusters)
+    weekly_themes_html = build_weekly_themes_html(weekly_themes)
+    focus_html = weekly_themes_html + focus_html_inner
     thesis_html = build_thesis_html(theses, stocks_info)
     notes_html  = thesis_html + build_notes_html(market_notes, podcast_rows, stocks_info)
     catalyst_html = build_catalyst_html(catalyst_events, stocks_info)
@@ -1387,6 +1446,22 @@ header h1{{font-size:1rem;font-weight:700;color:var(--accent)}}
         border-radius:4px;margin-bottom:.35rem;line-height:1.4}}
 .th-ev{{padding-left:1.1rem;font-size:.78rem;color:var(--muted);margin:0}}
 .th-ev li{{margin-bottom:.15rem}}
+
+/* ── Weekly theme deep-dive ── */
+.wk-grid{{display:flex;flex-direction:column;gap:.85rem;margin-bottom:1rem}}
+.wk-card{{padding:.9rem 1rem;background:linear-gradient(180deg,rgba(124,165,194,.08) 0%,rgba(255,255,255,.02) 100%);
+          border:1px solid rgba(124,165,194,.25);border-radius:8px}}
+.wk-head{{display:flex;flex-wrap:wrap;gap:.45rem;align-items:baseline;
+          padding-bottom:.5rem;margin-bottom:.55rem;border-bottom:1px solid var(--border)}}
+.wk-title{{font-size:.98rem;font-weight:700;color:var(--accent)}}
+.wk-tk{{font-size:.72rem;padding:.1rem .4rem;border-radius:3px;
+        background:rgba(255,255,255,.06);color:#a8bccd}}
+.wk-body h3.wk-h{{font-size:.85rem;color:#a0b0cc;margin:.7rem 0 .3rem;font-weight:600}}
+.wk-body h4.wk-h{{font-size:.82rem;color:#a0b0cc;margin:.6rem 0 .25rem;font-weight:600}}
+.wk-body p{{font-size:.84rem;line-height:1.55;margin-bottom:.45rem;color:#c0cad8}}
+.wk-body ul{{padding-left:1.2rem;margin:.25rem 0 .55rem;font-size:.83rem}}
+.wk-body li{{margin-bottom:.2rem;color:#c0cad8}}
+.wk-body strong{{color:#dde4ee}}
 
 /* ── Rankings ── */
 .ranks{{display:grid;grid-template-columns:1fr 1fr;gap:1.1rem}}
