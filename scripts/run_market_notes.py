@@ -20,6 +20,7 @@ load_dotenv()
 from src.utils import db
 from src.analysis.market_notes import generate_market_notes
 from src.analysis.thesis_check import check_all_theses
+from src.analysis.earnings_preview import generate_previews
 
 BASE = Path(__file__).resolve().parent.parent
 UV   = str(Path(os.environ.get("HOME", "")) / ".local/bin/uv")
@@ -82,6 +83,12 @@ async def main(force: bool = False) -> None:
             await check_all_theses(conn, api_key, max_calls=10)
         except Exception as exc:
             print(f"  ⚠ thesis_check 失敗（{exc}）— 不影響後續部署")
+
+        print("  ▶ 產生未來 3 天法說會 preview …")
+        try:
+            await generate_previews(conn, api_key, days_ahead=3, max_calls=5)
+        except Exception as exc:
+            print(f"  ⚠ earnings_preview 失敗（{exc}）— 不影響後續部署")
     finally:
         await conn.close()
 

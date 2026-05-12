@@ -587,12 +587,37 @@ def build_catalyst_html(events: list[dict], stocks_info: dict | None = None) -> 
                     info = stocks_info.get(tk) or {}
                     name = (info.get("name") or "").strip()
                 label = f"{tk} {name}".strip() + " 法說"
-                chips.append(f'<span class="{cls}" data-ticker="{html_lib.escape(tk)}">{html_lib.escape(label)}</span>')
+                has_preview = bool((ev.get("preview_text") or "").strip())
+                if has_preview:
+                    cls += " has-preview"
+                    pid = f"prev-{ev['id']}"
+                    chips.append(
+                        f'<span class="{cls}" data-ticker="{html_lib.escape(tk)}" '
+                        f'onclick="document.getElementById(\'{pid}\').classList.toggle(\'open\')">'
+                        f'{html_lib.escape(label)} 📝</span>'
+                    )
+                else:
+                    chips.append(f'<span class="{cls}" data-ticker="{html_lib.escape(tk)}">{html_lib.escape(label)}</span>')
             else:
                 chips.append(f'<span class="{cls}">{html_lib.escape(ev["title"])}</span>')
+
+        # Render any previews for this date as expandable blocks below the chips
+        preview_blocks = []
+        for ev in evs:
+            txt = (ev.get("preview_text") or "").strip()
+            if not txt:
+                continue
+            pid = f"prev-{ev['id']}"
+            preview_blocks.append(
+                f'<div id="{pid}" class="cal-preview">'
+                f'<div class="cal-preview-head">📝 {html_lib.escape(ev["ticker"])} 法說 preview</div>'
+                f'<pre class="cal-preview-body">{html_lib.escape(txt)}</pre>'
+                f'</div>'
+            )
         day_html.append(
             f'<div class="cal-day"><div class="cal-date">{date_label}</div>'
             f'<div class="cal-events">{"".join(chips)}</div></div>'
+            + "".join(preview_blocks)
         )
     return '<div class="cal-list">' + "".join(day_html) + "</div>"
 
@@ -1074,7 +1099,8 @@ async def generate():
     catalyst_events = []
     try:
         catalyst_events = [dict(r) for r in await conn.fetch(
-            """SELECT event_date, event_type, ticker, market, title, importance
+            """SELECT id, event_date, event_type, ticker, market, title, importance,
+                      preview_text
                FROM catalyst_events
                WHERE event_date >= CURRENT_DATE
                  AND event_date <= CURRENT_DATE + INTERVAL '21 days'
@@ -1334,6 +1360,15 @@ header h1{{font-size:1rem;font-weight:700;color:var(--accent)}}
 .cal-ev.cal-fomc{{background:rgba(255,100,120,.18);color:#ff9aa8;font-weight:600}}
 .cal-ev.cal-conference{{background:rgba(120,180,255,.15);color:#a8c8e8}}
 .cal-ev.cal-policy{{background:rgba(200,160,255,.15);color:#c8b0e8}}
+.cal-ev.has-preview{{cursor:pointer;text-decoration:underline dotted rgba(255,255,255,.3)}}
+.cal-ev.has-preview:hover{{filter:brightness(1.15)}}
+.cal-preview{{grid-column:1 / -1;display:none;margin:.4rem 0 .2rem 90px;
+              padding:.55rem .75rem;background:rgba(255,255,255,.04);
+              border-left:2px solid var(--accent);border-radius:4px}}
+.cal-preview.open{{display:block}}
+.cal-preview-head{{font-size:.78rem;color:var(--accent);font-weight:600;margin-bottom:.35rem}}
+.cal-preview-body{{font-size:.82rem;color:#c0cad8;white-space:pre-wrap;
+                   font-family:inherit;line-height:1.5;margin:0}}
 
 /* ── Thesis tracker ── */
 .th-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:.7rem}}
