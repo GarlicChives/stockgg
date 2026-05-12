@@ -1177,6 +1177,13 @@ header h1{{font-size:1rem;font-weight:700;color:var(--accent)}}
 .report h2{{color:var(--accent);font-size:.98rem;font-weight:600;
             margin:1.1rem 0 .5rem;padding-bottom:.3rem;
             border-bottom:1px solid var(--border)}}
+/* Morning-note "Top Call" — first ## section is the headline takeaway */
+.report h2:first-of-type{{
+    background:linear-gradient(135deg,rgba(124,165,194,.18) 0%,rgba(124,165,194,.04) 100%);
+    border:1px solid rgba(124,165,194,.35);border-radius:6px;
+    padding:.5rem .75rem;border-bottom:none;font-size:1rem}}
+.report h2:first-of-type + p strong:first-child{{
+    color:var(--accent);font-size:1rem;display:inline-block;margin-right:.25rem}}
 .report h3{{color:#a0b0cc;font-size:.9rem;font-weight:600;margin:.9rem 0 .35rem}}
 .report p{{margin-bottom:.55rem;font-size:.9rem}}
 .report ul{{padding-left:1.3rem;margin-bottom:.55rem}}
