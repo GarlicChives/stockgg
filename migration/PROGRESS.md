@@ -24,9 +24,9 @@
 
 ## Cursor
 
-- **Current phase**: Phase 0 — Supabase RLS isolation (design + analysis)
-- **Last completed step**: (none — just started)
-- **Next action**: 0.1 Inventory DB queries on public render path
+- **Current phase**: Phase 0 — finishing
+- **Last completed step**: 0.5 — design complete, apply deferred to Phase 3.1
+- **Next action**: 0.6 commit, then Phase 1.1 (confirm new repo name with user)
 
 ---
 
@@ -35,30 +35,25 @@
 Why this first: prove the legal/technical split is feasible before building any
 code. Output of Phase 0 = a green-light or a re-scope decision for Phase 1+.
 
-- [ ] **0.1 Inventory queries** on the public-render code path.
-  - **Action**: enumerate every `conn.fetch` / `fetchrow` / `fetchval` / `execute`
-    in `scripts/generate_html.py` + any module it imports.
-  - **Output**: `migration/queries_inventory.md` with one line per query
-    (file:line, target table, columns, classification placeholder).
-- [ ] **0.2 Categorize each query** as PUBLIC-safe or PRIVATE-required.
+- [x] **0.1 Inventory queries** on the public-render code path.
+  → 2026-05-12: 11 queries enumerated in `migration/queries_inventory.md`.
+- [x] **0.2 Categorize each query** as PUBLIC-safe or PRIVATE-required.
+  → 9 PUBLIC, 2 PRIVATE (Q7=articles full-content, Q8=podcast refined).
   - **Rule**: PUBLIC = derives only from public sources (yfinance, Fed, TWSE)
     OR is Gemini-derived analysis (refined_content, raw_response,
     market_notes_json). PRIVATE = raw subscription-article content / podcast
     transcripts / anything sourced via login-required crawler.
   - **Output**: same file annotated.
-- [ ] **0.3 Draft RLS-equivalent restriction** as either:
-    - (a) Postgres role + GRANTs + RLS policies
-    - (b) New `db-proxy-public` Edge Function with column-allowlist
-  - Pick (b) if it matches existing infra better (we already use db-proxy).
-  - **Output**: `migration/rls_design.md` + draft SQL/TS.
-- [ ] **0.4 Identify code paths that will break under restriction.**
-  - **Action**: cross-reference 0.2 PRIVATE queries with where they're called.
-  - **Output**: append to `rls_design.md` — list of code to remove or
-    refactor in Phase 3.
-- [ ] **0.5 Decide: apply Phase 0 restrictions now, or defer to Phase 3?**
-  - If new repo isn't built yet, applying restrictions blocks the current
-    site immediately. Recommended: defer actual apply to Phase 3,
-    Phase 0 ends with design + paper trail.
+- [x] **0.3 Draft RLS-equivalent restriction** — see `migration/rls_design.md`.
+  → Picked **Option A1**: new Edge Function `db-proxy-public` with
+    9-pattern hard allowlist. Avoids Postgres-direct dependency (port
+    5432 blocked on company WiFi).
+- [x] **0.4 Identify code paths that will break under restriction.**
+  → 2 files / 2 queries (lines 942, 985 in generate_html.py).
+    Both become DELETE actions in Phase 3.6, not refactors.
+- [x] **0.5 Decide: apply restrictions now, or defer to Phase 3?**
+  → **Defer to Phase 3.1**. Applying now blocks the current single-repo
+    site immediately. Phase 0 outputs design + audit trail only.
 - [ ] **0.6 Commit Phase 0 artifacts.**
   - `git add migration/ && git commit -m "migration(0): design complete"`
 
