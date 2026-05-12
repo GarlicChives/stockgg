@@ -547,51 +547,6 @@ def _cluster_section_html(
 _WEEKDAY_TW = ["週一", "週二", "週三", "週四", "週五", "週六", "週日"]
 
 
-def build_weekly_themes_html(reports: list[dict]) -> str:
-    if not reports:
-        return ""
-
-    def _md_inline(text: str) -> str:
-        text = html_lib.escape(text)
-        text = re.sub(r"^### (.+)$", r'<h4 class="wk-h">\1</h4>', text, flags=re.MULTILINE)
-        text = re.sub(r"^## (.+)$",  r'<h3 class="wk-h">\1</h3>', text, flags=re.MULTILINE)
-        text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
-        # Bullet lines → list items
-        def _wrap_list(m):
-            items = re.sub(r"^[\*\-]\s+(.+)$", r"<li>\1</li>", m.group(0), flags=re.MULTILINE)
-            return f"<ul>{items}</ul>"
-        text = re.sub(r"(?m)(^[\*\-] .+\n?)+", _wrap_list, text)
-        # Paragraph wrapping
-        blocks = re.split(r"\n{2,}", text)
-        out = []
-        for b in blocks:
-            b = b.strip()
-            if not b:
-                continue
-            if re.match(r"^<(h[1-6]|ul|ol)", b):
-                out.append(b)
-            else:
-                out.append(f"<p>{b.replace(chr(10), '<br>')}</p>")
-        return "\n".join(out)
-
-    cards = []
-    for r in reports:
-        body = _md_inline(r.get("report_text") or "")
-        tickers = r.get("related_tickers") or []
-        tag_html = "".join(f'<span class="wk-tk">{html_lib.escape(t)}</span>' for t in tickers[:10])
-        cards.append(
-            f'<div class="wk-card">'
-            f'<div class="wk-head"><span class="wk-title">{html_lib.escape(r["theme_name"])}</span>'
-            f'{tag_html}</div>'
-            f'<div class="wk-body">{body}</div></div>'
-        )
-
-    return (
-        '<div class="section-hdr">📚 本週深度議題</div>'
-        '<div class="wk-grid">' + "".join(cards) + "</div>"
-    )
-
-
 def build_catalyst_html(events: list[dict], stocks_info: dict | None = None) -> str:
     if not events:
         return ('<div class="cal-empty">'
@@ -774,45 +729,6 @@ def build_focus_html(us_ranks: list, tw_ranks: list,
 
 
 # ── 股市筆記 tab ──────────────────────────────────────────────────────────────
-
-_VERDICT_CLS = {"supportive": "th-up", "neutral": "th-neu", "contradicting": "th-down"}
-_VERDICT_LABEL = {"supportive": "✅ 今日新聞支持", "neutral": "▫ 今日中性", "contradicting": "⚠ 今日有矛盾訊號"}
-
-
-def build_thesis_html(theses: list[dict], stocks_info: dict | None = None) -> str:
-    if not theses:
-        return ""
-
-    cards = []
-    for th in theses:
-        ticker = th["ticker"]
-        verdict = th.get("last_verdict")
-        v_cls = _VERDICT_CLS.get(verdict, "th-pending")
-        v_label = _VERDICT_LABEL.get(verdict, "（今日尚無新聞）")
-        name = (th.get("name") or "").strip()
-        head = f'{html_lib.escape(ticker)} {html_lib.escape(name)}'.strip()
-        summary = html_lib.escape(th.get("last_summary") or "")
-        evidence = th.get("last_evidence") or []
-        ev_html = "".join(f"<li>{html_lib.escape(e)}</li>" for e in evidence[:3])
-        thesis_text = html_lib.escape(th.get("thesis") or "")
-        target = th.get("target_price")
-        tgt_html = f'<span class="th-target">目標 ${float(target):.0f}</span>' if target else ""
-        cards.append(f"""
-<div class="th-card {v_cls}">
-  <div class="th-head">
-    <span class="th-ticker">{head}</span>
-    {tgt_html}
-    <span class="th-verdict">{v_label}</span>
-  </div>
-  <div class="th-thesis">{thesis_text}</div>
-  {f'<div class="th-sum">{summary}</div>' if summary else ''}
-  {f'<ul class="th-ev">{ev_html}</ul>' if ev_html else ''}
-</div>""")
-    return (
-        '<div class="section-hdr">📌 個人 Watchlist 論點追蹤</div>'
-        '<div class="th-grid">' + "".join(cards) + "</div>"
-    )
-
 
 def build_notes_html(market_notes: dict | None, podcast_rows: list,
                      stocks_info: dict | None = None) -> str:
@@ -1154,41 +1070,6 @@ async def generate():
     except Exception as exc:
         print(f"  ⚠ catalyst_events query failed: {exc}")
 
-    # Weekly theme deep-dive — current ISO week
-    weekly_themes = []
-    try:
-        weekly_themes = [dict(r) for r in await conn.fetch(
-            """SELECT theme_name, theme_summary, report_text, related_tickers, created_at
-               FROM weekly_theme_reports
-               WHERE report_week >= CURRENT_DATE - INTERVAL '7 days'
-               ORDER BY created_at DESC LIMIT 3"""
-        )]
-    except Exception as exc:
-        print(f"  ⚠ weekly_theme_reports query: {exc}")
-
-    # Active watchlist theses + latest signal per item
-    theses = []
-    try:
-        theses = [dict(r) for r in await conn.fetch(
-            """SELECT w.id, w.ticker, w.market, w.name, w.thesis, w.target_price,
-                      s.verdict      AS last_verdict,
-                      s.summary      AS last_summary,
-                      s.key_evidence AS last_evidence,
-                      s.check_date   AS last_check_date
-               FROM watchlist w
-               LEFT JOIN LATERAL (
-                   SELECT verdict, summary, key_evidence, check_date
-                   FROM thesis_signals
-                   WHERE watchlist_id = w.id
-                   ORDER BY check_date DESC LIMIT 1
-               ) s ON TRUE
-               WHERE w.is_active = TRUE AND w.thesis IS NOT NULL AND w.thesis != ''
-               ORDER BY w.id"""
-        )]
-    except Exception as exc:
-        # Tables might not exist on first ever run; this is fine.
-        print(f"  ⚠ watchlist/thesis_signals query: {exc}")
-
     await conn.close()
 
     # yfinance: fetch change% AND trading_value for ALL watch stocks + notes tickers not in rankings
@@ -1238,11 +1119,8 @@ async def generate():
     report_html = md_to_html(raw_report)
     updated_at  = datetime.now(timezone.utc).strftime("%m/%d %H:%M UTC")
 
-    focus_html_inner, modal_data = build_focus_html(us_ranks, tw_ranks, ticker_arts, clusters)
-    weekly_themes_html = build_weekly_themes_html(weekly_themes)
-    focus_html = weekly_themes_html + focus_html_inner
-    thesis_html = build_thesis_html(theses, stocks_info)
-    notes_html  = thesis_html + build_notes_html(market_notes, podcast_rows, stocks_info)
+    focus_html, modal_data = build_focus_html(us_ranks, tw_ranks, ticker_arts, clusters)
+    notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)
     catalyst_html = build_catalyst_html(catalyst_events, stocks_info)
 
     # ── Analyst target prices: batch-fetch then inject into every modal ────────
@@ -1428,40 +1306,6 @@ header h1{{font-size:1rem;font-weight:700;color:var(--accent)}}
 .cal-preview-head{{font-size:.78rem;color:var(--accent);font-weight:600;margin-bottom:.35rem}}
 .cal-preview-body{{font-size:.82rem;color:#c0cad8;white-space:pre-wrap;
                    font-family:inherit;line-height:1.5;margin:0}}
-
-/* ── Thesis tracker ── */
-.th-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:.7rem}}
-.th-card{{padding:.7rem .85rem;border-radius:8px;border-left:3px solid var(--border);
-          background:rgba(255,255,255,.025);font-size:.85rem}}
-.th-card.th-up{{border-left-color:#5ec488;background:rgba(94,196,136,.05)}}
-.th-card.th-down{{border-left-color:#e8786a;background:rgba(232,120,106,.05)}}
-.th-card.th-neu{{border-left-color:#88a4c2}}
-.th-card.th-pending{{border-left-color:#4a5870}}
-.th-head{{display:flex;flex-wrap:wrap;gap:.4rem;align-items:baseline;margin-bottom:.35rem}}
-.th-ticker{{font-weight:700;color:#dde4ee;font-size:.92rem}}
-.th-target{{font-size:.75rem;color:var(--muted)}}
-.th-verdict{{font-size:.75rem;color:var(--muted);margin-left:auto}}
-.th-thesis{{color:#c0cad8;line-height:1.45;margin-bottom:.4rem;font-size:.82rem}}
-.th-sum{{color:#a8bccd;font-size:.8rem;padding:.35rem .5rem;background:rgba(0,0,0,.18);
-        border-radius:4px;margin-bottom:.35rem;line-height:1.4}}
-.th-ev{{padding-left:1.1rem;font-size:.78rem;color:var(--muted);margin:0}}
-.th-ev li{{margin-bottom:.15rem}}
-
-/* ── Weekly theme deep-dive ── */
-.wk-grid{{display:flex;flex-direction:column;gap:.85rem;margin-bottom:1rem}}
-.wk-card{{padding:.9rem 1rem;background:linear-gradient(180deg,rgba(124,165,194,.08) 0%,rgba(255,255,255,.02) 100%);
-          border:1px solid rgba(124,165,194,.25);border-radius:8px}}
-.wk-head{{display:flex;flex-wrap:wrap;gap:.45rem;align-items:baseline;
-          padding-bottom:.5rem;margin-bottom:.55rem;border-bottom:1px solid var(--border)}}
-.wk-title{{font-size:.98rem;font-weight:700;color:var(--accent)}}
-.wk-tk{{font-size:.72rem;padding:.1rem .4rem;border-radius:3px;
-        background:rgba(255,255,255,.06);color:#a8bccd}}
-.wk-body h3.wk-h{{font-size:.85rem;color:#a0b0cc;margin:.7rem 0 .3rem;font-weight:600}}
-.wk-body h4.wk-h{{font-size:.82rem;color:#a0b0cc;margin:.6rem 0 .25rem;font-weight:600}}
-.wk-body p{{font-size:.84rem;line-height:1.55;margin-bottom:.45rem;color:#c0cad8}}
-.wk-body ul{{padding-left:1.2rem;margin:.25rem 0 .55rem;font-size:.83rem}}
-.wk-body li{{margin-bottom:.2rem;color:#c0cad8}}
-.wk-body strong{{color:#dde4ee}}
 
 /* ── Rankings ── */
 .ranks{{display:grid;grid-template-columns:1fr 1fr;gap:1.1rem}}
