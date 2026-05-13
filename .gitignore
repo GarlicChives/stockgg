@@ -27,3 +27,4 @@ data/search_cache.json
 # launchd runtime logs (directory preserved via .gitkeep)
 logs/*
 !logs/.gitkeep
+supabase/.temp/
