@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+"""Pre-commit hook — reject commits that touch structural files but don't
+update any *.md doc in the same commit.
+
+Install: git config core.hooksPath hooks
+
+Bypass for genuine non-structural touches: git commit --no-verify
+"""
+import re
+import subprocess
+import sys
+
+STRUCTURAL_PATTERNS = [
+    r"launchd/com\.iia\..*\.plist$",
+    r"src/utils/db\.py$",
+    r"src/utils/publish_trigger\.py$",
+    r"\.github/workflows/.*\.ya?ml$",
+    r"supabase/functions/db-proxy-public/.*",
+    r"pyproject\.toml$",
+    r"scripts/(daily_briefing|run_market_notes)\.py$",
+    r"src/crawlers/.*\.py$",
+    r"src/prompts/.*\.md$",
+    r"\.env\.example$",
+    r"wrangler\.jsonc$",
+]
+
+DOC_PATTERNS = [
+    r"SYSTEM\.md$",
+    r"\.claude/CLAUDE\.md$",
+    r"README\.md$",
+]
+
+
+def main() -> int:
+    proc = subprocess.run(
+        ["git", "diff", "--cached", "--name-only"],
+        capture_output=True, text=True, check=False,
+    )
+    staged = [s.strip() for s in proc.stdout.splitlines() if s.strip()]
+    if not staged:
+        return 0
+
+    structural = [f for f in staged if any(re.search(p, f) for p in STRUCTURAL_PATTERNS)]
+    if not structural:
+        return 0
+
+    docs_touched = [f for f in staged if any(re.search(p, f) for p in DOC_PATTERNS)]
+    if docs_touched:
+        return 0  # they updated at least one doc — accept
+
+    # Block.
+    sys.stderr.write(
+        "\n✋ pre-commit REJECTED: structural files changed but no docs updated.\n\n"
+        "Staged structural files:\n"
+    )
+    for f in structural:
+        sys.stderr.write(f"  - {f}\n")
+    sys.stderr.write(
+        "\nThese files appear in SYSTEM.md's 「異動觸發表」 — code + doc must\n"
+        "be in the same commit. Update at least one of:\n"
+        "  • SYSTEM.md (lives in stockgg repo only)\n"
+        "  • .claude/CLAUDE.md (in this repo)\n"
+        "  • README.md\n\n"
+        "If this really is a non-structural touch (typo fix, comment, etc.):\n"
+        "  git commit --no-verify\n\n"
+    )
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

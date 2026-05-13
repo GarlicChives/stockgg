@@ -171,6 +171,31 @@ gh workflow run "Publish daily site" --repo GarlicChives/stockgg --ref main
 
 7. **公開 repo 改 prompt 沒用**：所有 prompt 都在 StockGG-ingest 跑。改 stockgg 的什麼也不會生效（而且 stockgg 根本沒 prompt 檔案了）。
 
+## 異動觸發表（commit 前必查）
+
+下表列出**哪種改動必須同步更新哪份 doc**。沒有更新的 commit 會被 pre-commit
+hook 拒絕（見 `hooks/pre-commit`）。緊急想 bypass 用 `git commit --no-verify`。
+
+| 你改了什麼 | 必須同步更新 | 為什麼 |
+|---|---|---|
+| `launchd/com.iia.*.plist`（任何排程） | SYSTEM.md「排程」表 | 排程是系統最不透明的部分；改了不寫等於黑箱 |
+| `src/utils/db.py`（DB 連線方式 / 認證 key） | SYSTEM.md「兩 repo 職責表」 + 對應 repo 的 CLAUDE.md | 兩 repo db.py 內容不同是最容易跨抄出錯的點 |
+| `src/utils/publish_trigger.py`（webhook 目標） | SYSTEM.md「資料流」+ 公開 repo `.github/workflows/*.yml` 對照 | webhook 與 cron 互為備援，斷裂時無法救援 |
+| `.github/workflows/*.yml`（公開 repo CI） | SYSTEM.md「排程」表的 cron 行 + 公開 repo 的 CLAUDE.md | CI 觸發時機改了影響公開站更新延遲 |
+| `supabase/functions/db-proxy-public/index.ts` (allowlist) | SYSTEM.md「公開 repo 能執行的 SQL」section | allowlist 與 generate_html.py 同步是法律隔離的核心 |
+| `scripts/daily_briefing.py` / `run_market_notes.py`（步驟順序、新加 step） | SYSTEM.md「資料流」+ 對應 repo 的 CLAUDE.md | 主編排是系統脈絡的骨幹 |
+| `src/prompts/*.md`（私有 repo）| 私有 repo 的 CLAUDE.md「prompt list」section（如果有變更張數） | 新增/刪除 prompt 等於新增/移除分析功能 |
+| `pyproject.toml`（新增/移除 deps） | 對應 repo 的 CLAUDE.md「技術棧」描述 | 依賴變動會影響跑得起來 |
+| 新增 `src/crawlers/*.py`（私有 repo） | SYSTEM.md「資料來源」list + 加進對應的 launchd plist | 新爬蟲不寫進 SYSTEM 等於不存在 |
+| `.env.example`（新增/移除環境變數） | 對應 repo 的 CLAUDE.md「本地操作」 + 公開 repo workflow yaml 的 env block | 缺 env 跑起來會炸但訊息隱晦 |
+
+**判讀流程**：
+1. `git diff --cached --name-only` 看 staged 檔
+2. 對照上表，任一行命中 → 把對應 doc 也加進這個 commit
+3. 多檔同步性改動視為一個結構變更，doc 與 code 必須同一個 commit
+
+---
+
 ## 歷史
 
 完整 migration 紀錄見 `~/Desktop/Stock/migration/PROGRESS.md`。Repo split 完成於 2026-05-13。

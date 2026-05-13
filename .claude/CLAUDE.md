@@ -38,6 +38,17 @@ open docs/index.html                        # 本機檢視
 gh workflow run "Publish daily site"        # 手動觸發 CI 部署
 ```
 
+## Commit 前 checklist（自我審計）
+
+每次 commit 之前 mental walk-through：
+
+- [ ] 改動的檔案在 SYSTEM.md「異動觸發表」內嗎？是 → 同 commit 更新對應 doc
+- [ ] 改了 `generate_html.py` 的 `conn.fetch/fetchrow/fetchval`？是 → 同步擴
+  `supabase/functions/db-proxy-public/index.ts` 的 `ALLOWED`，並 redeploy
+- [ ] 改了 CSS 或 HTML 結構？是 → 本機 `uv run python scripts/generate_html.py`
+  + `open docs/index.html` 親眼看一次
+- [ ] Pre-commit hook 跑通沒？沒看到 ✋ 提醒就過了 = 改動非結構性
+
 ## 待辦
 
 - [ ] Custom domain（Phase 4.4，買域名後）
