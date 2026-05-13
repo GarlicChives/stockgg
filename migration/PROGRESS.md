@@ -24,10 +24,9 @@
 
 ## Cursor
 
-- **Current phase**: Phase 1 complete; ready for Phase 2 cutover
-- **Last completed step**: 1.7 — localhost-only, no remote access infra
-- **Next action**: 2.1 — backup current launchctl state to
-  `migration/launchctl_pre_cutover.txt` (read-only, zero risk)
+- **Current phase**: Phase 2 — atomic cutover DONE, observation window open
+- **Last completed step**: 2.3 — new repo's 8 plists bootstrapped + verified
+- **Next action**: 2.4 — observe 24-48h. Phase 3 starts after stable.
 
 ---
 
@@ -99,18 +98,19 @@ keep all its launchd jobs disabled.
 
 - [ ] **2.1 Backup** current `launchctl list` output to
       `migration/launchctl_pre_cutover.txt`.
-- [ ] **2.2 Stop current repo's launchd jobs**:
-      `launchctl bootout gui/$(id -u)/com.iia.<name>` for each:
-      podcast-crawl, article-crawl, podcast-backfill, market-notes,
-      tw-rankings, us-rankings, daily-briefing, catchup, chrome-debug.
-- [ ] **2.3 Enable plists in new repo** (remove Disabled flag), then
-      `launchctl bootstrap gui/$(id -u) <new-repo-path>/launchd/<file>.plist`
-      for each.
+- [x] **2.2 Stop current repo's launchd jobs** — all 8 bootout OK.
+      `com.iia.chrome-debug` (PID 1377) deliberately left running — it's
+      the Playwright CDP Chrome instance, used by both old and new repo.
+- [x] **2.3 Enable + bootstrap plists in new repo** — 8 plists bootstrap'd
+      from `~/Desktop/StockGG-ingest/launchd/`. Disabled flag stripped,
+      paths confirmed via `launchctl print`. `catchup` fired on RunAtLoad.
 - [ ] **2.4 Watch 24-48 hours**. Monitor:
-      - `logs/*.log` in new repo
+      - `~/Desktop/StockGG-ingest/logs/*.log` (NEW location, not old)
       - DB row counts in `articles`, `trading_rankings` continue to grow
-      - Public site keeps refreshing daily
-- [ ] **2.5 If any job fails**: rollback by reversing 2.3 and 2.2.
+      - Public site (https://stockgg.v4578469.workers.dev) keeps
+        refreshing on next 07:30 CI run.
+- [ ] **2.5 Rollback (only if 2.4 fails)**: see PROGRESS.md rollback
+      block below.
 
 **Rollback command (paste verbatim)**:
 ```
