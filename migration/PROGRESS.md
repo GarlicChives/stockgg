@@ -24,11 +24,10 @@
 
 ## Cursor
 
-- **Current phase**: Phase 1 — almost done; one user-interactive step pending
-- **Last completed step**: 1.8 — new repo baseline committed (`1c6efc6`)
-- **Next action**: 1.7 — user runs Tailscale setup (see
-  `~/Desktop/StockGG-ingest/infra/tailscale/README.md`). After that,
-  proceed to Phase 2.1 backup of current launchctl state.
+- **Current phase**: Phase 1 complete; ready for Phase 2 cutover
+- **Last completed step**: 1.7 — localhost-only, no remote access infra
+- **Next action**: 2.1 — backup current launchctl state to
+  `migration/launchctl_pre_cutover.txt` (read-only, zero risk)
 
 ---
 
@@ -82,16 +81,13 @@ keep all its launchd jobs disabled.
 - [x] **1.6 Admin UI scaffold** — FastAPI + HTMX at
       `admin/`. `uv sync` brings in fastapi/uvicorn/jinja2.
       Verified `/healthz` + `/` render correctly on localhost:8765.
-- [!] **1.7 Tailscale setup** — **NEEDS USER INTERACTION**.
-      Boilerplate ready in `~/Desktop/StockGG-ingest/infra/tailscale/README.md`.
-      User actions:
-      1. `brew install --cask tailscale`
-      2. Launch Tailscale.app → sign in
-      3. Same on phone / other device
-      4. `launchctl bootstrap gui/$(id -u) ~/Desktop/StockGG-ingest/launchd/com.iia.admin-ui.plist`
-         (after dropping the `Disabled` flag)
-      5. From phone: `http://<mac-host>.<tailnet>:8765` should load admin UI
-      Stale: previous cloudflared install (`brew remove cloudflared` to clean up).
+- [x] **1.7 Remote access decision** — **Localhost-only**.
+      Company blocks Tailscale install. Cloudflare Tunnel rejected
+      (needs domain + monthly maintenance for a use case the user can
+      cover by opening Safari on this Mac). Admin UI binds to
+      `127.0.0.1:8765`. Open `http://localhost:8765` from a browser on
+      this Mac when needed. Cloudflare Tunnel + cheap domain remains
+      the documented escape hatch if remote access becomes a real need.
 - [x] **1.8 Commit baseline** in new repo — `1c6efc6` on
       `GarlicChives/StockGG-ingest:main`.
 
@@ -181,9 +177,7 @@ done
 
 ## Open blockers
 
-- **1.7 Tailscale install** waits on user — `brew install --cask tailscale`
-  + sign in via app. Boilerplate is ready;
-  follow `~/Desktop/StockGG-ingest/infra/tailscale/README.md`.
+(none)
 
 ---
 
