@@ -24,10 +24,10 @@
 
 ## Cursor
 
-- **Current phase**: Phase 3 fully done except 3.8 webhook (low priority)
-- **Last completed step**: 3.4 — anon-key + allowlist round-trip verified
-- **Next action**: optionally do 3.8 (private→public repo dispatch) or
-  Phase 4 polish (repo rename / LICENSE / 投資免責).
+- **Current phase**: Migration COMPLETE. Only optional polish (4.4
+  custom domain) remains.
+- **Last completed step**: 4.3 README + 4.1 repo rename.
+- **Next action**: none required. The split is live and self-sustaining.
 
 ---
 
@@ -154,10 +154,12 @@ done
       daily_briefing + analysis Gemini steps. Added two extra cron
       schedules (18:15 / 23:15 TW) plus `repository_dispatch` trigger
       so the private repo can webhook-push after each analysis cycle.
-- [ ] **3.8 Webhook trigger from private repo** — pending. Private repo's
-      run_market_notes.py + daily_briefing.py should POST
-      `repository_dispatch` to `GarlicChives/stockgg` so deploys
-      happen right after DB writes, not on cron schedule.
+- [x] **3.8 Webhook trigger from private repo** — done in
+      StockGG-ingest `91022f4` (later `000cd6b` retargeted at renamed
+      public repo). publish_trigger.py uses `gh workflow run` (no PAT
+      needed; relies on local gh CLI auth on the Mac). daily_briefing
+      Step 9 + end of run_market_notes both call it. Cron schedules
+      remain as fallback.
 - [x] **3.9 Removed launchd plists** from public repo (entire
       `launchd/` directory `git rm`'d in 3.5).
 - [x] **3.10 Slimmed pyproject.toml** — dropped asyncpg, tavily-python,
@@ -171,10 +173,14 @@ done
 
 ## Phase 4 — Public polish (optional, do after Phase 3 stable for 1 week)
 
-- [ ] **4.1 Rename public repo** on GitHub.
-- [ ] **4.2 Add LICENSE + 投資免責聲明**.
-- [ ] **4.3 README rewrite** for public audience.
-- [ ] **4.4 Custom domain on Cloudflare** (if desired).
+- [x] **4.1 Renamed public repo** — Stock-test → stockgg (commit
+      457c803e). GitHub redirect preserves the old URL.
+- [x] **4.2 LICENSE (MIT) + 投資免責聲明** — page-footer disclaimer
+      (3 paragraphs) + LICENSE additional notice. Commit 7d0414ca.
+- [x] **4.3 README rewrite** — public-facing, describes site +
+      architecture + isolation guarantee. .env.example slimmed.
+      ARCHITECTURE.md removed (stale). Commit 7d0414ca.
+- [ ] **4.4 Custom domain** — optional, defer until needed.
 
 ---
 
