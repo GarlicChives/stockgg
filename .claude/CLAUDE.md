@@ -1,59 +1,43 @@
-# Project: StockGG (public daily-briefing site)
+# Project: stockgg (public daily-briefing site)
 
-## 角色
+> **新 session 開頭請先讀 `~/Desktop/Stock/SYSTEM.md`** —— 那是兩個 repo 的全景，
+> 包含資料流、排程、各 repo 職責、踩坑點。本檔只覆蓋本 repo 的 do/don't。
 
-這個 repo 是 **thin presentation layer**。所有資料攝取、AI 分析、爬蟲都在
-另一個 private repo `StockGG-ingest` 跑（user 的 Mac），結果寫入 Supabase。
-這個 repo 從 Supabase 讀回分析結果並渲染 HTML，部署到 Cloudflare Workers。
+## 本 repo 角色
 
-## 技術棧
+Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
+資料攝取、AI 分析、爬蟲全部在 companion repo `StockGG-ingest` 跑
+（本機 `~/Desktop/StockGG-ingest`，私有 GitHub repo）。
 
-- **語言**: Python 3.12+，套件管理 uv
-- **DB 連線**: `src/utils/db.py` httpx 走 Supabase Edge Function `db-proxy-public`，
-  port 443 HTTPS only。**強制 9-pattern SQL allowlist**——這個 repo 任何 SQL
-  都必須是 allowlist 裡列出的 SELECT，否則 Edge Function 回 403。
-- **認證**: `SUPABASE_ANON_KEY`（legacy JWT format，安全暴露於 client 用）。
-  **絕不**在這個 repo 引入 `SUPABASE_SERVICE_ROLE_KEY`——那把 key 只屬於私有 repo。
-- **HTML 渲染**: 純 Python 字串組裝；`scripts/generate_html.py` 單檔
-- **部署**: GitHub Actions → wrangler deploy → Cloudflare Workers (`stockgg`)
-- **觸發**:
-  - `workflow_dispatch`（手動）
-  - cron `30 23 * * 1-5`（07:30 TW）、`15 10 * * *`（18:15 TW）、`15 15 * * *`（23:15 TW）
-  - `repository_dispatch` type `analysis-updated`（私有 repo webhook 觸發）
+## 嚴格 guardrail
 
-## 可讀的 DB columns（allowlist 唯一允許的）
-
-| Table | Columns |
+| 規則 | 為什麼 |
 |---|---|
-| `analysis_reports` | `report_date`, `raw_response`, `market_notes_json` |
-| `market_snapshots` | `symbol`, `close_price`, `change_pct`, `snapshot_date`, `extra` |
-| `trading_rankings` | `ticker`, `name`, `trading_value`, `change_pct`, `extra`, `is_limit_up_30m`, `rank_date`, `market` |
-| `catalyst_events` | `id`, `event_date`, `event_type`, `ticker`, `market`, `title`, `importance`, `preview_text` |
+| ❌ **不要引入** `SUPABASE_SERVICE_ROLE_KEY` 到本 repo | service_role 是私有 repo 專用；本 repo 用 anon |
+| ❌ **不要呼叫** Gemini / OpenAI / 任何 LLM API | 公開 repo 沒任何 LLM key，也不該有 |
+| ❌ **不要爬任何網站** | 法律隔離邊界，原始內容只能在私有 repo |
+| ❌ **不要在這裡跑 LLM-generated 分析** | 分析是私有 repo 的事，這裡只讀已存的結果 |
+| ✅ **要加新 query 就同步擴 allowlist** | `supabase/functions/db-proxy-public/index.ts` 的 `ALLOWED` 集合，加完 `supabase functions deploy db-proxy-public --project-ref mnseyguxiiditaybpfup`；不擴會 CI 403 |
+| ✅ **不確定查詢能不能跑時，本機跑 generate_html.py 看 403** | 是最快的 sanity check |
 
-任何其他欄位（特別是 `articles.content`, `articles.refined_content`，podcast 逐字稿）
-**這個 repo 技術上無法讀取**。如需擴充顯示內容，先在
-`supabase/functions/db-proxy-public/index.ts` 的 ALLOWED 集合擴 query 並重新 deploy。
+## 關鍵檔案
 
-## 不在這個 repo 做的事
+- `scripts/generate_html.py` — 單檔 HTML 渲染（~1500 行，所有頁面邏輯）
+- `src/analysis/focus_themes.py` — 題材叢集（純 Python）
+- `src/utils/db.py` — async DB client（用 `SUPABASE_ANON_KEY` + `db-proxy-public`）
+- `data/theme_dictionary.json` — 226 主題的人工字典
+- `supabase/functions/db-proxy-public/index.ts` — Edge Function 含 SQL allowlist
+- `.github/workflows/market_briefing.yml` — render + deploy（07:30 / 18:15 / 23:15 TW cron + repository_dispatch）
 
-- 爬蟲（含 Playwright / Chrome CDP）
-- Whisper / mlx-whisper podcast 轉錄
-- Gemini / 任何 LLM 呼叫
-- 寫入 DB
-- launchd 排程
+## 本地操作
 
-以上全部在 private repo `StockGG-ingest` 裡。
+```bash
+uv sync
+uv run python scripts/generate_html.py     # 重生 HTML
+open docs/index.html                        # 本機檢視
+gh workflow run "Publish daily site"        # 手動觸發 CI 部署
+```
 
-## 主要程式碼
-
-- `scripts/generate_html.py` — 單檔 HTML 渲染器
-- `src/analysis/focus_themes.py` — 題材叢集（純 Python，吃 `data/theme_dictionary.json`
-  + rankings，不碰 LLM）
-- `src/utils/db.py` — async DB client over `db-proxy-public`
-- `data/theme_dictionary.json` — 人工維護的主題 → 個股 mapping
-- `supabase/functions/db-proxy-public/index.ts` — Edge Function，allowlist enforcement
-- `.github/workflows/market_briefing.yml` — 唯一一個 workflow（render + deploy）
-
-## 待辦事項
+## 待辦
 
 - [ ] Custom domain（Phase 4.4，買域名後）
