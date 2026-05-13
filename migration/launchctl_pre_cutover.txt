@@ -1,0 +1,394 @@
+# launchctl state snapshot — Phase 2 pre-cutover
+# Date: 2026年 5月13日 星期三 10時35分50秒 CST
+# Purpose: rollback reference if Phase 2.2-2.4 needs to revert
+
+## launchctl list | grep com.iia
+-	0	com.iia.tw-rankings
+-	0	com.iia.daily-briefing
+-	0	com.iia.market-notes
+-	0	com.iia.podcast-crawl
+-	1	com.iia.article-crawl
+-	0	com.iia.catchup
+-	0	com.iia.podcast-backfill
+1377	0	com.iia.chrome-debug
+-	0	com.iia.us-rankings
+
+## launchctl print for each loaded iia plist
+
+=== com.iia.tw-rankings ===
+gui/502/com.iia.tw-rankings = {
+	active count = 0
+	path = /Users/edward.song/Desktop/Stock/launchd/com.iia.tw-rankings.plist
+	type = LaunchAgent
+	state = not running
+
+	program = /usr/bin/caffeinate
+	arguments = {
+		/usr/bin/caffeinate
+		-is
+		/Users/edward.song/.local/bin/uv
+		run
+		/Users/edward.song/Desktop/Stock/scripts/fetch_rankings.py
+		--market
+		TW
+	}
+
+	working directory = /Users/edward.song/Desktop/Stock
+
+	stdout path = /Users/edward.song/Desktop/Stock/logs/tw_rankings.log
+	stderr path = /Users/edward.song/Desktop/Stock/logs/tw_rankings_err.log
+	inherited environment = {
+		SSH_AUTH_SOCK => /private/tmp/com.apple.launchd.bCBDl0Aaal/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		PYTHONUNBUFFERED => 1
+		PATH => /opt/homebrew/bin:/Users/edward.song/.local/bin:/usr/local/bin:/usr/bin:/bin
+		HOME => /Users/edward.song
+		XPC_SERVICE_NAME => com.iia.tw-rankings
+	}
+
+	domain = gui/502 [100022]
+	asid = 100022
+	minimum runtime = 10
+
+=== com.iia.daily-briefing ===
+gui/502/com.iia.daily-briefing = {
+	active count = 0
+	path = /Users/edward.song/Desktop/Stock/launchd/com.iia.daily-briefing.plist
+	type = LaunchAgent
+	state = not running
+
+	program = /usr/bin/caffeinate
+	arguments = {
+		/usr/bin/caffeinate
+		-is
+		/Users/edward.song/.local/bin/uv
+		run
+		/Users/edward.song/Desktop/Stock/scripts/daily_briefing.py
+	}
+
+	working directory = /Users/edward.song/Desktop/Stock
+
+	stdout path = /Users/edward.song/Desktop/Stock/logs/daily_briefing.log
+	stderr path = /Users/edward.song/Desktop/Stock/logs/daily_briefing_err.log
+	inherited environment = {
+		SSH_AUTH_SOCK => /private/tmp/com.apple.launchd.bCBDl0Aaal/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		PATH => /opt/homebrew/bin:/Users/edward.song/.local/bin:/usr/local/bin:/usr/bin:/bin
+		HOME => /Users/edward.song
+		XPC_SERVICE_NAME => com.iia.daily-briefing
+	}
+
+	domain = gui/502 [100022]
+	asid = 100022
+	minimum runtime = 10
+	exit timeout = 5
+	runs = 1
+	last exit code = 0
+
+=== com.iia.market-notes ===
+gui/502/com.iia.market-notes = {
+	active count = 0
+	path = /Users/edward.song/Desktop/Stock/launchd/com.iia.market-notes.plist
+	type = LaunchAgent
+	state = not running
+
+	program = /usr/bin/caffeinate
+	arguments = {
+		/usr/bin/caffeinate
+		-is
+		/Users/edward.song/.local/bin/uv
+		run
+		/Users/edward.song/Desktop/Stock/scripts/run_market_notes.py
+	}
+
+	working directory = /Users/edward.song/Desktop/Stock
+
+	stdout path = /Users/edward.song/Desktop/Stock/logs/market_notes.log
+	stderr path = /Users/edward.song/Desktop/Stock/logs/market_notes_err.log
+	inherited environment = {
+		SSH_AUTH_SOCK => /private/tmp/com.apple.launchd.bCBDl0Aaal/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		PYTHONUNBUFFERED => 1
+		PATH => /opt/homebrew/bin:/Users/edward.song/.local/bin:/usr/local/bin:/usr/bin:/bin
+		HOME => /Users/edward.song
+		XPC_SERVICE_NAME => com.iia.market-notes
+	}
+
+	domain = gui/502 [100022]
+	asid = 100022
+	minimum runtime = 10
+	exit timeout = 5
+	runs = 2
+
+=== com.iia.podcast-crawl ===
+gui/502/com.iia.podcast-crawl = {
+	active count = 0
+	path = /Users/edward.song/Desktop/Stock/launchd/com.iia.podcast-crawl.plist
+	type = LaunchAgent
+	state = not running
+
+	program = /usr/bin/caffeinate
+	arguments = {
+		/usr/bin/caffeinate
+		-is
+		/Users/edward.song/.local/bin/uv
+		run
+		/Users/edward.song/Desktop/Stock/src/crawlers/podcasts.py
+		--incremental
+	}
+
+	working directory = /Users/edward.song/Desktop/Stock
+
+	stdout path = /Users/edward.song/Desktop/Stock/logs/podcast_crawl.log
+	stderr path = /Users/edward.song/Desktop/Stock/logs/podcast_crawl_err.log
+	inherited environment = {
+		SSH_AUTH_SOCK => /private/tmp/com.apple.launchd.bCBDl0Aaal/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		PATH => /opt/homebrew/bin:/Users/edward.song/.local/bin:/usr/local/bin:/usr/bin:/bin
+		HOME => /Users/edward.song
+		XPC_SERVICE_NAME => com.iia.podcast-crawl
+	}
+
+	domain = gui/502 [100022]
+	asid = 100022
+	minimum runtime = 10
+	exit timeout = 5
+	runs = 16
+
+=== com.iia.article-crawl ===
+gui/502/com.iia.article-crawl = {
+	active count = 0
+	path = /Users/edward.song/Desktop/Stock/launchd/com.iia.article-crawl.plist
+	type = LaunchAgent
+	state = not running
+
+	program = /usr/bin/caffeinate
+	arguments = {
+		/usr/bin/caffeinate
+		-is
+		/Users/edward.song/.local/bin/uv
+		run
+		/Users/edward.song/Desktop/Stock/scripts/run_all_crawlers.py
+		--incremental
+	}
+
+	working directory = /Users/edward.song/Desktop/Stock
+
+	stdout path = /Users/edward.song/Desktop/Stock/logs/article_crawl.log
+	stderr path = /Users/edward.song/Desktop/Stock/logs/article_crawl_err.log
+	inherited environment = {
+		SSH_AUTH_SOCK => /private/tmp/com.apple.launchd.bCBDl0Aaal/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		PATH => /opt/homebrew/bin:/Users/edward.song/.local/bin:/usr/local/bin:/usr/bin:/bin
+		HOME => /Users/edward.song
+		XPC_SERVICE_NAME => com.iia.article-crawl
+	}
+
+	domain = gui/502 [100022]
+	asid = 100022
+	minimum runtime = 10
+	exit timeout = 5
+	runs = 2
+
+=== com.iia.catchup ===
+gui/502/com.iia.catchup = {
+	active count = 0
+	path = /Users/edward.song/Desktop/Stock/launchd/com.iia.catchup.plist
+	type = LaunchAgent
+	state = not running
+
+	program = /usr/bin/caffeinate
+	arguments = {
+		/usr/bin/caffeinate
+		-is
+		/Users/edward.song/.local/bin/uv
+		run
+		/Users/edward.song/Desktop/Stock/scripts/catchup.py
+	}
+
+	working directory = /Users/edward.song/Desktop/Stock
+
+	stdout path = /Users/edward.song/Desktop/Stock/logs/catchup.log
+	stderr path = /Users/edward.song/Desktop/Stock/logs/catchup.log
+	inherited environment = {
+		SSH_AUTH_SOCK => /private/tmp/com.apple.launchd.bCBDl0Aaal/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		PYTHONUNBUFFERED => 1
+		PATH => /opt/homebrew/bin:/Users/edward.song/.local/bin:/usr/local/bin:/usr/bin:/bin
+		HOME => /Users/edward.song
+		XPC_SERVICE_NAME => com.iia.catchup
+	}
+
+	domain = gui/502 [100022]
+	asid = 100022
+	minimum runtime = 10
+	exit timeout = 5
+	runs = 43
+
+=== com.iia.podcast-backfill ===
+gui/502/com.iia.podcast-backfill = {
+	active count = 0
+	path = /Users/edward.song/Desktop/Stock/launchd/com.iia.podcast-backfill.plist
+	type = LaunchAgent
+	state = not running
+
+	program = /usr/bin/caffeinate
+	arguments = {
+		/usr/bin/caffeinate
+		-is
+		/Users/edward.song/.local/bin/uv
+		run
+		/Users/edward.song/Desktop/Stock/scripts/podcast_backfill.py
+	}
+
+	working directory = /Users/edward.song/Desktop/Stock
+
+	stdout path = /Users/edward.song/Desktop/Stock/logs/podcast_backfill.log
+	stderr path = /Users/edward.song/Desktop/Stock/logs/podcast_backfill.log
+	inherited environment = {
+		SSH_AUTH_SOCK => /private/tmp/com.apple.launchd.bCBDl0Aaal/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		PYTHONUNBUFFERED => 1
+		PATH => /opt/homebrew/bin:/Users/edward.song/.local/bin:/usr/local/bin:/usr/bin:/bin
+		HOME => /Users/edward.song
+		XPC_SERVICE_NAME => com.iia.podcast-backfill
+	}
+
+	domain = gui/502 [100022]
+	asid = 100022
+	minimum runtime = 10
+	exit timeout = 5
+	runs = 1
+
+=== com.iia.chrome-debug ===
+gui/502/com.iia.chrome-debug = {
+	active count = 7
+	path = /Users/edward.song/Library/LaunchAgents/com.iia.chrome-debug.plist
+	type = LaunchAgent
+	state = running
+
+	program = /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+	arguments = {
+		/Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+		--remote-debugging-port=9222
+		--user-data-dir=/Users/edward.song/Desktop/Stock/.chrome-profile
+		--no-first-run
+		--no-default-browser-check
+		--disable-session-crashed-bubble
+	}
+
+	stdout path = /Users/edward.song/Desktop/Stock/logs/chrome_debug.log
+	stderr path = /Users/edward.song/Desktop/Stock/logs/chrome_debug_err.log
+	inherited environment = {
+		SSH_AUTH_SOCK => /private/tmp/com.apple.launchd.bCBDl0Aaal/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		XPC_SERVICE_NAME => com.iia.chrome-debug
+	}
+
+	domain = gui/502 [100022]
+	asid = 100022
+	minimum runtime = 10
+	exit timeout = 5
+	runs = 1
+	pid = 1377
+	immediate reason = speculative
+	forks = 1403
+	execs = 1
+
+=== com.iia.us-rankings ===
+gui/502/com.iia.us-rankings = {
+	active count = 0
+	path = /Users/edward.song/Desktop/Stock/launchd/com.iia.us-rankings.plist
+	type = LaunchAgent
+	state = not running
+
+	program = /usr/bin/caffeinate
+	arguments = {
+		/usr/bin/caffeinate
+		-is
+		/Users/edward.song/.local/bin/uv
+		run
+		/Users/edward.song/Desktop/Stock/scripts/fetch_rankings.py
+		--market
+		US
+	}
+
+	working directory = /Users/edward.song/Desktop/Stock
+
+	stdout path = /Users/edward.song/Desktop/Stock/logs/us_rankings.log
+	stderr path = /Users/edward.song/Desktop/Stock/logs/us_rankings_err.log
+	inherited environment = {
+		SSH_AUTH_SOCK => /private/tmp/com.apple.launchd.bCBDl0Aaal/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		PYTHONUNBUFFERED => 1
+		PATH => /opt/homebrew/bin:/Users/edward.song/.local/bin:/usr/local/bin:/usr/bin:/bin
+		HOME => /Users/edward.song
+		XPC_SERVICE_NAME => com.iia.us-rankings
+	}
+
+	domain = gui/502 [100022]
+	asid = 100022
+	minimum runtime = 10
