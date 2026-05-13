@@ -56,5 +56,4 @@
 
 ## 待辦事項
 
-- [ ] Repo rename：`Stock-test` → `stockgg` 或類似（Phase 4.1）
 - [ ] Custom domain（Phase 4.4，買域名後）

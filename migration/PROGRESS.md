@@ -156,7 +156,7 @@ done
       so the private repo can webhook-push after each analysis cycle.
 - [ ] **3.8 Webhook trigger from private repo** — pending. Private repo's
       run_market_notes.py + daily_briefing.py should POST
-      `repository_dispatch` to `GarlicChives/Stock-test` so deploys
+      `repository_dispatch` to `GarlicChives/stockgg` so deploys
       happen right after DB writes, not on cron schedule.
 - [x] **3.9 Removed launchd plists** from public repo (entire
       `launchd/` directory `git rm`'d in 3.5).
