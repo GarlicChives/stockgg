@@ -24,9 +24,13 @@
 
 ## Cursor
 
-- **Current phase**: Phase 2 — atomic cutover DONE, observation window open
-- **Last completed step**: 2.3 — new repo's 8 plists bootstrapped + verified
-- **Next action**: 2.4 — observe 24-48h. Phase 3 starts after stable.
+- **Current phase**: Phase 3 mostly done (3.5/3.6/3.7/3.9/3.10 ✅,
+  3.1-3.4 deferred, 3.8 pending)
+- **Last completed step**: 3.10 — pyproject slimmed, package renamed
+  to "stockgg"
+- **Next action**: commit + push Phase 3 changes, then trigger CI to
+  verify the slimmed deploy still produces a working site. After
+  green, consider Phase 3.8 webhook trigger or Phase 4 polish.
 
 ---
 
@@ -125,32 +129,37 @@ done
 
 ## Phase 3 — Strip current repo, switch to public role
 
-- [ ] **3.1 Apply RLS / deploy `db-proxy-public`** from Phase 0 design.
-- [ ] **3.2 Add `SUPABASE_PUBLIC_KEY`** to current repo's GitHub Secrets
-      + local `.env`.
-- [ ] **3.3 Modify `src/utils/db.py`** to read the public key in this repo
-      (or branch path).
-- [ ] **3.4 Run full CI/local build with restricted credentials**; expect
-      failures. Fix each — usually by deleting the offending query.
-- [ ] **3.5 `git rm` modules** that no longer run in this repo:
-      `src/crawlers/`, `src/news/{market_data,tw_rankings,us_rankings,
-      catalyst_calendar}.py`, `src/analysis/{daily_report,market_notes,
-      earnings_preview}.py`, `src/utils/refine.py`, `src/theme/`,
-      `scripts/{daily_briefing,run_market_notes,build_theme_dictionary,
-      podcast_backfill,transcribe_one,manage_watchlist,
-      fetch_rankings,catchup,...}.py`.
-- [ ] **3.6 Remove legally-risky HTML sections** from generate_html.py:
-      Podcast notes tab content, article modal 內的「相關文章」block,
-      possibly 跨來源議題 article-title quotes.
-- [ ] **3.7 Simplify market_briefing.yml CI** to:
-      checkout → setup uv → run generate_html → wrangler deploy. Drop
-      the daily_briefing step entirely.
-- [ ] **3.8 New webhook in private repo**: at end of run_market_notes.py
-      (private), call `gh workflow run market_briefing.yml --repo
-      <public-repo>`.
-- [ ] **3.9 Remove launchd plists** from current repo (already disabled
-      in Phase 2, now delete files).
-- [ ] **3.10 Final commit**: "migration(3): public repo stripped".
+- [~] **3.1-3.4 db-proxy-public Edge Function** — DEFERRED. Per Phase 0.5
+      design decision: applying restricted credentials now would block the
+      current single-key DB access path. Public repo still uses
+      SERVICE_ROLE_KEY in its CI. Real isolation lands when a future
+      session deploys the new Edge Function.
+- [x] **3.5 `git rm` modules** that no longer run in public repo —
+      crawlers/, news/, theme/, prompts/, daily_report/market_notes/
+      earnings_preview, refine, api_logger, browser, all scripts except
+      generate_html.py, launchd/, PROMPTS.md. Kept: focus_themes.py,
+      db.py, data/theme_dictionary.json, data/theme_rules.md.
+- [x] **3.6 Removed PRIVATE HTML sections** from generate_html.py:
+      Q7 (articles fetch) + Q8 (podcast refined) deleted; 「🎙 Podcast
+      筆記」block deleted; modal 內的「📰 相關文章」section deleted;
+      `sc-arts-hint` and per-card article counts deleted. Theme
+      clustering now runs on volume-only signal (article-keyword score
+      drops to 0). Public HTML shrunk from ~260 KB to ~130 KB.
+- [x] **3.7 Simplified `market_briefing.yml`** to: checkout → setup uv →
+      generate HTML → commit HTML → wrangler deploy. Dropped the
+      daily_briefing + analysis Gemini steps. Added two extra cron
+      schedules (18:15 / 23:15 TW) plus `repository_dispatch` trigger
+      so the private repo can webhook-push after each analysis cycle.
+- [ ] **3.8 Webhook trigger from private repo** — pending. Private repo's
+      run_market_notes.py + daily_briefing.py should POST
+      `repository_dispatch` to `GarlicChives/Stock-test` so deploys
+      happen right after DB writes, not on cron schedule.
+- [x] **3.9 Removed launchd plists** from public repo (entire
+      `launchd/` directory `git rm`'d in 3.5).
+- [x] **3.10 Slimmed pyproject.toml** — dropped asyncpg, tavily-python,
+      opencc-python-reimplemented, and the entire `[local]` extras
+      group. Public repo now has 4 deps total. Renamed package to
+      "stockgg" v0.2.0.
 
 **Rollback**: `git revert` the Phase 3 commits. Re-enable bootout'd plists.
 

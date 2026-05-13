@@ -52,16 +52,6 @@ SOURCE_NAMES = {
     "podcast_statementdog":   "財報狗 podcast",
 }
 
-PODCAST_SOURCES = [
-    "podcast_gooaye",
-    "podcast_macromicro",
-    "podcast_chives_grad",
-    "podcast_stock_barrel",
-    "podcast_zhaohua",
-    "podcast_statementdog",
-]
-
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def fmt_pct(v) -> tuple[str, str]:
@@ -433,18 +423,19 @@ def _vol_label(rank: int) -> str:
 
 def _build_stock_cards(ticker_list: list[tuple[str, dict]],
                        ticker_arts: dict, market: str) -> tuple[str, dict]:
-    """Build stock cards for a market. Returns (html, modal_data dict)."""
+    """Build stock cards for a market. Returns (html, modal_data dict).
+
+    Article snippets / counts removed in repo-split Phase 3.6. Cards still
+    render; modal data is populated downstream by _build_analyst_html
+    (machine-derived consensus, no subscription text).
+    """
     modal_data: dict[str, str] = {}
     cards = []
     for ticker, info in ticker_list:
-        arts = ticker_arts.get(ticker, [])
-        if not arts:
-            continue  # only show stocks with article coverage
         chg = info["change_pct"]
         pct_str, pct_cls = fmt_pct(chg)
         mkt_badge = f'<span class="mkt-badge mkt-{market.lower()}">{market}</span>'
         vol_html = _vol_label(info["rank"])
-        art_count = len(arts)
 
         if market == "US":
             val_str = f"${info['trading_value']/1e9:.1f}B"
@@ -456,28 +447,8 @@ def _build_stock_cards(ticker_list: list[tuple[str, dict]],
             board_badge = f'<span class="board-sm {board.lower()}">{board}</span>'
         limit_badge = '<span class="limit-up-badge">漲停⬆</span>' if info.get("limit_up") else ""
 
-        # Build modal HTML for this ticker
-        modal_html_parts = []
-        for a in arts[:5]:
-            src_name = html_lib.escape(SOURCE_NAMES.get(a["source"] or "", a["source"] or ""))
-            dt = str(a["published_at"])[:10] if a["published_at"] else "?"
-            title = html_lib.escape((a["title"] or "")[:70])
-            relevant = extract_relevant_para(
-                a.get("full_content") or "",
-                ticker,
-                info["name"],
-            )
-            snippet_html = f'<div class="modal-snip">{html_lib.escape(relevant)}</div>' if relevant else ""
-            modal_html_parts.append(
-                f'<div class="modal-art">'
-                f'<div class="modal-art-meta">📰 {dt} · {src_name}</div>'
-                f'<div class="modal-art-title">{title}</div>'
-                f'{snippet_html}'
-                f'</div>'
-            )
-        modal_data[ticker] = ''.join(modal_html_parts)
+        modal_data[ticker] = ""  # filled later by analyst-consensus builder
 
-        safe_ticker = re.sub(r'[^A-Za-z0-9]', '_', ticker)
         cards.append(f"""
 <div class="stock-card" onclick="showArtModal('{html_lib.escape(ticker)}','{html_lib.escape(info['name'][:12])}')">
   <div class="sc-head">
@@ -491,7 +462,6 @@ def _build_stock_cards(ticker_list: list[tuple[str, dict]],
     <span class="sc-rank">#{info['rank']}</span>
     {vol_html}
   </div>
-  <div class="sc-arts-hint">📰 {art_count} 篇相關文章</div>
 </div>""")
     return ''.join(cards), modal_data
 
@@ -824,51 +794,8 @@ def build_notes_html(market_notes: dict | None, podcast_rows: list,
             '<p class="muted-note">每日分析完成後更新（需 GOOGLE_API_KEY）</p>'
         )
 
-    parts.append('<div class="section-hdr" style="margin-top:1.5rem">🎙 Podcast 筆記</div>')
-
-    pods: dict[str, list] = collections.defaultdict(list)
-    for row in podcast_rows:
-        pods[row["source"]].append(row)
-
-    for src_key in PODCAST_SOURCES:
-        eps = pods.get(src_key, [])
-        src_name = SOURCE_NAMES.get(src_key, src_key)
-        ep_count = len(eps)
-        safe_key = src_key.replace("_", "-")
-
-        ep_html_parts = []
-        for i, ep in enumerate(eps[:3]):
-            ep_id = f"{safe_key}-{i}"
-            dt = str(ep["published_at"])[:10] if ep["published_at"] else "?"
-            title = html_lib.escape(ep["title"] or "（無標題）")
-            is_refined = bool(ep.get("has_refined"))
-            content = ep.get("content") or ""
-            content_html = podcast_content_to_html(content, is_refined=is_refined)
-            ep_html_parts.append(f"""
-<div class="ep-block">
-  <div class="ep-hdr" onclick="toggleEl('{ep_id}')">
-    <span class="ep-arrow" id="arrow-{ep_id}">▶</span>
-    <span class="ep-title">{title}</span>
-    <span class="ep-date">{dt}</span>
-  </div>
-  <div id="{ep_id}" class="ep-body hidden">
-    {content_html}
-  </div>
-</div>""")
-
-        ep_html = ''.join(ep_html_parts) if ep_html_parts else '<p class="muted-note">尚無資料</p>'
-        parts.append(f"""
-<div class="pod-source">
-  <div class="pod-src-hdr" onclick="toggleEl('pod-{safe_key}')">
-    <span class="pod-src-arrow" id="arrow-pod-{safe_key}">▶</span>
-    <span class="pod-src-name">{html_lib.escape(src_name)}</span>
-    {f'<span class="ep-cnt">{ep_count} 集</span>' if ep_count else ''}
-  </div>
-  <div id="pod-{safe_key}" class="pod-episodes hidden">
-    {ep_html}
-  </div>
-</div>""")
-
+    # Podcast notes section removed in repo-split Phase 3.6 — derivative
+    # transcript content lives only in the private repo.
     return '\n'.join(parts)
 
 
@@ -934,71 +861,11 @@ async def generate():
             tw_rank_date,
         )]
 
-    # Article matching — fetch full content for relevant paragraph extraction
-    all_tickers = [r["ticker"] for r in us_ranks + tw_ranks]
-    all_tickers_set = set(all_tickers)
-    ticker_arts: dict[str, list] = collections.defaultdict(list)
-    if all_tickers:
-        art_rows = await conn.fetch("""
-            SELECT id, source, title, published_at, tickers,
-                   COALESCE(refined_content, content) AS full_content
-            FROM articles
-            WHERE tickers && $1::text[]
-              AND published_at >= NOW() - INTERVAL '60 days'
-              AND status = 'active'
-            ORDER BY published_at DESC
-            LIMIT 400
-        """, all_tickers)
-
-        # Assign article to ticker only if the ticker is a PRIMARY subject:
-        # (a) ticker appears in article title, OR (b) ticker is the first extracted ticker.
-        # Secondary cross-mentions (e.g. VRT article mentioning NOK as a customer) are excluded.
-        for row in art_rows:
-            art_tickers = row["tickers"] or []
-            title_upper = (row.get("title") or "").upper()
-            first_ticker_assigned = False
-            for i, t in enumerate(art_tickers):
-                if t not in all_tickers_set:
-                    continue
-                in_title = t in title_upper
-                is_primary = (i == 0 and not first_ticker_assigned)
-                if in_title or is_primary:
-                    ticker_arts[t].append(dict(row))
-                    if is_primary:
-                        first_ticker_assigned = True
-
-        # Deduplicate by article id per ticker
-        for ticker in ticker_arts:
-            seen_ids: set = set()
-            deduped = []
-            for art in ticker_arts[ticker]:
-                aid = art.get("id")
-                if aid not in seen_ids:
-                    seen_ids.add(aid)
-                    deduped.append(art)
-            ticker_arts[ticker] = deduped
-
-    # Podcast notes — only episodes with valid Gemini-structured content (has real tags)
-    # Filters out: NONE episodes (content_tags={}), Ollama garbage (no tags), raw fallback
-    podcast_rows = []
-    for src in PODCAST_SOURCES:
-        rows = await conn.fetch(
-            """SELECT source, title, published_at, refined_content AS content, true AS has_refined
-               FROM (
-                 SELECT DISTINCT ON (title)
-                        source, title, published_at, refined_content
-                 FROM articles
-                 WHERE source=$1 AND status='active'
-                   AND refined_content IS NOT NULL
-                   AND content_tags IS NOT NULL
-                   AND content_tags != '{}'
-                 ORDER BY title, published_at DESC NULLS LAST
-               ) deduped
-               ORDER BY published_at DESC NULLS LAST
-               LIMIT 3""",
-            src,
-        )
-        podcast_rows.extend(dict(r) for r in rows)
+    # PRIVATE data removed in repo-split Phase 3.6: articles.content,
+    # articles.refined_content, and podcast refined_content are not read
+    # by the public site. Theme clustering falls back to volume-only signal.
+    ticker_arts: dict[str, list] = {}
+    podcast_rows: list = []
 
     # Build stocks_info for theme detection (mirrors ranking data already fetched)
     stocks_info: dict[str, dict] = {}
@@ -1181,17 +1048,10 @@ async def generate():
     else:
         _analyst = {}
 
-    # Rebuild modal content: [analyst section] + [articles section]
+    # Modal: analyst consensus only. Article snippets removed in
+    # repo-split Phase 3.6 — subscription text lives only in the private repo.
     for _tk in list(modal_data.keys()):
-        _a_html = _build_analyst_html(_analyst.get(_tk, {}))
-        _arts   = modal_data[_tk]
-        _art_section = (
-            '<div class="modal-section">'
-            '<div class="modal-section-hdr">📰 相關文章</div>'
-            + _arts + '</div>'
-        ) if _arts else ""
-        modal_data[_tk] = _a_html + _art_section
-    # Notes-only tickers not yet in modal_data
+        modal_data[_tk] = _build_analyst_html(_analyst.get(_tk, {}))
     for _tk in _all_modal_tickers:
         if _tk not in modal_data:
             _a_html = _build_analyst_html(_analyst.get(_tk, {}))
