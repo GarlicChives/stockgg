@@ -1,17 +1,26 @@
-name: Daily Market Briefing
+name: Publish daily site
+
+# Triggered nightly + on demand. Analysis is no longer done here — it runs
+# on the user's Mac (StockGG-ingest repo) and writes to Supabase. This
+# workflow only re-renders docs/index.html from current DB state and pushes
+# it to Cloudflare Workers.
 
 on:
   schedule:
-    - cron: '30 23 * * 1-5'  # 07:30 TW weekdays (UTC+8)
+    - cron: '30 23 * * 1-5'   # 07:30 TW weekdays — after daily-briefing
+    - cron: '15 10 * * *'     # 18:15 TW — after 18:00 market_notes
+    - cron: '15 15 * * *'     # 23:15 TW — after 23:00 market_notes
   workflow_dispatch:           # manual trigger
+  repository_dispatch:         # POSTed from StockGG-ingest after analysis writes
+    types: [analysis-updated]
 
 permissions:
   contents: write              # needed to push docs/index.html
 
 jobs:
-  briefing:
+  publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
 
     steps:
       - uses: actions/checkout@v4
@@ -23,13 +32,6 @@ jobs:
 
       - name: Install dependencies
         run: uv sync
-
-      - name: Run daily briefing
-        run: uv run scripts/daily_briefing.py
-        env:
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
 
       - name: Generate HTML page
         run: uv run scripts/generate_html.py
