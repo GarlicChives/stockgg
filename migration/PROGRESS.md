@@ -26,8 +26,8 @@
 
 - **Current phase**: Phase 1 — almost done; one user-interactive step pending
 - **Last completed step**: 1.8 — new repo baseline committed (`1c6efc6`)
-- **Next action**: 1.7 — user runs `cloudflared tunnel login` flow (see
-  `~/Desktop/StockGG-ingest/infra/cloudflared/README.md`). After that,
+- **Next action**: 1.7 — user runs Tailscale setup (see
+  `~/Desktop/StockGG-ingest/infra/tailscale/README.md`). After that,
   proceed to Phase 2.1 backup of current launchctl state.
 
 ---
@@ -70,8 +70,8 @@ keep all its launchd jobs disabled.
 
 - [x] **1.1 Confirm name** — `StockGG-ingest`. Local path:
       `~/Desktop/StockGG-ingest`. Admin UI: FastAPI + HTMX. Remote
-      access: Cloudflare Tunnel. Git history: full mirror.
-      → 2026-05-12: user confirmed all 4 decisions.
+      access: **Tailscale** (switched from Cloudflare Tunnel on 2026-05-13
+      because user has no Cloudflare zones). Git history: full mirror.
 - [x] **1.2 Create private GitHub repo** `GarlicChives/StockGG-ingest`.
       → https://github.com/GarlicChives/StockGG-ingest
 - [x] **1.3 Clone + push to new remote** (`~/Desktop/StockGG-ingest`).
@@ -82,12 +82,16 @@ keep all its launchd jobs disabled.
 - [x] **1.6 Admin UI scaffold** — FastAPI + HTMX at
       `admin/`. `uv sync` brings in fastapi/uvicorn/jinja2.
       Verified `/healthz` + `/` render correctly on localhost:8765.
-- [!] **1.7 Cloudflare Tunnel setup** — **NEEDS USER INTERACTION**.
-      `cloudflared` installed via brew. Boilerplate ready:
-      - `infra/cloudflared/config.yml.example`
-      - `infra/cloudflared/README.md` (step-by-step)
-      - `launchd/com.iia.admin-ui.plist` (Disabled: true)
-      User runs the 5 commands in the README. When done, mark this ✅.
+- [!] **1.7 Tailscale setup** — **NEEDS USER INTERACTION**.
+      Boilerplate ready in `~/Desktop/StockGG-ingest/infra/tailscale/README.md`.
+      User actions:
+      1. `brew install --cask tailscale`
+      2. Launch Tailscale.app → sign in
+      3. Same on phone / other device
+      4. `launchctl bootstrap gui/$(id -u) ~/Desktop/StockGG-ingest/launchd/com.iia.admin-ui.plist`
+         (after dropping the `Disabled` flag)
+      5. From phone: `http://<mac-host>.<tailnet>:8765` should load admin UI
+      Stale: previous cloudflared install (`brew remove cloudflared` to clean up).
 - [x] **1.8 Commit baseline** in new repo — `1c6efc6` on
       `GarlicChives/StockGG-ingest:main`.
 
@@ -177,9 +181,9 @@ done
 
 ## Open blockers
 
-- **1.7 Cloudflare Tunnel** waits on user — `cloudflared tunnel login`
-  must run interactively in the user's browser. Boilerplate is ready;
-  follow the README in `~/Desktop/StockGG-ingest/infra/cloudflared/`.
+- **1.7 Tailscale install** waits on user — `brew install --cask tailscale`
+  + sign in via app. Boilerplate is ready;
+  follow `~/Desktop/StockGG-ingest/infra/tailscale/README.md`.
 
 ---
 
