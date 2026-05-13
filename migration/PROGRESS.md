@@ -24,13 +24,10 @@
 
 ## Cursor
 
-- **Current phase**: Phase 3 mostly done (3.5/3.6/3.7/3.9/3.10 ✅,
-  3.1-3.4 deferred, 3.8 pending)
-- **Last completed step**: 3.10 — pyproject slimmed, package renamed
-  to "stockgg"
-- **Next action**: commit + push Phase 3 changes, then trigger CI to
-  verify the slimmed deploy still produces a working site. After
-  green, consider Phase 3.8 webhook trigger or Phase 4 polish.
+- **Current phase**: Phase 3 fully done except 3.8 webhook (low priority)
+- **Last completed step**: 3.4 — anon-key + allowlist round-trip verified
+- **Next action**: optionally do 3.8 (private→public repo dispatch) or
+  Phase 4 polish (repo rename / LICENSE / 投資免責).
 
 ---
 
@@ -129,11 +126,18 @@ done
 
 ## Phase 3 — Strip current repo, switch to public role
 
-- [~] **3.1-3.4 db-proxy-public Edge Function** — DEFERRED. Per Phase 0.5
-      design decision: applying restricted credentials now would block the
-      current single-key DB access path. Public repo still uses
-      SERVICE_ROLE_KEY in its CI. Real isolation lands when a future
-      session deploys the new Edge Function.
+- [x] **3.1 db-proxy-public deployed** — supabase/functions/db-proxy-public/
+      index.ts deployed to project mnseyguxiiditaybpfup. 9-pattern
+      whitespace-normalized SQL allowlist; anything else → HTTP 403.
+- [x] **3.2 SUPABASE_ANON_KEY** added to public repo .env and GitHub
+      Secrets. SUPABASE_SERVICE_ROLE_KEY removed from public repo's
+      secret list (private repo still has it for ingestion).
+- [x] **3.3 src/utils/db.py** switched: EDGE_URL → db-proxy-public,
+      reads SUPABASE_ANON_KEY (errors out if missing). service_role
+      key reference deleted from this repo.
+- [x] **3.4 Round-trip verified** — local generate_html.py produced a
+      125 KB HTML; all 9 queries cleared the allowlist; CI run with
+      anon-only credentials succeeded (see migration commits below).
 - [x] **3.5 `git rm` modules** that no longer run in public repo —
       crawlers/, news/, theme/, prompts/, daily_report/market_notes/
       earnings_preview, refine, api_logger, browser, all scripts except
