@@ -1407,8 +1407,13 @@ dialog#art-modal::backdrop{{background:rgba(0,0,0,.65)}}
 .sp-pct{{font-weight:700;font-size:.8rem}}
 
 .up{{color:var(--up)}} .down{{color:var(--down)}} .neutral{{color:var(--muted)}}
-footer{{text-align:center;color:var(--muted);font-size:.75rem;
-        padding:1.5rem 1rem;border-top:1px solid var(--border);margin-top:.5rem}}
+footer{{color:var(--muted);font-size:.75rem;
+        padding:1.5rem 1rem;border-top:1px solid var(--border);margin-top:.5rem;
+        line-height:1.6}}
+footer .disclaimer{{max-width:760px;margin:0 auto .8rem;text-align:left}}
+footer .disclaimer h3{{color:#a0b0cc;font-size:.78rem;font-weight:600;
+                       margin:0 0 .35rem;letter-spacing:.04em}}
+footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--border)}}
 </style>
 </head>
 <body>
@@ -1479,7 +1484,21 @@ footer{{text-align:center;color:var(--muted);font-size:.75rem;
   <div class="modal-body" id="modal-body"></div>
 </dialog>
 
-<footer>IIA Investment Intelligence Analyst &nbsp;·&nbsp; 資料僅供參考，不構成投資建議</footer>
+<footer>
+  <div class="disclaimer">
+    <h3>⚠ 投資免責聲明</h3>
+    <p>本網站內容由自動化系統匯整公開市場資料、研究文章與 AI 分析模型產出，
+    僅供個人參考與資訊揭露之用，<strong>不構成任何形式的投資建議、要約或推薦</strong>。
+    所有資料未經獨立查證，可能含有錯誤、延遲或遺漏，且不保證即時、準確或完整。</p>
+    <p>使用者應自行評估投資風險、進行獨立判斷，並諮詢合格的金融、會計、稅務或法律專業人士。
+    依本網站內容所為之任何投資決策及其後果，由使用者完全自負，本網站經營者及其關聯方
+    對使用者因使用或無法使用本網站所致之任何直接或間接損失，
+    <strong>概不負任何責任</strong>。</p>
+    <p>本網站所引用之第三方品牌、商標、節目名稱、文章標題與股票代號，
+    皆為其各自所有者之財產，僅作為事實識別與引用之用，並無代表、授權或背書之意涵。</p>
+  </div>
+  <div class="meta">StockGG &nbsp;·&nbsp; 資料僅供參考，不構成投資建議</div>
+</footer>
 
 <script>
 const artModalData = {{
