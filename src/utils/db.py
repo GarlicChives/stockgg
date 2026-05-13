@@ -1,9 +1,12 @@
 """Database adapter — asyncpg-compatible interface over Supabase Edge Function.
 
-Replaces direct asyncpg connections with HTTPS calls to the db-proxy Edge
-Function, which executes SQL inside Supabase's internal network.
+This is the **public-renderer** variant: talks to db-proxy-public, which
+hard-allowlists 9 SELECT templates needed for HTML render and rejects
+anything else with HTTP 403. Even if the bearer key leaks, the only
+columns reachable are the public-safe ones tracked in
+migration/queries_inventory.md.
 
-Preserves the asyncpg API surface used throughout this project:
+API surface is identical to asyncpg (kept for drop-in compatibility):
   conn = await db.connect()
   rows  = await conn.fetch(sql, *params)
   row   = await conn.fetchrow(sql, *params)
@@ -11,7 +14,7 @@ Preserves the asyncpg API surface used throughout this project:
   tag   = await conn.execute(sql, *params)
   await conn.close()
 
-Works on any network with HTTPS (port 443) access — including company WiFi
+Works on any network with HTTPS (port 443) — including company WiFi
 that blocks direct PostgreSQL port 5432.
 """
 import os
@@ -21,7 +24,7 @@ from typing import Any
 
 import httpx
 
-EDGE_URL = "https://mnseyguxiiditaybpfup.supabase.co/functions/v1/db-proxy"
+EDGE_URL = "https://mnseyguxiiditaybpfup.supabase.co/functions/v1/db-proxy-public"
 
 # ISO datetime / date detection for auto-parsing JSON strings back to Python types
 _DT_RE  = re.compile(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}')
@@ -128,10 +131,10 @@ class AsyncConnection:
 async def connect(*_args: Any, **_kwargs: Any) -> AsyncConnection:
     """Drop-in replacement for asyncpg.connect().
 
-    Ignores all arguments (DATABASE_URL not needed over HTTPS).
-    Reads SUPABASE_SERVICE_ROLE_KEY from environment.
+    Reads SUPABASE_ANON_KEY from environment — the public-safe key whose
+    surface area is constrained by the db-proxy-public allowlist.
     """
-    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+    key = os.environ.get("SUPABASE_ANON_KEY", "")
     if not key:
-        raise RuntimeError("SUPABASE_SERVICE_ROLE_KEY not set in environment")
+        raise RuntimeError("SUPABASE_ANON_KEY not set in environment")
     return AsyncConnection(key)

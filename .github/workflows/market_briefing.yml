@@ -36,7 +36,9 @@ jobs:
       - name: Generate HTML page
         run: uv run scripts/generate_html.py
         env:
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Public-safe anon key; reaches DB only via db-proxy-public's
+          # 9-pattern SQL allowlist. service_role key never enters this repo.
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
       - name: Commit HTML to repo
         run: |
