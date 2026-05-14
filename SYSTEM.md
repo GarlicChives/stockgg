@@ -56,9 +56,10 @@
 | 04:30 | `com.iia.us-rankings` | `scripts/fetch_rankings.py us` | 美股成交值前 30（盤後） | ❌ |
 | 07:00 | `com.iia.podcast-backfill` | `scripts/podcast_backfill.py` | 補 refine 失敗集 | ❌ |
 | 07:30 | `com.iia.daily-briefing` | `scripts/daily_briefing.py` | 市場數據 + 日報 + theme dict | ✅ Step 9 |
+| 08:00 / 21:00 | `com.iia.article-crawl` | `src/crawlers/(many)` | 訂閱專欄爬蟲（5 來源） | ❌ |
+| 13:00 | `com.iia.article-recheck` | `scripts/recheck_articles.py --mode refine` | 重新精煉舊文章（每日 30 篇，套用最新 refine prompt） | ❌ |
 | 17:30 | `com.iia.tw-rankings` | `scripts/fetch_rankings.py tw` | 台股成交值前 30（盤後） | ❌ |
 | 18:00 | `com.iia.market-notes` | `scripts/run_market_notes.py` | 跨來源議題 + earnings preview | ✅ 結尾 |
-| 21:00 | `com.iia.article-crawl` | `src/crawlers/(many)` | 訂閱專欄爬蟲（5 來源） | ❌ |
 | 23:00 | `com.iia.market-notes` | （同上） | 同上，覆蓋當日完整 podcast | ✅ 結尾 |
 
 **公開站觸發**：webhook（即時）+ 後備 cron（07:30 / 18:15 / 23:15 TW）。
