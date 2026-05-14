@@ -190,6 +190,8 @@ gh workflow run "Publish daily site" --repo GarlicChives/stockgg --ref main
 
 9. **訂閱站登入持久化（兩種機制）**：persistent context 只存 persistent cookie。MacroMicro / Vocus / StatementDog / PressPlay 的 auth cookie 是 persistent → 用 `.crawler-profile/`。**InvestAnchors 的 auth cookie 是 session-only**（即使勾「記住我」，已多次實測）→ 改用 `.crawler-investanchors.json` storage_state 檔（storage_state 連 session cookie 都能存）；InvestAnchors crawler 每次跑完 re-dump 該檔延長 session。`browser.py` 登入流程驗證時先關視窗再重開，誠實測持久化。
 
+10. **登入會過期，不是永久的**：所有訂閱站 cookie/session 都會過期（數天～數月不等）。偵測機制：每個 crawler 開頭呼叫 `ensure_logged_in()`，session 死掉就 raise `LoginRequiredError`。`run_all_crawlers.py` retry 3 次（間隔 10s，吸收使用者同時在用網站造成的瞬時衝突），3 次都失敗就把狀態寫進 `source_status` 表（`ok` / `login_required` / `error`）。admin UI 每一頁頂端讀 `source_status`，任何來源非 `ok` 就顯示紅色橫幅。修復：`uv run python -m src.utils.browser` 重新登入。
+
 ## 異動觸發表（commit 前必查）
 
 下表列出**哪種改動必須同步更新哪份 doc**。沒有更新的 commit 會被 pre-commit
