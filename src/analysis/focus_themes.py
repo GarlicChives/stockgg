@@ -2,7 +2,7 @@
 
 Loads theme_dictionary.json, matches today's top-30 stocks against themes.
 
-Selection rule (see data/hot_theme_rules.md for full spec):
+Selection rule:
   A theme is "hot" when ≥ MIN_VOLUME (2) of its dictionary members
   appear simultaneously in the combined US+TW top-30 by trading value.
 

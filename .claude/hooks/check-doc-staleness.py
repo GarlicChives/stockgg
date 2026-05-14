@@ -44,7 +44,7 @@ def main() -> int:
             sys.stderr.write(
                 "\n[doc-guard] ✋  Structural file edited:\n"
                 f"  {file_path}\n"
-                "  ─ Re-check `~/Desktop/Stock/SYSTEM.md` 「異動觸發表」 row to\n"
+                "  ─ Re-check `~/Desktop/StockGG-ingest/SYSTEM.md` 「異動觸發表」 row to\n"
                 "    see which doc must be updated in the same commit.\n"
                 "  ─ Pre-commit hook will reject if you forget.\n\n"
             )
