@@ -67,8 +67,8 @@
 ## 資料來源（全部在 StockGG-ingest）
 
 ### 訂閱專欄（需 login 的 Playwright 爬蟲）
-- macromicro（財經 M 平方）
-- vocus 韭菜王
+- macromicro（財經 M 平方）— 只爬 `/mails/`（monthly_report + edm），`/blog` 不爬（與 mails 重複，2026-05-14 起）
+- vocus 韭菜王 — 本文取 `editor-content-block`，用 `domcontentloaded`（vocus networkidle 不穩）
 - statementdog（財報狗）
 - investanchors
 - pressplay（財經捕手）
