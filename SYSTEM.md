@@ -53,6 +53,7 @@
 |---|---|---|---|---|
 | 開機 + 30 分 interval | `com.iia.catchup` | `scripts/catchup.py` | 開機補漏 missed jobs | ❌ |
 | 每小時 :30 | `com.iia.podcast-crawl` | `src/crawlers/podcasts.py` | RSS + Whisper 轉錄 | ❌ |
+| 03:00 | `com.iia.podcast-retranscribe` | `src/crawlers/podcasts.py --retranscribe-short` | 重轉錄短內容 podcast（每日 12 集，與 podcast-crawl 共用鎖） | ❌ |
 | 04:30 | `com.iia.us-rankings` | `scripts/fetch_rankings.py us` | 美股成交值前 30（盤後） | ❌ |
 | 07:00 | `com.iia.podcast-backfill` | `scripts/podcast_backfill.py` | 補 refine 失敗集 | ❌ |
 | 07:30 | `com.iia.daily-briefing` | `scripts/daily_briefing.py` | 市場數據 + 日報 + theme dict | ✅ Step 9 |
@@ -123,7 +124,7 @@ uv run src/crawlers/podcasts.py --incremental
 # Admin UI（localhost only）：
 uv run uvicorn admin.main:app --port 8765
 open http://localhost:8765
-# 看 launchd job 狀態（10 個 active）：
+# 看 launchd job 狀態（11 個 active）：
 launchctl list | grep com.iia
 ```
 
@@ -195,6 +196,8 @@ gh workflow run "Publish daily site" --repo GarlicChives/stockgg --ref main
 10. **登入會過期，不是永久的**：所有訂閱站 cookie/session 都會過期（數天～數月不等）。偵測機制：每個 crawler 開頭呼叫 `ensure_logged_in()`，session 死掉就 raise `LoginRequiredError`。`run_all_crawlers.py` retry 3 次（間隔 10s，吸收使用者同時在用網站造成的瞬時衝突），3 次都失敗就把狀態寫進 `source_status` 表（`ok` / `login_required` / `error`）。admin UI 每一頁頂端讀 `source_status`，任何來源非 `ok` 就顯示紅色橫幅。修復：`uv run python -m src.utils.browser` 重新登入。
 
 11. **爬壞的文章有偵測 + 修復循環**：`article_quality.looks_like_bad_content(title, content)` 判斷文章是否爬壞（登入牆 / 爬到頁面外框 / 標題是站名通用值）。`recheck_articles.py --mode scan` 列出目前所有爬壞文章；`--mode fix-garbage` 逐篇重爬（每篇 retry 3 次），每日 19:30 排程跑 20 篇 —— 成功就清掉並 `fix_attempts=0`，失敗則 `articles.fix_attempts += 1`。**Session 開頭健康檢查**：跑 `uv run scripts/recheck_articles.py --mode scan`，若出現 🔴（某文章連續 ≥3 次重爬仍失敗），代表那個來源的爬蟲方式很可能又壞了（網站改版 / selector 失效），需要實地診斷該 crawler 的 fetch function、驗證新的抓法 —— 不要只是放著讓它無限 retry。
+
+12. **podcast 內容過短 = 轉錄失敗**：真逐字稿 ~5,000–40,000 字；`length(content) < MIN_TRANSCRIPT_LEN`（2000，定義在 `podcasts.py`）代表 Whisper 轉錄失敗、fallback 成 RSS show notes。`crawl()` 對既有的短內容集數會重新轉錄（不再永久 skip），且只 refine 真逐字稿（show notes 不 refine，避免精煉異常）；`podcast_backfill.py` 也只 refine `>= MIN_TRANSCRIPT_LEN` 的集數。歷史 backlog 由 `podcasts.py --retranscribe-short --limit N` 補（每日 03:00 排程跑 12 集）。**注意**：retranscribe 與 podcast-crawl 共用 `single_instance` flock 鎖（防 Whisper 疊加 OOM），所以 03:00 那批跑很久時，期間的 hourly podcast-crawl 會自動讓位。
 
 ## 異動觸發表（commit 前必查）
 
