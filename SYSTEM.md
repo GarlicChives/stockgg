@@ -60,6 +60,7 @@
 | 13:00 | `com.iia.article-recheck` | `scripts/recheck_articles.py --mode refine` | 重新精煉舊文章（每日 30 篇，套用最新 refine prompt） | ❌ |
 | 17:30 | `com.iia.tw-rankings` | `scripts/fetch_rankings.py tw` | 台股成交值前 30（盤後） | ❌ |
 | 18:00 | `com.iia.market-notes` | `scripts/run_market_notes.py` | 跨來源議題 + earnings preview | ✅ 結尾 |
+| 19:30 | `com.iia.article-fixgarbage` | `scripts/recheck_articles.py --mode fix-garbage` | 重爬修復爬壞的文章（每日 20 篇，retry 3 次） | ❌ |
 | 23:00 | `com.iia.market-notes` | （同上） | 同上，覆蓋當日完整 podcast | ✅ 結尾 |
 
 **公開站觸發**：webhook（即時）+ 後備 cron（07:30 / 18:15 / 23:15 TW）。
@@ -122,7 +123,7 @@ uv run src/crawlers/podcasts.py --incremental
 # Admin UI（localhost only）：
 uv run uvicorn admin.main:app --port 8765
 open http://localhost:8765
-# 看 8 個 launchd job 狀態：
+# 看 launchd job 狀態（10 個 active）：
 launchctl list | grep com.iia
 ```
 
@@ -192,6 +193,8 @@ gh workflow run "Publish daily site" --repo GarlicChives/stockgg --ref main
 9. **訂閱站登入持久化（兩種機制）**：persistent context 只存 persistent cookie。MacroMicro / Vocus / StatementDog / PressPlay 的 auth cookie 是 persistent → 用 `.crawler-profile/`。**InvestAnchors 的 auth cookie 是 session-only**（即使勾「記住我」，已多次實測）→ 改用 `.crawler-investanchors.json` storage_state 檔（storage_state 連 session cookie 都能存）；InvestAnchors crawler 每次跑完 re-dump 該檔延長 session。`browser.py` 登入流程驗證時先關視窗再重開，誠實測持久化。
 
 10. **登入會過期，不是永久的**：所有訂閱站 cookie/session 都會過期（數天～數月不等）。偵測機制：每個 crawler 開頭呼叫 `ensure_logged_in()`，session 死掉就 raise `LoginRequiredError`。`run_all_crawlers.py` retry 3 次（間隔 10s，吸收使用者同時在用網站造成的瞬時衝突），3 次都失敗就把狀態寫進 `source_status` 表（`ok` / `login_required` / `error`）。admin UI 每一頁頂端讀 `source_status`，任何來源非 `ok` 就顯示紅色橫幅。修復：`uv run python -m src.utils.browser` 重新登入。
+
+11. **爬壞的文章有偵測 + 修復循環**：`article_quality.looks_like_bad_content(title, content)` 判斷文章是否爬壞（登入牆 / 爬到頁面外框 / 標題是站名通用值）。`recheck_articles.py --mode scan` 列出目前所有爬壞文章；`--mode fix-garbage` 逐篇重爬（每篇 retry 3 次），每日 19:30 排程跑 20 篇 —— 成功就清掉並 `fix_attempts=0`，失敗則 `articles.fix_attempts += 1`。**Session 開頭健康檢查**：跑 `uv run scripts/recheck_articles.py --mode scan`，若出現 🔴（某文章連續 ≥3 次重爬仍失敗），代表那個來源的爬蟲方式很可能又壞了（網站改版 / selector 失效），需要實地診斷該 crawler 的 fetch function、驗證新的抓法 —— 不要只是放著讓它無限 retry。
 
 ## 異動觸發表（commit 前必查）
 
