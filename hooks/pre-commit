@@ -24,8 +24,12 @@ STRUCTURAL_PATTERNS = [
     r"wrangler\.jsonc$",
 ]
 
+# SYSTEM.md lives in the StockGG-ingest repo (it documents private crawler /
+# subscription-site operations, so it must NOT sit in this public repo).
+# stockgg structural changes therefore doc-sync via this repo's own
+# CLAUDE.md / README; a SYSTEM.md update, when needed, is a separate commit
+# in StockGG-ingest.
 DOC_PATTERNS = [
-    r"SYSTEM\.md$",
     r"\.claude/CLAUDE\.md$",
     r"README\.md$",
 ]
@@ -58,9 +62,10 @@ def main() -> int:
     sys.stderr.write(
         "\nThese files appear in SYSTEM.md's 「異動觸發表」 — code + doc must\n"
         "be in the same commit. Update at least one of:\n"
-        "  • SYSTEM.md (lives in stockgg repo only)\n"
         "  • .claude/CLAUDE.md (in this repo)\n"
         "  • README.md\n\n"
+        "Note: SYSTEM.md lives in the StockGG-ingest repo. If this change also\n"
+        "needs a SYSTEM.md section update, do that as a separate commit there.\n\n"
         "If this really is a non-structural touch (typo fix, comment, etc.):\n"
         "  git commit --no-verify\n\n"
     )
