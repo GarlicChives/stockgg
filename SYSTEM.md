@@ -186,6 +186,10 @@ gh workflow run "Publish daily site" --repo GarlicChives/stockgg --ref main
 
 7. **公開 repo 改 prompt 沒用**：所有 prompt 都在 StockGG-ingest 跑。改 stockgg 的什麼也不會生效（而且 stockgg 根本沒 prompt 檔案了）。
 
+8. **訂閱站的置頂公告會有未來日期**：InvestAnchors 之類的站把「會員權益公告」設成遠未來日期（如 2026-12-30）讓它釘在列表頂。爬蟲若用 `MAX(published_at)` 當 incremental cutoff 會被毒化成未來日期 → 永遠抓不到新文章。所有 crawler 的 cutoff query 已加 `AND published_at <= NOW()` 守衛。新寫 crawler 務必比照。
+
+9. **訂閱站登入持久化**：persistent context 只存「persistent cookie」，**session-only cookie 在 `ctx.close()` 後消失**。InvestAnchors / PressPlay 用 email/密碼且**必須勾「記住我」**才會發 persistent cookie。`browser.py` 的登入流程驗證時會先關閉視窗再重開，誠實測持久化（不會假性通過）。
+
 ## 異動觸發表（commit 前必查）
 
 下表列出**哪種改動必須同步更新哪份 doc**。沒有更新的 commit 會被 pre-commit
