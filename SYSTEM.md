@@ -65,12 +65,18 @@
 
 ## 資料來源（全部在 StockGG-ingest）
 
-### 訂閱專欄（需 login 的 Playwright 爬蟲，靠 Chrome CDP port 9222）
+### 訂閱專欄（需 login 的 Playwright 爬蟲）
 - macromicro（財經 M 平方）
 - vocus 韭菜王
 - statementdog（財報狗）
 - investanchors
 - pressplay（財經捕手）
+
+連線方式：Playwright **persistent context**（`src/utils/browser.py`），
+自己的 headless Chromium + 持久 profile `.crawler-profile/`（gitignored）。
+**不再用 Chrome CDP port 9222**。首次登入見
+`StockGG-ingest/docs/crawler-login.md`：`uv run python -m src.utils.browser`
+跑一次手動登入 5 站。cookie 過期 → 重跑該指令。
 
 ### Podcast（RSS + Whisper 轉錄）
 - gooaye 股癌、macromicro、chives_grad 韭菜畢業班、stock_barrel、zhaohua 兆華、statementdog podcast
@@ -164,6 +170,8 @@ gh workflow run "Publish daily site" --repo GarlicChives/stockgg --ref main
 3. **launchd PATH 必須含 `/opt/homebrew/bin`**（Apple Silicon）：podcast-crawl 跑 ffmpeg 用得到。所有 plist 已修；新增 plist 別忘加。
 
 4. **Whisper 必須 subprocess 隔離**：`scripts/transcribe_one.py` 是專門隔離 MLX 記憶體洩漏的 worker，不要把它 inline 回 podcasts.py。背景見 commit `dc0634ad`。
+
+4b. **訂閱爬蟲用 persistent context，不是 CDP**：`src/utils/browser.py` 的 `connect_browser()` 回傳 `BrowserContext`（不是 `Browser`）。呼叫端是 `context = await connect_browser(p)` → ... → `await context.close()`，沒有 `browser.contexts[0]` 那層。profile 在 `.crawler-profile/`。登入失效（logs 出現大量 `[LOCKED]`）→ 跑 `uv run python -m src.utils.browser` 重新登入。
 
 5. **單一實例鎖**：podcast-crawl 有 `single_instance()` flock 防 launchd 並行觸發。新加排程若會大量吃記憶體請同樣加。
 
