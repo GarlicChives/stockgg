@@ -1,7 +1,9 @@
 # Project: stockgg (public daily-briefing site)
 
-> **新 session 開頭請先讀 `~/Desktop/Stock/SYSTEM.md`** —— 那是兩個 repo 的全景，
-> 包含資料流、排程、各 repo 職責、踩坑點。本檔只覆蓋本 repo 的 do/don't。
+> **新 session 開頭請先讀 `~/Desktop/StockGG-ingest/SYSTEM.md`** —— 那是兩個 repo
+> 的全景，包含資料流、排程、各 repo 職責、踩坑點。SYSTEM.md 實體放在私有的
+> StockGG-ingest repo（因含爬蟲 / 訂閱站營運細節，不進公開 repo）；本檔只覆蓋
+> 本 repo 的 do/don't。
 
 ## 本 repo 角色
 
@@ -42,7 +44,10 @@ gh workflow run "Publish daily site"        # 手動觸發 CI 部署
 
 每次 commit 之前 mental walk-through：
 
-- [ ] 改動的檔案在 SYSTEM.md「異動觸發表」內嗎？是 → 同 commit 更新對應 doc
+- [ ] 改動的檔案在 SYSTEM.md「異動觸發表」內嗎？是 → 同 commit 更新本 repo 的
+  `.claude/CLAUDE.md` / `README.md`（hook 只認這兩個）。若該改動也需更新
+  SYSTEM.md 的 section → SYSTEM.md 在 `StockGG-ingest` repo，**另開一次該 repo
+  的 commit + push**
 - [ ] 改了 `generate_html.py` 的 `conn.fetch/fetchrow/fetchval`？是 → 同步擴
   `supabase/functions/db-proxy-public/index.ts` 的 `ALLOWED`，並 redeploy
 - [ ] 改了 CSS 或 HTML 結構？是 → 本機 `uv run python scripts/generate_html.py`
