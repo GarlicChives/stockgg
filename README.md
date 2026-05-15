@@ -23,7 +23,7 @@ transcripts — all of that lives in a separate private system.
 ## How it's served
 
 ```
-Supabase DB ──[anon key, 9-pattern allowlist]──▶ Cloudflare Workers
+Supabase DB ──[anon key, 10-pattern allowlist]──▶ Cloudflare Workers
                                                   (public site)
 ```
 
@@ -36,7 +36,7 @@ Supabase DB ──[anon key, 9-pattern allowlist]──▶ Cloudflare Workers
 3. GitHub Actions rebuilds + redeploys when the private system
    webhooks the workflow, plus on cron 07:30 / 18:15 / 23:15 TW.
 
-The Edge Function enforces a hard allowlist of 9 SELECT shapes — even
+The Edge Function enforces a hard allowlist of 10 SELECT shapes — even
 if the anon key in this repo leaks, raw article bodies and podcast
 transcripts are not reachable. The allowlist source is
 `supabase/functions/db-proxy-public/index.ts`.
