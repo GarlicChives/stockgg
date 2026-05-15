@@ -1154,21 +1154,26 @@ button{{cursor:pointer;border:none;outline:none}}
 @keyframes tape-scroll{{0%{{transform:translateX(0)}}100%{{transform:translateX(-50%)}}}}
 
 
-/* ── Header ── */
+/* ── Header (logo + tabs in one row) ── */
 header{{background:var(--card);border-bottom:1px solid var(--border);
-        padding:.55rem 1.5rem}}
-header h1{{font-size:1rem;font-weight:700;color:var(--accent)}}
+        padding:.5rem 1.5rem;display:flex;align-items:center;gap:1.5rem;
+        flex-wrap:wrap}}
+.brand{{font-size:1rem;font-weight:700;color:var(--accent);
+        cursor:pointer;white-space:nowrap;letter-spacing:.02em;
+        background:transparent;border:0;padding:.25rem 0;font-family:inherit;
+        transition:.15s}}
+.brand:hover{{filter:brightness(1.18)}}
 
 /* ── Tabs ── */
-.wrap{{max-width:1120px;margin:0 auto;padding:1.25rem 1.1rem}}
-.tabs{{display:flex;gap:.4rem;margin-bottom:1.1rem;
-       border-bottom:1px solid var(--border);padding-bottom:.55rem}}
+.tabs{{display:flex;gap:.3rem}}
 .tab-btn{{background:transparent;color:var(--muted);padding:.42rem .9rem;
           border-radius:6px;font-size:.88rem;font-weight:500;transition:.15s}}
-.tab-btn:hover{{background:var(--card);color:var(--text)}}
+.tab-btn:hover{{background:rgba(255,255,255,.04);color:var(--text)}}
 .tab-btn.active{{background:var(--accent);color:#fff}}
 .tab-pane{{display:none}}
 .tab-pane.active{{display:block}}
+
+.wrap{{max-width:1120px;margin:0 auto;padding:1.25rem 1.1rem}}
 
 /* ── Sub-tabs (焦點股) ── */
 .sub-tabs{{display:flex;gap:.35rem;margin-bottom:.9rem}}
@@ -1431,16 +1436,15 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
 <div class="tape">{tape_html}</div>
 
 <header>
-  <h1>IIA 投資情報</h1>
-</header>
-
-<div class="wrap">
+  <button class="brand" onclick="showTab('market');window.scrollTo(0,0);" title="回首頁">IIA 投資情報</button>
   <nav class="tabs">
     <button class="tab-btn active" data-tab="market" onclick="showTab('market')">市場行情</button>
     <button class="tab-btn"        data-tab="focus"  onclick="showTab('focus')">熱門題材</button>
     <button class="tab-btn"        data-tab="notes"  onclick="showTab('notes')">股市筆記</button>
   </nav>
+</header>
 
+<div class="wrap">
   <!-- Tab 1: 市場行情 -->
   <div id="tab-market" class="tab-pane active">
     <div class="card">
