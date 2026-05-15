@@ -67,17 +67,28 @@ class ThemeCluster:
 # ── Dictionary loader (swap body for DB migration) ────────────────────────────
 
 def _load_themes() -> list[dict]:
-    """Return list of theme dicts from JSON file.
+    """Return list of non-disabled theme dicts from JSON file.
+
+    `disabled=True` themes are filtered out — set by the StockGG-ingest admin
+    UI (`src/utils/themes.py::set_disabled`) to flag themes that are too broad
+    or otherwise shouldn't surface on the public site. `locked` is NOT
+    filtered: locked themes are frozen against automated stock additions but
+    remain publicly visible.
+
+    Uses `.get("disabled", False)` so the filter stays backwards-compatible
+    with older theme_dictionary.json snapshots that pre-date the field.
 
     DB migration: replace this body with:
-        rows = asyncio.run(conn.fetch("SELECT * FROM theme_dictionary"))
+        rows = asyncio.run(conn.fetch(
+            "SELECT * FROM theme_dictionary WHERE NOT disabled"
+        ))
         return [dict(r) for r in rows]
     """
     if not DICT_FILE.exists():
         return []
     with DICT_FILE.open(encoding="utf-8") as f:
         data = json.load(f)
-    return data.get("themes", [])
+    return [t for t in data.get("themes", []) if not t.get("disabled", False)]
 
 
 # ── Scoring ───────────────────────────────────────────────────────────────────
