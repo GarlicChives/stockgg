@@ -574,7 +574,7 @@ _WEEKDAY_TW = ["週一", "週二", "週三", "週四", "週五", "週六", "週�
 def build_catalyst_html(events: list[dict], stocks_info: dict | None = None) -> str:
     if not events:
         return ('<div class="cal-empty">'
-                '近 14 日無已知重要事件（每日 07:30 自動更新）</div>')
+                '前 2 週 ~ 後 3 週區間無已知重要事件（每日 07:30 自動更新）</div>')
 
     from datetime import date as _date_cls, datetime as _dt_cls
 
@@ -594,9 +594,17 @@ def build_catalyst_html(events: list[dict], stocks_info: dict | None = None) -> 
             continue
         by_date.setdefault(d, []).append(ev)
 
+    today = _date_cls.today()
     day_html = []
     for d, evs in by_date.items():
         date_label = f"{d.month}/{d.day} {_WEEKDAY_TW[d.weekday()]}"
+        day_cls = "cal-day"
+        if d < today:
+            day_cls += " past"
+        elif d == today:
+            day_cls += " today"
+            date_label += " · 今天"
+
         chips = []
         for ev in evs:
             imp = ev.get("importance", 2)
@@ -605,41 +613,50 @@ def build_catalyst_html(events: list[dict], stocks_info: dict | None = None) -> 
             if imp >= 3:
                 cls += " imp-3"
             tk = ev.get("ticker") or ""
+            has_preview = bool((ev.get("preview_text") or "").strip())
+
             if typ == "earnings" and tk:
                 name = ""
                 if stocks_info:
                     info = stocks_info.get(tk) or {}
                     name = (info.get("name") or "").strip()
                 label = f"{tk} {name}".strip() + " 法說"
-                has_preview = bool((ev.get("preview_text") or "").strip())
-                if has_preview:
-                    cls += " has-preview"
-                    pid = f"prev-{ev['id']}"
-                    chips.append(
-                        f'<span class="{cls}" data-ticker="{html_lib.escape(tk)}" '
-                        f'onclick="document.getElementById(\'{pid}\').classList.toggle(\'open\')">'
-                        f'{html_lib.escape(label)} 📝</span>'
-                    )
-                else:
-                    chips.append(f'<span class="{cls}" data-ticker="{html_lib.escape(tk)}">{html_lib.escape(label)}</span>')
             else:
-                chips.append(f'<span class="{cls}">{html_lib.escape(ev["title"])}</span>')
+                label = ev["title"]
 
-        # Render any previews for this date as expandable blocks below the chips
+            data_attr = f' data-ticker="{html_lib.escape(tk)}"' if tk else ""
+            if has_preview:
+                cls += " has-preview"
+                pid = f"prev-{ev['id']}"
+                chips.append(
+                    f'<span class="{cls}"{data_attr} '
+                    f"onclick=\"document.getElementById('{pid}').classList.toggle('open')\">"
+                    f"{html_lib.escape(label)} 📝</span>"
+                )
+            else:
+                chips.append(f'<span class="{cls}"{data_attr}>{html_lib.escape(label)}</span>')
+
+        # Render previews (now for any event type that has preview_text — not
+        # just earnings; past events use the same mechanism to surface the
+        # preview written before the event date).
         preview_blocks = []
         for ev in evs:
             txt = (ev.get("preview_text") or "").strip()
             if not txt:
                 continue
             pid = f"prev-{ev['id']}"
+            head_tk = (ev.get("ticker") or "").strip()
+            head_title = (ev.get("title") or "").strip()
+            head_label = (f"{head_tk} 法說 preview" if ev["event_type"] == "earnings" and head_tk
+                          else head_title or "事件 preview")
             preview_blocks.append(
                 f'<div id="{pid}" class="cal-preview">'
-                f'<div class="cal-preview-head">📝 {html_lib.escape(ev["ticker"])} 法說 preview</div>'
+                f'<div class="cal-preview-head">📝 {html_lib.escape(head_label)}</div>'
                 f'<pre class="cal-preview-body">{html_lib.escape(txt)}</pre>'
                 f'</div>'
             )
         day_html.append(
-            f'<div class="cal-day"><div class="cal-date">{date_label}</div>'
+            f'<div class="{day_cls}"><div class="cal-date">{date_label}</div>'
             f'<div class="cal-events">{"".join(chips)}</div></div>'
             + "".join(preview_blocks)
         )
@@ -984,14 +1001,16 @@ async def generate():
                     "limit_up": False,
                 }
 
-    # Catalyst events — next 21 days, ordered by date then importance
+    # Catalyst events — past 14 days through next 21 days. Past events show
+    # what already happened (and stay clickable to see preview_text written
+    # before the event); future events show what to watch.
     catalyst_events = []
     try:
         catalyst_events = [dict(r) for r in await conn.fetch(
             """SELECT id, event_date, event_type, ticker, market, title, importance,
                       preview_text
                FROM catalyst_events
-               WHERE event_date >= CURRENT_DATE
+               WHERE event_date >= CURRENT_DATE - INTERVAL '14 days'
                  AND event_date <= CURRENT_DATE + INTERVAL '21 days'
                ORDER BY event_date, importance DESC, ticker"""
         )]
@@ -1211,6 +1230,8 @@ header{{background:var(--card);border-bottom:1px solid var(--border);
 .cal-day{{display:grid;grid-template-columns:90px 1fr;gap:.65rem;
           padding:.4rem 0;border-bottom:1px solid var(--border);font-size:.85rem}}
 .cal-day:last-child{{border-bottom:none}}
+.cal-day.past{{opacity:.55}}
+.cal-day.today .cal-date{{color:var(--accent);font-weight:700}}
 .cal-date{{color:var(--muted);font-weight:600;font-variant-numeric:tabular-nums}}
 .cal-events{{display:flex;flex-wrap:wrap;gap:.3rem}}
 .cal-ev{{padding:.15rem .45rem;border-radius:4px;
@@ -1254,8 +1275,9 @@ tr:last-child td{{border-bottom:none}}
 .theme-top{{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;margin-bottom:.45rem}}
 .theme-ttl{{font-size:.95rem;font-weight:700}}
 .sent-badge{{font-size:.65rem;font-weight:700;padding:.15rem .45rem;border-radius:4px}}
-.sent-bull{{background:#1a3a2a;color:#4caf82}}
-.sent-bear{{background:#2a1a1a;color:#b05050}}
+/* Asian convention: 紅=偏多/bullish, 綠=偏空/bearish (matches up/down) */
+.sent-bull{{background:#3a1a1a;color:#ef7a78}}
+.sent-bear{{background:#1a3a2e;color:#5dc4b9}}
 .sent-neu{{background:#1e2235;color:var(--muted)}}
 .src-note{{font-size:.72rem;color:var(--muted)}}
 .theme-summary{{font-size:.85rem;color:#b0bfcf;margin:.35rem 0}}
@@ -1452,7 +1474,7 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
       <div class="report">{report_html or '<p style="color:var(--muted)">今日報告尚未生成</p>'}</div>
     </div>
     <div class="card">
-      <div class="sec">📅 未來事件日曆（3 週內）</div>
+      <div class="sec">📅 事件日曆（前 2 週 ~ 後 3 週）</div>
       {catalyst_html}
     </div>
     <div class="ranks">
