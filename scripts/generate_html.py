@@ -181,12 +181,15 @@ def _stk_pill(ticker: str, stocks_info: dict, clickable: bool = True, extra_attr
 
 
 def _pillify_in_html(html: str, stocks_info: dict) -> str:
-    """Replace ticker codes & known Chinese names in HTML text with stock pills.
+    """Append a stock-pill row to the end of each <p>/<li> block in the report.
 
-    Operates only on text segments (skips content inside HTML tags so we don't
-    corrupt attributes). Replacement happens only when the resolved ticker is
-    present in stocks_info — unknown tokens (VIX, AI, US, EP, etc.) stay as
-    plain text, which gives us a free false-positive filter.
+    Body text is left untouched — Gemini's original wording (e.g. "台積電(2330)")
+    stays as plain text, with no inline code/change% styling. Instead, every
+    ticker or known Chinese stock name mentioned inside a block is collected,
+    de-duplicated by resolved ticker, and rendered as a single pill row at the
+    end of that block. Only tickers present in stocks_info produce a pill —
+    unknown tokens (VIX, AI, foreign names without ranking data) are silently
+    ignored, which gives us a free false-positive filter.
     """
     if not html or not stocks_info:
         return html
@@ -204,26 +207,31 @@ def _pillify_in_html(html: str, stocks_info: dict) -> str:
     else:
         token_re = re.compile(r"\b(\d{4}|[A-Z]{2,5})\b")
 
-    def _sub_in_text(text: str) -> str:
-        def _one(m):
+    def _collect_tickers(text: str, acc: list[str]) -> None:
+        for m in token_re.finditer(text):
             matched = m.group(0)
             tk = name_to_ticker.get(matched) or (matched if matched in stocks_info else None)
-            if not tk or tk not in stocks_info:
-                return matched
-            return _stk_pill(tk, stocks_info)
-        return token_re.sub(_one, text)
+            if tk and tk in stocks_info and tk not in acc:
+                acc.append(tk)
 
-    # Tokenize by HTML tags so we don't replace inside attributes / script.
-    parts = re.split(r"(<[^>]+>)", html)
-    out = []
-    for i, p in enumerate(parts):
-        if not p:
-            continue
-        if i % 2 == 1:  # an HTML tag
-            out.append(p)
-        else:
-            out.append(_sub_in_text(p))
-    return "".join(out)
+    def _process_block(m) -> str:
+        tag, inner = m.group(1), m.group(2)
+        tickers: list[str] = []
+        # Scan text segments only — skip nested tags (e.g. <strong>).
+        for i, seg in enumerate(re.split(r"(<[^>]+>)", inner)):
+            if i % 2 == 0 and seg:
+                _collect_tickers(seg, tickers)
+        if not tickers:
+            return m.group(0)
+        row = '<div class="report-stocks">' + "".join(
+            _stk_pill(tk, stocks_info) for tk in tickers
+        ) + '</div>'
+        # A <div> inside <p> is invalid HTML — place the row after </p>.
+        if tag == "li":
+            return f"<li>{inner}{row}</li>"
+        return f"<p>{inner}</p>{row}"
+
+    return re.sub(r"<(p|li)>(.*?)</\1>", _process_block, html, flags=re.DOTALL)
 
 
 _TICKER_PAREN_RE = re.compile(r'\(([^)]+)\)$')
@@ -908,11 +916,22 @@ async def generate():
                 for w in c.watch:
                     w.change_pct = watch_prices.get(w.code_or_ticker)
 
-    # Parse market_notes before closing (needed for tickers query)
+    # Parse market_notes before closing (needed for tickers query).
+    # raw_response and market_notes_json live in the same analysis_reports
+    # row but are written ~10h apart (daily_briefing 07:30 writes raw_response,
+    # run_market_notes 18:00/23:00 writes market_notes_json via ON CONFLICT
+    # UPDATE). So Q1's latest row often has raw_response but a NULL
+    # market_notes_json — fall back to the most recent row that has it.
     market_notes = None
-    if report and report["market_notes_json"]:
-        mn = report["market_notes_json"]
-        market_notes = mn if isinstance(mn, dict) else json.loads(mn)
+    mn_raw = report["market_notes_json"] if report else None
+    if not mn_raw:
+        mn_row = await conn.fetchrow(
+            "SELECT report_date, market_notes_json FROM analysis_reports "
+            "WHERE market_notes_json IS NOT NULL ORDER BY report_date DESC LIMIT 1"
+        )
+        mn_raw = mn_row["market_notes_json"] if mn_row else None
+    if mn_raw:
+        market_notes = mn_raw if isinstance(mn_raw, dict) else json.loads(mn_raw)
     # Normalize Gemini-formatted tickers and extract embedded Chinese names
     _gemini_name_lookup: dict[str, str] = {}
     if market_notes and market_notes.get("topics"):
@@ -1182,6 +1201,8 @@ header h1{{font-size:1rem;font-weight:700;color:var(--accent)}}
 .report ul{{padding-left:1.3rem;margin-bottom:.55rem}}
 .report li{{margin-bottom:.25rem;font-size:.9rem}}
 .report strong{{color:#c0cfe0}}
+.report-stocks{{display:flex;flex-wrap:wrap;gap:.35rem;margin:.4rem 0 .65rem}}
+.report li .report-stocks{{margin:.35rem 0 .15rem}}
 
 /* ── Catalyst calendar ── */
 .cal-empty{{color:var(--muted);font-size:.85rem;padding:.4rem 0}}

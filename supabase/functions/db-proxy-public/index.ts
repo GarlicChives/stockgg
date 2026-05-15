@@ -57,6 +57,11 @@ const ALLOWED: Set<string> = new Set([
 
   // Q9 — upcoming catalyst events (21-day window)
   "select id, event_date, event_type, ticker, market, title, importance, preview_text from catalyst_events where event_date >= current_date and event_date <= current_date + interval '21 days' order by event_date, importance desc, ticker",
+
+  // Q10 — most recent market_notes_json (decoupled from Q1: raw_response and
+  // market_notes_json live in the same row but are written ~10h apart, so the
+  // latest row often has a NULL market_notes_json before 18:00 TW)
+  "select report_date, market_notes_json from analysis_reports where market_notes_json is not null order by report_date desc limit 1",
 ])
 
 function normalize(q: string): string {
