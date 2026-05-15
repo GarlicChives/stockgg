@@ -118,7 +118,9 @@
         }
       ],
       "auto_created": true,
-      "auto_created_at": "2026-05-05"
+      "auto_created_at": "2026-05-05",
+      "disabled": true,
+      "locked": false
     },
     {
       "id": "computer_terminals",
@@ -141,7 +143,9 @@
         }
       ],
       "auto_created": true,
-      "auto_created_at": "2026-05-05"
+      "auto_created_at": "2026-05-05",
+      "disabled": true,
+      "locked": false
     },
     {
       "id": "satellite_communication_pwb",
@@ -369,7 +373,9 @@
         }
       ],
       "auto_created": true,
-      "auto_created_at": "2026-05-05"
+      "auto_created_at": "2026-05-05",
+      "disabled": true,
+      "locked": false
     },
     {
       "id": "hdi_pcb",
@@ -548,7 +554,9 @@
         }
       ],
       "auto_created": true,
-      "auto_created_at": "2026-05-05"
+      "auto_created_at": "2026-05-05",
+      "disabled": true,
+      "locked": false
     },
     {
       "id": "memory_chip_concept",
@@ -580,10 +588,6 @@
           "name": "南亞"
         },
         {
-          "code": "6669",
-          "name": "緯穎"
-        },
-        {
           "code": "6770",
           "name": "力積電"
         },
@@ -592,22 +596,24 @@
           "name": "宜鼎"
         },
         {
-          "code": "3529",
-          "name": "力旺"
-        },
-        {
-          "code": "3264",
-          "name": "欣銓"
+          "code": "2408",
+          "name": "南亞科"
         }
       ],
       "us_stocks": [
         {
           "ticker": "MU",
           "name": "Micron Technology, Inc."
+        },
+        {
+          "ticker": "SNDK",
+          "name": "Sandisk"
         }
       ],
-      "auto_created": true,
-      "auto_created_at": "2026-05-05"
+      "auto_created": false,
+      "auto_created_at": "2026-05-05",
+      "disabled": false,
+      "locked": true
     },
     {
       "id": "advanced_packaging_concept",
@@ -669,30 +675,24 @@
           "name": "欣興"
         },
         {
-          "code": "4958",
-          "name": "臻鼎-KY"
-        },
-        {
           "code": "8046",
           "name": "南電"
         },
         {
           "code": "3189",
           "name": "景碩"
-        },
-        {
-          "code": "3661",
-          "name": "世芯-KY"
         }
       ],
       "us_stocks": [],
       "auto_created": true,
-      "auto_created_at": "2026-05-05"
+      "auto_created_at": "2026-05-05",
+      "locked": true,
+      "disabled": false
     },
     {
       "id": "server_cooling_concept",
-      "name": "伺服器散熱",
-      "keyword": "伺服器散熱",
+      "name": "散熱",
+      "keyword": "散熱",
       "supply_chain": {
         "upstream": [],
         "downstream": []
@@ -715,13 +715,15 @@
           "name": "雙鴻"
         },
         {
-          "code": "6187",
-          "name": "萬潤"
+          "code": "8996",
+          "name": "高力"
         }
       ],
       "us_stocks": [],
       "auto_created": true,
-      "auto_created_at": "2026-05-05"
+      "auto_created_at": "2026-05-05",
+      "disabled": false,
+      "locked": true
     },
     {
       "id": "liquid_cooling_concept",
@@ -862,7 +864,9 @@
         }
       ],
       "auto_created": true,
-      "auto_created_at": "2026-05-05"
+      "auto_created_at": "2026-05-05",
+      "disabled": true,
+      "locked": false
     },
     {
       "id": "silicon_photonics_concept",
@@ -1345,10 +1349,6 @@
         {
           "code": "2327",
           "name": "國巨*"
-        },
-        {
-          "code": "6187",
-          "name": "萬潤"
         }
       ],
       "us_stocks": [],
