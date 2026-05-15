@@ -1129,16 +1129,27 @@ async def generate():
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
 <style>
 :root {{
-  --bg:#0f1117; --card:#1a1d26; --border:#2a2e40;
-  --text:#e2e8f0; --muted:#7a8ba0;
-  --up:#ef5350; --down:#26a69a; --accent:#6c8ef5;
+  /* Seal-inspired palette. Background deep near-black, cards subtle
+     elevation, emerald accent. Asian convention preserved: red=up, green=down */
+  --bg:#0a0b0e;
+  --card:#14171d;
+  --card-2:#1a1e26;
+  --border:#22252c;
+  --text:#e8edf3;
+  --muted:#7c8290;
+  --up:#ef5350;
+  --down:#26a69a;
+  --accent:#10b981;
+  --accent-glow:rgba(16,185,129,.14);
+  --accent-soft:rgba(16,185,129,.08);
 }}
 *{{box-sizing:border-box;margin:0;padding:0}}
 body{{background:var(--bg);color:var(--text);
       font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
-      line-height:1.65;font-size:15px}}
+      line-height:1.65;font-size:15px;
+      font-feature-settings:"tnum" 1, "cv11" 1}}
 a{{color:var(--accent)}}
-button{{cursor:pointer;border:none;outline:none}}
+button{{cursor:pointer;border:none;outline:none;font-family:inherit}}
 
 /* ── Ticker tape (seamless) ── */
 .tape{{position:sticky;top:0;z-index:200;
@@ -1154,39 +1165,58 @@ button{{cursor:pointer;border:none;outline:none}}
 @keyframes tape-scroll{{0%{{transform:translateX(0)}}100%{{transform:translateX(-50%)}}}}
 
 
-/* ── Header ── */
-header{{background:var(--card);border-bottom:1px solid var(--border);
-        padding:.55rem 1.5rem}}
-header h1{{font-size:1rem;font-weight:700;color:var(--accent)}}
+/* ── App shell: tape (top) + sidebar (left) + main (right) ── */
+.app{{display:flex;min-height:calc(100vh - 36px)}}
+.sidebar{{position:sticky;top:36px;align-self:flex-start;
+          width:88px;flex-shrink:0;height:calc(100vh - 36px);
+          background:var(--card);border-right:1px solid var(--border);
+          display:flex;flex-direction:column;align-items:center;
+          padding:1rem .5rem 1.2rem;gap:1rem;z-index:50}}
+.sidebar-head{{display:flex;flex-direction:column;align-items:center;
+               gap:.2rem;padding:.4rem 0 .9rem;width:100%;
+               border-bottom:1px solid var(--border)}}
+.sidebar-logo{{font-size:1.55rem;line-height:1}}
+.sidebar-brand{{font-size:.62rem;font-weight:800;color:var(--accent);
+                letter-spacing:.14em}}
+.sidebar-nav{{display:flex;flex-direction:column;width:100%;gap:.3rem;flex:1}}
+.snav-btn{{display:flex;flex-direction:column;align-items:center;justify-content:center;
+           gap:.3rem;padding:.75rem .35rem;border-radius:9px;
+           background:transparent;color:var(--muted);transition:.15s}}
+.snav-btn:hover{{background:rgba(255,255,255,.04);color:var(--text)}}
+.snav-btn.active{{background:var(--accent-glow);color:var(--accent)}}
+.snav-icon{{width:22px;height:22px;stroke:currentColor;fill:none;
+            stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}}
+.snav-label{{font-size:.7rem;font-weight:600;letter-spacing:.02em}}
 
-/* ── Tabs ── */
-.wrap{{max-width:1120px;margin:0 auto;padding:1.25rem 1.1rem}}
-.tabs{{display:flex;gap:.4rem;margin-bottom:1.1rem;
-       border-bottom:1px solid var(--border);padding-bottom:.55rem}}
-.tab-btn{{background:transparent;color:var(--muted);padding:.42rem .9rem;
-          border-radius:6px;font-size:.88rem;font-weight:500;transition:.15s}}
-.tab-btn:hover{{background:var(--card);color:var(--text)}}
-.tab-btn.active{{background:var(--accent);color:#fff}}
+.app-main{{flex:1;min-width:0;padding:1.4rem 1.6rem 2.5rem}}
+.wrap{{max-width:1240px;margin:0 auto}}
 .tab-pane{{display:none}}
 .tab-pane.active{{display:block}}
 
-/* ── Sub-tabs (焦點股) ── */
-.sub-tabs{{display:flex;gap:.35rem;margin-bottom:.9rem}}
-.sub-tab-btn{{background:var(--card);color:var(--muted);
-              padding:.32rem .8rem;border-radius:6px;
-              font-size:.82rem;font-weight:500;
-              border:1px solid var(--border);transition:.15s}}
-.sub-tab-btn.active{{background:var(--accent);color:#fff;border-color:var(--accent)}}
+/* ── Sub-tabs (segmented control style) ── */
+.sub-tabs{{display:inline-flex;gap:.2rem;margin-bottom:1rem;
+           background:rgba(0,0,0,.3);padding:.25rem;border-radius:9px;
+           border:1px solid var(--border)}}
+.sub-tab-btn{{background:transparent;color:var(--muted);
+              padding:.32rem .85rem;border-radius:6px;
+              font-size:.82rem;font-weight:600;transition:.15s}}
+.sub-tab-btn:hover{{color:var(--text)}}
+.sub-tab-btn.active{{background:var(--accent-glow);color:var(--accent)}}
 .sub-tab-pane{{display:none}}
 .sub-tab-pane.active{{display:block}}
 
 /* ── Card ── */
 .card{{background:var(--card);border:1px solid var(--border);border-radius:12px;
-       padding:1.2rem 1.35rem;margin-bottom:1.1rem}}
-.sec{{font-size:1rem;font-weight:700;color:var(--accent);letter-spacing:.04em;
-      margin-bottom:.85rem}}
-.section-hdr{{font-size:.88rem;font-weight:700;color:var(--accent);letter-spacing:.04em;
-              margin:1rem 0 .65rem}}
+       padding:1.15rem 1.3rem;margin-bottom:1rem}}
+.sec{{font-size:.95rem;font-weight:700;color:var(--text);letter-spacing:.02em;
+      margin-bottom:.85rem;display:flex;align-items:center;gap:.5rem}}
+.sec::before{{content:"";width:3px;height:14px;background:var(--accent);
+              border-radius:2px;flex-shrink:0}}
+.section-hdr{{font-size:.82rem;font-weight:700;color:var(--text);letter-spacing:.04em;
+              margin:1.1rem 0 .7rem;
+              display:flex;align-items:center;gap:.5rem}}
+.section-hdr::before{{content:"";width:3px;height:13px;background:var(--accent);
+                      border-radius:2px;flex-shrink:0}}
 
 /* ── Report ── */
 .report h2{{color:var(--accent);font-size:.98rem;font-weight:600;
@@ -1225,41 +1255,46 @@ header h1{{font-size:1rem;font-weight:700;color:var(--accent)}}
                    font-family:inherit;line-height:1.5;margin:0}}
 
 /* ── Rankings ── */
-.ranks{{display:grid;grid-template-columns:1fr 1fr;gap:1.1rem}}
-@media(max-width:680px){{.ranks{{grid-template-columns:1fr}}}}
+.ranks{{display:grid;grid-template-columns:1fr 1fr;gap:1rem}}
+@media(max-width:840px){{.ranks{{grid-template-columns:1fr}}}}
 table{{width:100%;border-collapse:collapse}}
-th{{color:var(--muted);font-weight:500;font-size:.7rem;text-align:left;
-    padding:.28rem .4rem;border-bottom:1px solid var(--border)}}
-td{{padding:.25rem .4rem;border-bottom:1px solid rgba(42,46,64,.4);font-size:.8rem}}
-td.rank{{color:var(--muted);width:1.6rem}}
-td.ticker{{font-weight:600}}
-td.num{{text-align:right}}
+th{{color:var(--muted);font-weight:600;font-size:.68rem;text-align:left;
+    padding:.45rem .55rem;border-bottom:1px solid var(--border);
+    letter-spacing:.05em;text-transform:uppercase}}
+td{{padding:.42rem .55rem;font-size:.8rem;
+    border-bottom:1px solid rgba(255,255,255,.035)}}
+tr{{transition:background .12s}}
+tr:hover td{{background:rgba(255,255,255,.025)}}
+td.rank{{color:var(--muted);width:1.8rem;font-variant-numeric:tabular-nums}}
+td.ticker{{font-weight:700}}
+td.num{{text-align:right;font-variant-numeric:tabular-nums}}
 tr:last-child td{{border-bottom:none}}
-.board-badge{{font-size:.55rem;font-weight:600;padding:.1rem .3rem;
-              border-radius:3px;margin-left:.3rem;vertical-align:middle}}
-.board-sm{{font-size:.55rem;font-weight:600;padding:.05rem .25rem;
-           border-radius:3px;margin-left:.2rem;vertical-align:middle}}
-.twse{{background:#1a2a3a;color:#6c8ef5}}
-.tpex{{background:#1a2e24;color:#26a69a}}
+.board-badge,.board-sm{{font-size:.55rem;font-weight:700;padding:.12rem .38rem;
+                        border-radius:4px;vertical-align:middle;
+                        letter-spacing:.05em}}
+.board-badge{{margin-left:.35rem}}
+.board-sm{{margin-left:.2rem;font-size:.55rem;padding:.08rem .3rem}}
+.twse{{background:rgba(108,142,245,.12);color:#94aef7}}
+.tpex{{background:rgba(38,166,154,.12);color:#5dc4b9}}
 
 /* ── Focus stocks ── */
 .focus-themes{{display:flex;flex-direction:column;gap:.85rem;margin-bottom:1rem}}
-.focus-theme{{background:#12151f;border-radius:10px;padding:1rem 1.1rem;
+.focus-theme{{background:var(--card-2);border-radius:10px;padding:1rem 1.1rem;
               border-left:3px solid var(--accent)}}
 .theme-top{{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;margin-bottom:.45rem}}
 .theme-ttl{{font-size:.95rem;font-weight:700}}
 .sent-badge{{font-size:.65rem;font-weight:700;padding:.15rem .45rem;border-radius:4px}}
-.sent-bull{{background:#1a3a2a;color:#4caf82}}
-.sent-bear{{background:#2a1a1a;color:#b05050}}
-.sent-neu{{background:#1e2235;color:var(--muted)}}
+.sent-bull{{background:rgba(76,175,130,.14);color:#4caf82}}
+.sent-bear{{background:rgba(176,80,80,.16);color:#d07b7b}}
+.sent-neu{{background:rgba(255,255,255,.05);color:var(--muted)}}
 .src-note{{font-size:.72rem;color:var(--muted)}}
 .theme-summary{{font-size:.85rem;color:#b0bfcf;margin:.35rem 0}}
 .kp-list{{font-size:.82rem;padding-left:1.2rem;color:#b0bfcf;margin:.35rem 0}}
 .kp-list li{{margin-bottom:.2rem}}
 .focus-chips{{display:flex;flex-wrap:wrap;gap:.35rem;margin:.45rem 0}}
-.focus-chip{{background:#1e2235;border-left:2px solid #555;font-size:.78rem;
+.focus-chip{{background:rgba(255,255,255,.04);border-left:2px solid #555;font-size:.78rem;
              font-weight:600;padding:.18rem .45rem;border-radius:5px}}
-.focus-chip-match{{background:#1a2a3a;border-left:2px solid var(--accent);
+.focus-chip-match{{background:var(--accent-glow);border-left:2px solid var(--accent);
                    font-size:.78rem;font-weight:700;padding:.18rem .45rem;border-radius:5px;
                    color:var(--accent)}}
 .theme-arts{{margin-top:.4rem}}
@@ -1267,23 +1302,25 @@ tr:last-child td{{border-bottom:none}}
 /* ── Universal stock toggle panel ── */
 .univ-panel{{display:flex;align-items:center;flex-wrap:wrap;gap:.4rem .55rem;
              margin-bottom:.85rem;padding:.6rem .85rem;
-             background:#0d1019;border-radius:8px;border:1px solid var(--border)}}
+             background:rgba(0,0,0,.25);border-radius:8px;border:1px solid var(--border)}}
 .univ-label{{font-size:.7rem;color:var(--muted);font-weight:600;white-space:nowrap}}
-.univ-chip{{font-size:.75rem;font-weight:600;padding:.2rem .55rem;border-radius:20px;
-            background:#1a2030;color:var(--accent);border:1px solid #2a3a50;transition:.15s}}
-.univ-chip:hover{{background:#1e2a40}}
-.univ-chip.disabled{{background:#1e1215;color:#6a5060;border-color:#2e2025;text-decoration:line-through}}
+.univ-chip{{font-size:.75rem;font-weight:700;padding:.2rem .55rem;border-radius:20px;
+            background:var(--accent-soft);color:var(--accent);
+            border:1px solid var(--accent-glow);transition:.15s}}
+.univ-chip:hover{{background:var(--accent-glow)}}
+.univ-chip.disabled{{background:rgba(255,255,255,.025);color:#5a6068;
+                     border-color:rgba(255,255,255,.06);text-decoration:line-through}}
 
 /* ── Theme clusters ── */
 .focus-clusters{{display:flex;flex-direction:column;gap:.85rem;margin-bottom:1.5rem}}
-.cluster-card{{background:#12151f;border-radius:10px;padding:1rem 1.1rem;
+.cluster-card{{background:var(--card-2);border-radius:10px;padding:1rem 1.1rem;
                border-left:3px solid var(--accent);will-change:transform}}
 .cluster-hdr{{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;margin-bottom:.7rem}}
 .cluster-name{{font-size:.95rem;font-weight:700}}
 .cluster-strength{{font-size:.65rem;font-weight:700;padding:.15rem .4rem;border-radius:4px}}
-.strength-high{{background:#1a3a2a;color:#4caf82}}
-.strength-mid{{background:#1e2235;color:var(--muted)}}
-.strength-vol{{background:#2a2a1a;color:#c8a84b}}
+.strength-high{{background:rgba(76,175,130,.14);color:#4caf82}}
+.strength-mid{{background:rgba(255,255,255,.05);color:var(--muted)}}
+.strength-vol{{background:rgba(200,168,75,.14);color:#d4b25e}}
 .cluster-meta{{font-size:.72rem;color:var(--muted);margin-left:auto}}
 .cluster-section-label{{font-size:.68rem;color:var(--muted);font-weight:600;
                          text-transform:uppercase;letter-spacing:.04em;margin:.55rem 0 .3rem}}
@@ -1298,34 +1335,34 @@ tr:last-child td{{border-bottom:none}}
 .fp-rank{{color:var(--muted);font-size:.7rem}}
 .cluster-watch-stocks{{display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.4rem}}
 .watch-chip{{font-size:.78rem;padding:.15rem .45rem;border-radius:5px;font-weight:600;display:inline-flex;align-items:center;gap:.25rem}}
-.watch-chip.tw{{background:#12201a;border:1px solid #1a3a2a;color:#4caf82}}
-.watch-chip.us{{background:#121520;border:1px solid #1a2a3a;color:#6c8ef5}}
-.wc-up{{color:#ef5350;font-size:.72rem}}.wc-down{{color:#26a69a;font-size:.72rem}}
+.watch-chip.tw{{background:rgba(38,166,154,.08);border:1px solid rgba(38,166,154,.2);color:#5dc4b9}}
+.watch-chip.us{{background:rgba(108,142,245,.08);border:1px solid rgba(108,142,245,.2);color:#94aef7}}
+.wc-up{{color:var(--up);font-size:.72rem}}.wc-down{{color:var(--down);font-size:.72rem}}
 .cluster-sc{{font-size:.72rem;color:var(--muted);margin:.2rem 0 .35rem;display:flex;flex-wrap:wrap;gap:.4rem .8rem}}
 .sc-label{{font-weight:700;color:#6c7a8a}}.sc-items{{color:var(--muted)}}
 .cluster-arts{{margin-top:.3rem}}
 
 /* ── Stock grid (clickable cards) ── */
 .stock-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:.7rem}}
-.stock-card{{background:#12151f;border-radius:9px;padding:.8rem .9rem;
+.stock-card{{background:var(--card-2);border-radius:9px;padding:.8rem .9rem;
              cursor:pointer;transition:.15s;border:1px solid transparent}}
-.stock-card:hover{{border-color:var(--accent);background:#14182a}}
+.stock-card:hover{{border-color:var(--accent);background:var(--accent-soft)}}
 .sc-head{{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;margin-bottom:.35rem}}
 .sc-ticker{{font-size:.9rem;font-weight:800}}
 .mkt-badge{{font-size:.55rem;font-weight:700;padding:.1rem .3rem;border-radius:3px}}
-.mkt-us{{background:#1a2a3a;color:#6c8ef5}}
-.mkt-tw{{background:#1a2e24;color:#26a69a}}
+.mkt-us{{background:rgba(108,142,245,.12);color:#94aef7}}
+.mkt-tw{{background:rgba(38,166,154,.12);color:#5dc4b9}}
 .sc-name{{font-size:.75rem;color:var(--muted);margin-left:auto}}
 .sc-meta{{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;font-size:.8rem}}
 .sc-pct{{font-weight:700}}
 .sc-val{{color:var(--muted)}}
 .sc-rank{{color:var(--muted);font-size:.72rem}}
-.vol-tag{{font-size:.62rem;font-weight:600;padding:.1rem .3rem;border-radius:3px}}
-.vol-hot{{background:#2a1a1a;color:#ef5350}}
-.vol-high{{background:#2a2a14;color:#c8a840}}
-.vol-mid{{background:#1e2235;color:var(--muted)}}
-.limit-up-badge{{font-size:.62rem;font-weight:700;padding:.1rem .3rem;
-                 border-radius:3px;background:#2a1a3a;color:#cf6ef5}}
+.vol-tag{{font-size:.62rem;font-weight:700;padding:.12rem .35rem;border-radius:4px;letter-spacing:.04em}}
+.vol-hot{{background:rgba(239,83,80,.16);color:#f47471}}
+.vol-high{{background:rgba(200,168,64,.16);color:#d4b25e}}
+.vol-mid{{background:rgba(255,255,255,.05);color:var(--muted)}}
+.limit-up-badge{{font-size:.62rem;font-weight:700;padding:.12rem .35rem;
+                 border-radius:4px;background:rgba(207,110,245,.16);color:#d685f5}}
 .sc-arts-hint{{font-size:.72rem;color:var(--muted);margin-top:.4rem}}
 
 /* ── Article modal (centered) ── */
@@ -1342,9 +1379,9 @@ dialog#art-modal::backdrop{{background:rgba(0,0,0,.65)}}
 .modal-hdr-title{{font-size:.95rem;font-weight:700;flex:1}}
 .modal-close{{background:transparent;color:var(--muted);font-size:1.1rem;
               padding:.2rem .4rem;border-radius:5px;line-height:1}}
-.modal-close:hover{{background:#1e2235;color:var(--text)}}
+.modal-close:hover{{background:rgba(255,255,255,.06);color:var(--text)}}
 .modal-body{{overflow-y:auto;padding:.9rem 1.1rem;flex:1}}
-.modal-art{{background:#12151f;border-radius:8px;padding:.75rem .9rem;margin-bottom:.7rem}}
+.modal-art{{background:var(--card-2);border-radius:8px;padding:.75rem .9rem;margin-bottom:.7rem}}
 .modal-art-meta{{font-size:.72rem;color:var(--muted);margin-bottom:.25rem}}
 .modal-art-title{{font-size:.85rem;font-weight:600;color:#c8d8ea;margin-bottom:.35rem}}
 .modal-snip{{font-size:.82rem;color:#b0bfcf;white-space:pre-wrap;line-height:1.65}}
@@ -1352,7 +1389,7 @@ dialog#art-modal::backdrop{{background:rgba(0,0,0,.65)}}
 .modal-section-hdr{{font-size:.68rem;font-weight:600;color:var(--muted);
                     text-transform:uppercase;letter-spacing:.07em;margin-bottom:.5rem}}
 .analyst-grid{{display:grid;grid-template-columns:1fr 1fr;gap:.4rem;margin-bottom:.4rem}}
-.ag-cell{{background:#0f1117;border-radius:7px;padding:.45rem .65rem}}
+.ag-cell{{background:var(--bg);border-radius:7px;padding:.45rem .65rem;border:1px solid var(--border)}}
 .ag-label{{font-size:.66rem;color:var(--muted);display:block;margin-bottom:.1rem}}
 .ag-val{{font-size:.95rem;font-weight:700}}
 .ag-high{{color:var(--up)}}.ag-low{{color:var(--down)}}
@@ -1362,7 +1399,7 @@ dialog#art-modal::backdrop{{background:rgba(0,0,0,.65)}}
 /* ── Cross-source topics (tab 3) ── */
 .topics-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));
               gap:.85rem;margin-bottom:1.25rem}}
-.topic-card{{background:#12151f;border-radius:10px;padding:1rem 1.1rem;
+.topic-card{{background:var(--card-2);border-radius:10px;padding:1rem 1.1rem;
              border-left:3px solid var(--up)}}
 .topic-head{{display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem;flex-wrap:wrap}}
 .topic-name{{font-size:.9rem;font-weight:700}}
@@ -1374,7 +1411,7 @@ dialog#art-modal::backdrop{{background:rgba(0,0,0,.65)}}
              border-radius:10px;margin-bottom:.75rem}}
 .pod-src-hdr{{padding:.75rem 1rem;cursor:pointer;display:flex;
               align-items:center;gap:.5rem;user-select:none}}
-.pod-src-hdr:hover{{background:#1e2235;border-radius:10px}}
+.pod-src-hdr:hover{{background:rgba(255,255,255,.04);border-radius:10px}}
 .pod-src-arrow{{font-size:.75rem;color:var(--muted);transition:.2s;width:1rem}}
 .pod-src-name{{font-weight:700;font-size:.9rem}}
 .ep-cnt{{font-size:.72rem;color:var(--muted);margin-left:auto}}
@@ -1402,9 +1439,9 @@ dialog#art-modal::backdrop{{background:rgba(0,0,0,.65)}}
 .muted-note{{color:var(--muted);font-size:.85rem;padding:.5rem 0}}
 .art-seg-chips{{display:flex;flex-wrap:wrap;gap:.25rem;margin-top:.3rem}}
 .art-seg-chip{{font-size:.7rem;font-weight:600;padding:.1rem .35rem;
-               border-radius:4px;background:#1e2235;border:1px solid #2a3050;
+               border-radius:4px;background:var(--accent-soft);border:1px solid var(--accent-glow);
                color:var(--accent);cursor:pointer;transition:.15s}}
-.art-seg-chip:hover{{background:#252a40;border-color:var(--accent)}}
+.art-seg-chip:hover{{background:var(--accent-glow);border-color:var(--accent)}}
 
 /* ── Unified stock pill (全站統一模組) ── */
 .stk-pill{{display:inline-flex;align-items:center;gap:.28rem;
@@ -1424,24 +1461,53 @@ footer .disclaimer{{max-width:760px;margin:0 auto .8rem;text-align:left}}
 footer .disclaimer h3{{color:#a0b0cc;font-size:.78rem;font-weight:600;
                        margin:0 0 .35rem;letter-spacing:.04em}}
 footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--border)}}
+
+/* ── Mobile: sidebar collapses to bottom nav bar ── */
+@media(max-width:840px){{
+  .app{{flex-direction:column}}
+  .sidebar{{position:fixed;bottom:0;left:0;right:0;top:auto;
+            width:auto;height:auto;
+            flex-direction:row;align-items:stretch;
+            border-right:none;border-top:1px solid var(--border);
+            padding:.35rem .5rem;gap:0;z-index:150}}
+  .sidebar-head{{display:none}}
+  .sidebar-nav{{flex-direction:row;justify-content:space-around;
+                width:100%;gap:.4rem}}
+  .snav-btn{{flex:1;padding:.45rem .3rem;gap:.2rem}}
+  .snav-label{{font-size:.66rem}}
+  .snav-icon{{width:20px;height:20px}}
+  .app-main{{padding:1.1rem .85rem 5.5rem;width:100%}}
+}}
 </style>
 </head>
 <body>
 
-<!-- Ticker tape -->
+<!-- Ticker tape (sticky top) -->
 <div class="tape">{tape_html}</div>
 
-<header>
-  <h1>IIA 投資情報</h1>
-</header>
-
-<div class="wrap">
-  <nav class="tabs">
-    <button class="tab-btn active" data-tab="market" onclick="showTab('market')">市場行情</button>
-    <button class="tab-btn"        data-tab="focus"  onclick="showTab('focus')">熱門題材</button>
-    <button class="tab-btn"        data-tab="notes"  onclick="showTab('notes')">股市筆記</button>
-  </nav>
-
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <span class="sidebar-logo">📈</span>
+      <span class="sidebar-brand">IIA</span>
+    </div>
+    <nav class="sidebar-nav">
+      <button class="snav-btn active" data-tab="market" onclick="showTab('market')">
+        <svg class="snav-icon" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l3-3 4 4 5-6"/></svg>
+        <span class="snav-label">行情</span>
+      </button>
+      <button class="snav-btn" data-tab="focus" onclick="showTab('focus')">
+        <svg class="snav-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/></svg>
+        <span class="snav-label">題材</span>
+      </button>
+      <button class="snav-btn" data-tab="notes" onclick="showTab('notes')">
+        <svg class="snav-icon" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h6"/></svg>
+        <span class="snav-label">筆記</span>
+      </button>
+    </nav>
+  </aside>
+  <main class="app-main">
+    <div class="wrap">
   <!-- Tab 1: 市場行情 -->
   <div id="tab-market" class="tab-pane active">
     <div class="card">
@@ -1483,7 +1549,9 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
   <div id="tab-notes" class="tab-pane">
     {notes_html}
   </div>
-</div>
+    </div><!-- /.wrap -->
+  </main>
+</div><!-- /.app -->
 
 <!-- Article modal -->
 <dialog id="art-modal">
@@ -1516,7 +1584,7 @@ const artModalData = {{
 }};
 
 function showTab(name) {{
-  document.querySelectorAll('.tab-btn').forEach(b =>
+  document.querySelectorAll('.snav-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.tab === name));
   document.querySelectorAll('.tab-pane').forEach(p =>
     p.classList.toggle('active', p.id === 'tab-' + name));
