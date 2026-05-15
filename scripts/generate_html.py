@@ -1360,8 +1360,7 @@ dialog#art-modal::backdrop{{background:rgba(0,0,0,.65)}}
 .analyst-rec{{font-weight:700}}
 
 /* ── Cross-source topics (tab 3) ── */
-.topics-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));
-              gap:.85rem;margin-bottom:1.25rem}}
+.topics-grid{{display:flex;flex-direction:column;gap:.85rem;margin-bottom:1.25rem}}
 .topic-card{{background:#12151f;border-radius:10px;padding:1rem 1.1rem;
              border-left:3px solid var(--up)}}
 .topic-head{{display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem;flex-wrap:wrap}}
