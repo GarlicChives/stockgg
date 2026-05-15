@@ -184,7 +184,9 @@
         }
       ],
       "auto_created": true,
-      "auto_created_at": "2026-05-05"
+      "auto_created_at": "2026-05-05",
+      "disabled": true,
+      "locked": false
     },
     {
       "id": "ai_server_datacenter",
