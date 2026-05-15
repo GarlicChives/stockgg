@@ -17,7 +17,7 @@ transcripts — all of that lives in a separate private system.
   Fear & Greed
 - **綜合多空判斷** — short / medium / long term direction tags
 - **未來事件日曆** — upcoming earnings (yfinance) + macro events
-- **熱門題材** — focus theme clustering on top-30 volume stocks
+- **熱門題材** — TW main + sub industry ranking on top-30 volume stocks
 - **跨來源議題** — common topics across multiple sources (≥ 2)
 
 ## How it's served
@@ -46,7 +46,7 @@ transcripts are not reachable. The allowlist source is
 - `scripts/generate_html.py` — single-file HTML renderer
 - `src/analysis/focus_themes.py` — theme dictionary clustering
 - `src/utils/db.py` — async DB client over the restricted Edge Function
-- `data/theme_dictionary.json` — manually curated theme → stock map
+- `data/theme_dictionary.json` — main/sub industry hierarchy (ticker-centric, TW only)
 - `supabase/functions/db-proxy-public/` — Edge Function source
 
 ## Local development

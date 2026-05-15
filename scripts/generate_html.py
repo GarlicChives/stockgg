@@ -27,7 +27,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.analysis.focus_themes import detect_clusters, ThemeCluster
+from src.analysis.focus_themes import detect_industry_clusters, IndustryCluster
 
 OUT_FILE = Path(__file__).resolve().parents[1] / "docs" / "index.html"
 
@@ -474,98 +474,54 @@ def _build_stock_cards(ticker_list: list[tuple[str, dict]],
     return ''.join(cards), modal_data
 
 
-def _cluster_section_html(
-    clusters: list[ThemeCluster],
-    stocks: dict,
-    market: str,
-    universal_tickers: dict[str, str],
-    cluster_json: list[dict],
+def _industry_section_html(
+    clusters: list[IndustryCluster],
+    all_stocks: dict,
+    level: str,
 ) -> str:
-    """Render theme cluster cards for a specific market (TW or US), sorted by that market's TV."""
-    mkt_label = "台股" if market == "TW" else "美股"
-    mkt_lower  = market.lower()
-    mkt_clusters = sorted(
-        [c for c in clusters if any(s.market == market for s in c.focal)],
-        key=lambda c: -(c.tw_trading_value if market == "TW" else c.us_trading_value),
-    )
-    if not mkt_clusters:
-        return f'<p class="muted-note">今日尚無{mkt_label}熱門題材</p>'
-
-    # Merge watch stocks into lookup dict for _stk_pill
-    all_stocks = dict(stocks)
-    for c in mkt_clusters:
-        for w in c.watch:
-            if w.code_or_ticker not in all_stocks:
-                all_stocks[w.code_or_ticker] = {
-                    "name": w.name,
-                    "market": w.market,
-                    "change_pct": w.change_pct,
-                    "trading_value": 0,
-                    "rank": 99,
-                }
-
-    # Universal stock toggle panel
-    univ_html = ""
-    if universal_tickers:
-        chips = "".join(
-            f'<button class="univ-chip" data-ticker="{html_lib.escape(t)}" data-market="{market}" '
-            f"onclick='toggleUniversal({json.dumps(t)},{json.dumps(market)})'>"
-            f'{html_lib.escape(t)}&nbsp;{html_lib.escape(n[:6])}'
-            f'</button>'
-            for t, n in universal_tickers.items()
-        )
-        univ_html = (
-            f'<div class="univ-panel">'
-            f'<span class="univ-label">廣泛概念股（點擊排除）：</span>'
-            f'{chips}'
-            f'</div>'
-        )
+    """Render industry cluster cards. level = "main" | "sub"."""
+    if not clusters:
+        label = "主產業" if level == "main" else "子產業"
+        return f'<p class="muted-note">今日尚無{label}熱門產業</p>'
 
     cards = []
-    for c in mkt_clusters:
-        card_id = f"cc-{mkt_lower}-{c.theme_id}"
-        if c.volume_only:
-            strength_cls, strength_lbl = "strength-vol", "量能輪動"
-        elif c.primary_art_count >= 2 or len(c.focal) >= 2:
+    for c in clusters:
+        n_focal = len(c.focal)
+        if n_focal >= 5:
             strength_cls, strength_lbl = "strength-high", "強勢"
+        elif n_focal >= 3:
+            strength_cls, strength_lbl = "strength-mid", "中型"
         else:
-            strength_cls, strength_lbl = "strength-mid", "觀察"
+            strength_cls, strength_lbl = "strength-vol", "量能輪動"
 
-        mkt_focal = [s for s in c.focal if s.market == market]
-        mkt_watch = [w for w in c.watch if w.market == market and not _is_etf(w.code_or_ticker, w.name)]
-        focal_pills = [
-            _stk_pill(s.ticker, all_stocks,
-                      extra_attrs=f'data-cluster-ticker="{html_lib.escape(s.ticker)}" data-tv="{int(s.trading_value)}"')
-            for s in mkt_focal
-        ]
-        watch_pills = [_stk_pill(w.code_or_ticker, all_stocks, clickable=False) for w in mkt_watch]
+        focal_pills = "".join(_stk_pill(s.ticker, all_stocks) for s in c.focal)
+        watch_pills = "".join(
+            _stk_pill(w.code, all_stocks, clickable=False) for w in c.watch
+        )
 
-        tv_val = c.tw_trading_value if market == "TW" else c.us_trading_value
-        tv_str = (f"{tv_val/1e8:.0f}億" if market == "TW" else f"${tv_val/1e9:.1f}B") if tv_val > 0 else ""
-        meta_text = f"{len(mkt_focal)} 檔焦點{' · ' + tv_str if tv_str else ''}"
+        tv_str = f"{c.trading_value/1e8:.0f}億" if c.trading_value > 0 else ""
+        meta_text = f"{n_focal} 檔焦點" + (f" · {tv_str}" if tv_str else "")
+
+        icon = "🔷" if level == "main" else "🔸"
+        subtitle = (
+            f'<div class="cluster-subtitle">屬於 {html_lib.escape(c.main)}</div>'
+            if level == "sub" else ""
+        )
 
         cards.append(f"""
-<div class="cluster-card" id="{card_id}" data-theme-id="{c.theme_id}">
+<div class="cluster-card">
   <div class="cluster-hdr">
-    <span class="cluster-name">🔷 {html_lib.escape(c.name)}</span>
+    <span class="cluster-name">{icon} {html_lib.escape(c.name)}</span>
     <span class="cluster-strength {strength_cls}">{strength_lbl}</span>
     <span class="cluster-meta">{meta_text}</span>
   </div>
+  {subtitle}
   <div class="cluster-section-label">今日焦點（在前30）</div>
-  <div class="cluster-focal-stocks">{''.join(focal_pills)}</div>
-  {'<div class="cluster-section-label">前哨觀察</div><div class="cluster-watch-stocks">' + "".join(watch_pills) + "</div>" if watch_pills else ""}
+  <div class="cluster-focal-stocks">{focal_pills}</div>
+  {('<div class="cluster-section-label">前哨觀察</div><div class="cluster-watch-stocks">' + watch_pills + "</div>") if watch_pills else ""}
 </div>""")
 
-    cluster_json_str = json.dumps(cluster_json, ensure_ascii=False, separators=(",", ":"))
-    return (
-        f'<div class="section-hdr">🎯 {mkt_label}題材族群</div>'
-        f'{univ_html}'
-        f'<div id="cluster-container-{mkt_lower}" class="focus-clusters">'
-        + "".join(cards)
-        + "</div>"
-        + f"<script>if(!window.IIA_CLUSTERS)window.IIA_CLUSTERS={{}};"
-          f"window.IIA_CLUSTERS.{mkt_lower}={cluster_json_str};</script>"
-    )
+    return '<div class="focus-clusters">' + "".join(cards) + "</div>"
 
 
 _WEEKDAY_TW = ["週一", "週二", "週三", "週四", "週五", "週六", "週日"]
@@ -663,27 +619,25 @@ def build_catalyst_html(events: list[dict], stocks_info: dict | None = None) -> 
     return '<div class="cal-list">' + "".join(day_html) + "</div>"
 
 
-def build_focus_html(us_ranks: list, tw_ranks: list,
-                     ticker_arts: dict,
-                     clusters: list | None = None) -> tuple[str, dict]:
-    """Build the 熱門題材 tab with 台股題材 / 美股題材 sub-tabs. Returns (html, modal_data)."""
-    stocks: dict[str, dict] = {}
-    for r in us_ranks:
-        if _is_etf(r["ticker"], r.get("name", "")):
-            continue
-        stocks[r["ticker"]] = {
-            "name": r["name"] or r["ticker"],
-            "market": "US",
-            "change_pct": float(r["change_pct"]) if r["change_pct"] is not None else None,
-            "trading_value": float(r["trading_value"] or 0),
-            "rank": r["rank"],
-            "limit_up": False,
-        }
+def build_focus_html(
+    tw_ranks: list,
+    main_clusters: list,
+    sub_clusters: list,
+) -> tuple[str, dict]:
+    """Build the 熱門題材 tab with 主產業 / 子產業 sub-tabs.
+
+    2026-05 改版:從舊「主題 keyword cluster」結構改為「主產業 / 子產業」
+    雙層 ranked list。台股 only(theme_dictionary 改 source 為
+    statementdog.com/taiex 之後不再有美股)。
+    Returns (html, modal_data) — modal_data 仍以 ticker 為 key,
+    內容由下游 analyst consensus builder 填入。
+    """
+    all_stocks: dict[str, dict] = {}
     for r in tw_ranks:
         if _is_etf(r["ticker"], r.get("name", "")):
             continue
         extra = json.loads(r.get("extra") or "{}") if isinstance(r.get("extra"), str) else (r.get("extra") or {})
-        stocks[r["ticker"]] = {
+        all_stocks[r["ticker"]] = {
             "name": r["name"] or r["ticker"],
             "market": "TW",
             "board": extra.get("board", "TWSE"),
@@ -692,78 +646,44 @@ def build_focus_html(us_ranks: list, tw_ranks: list,
             "rank": r["rank"],
             "limit_up": bool(r.get("is_limit_up_30m")),
         }
+    # Watch stocks (not in top-30) — merge into lookup so _stk_pill can render
+    for c in main_clusters + sub_clusters:
+        for w in c.watch:
+            if w.code not in all_stocks:
+                all_stocks[w.code] = {
+                    "name": w.name,
+                    "market": "TW",
+                    "change_pct": w.change_pct,
+                    "trading_value": 0,
+                    "rank": 99,
+                    "limit_up": False,
+                }
 
-    if not clusters:
-        return '<p class="muted-note">今日尚無熱門題材</p>', {}
+    if not main_clusters and not sub_clusters:
+        return '<p class="muted-note">今日尚無熱門產業</p>', {}
 
-    # Identify universal stocks: focal in ≥5 active clusters per market
-    def _universal_for(mkt: str, threshold: int = 5) -> dict[str, str]:
-        counts: dict[str, int] = {}
-        names:  dict[str, str] = {}
-        for c in clusters:
-            for s in c.focal:
-                if s.market == mkt:
-                    counts[s.ticker] = counts.get(s.ticker, 0) + 1
-                    names[s.ticker]  = s.name
-        return {t: names[t] for t, n in counts.items() if n >= threshold}
-
-    tw_universal = _universal_for("TW")
-    us_universal = _universal_for("US")
-
-    # Build cluster JSON payload for JS FLIP engine
-    def _cluster_json_for(mkt: str) -> list[dict]:
-        result = []
-        for c in sorted(
-            [c for c in clusters if any(s.market == mkt for s in c.focal)],
-            key=lambda c: -(c.tw_trading_value if mkt == "TW" else c.us_trading_value),
-        ):
-            mkt_focal = [s for s in c.focal if s.market == mkt]
-            base_tv   = c.tw_trading_value if mkt == "TW" else c.us_trading_value
-            result.append({
-                "cardId":   f"cc-{mkt.lower()}-{c.theme_id}",
-                "themeId":  c.theme_id,
-                "focal":    [{"ticker": s.ticker, "tv": s.trading_value} for s in mkt_focal],
-                "baseTv":   base_tv,
-            })
-        return result
-
-    # Build modal data for cluster focal tickers
+    # Modal data placeholders — analyst consensus filled downstream
     modal_data: dict[str, str] = {}
-    for ticker in {s.ticker for c in clusters for s in c.focal}:
-        arts = ticker_arts.get(ticker, [])
-        if not arts:
-            continue
-        info = stocks.get(ticker, {})
-        parts = []
-        for a in arts[:3]:
-            src_name = html_lib.escape(SOURCE_NAMES.get(a["source"] or "", a["source"] or ""))
-            dt = str(a["published_at"])[:10] if a["published_at"] else "?"
-            title = html_lib.escape((a["title"] or "")[:70])
-            relevant = extract_relevant_para(a.get("full_content") or "", ticker, info.get("name", ticker))
-            snippet_html = f'<div class="modal-snip">{html_lib.escape(relevant)}</div>' if relevant else ""
-            parts.append(
-                f'<div class="modal-art">'
-                f'<div class="modal-art-meta">📰 {dt} · {src_name}</div>'
-                f'<div class="modal-art-title">{title}</div>'
-                f'{snippet_html}'
-                f'</div>'
-            )
-        modal_data[ticker] = ''.join(parts)
+    for ticker in {s.ticker for c in (main_clusters + sub_clusters) for s in c.focal}:
+        modal_data[ticker] = ""
 
-    tw_section = _cluster_section_html(clusters, stocks, "TW", tw_universal, _cluster_json_for("TW"))
-    us_section = _cluster_section_html(clusters, stocks, "US", us_universal, _cluster_json_for("US"))
+    main_html = _industry_section_html(main_clusters, all_stocks, "main")
+    sub_html = _industry_section_html(sub_clusters, all_stocks, "sub")
+
     html = (
         '<div class="sub-tabs">'
-        '<button class="sub-tab-btn active" data-stab="tw-themes"'
-        ' onclick="showSubTab(\'tw-themes\')">台股題材</button>'
-        '<button class="sub-tab-btn" data-stab="us-themes"'
-        ' onclick="showSubTab(\'us-themes\')">美股題材</button>'
+        '<button class="sub-tab-btn active" data-stab="ind-main"'
+        ' onclick="showSubTab(\'ind-main\')">主產業</button>'
+        '<button class="sub-tab-btn" data-stab="ind-sub"'
+        ' onclick="showSubTab(\'ind-sub\')">子產業</button>'
         '</div>'
-        '<div id="stab-tw-themes" class="sub-tab-pane active">'
-        + tw_section +
+        '<div id="stab-ind-main" class="sub-tab-pane active">'
+        '<div class="section-hdr">🎯 主產業排行</div>'
+        + main_html +
         '</div>'
-        '<div id="stab-us-themes" class="sub-tab-pane">'
-        + us_section +
+        '<div id="stab-ind-sub" class="sub-tab-pane">'
+        '<div class="section-hdr">🎯 子產業排行</div>'
+        + sub_html +
         '</div>'
     )
     return html, modal_data
@@ -911,11 +831,17 @@ async def generate():
             "limit_up": bool(r.get("is_limit_up_30m")),
         }
     stocks_info = {k: v for k, v in stocks_info.items() if not _is_etf(k, v.get("name", ""))}
-    clusters = detect_clusters(stocks_info, ticker_arts)
+
+    # Industry clustering — TW top-30 only (theme_dictionary 2026-05 改成
+    # statementdog.com/taiex source 之後不再有美股)。產生主產業與子產業
+    # 兩份 ranked list。
+    tw_top30 = {t: info for t, info in stocks_info.items() if info.get("market") == "TW"}
+    main_clusters, sub_clusters = detect_industry_clusters(tw_top30)
+    all_clusters = main_clusters + sub_clusters
 
     # Fetch recent change% for watch stocks (not in today's top-30, from past rankings)
-    if clusters:
-        watch_tickers = list({w.code_or_ticker for c in clusters for w in c.watch})
+    if all_clusters:
+        watch_tickers = list({w.code for c in all_clusters for w in c.watch})
         if watch_tickers:
             wp_rows = await conn.fetch(
                 """SELECT DISTINCT ON (ticker) ticker, change_pct
@@ -925,9 +851,9 @@ async def generate():
                 watch_tickers,
             )
             watch_prices = {r["ticker"]: (float(r["change_pct"]) if r["change_pct"] is not None else None) for r in wp_rows}
-            for c in clusters:
+            for c in all_clusters:
                 for w in c.watch:
-                    w.change_pct = watch_prices.get(w.code_or_ticker)
+                    w.change_pct = watch_prices.get(w.code)
 
     # Parse market_notes before closing (needed for tickers query).
     # raw_response and market_notes_json live in the same analysis_reports
@@ -962,18 +888,16 @@ async def generate():
                         _gemini_name_lookup[_tick] = _outer
             _topic["tickers"] = _normalized
 
-    # Build name fallback from theme_dictionary.json
+    # Build name fallback from theme_dictionary.json (2026-05 schema:
+    # ticker-centric `stocks` 物件,純台股)
     _theme_name_lookup: dict[str, str] = {}
     try:
         _td_path = Path(__file__).resolve().parent.parent / "data" / "theme_dictionary.json"
         _td = json.loads(_td_path.read_text(encoding="utf-8"))
-        for _t in _td.get("themes", []):
-            for _s in _t.get("tw_stocks", []):
-                if _s.get("code") and _s.get("name"):
-                    _theme_name_lookup[_s["code"]] = _s["name"]
-            for _s in _t.get("us_stocks", []):
-                if _s.get("ticker") and _s.get("name"):
-                    _theme_name_lookup[_s["ticker"]] = _s["name"]
+        for _ticker, _info in _td.get("stocks", {}).items():
+            _name = _info.get("name")
+            if _ticker and _name:
+                _theme_name_lookup[_ticker] = _name
     except Exception:
         pass
 
@@ -1019,11 +943,14 @@ async def generate():
 
     await conn.close()
 
-    # yfinance: fetch change% AND trading_value for ALL watch stocks + notes tickers not in rankings
+    # yfinance: refresh change% for watch stocks + fetch metadata for notes
+    # tickers not already in rankings. 2026-05 後 cluster.trading_value 只
+    # 累加 top-30 focal,不再加 watch TV(配合新演算法純依字典 main/sub
+    # 分桶,不引入 watch 推升 cluster TV)。
     _yf_needed: list[tuple[str, str]] = []
-    for c in clusters:
+    for c in all_clusters:
         for w in c.watch:
-            _yf_needed.append((w.code_or_ticker, w.market))  # ALL watch (Step 2: TV)
+            _yf_needed.append((w.code, "TW"))  # watch 純台股
     if market_notes and market_notes.get("topics"):
         for topic in market_notes["topics"]:
             for t in topic.get("tickers", []):
@@ -1033,21 +960,13 @@ async def generate():
     if _yf_needed:
         _yf_needed = list({t[0]: t for t in _yf_needed}.values())  # dedup by ticker
         yf_data = await asyncio.to_thread(_yf_batch_fetch, _yf_needed)
-        for c in clusters:
+        # Refresh watch change_pct from yfinance (fresher than DB)
+        for c in all_clusters:
             for w in c.watch:
-                d = yf_data.get(w.code_or_ticker, {})
+                d = yf_data.get(w.code, {})
                 if d.get("change_pct") is not None:
-                    w.change_pct = d["change_pct"]  # yfinance 永遠比 DB 歷史值新
-                # Step 2: accumulate watch TV — skip ETFs
-                if _is_etf(w.code_or_ticker, w.name):
-                    continue
-                tv = d.get("trading_value") or 0.0
-                if w.market == "TW":
-                    c.tw_trading_value += tv
-                else:
-                    c.us_trading_value += tv
-        # Re-sort after Step 2 watch TV added (Step 3 sorting happens in _cluster_section_html per market)
-        clusters.sort(key=lambda c: -(c.tw_trading_value + c.us_trading_value))
+                    w.change_pct = d["change_pct"]
+        # Patch stocks_info for market_notes tickers not in any ranking
         for ticker, market in _yf_needed:
             if ticker not in stocks_info:
                 d = yf_data.get(ticker, {})
@@ -1067,7 +986,7 @@ async def generate():
     report_html = _pillify_in_html(report_html, stocks_info)
     updated_at  = datetime.now(timezone.utc).strftime("%m/%d %H:%M UTC")
 
-    focus_html, modal_data = build_focus_html(us_ranks, tw_ranks, ticker_arts, clusters)
+    focus_html, modal_data = build_focus_html(tw_ranks, main_clusters, sub_clusters)
     notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)
     catalyst_html = build_catalyst_html(catalyst_events, stocks_info)
 
@@ -1312,6 +1231,7 @@ tr:last-child td{{border-bottom:none}}
 .strength-mid{{background:#1e2235;color:var(--muted)}}
 .strength-vol{{background:#2a2a1a;color:#c8a84b}}
 .cluster-meta{{font-size:.72rem;color:var(--muted);margin-left:auto}}
+.cluster-subtitle{{font-size:.7rem;color:var(--muted);margin:.1rem 0 .35rem;letter-spacing:.02em}}
 .cluster-section-label{{font-size:.68rem;color:var(--muted);font-weight:600;
                          text-transform:uppercase;letter-spacing:.04em;margin:.55rem 0 .3rem}}
 .cluster-focal-stocks{{display:flex;flex-wrap:wrap;gap:.45rem;margin-bottom:.4rem}}
@@ -1567,107 +1487,6 @@ function toggleEl(id) {{
   const nowHidden = el.classList.toggle('hidden');
   const arrow = document.getElementById('arrow-' + id);
   if (arrow) arrow.textContent = nowHidden ? '▶' : '▼';
-}}
-
-/* ── Universal stock toggle ── */
-const _disabled = {{tw: new Set(), us: new Set()}};
-
-function toggleUniversal(ticker, market) {{
-  const mkt = market.toLowerCase();
-  const dis = _disabled[mkt];
-  const btn = document.querySelector(`.univ-chip[data-ticker="${{ticker}}"][data-market="${{market}}"]`);
-  if (dis.has(ticker)) {{
-    dis.delete(ticker);
-    if (btn) btn.classList.remove('disabled');
-  }} else {{
-    dis.add(ticker);
-    if (btn) btn.classList.add('disabled');
-  }}
-  _recalcClusters(market);
-}}
-
-function _recalcClusters(market) {{
-  const mkt = market.toLowerCase();
-  const dis = _disabled[mkt];
-  const container = document.getElementById('cluster-container-' + mkt);
-  if (!container) return;
-  const clusters = (window.IIA_CLUSTERS || {{}})[mkt] || [];
-  if (!clusters.length) return;
-
-  const cardEls = {{}};
-  clusters.forEach(c => {{
-    const el = document.getElementById(c.cardId);
-    if (el) cardEls[c.themeId] = el;
-  }});
-
-  // F: record positions of currently visible cards
-  const firsts = {{}};
-  Object.entries(cardEls).forEach(([id, el]) => {{
-    if (el.style.display !== 'none') firsts[id] = el.getBoundingClientRect();
-  }});
-
-  // Compute active state per cluster
-  const states = clusters.map(c => {{
-    const activeFocal  = c.focal.filter(f => !dis.has(f.ticker));
-    const disabledTv   = c.focal.reduce((s, f) => dis.has(f.ticker) ? s + f.tv : s, 0);
-    return {{ ...c, activeFocal, activeTv: c.baseTv - disabledTv, visible: activeFocal.length > 0 }};
-  }});
-  const visible = states.filter(s => s.visible).sort((a, b) => b.activeTv - a.activeTv);
-
-  // Apply all DOM changes synchronously (no repaint until JS exits)
-  // 1. Update focal pill visibility
-  clusters.forEach(c => {{
-    const el = cardEls[c.themeId];
-    if (!el) return;
-    el.querySelectorAll('[data-cluster-ticker]').forEach(pill => {{
-      pill.style.display = dis.has(pill.dataset.clusterTicker) ? 'none' : '';
-    }});
-  }});
-
-  // 2. Update card visibility + meta text
-  states.forEach(s => {{
-    const el = cardEls[s.themeId];
-    if (!el) return;
-    if (!s.visible) {{ el.style.display = 'none'; return; }}
-    el.style.display = '';
-    const tvStr = market === 'TW'
-      ? Math.round(s.activeTv / 1e8) + '億'
-      : '$' + (s.activeTv / 1e9).toFixed(1) + 'B';
-    const meta = el.querySelector('.cluster-meta');
-    if (meta) meta.textContent = s.activeFocal.length + ' 檔焦點' + (s.activeTv > 0 ? ' · ' + tvStr : '');
-  }});
-
-  // 3. Reorder DOM
-  visible.forEach(s => {{
-    const el = cardEls[s.themeId];
-    if (el) container.appendChild(el);
-  }});
-
-  // L: record positions after reorder
-  const lasts = {{}};
-  Object.entries(cardEls).forEach(([id, el]) => {{
-    if (el.style.display !== 'none') lasts[id] = el.getBoundingClientRect();
-  }});
-
-  // I+P: invert transforms then animate to identity
-  const animated = [];
-  Object.keys(firsts).forEach(id => {{
-    const el = cardEls[id];
-    if (!el || !lasts[id]) return;
-    const dy = firsts[id].top - lasts[id].top;
-    if (Math.abs(dy) < 1) return;
-    el.style.transition = 'none';
-    el.style.transform = 'translateY(' + dy + 'px)';
-    animated.push(el);
-  }});
-  if (animated.length) {{
-    requestAnimationFrame(() => requestAnimationFrame(() => {{
-      animated.forEach(el => {{
-        el.style.transition = 'transform .38s cubic-bezier(.25,.46,.45,.94)';
-        el.style.transform = '';
-      }});
-    }}));
-  }}
 }}
 
 // Close modal on backdrop click
