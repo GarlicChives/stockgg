@@ -760,6 +760,11 @@ def build_notes_html(market_notes: dict | None, podcast_rows: list,
 
     if market_notes and market_notes.get("topics"):
         topic_cards = []
+        # Sort by latest contributing-article date. The underlying `articles`
+        # / `sources` arrays drive ordering only — they are intentionally NOT
+        # rendered on this public site (article titles + subscription source
+        # names are copyrighted/derivative content; they stay in DB and in
+        # the private admin UI only).
         def _topic_latest_date(t):
             dates = [a.get("date", "") for a in t.get("articles", []) if a.get("date")]
             return max(dates) if dates else "1900-01-01"
@@ -767,30 +772,21 @@ def build_notes_html(market_notes: dict | None, podcast_rows: list,
             t_name = html_lib.escape(topic.get("topic", ""))
             sentiment = topic.get("sentiment", "中立")
             sent_cls = "sent-bull" if "偏多" in sentiment else ("sent-bear" if "偏空" in sentiment else "sent-neu")
-            sources = topic.get("sources", [])
-            src_tags = "".join(f'<span class="src-tag">{html_lib.escape(s)}</span>' for s in sources)
             summary = html_lib.escape(topic.get("summary", ""))
             key_points = topic.get("key_points", [])
             kp_html = "".join(f'<li>{html_lib.escape(p)}</li>' for p in key_points[:5])
             tickers = topic.get("tickers", [])
             _si = stocks_info or {}
             tk_html = "".join(_stk_pill(t, _si) for t in tickers)
-            art_refs = "".join(
-                f'<div class="art-ref">📰 [{a.get("date","?")} {html_lib.escape(a.get("source",""))}] '
-                f'{html_lib.escape(a.get("title","")[:60])}</div>'
-                for a in topic.get("articles", [])[:4]
-            )
             topic_cards.append(f"""
 <div class="topic-card">
   <div class="topic-head">
     <span class="topic-name">{t_name}</span>
     <span class="sent-badge {sent_cls}">{html_lib.escape(sentiment)}</span>
   </div>
-  <div class="src-row">{src_tags}</div>
   {f'<p class="topic-sum">{summary}</p>' if summary else ''}
   {f'<ul class="kp-list">{kp_html}</ul>' if kp_html else ''}
   {f'<div class="tk-row">{tk_html}</div>' if tk_html else ''}
-  {f'<div class="topic-arts">{art_refs}</div>' if art_refs else ''}
 </div>""")
         parts.append(
             '<div class="section-hdr">🔀 跨來源共同議題（近7日）</div>'
@@ -1267,7 +1263,6 @@ tr:last-child td{{border-bottom:none}}
                    font-size:.78rem;font-weight:700;padding:.18rem .45rem;border-radius:5px;
                    color:var(--accent)}}
 .theme-arts{{margin-top:.4rem}}
-.art-ref{{color:var(--muted);font-size:.75rem;margin:.2rem 0}}
 
 /* ── Universal stock toggle panel ── */
 .univ-panel{{display:flex;align-items:center;flex-wrap:wrap;gap:.4rem .55rem;
@@ -1371,14 +1366,8 @@ dialog#art-modal::backdrop{{background:rgba(0,0,0,.65)}}
              border-left:3px solid var(--up)}}
 .topic-head{{display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem;flex-wrap:wrap}}
 .topic-name{{font-size:.9rem;font-weight:700}}
-.src-row{{display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.4rem}}
-.src-tag{{font-size:.65rem;padding:.15rem .4rem;background:#1e2235;
-          border-radius:4px;color:var(--muted)}}
 .topic-sum{{font-size:.84rem;color:#b0bfcf;margin:.35rem 0}}
 .tk-row{{display:flex;flex-wrap:wrap;gap:.3rem;margin:.35rem 0}}
-.tk-chip{{font-size:.75rem;font-weight:600;padding:.15rem .4rem;
-          background:#1e2235;border-radius:4px}}
-.topic-arts{{margin-top:.4rem;font-size:.75rem}}
 
 /* ── Podcast notes ── */
 .pod-source{{background:var(--card);border:1px solid var(--border);
