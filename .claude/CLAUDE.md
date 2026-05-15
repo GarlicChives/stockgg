@@ -27,7 +27,7 @@ Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
 - `scripts/generate_html.py` — 單檔 HTML 渲染（~1500 行，所有頁面邏輯）
 - `src/analysis/focus_themes.py` — 題材叢集（純 Python）
 - `src/utils/db.py` — async DB client（用 `SUPABASE_ANON_KEY` + `db-proxy-public`）
-- `data/theme_dictionary.json` — 226 主題的人工字典
+- `data/theme_dictionary.json` — statementdog 主產業 / 子產業階層字典（2026-05 改 schema:ticker-centric `stocks` 物件,純台股;由 ingest 端 `scrape_statementdog_industries.py` 產生再 sync 到本 repo）
 - `supabase/functions/db-proxy-public/index.ts` — Edge Function 含 SQL allowlist
 - `.github/workflows/market_briefing.yml` — render + deploy（07:30 / 18:15 / 23:15 TW cron + repository_dispatch）
 

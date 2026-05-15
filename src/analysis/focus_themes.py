@@ -1,230 +1,206 @@
-"""Focus theme detection — 熱門題材.
+"""Industry clustering — 熱門題材.
 
-Loads theme_dictionary.json, matches today's top-30 stocks against themes.
+2026-05 改版:從「主題 keyword 字典(themes 陣列)」改為「statementdog
+階層產業字典(stocks 物件,ticker-centric)」。台股 only(美股題材路徑
+2026-05 移除,因為新 source 只覆蓋 TWSE/TPEX)。
 
-Selection rule:
-  A theme is "hot" when ≥ MIN_VOLUME (2) of its dictionary members
-  appear simultaneously in the combined US+TW top-30 by trading value.
+演算法
+------
+對台股 top-30 成交值股票,每檔股票讀 `stocks[ticker].industries[]`,
+累加 trading_value 到:
+  - `main_tv[main]`            每個主產業桶
+  - `sub_tv[(main, sub)]`      每個 (主, 子) 桶
+同 ticker 在多個 main / sub 都會被累加(各桶各算一次,但同桶內每檔
+ticker 只 +1 次 TV 不會重複)。
 
-  volume_only flag:
-    False — at least one member also has keyword article hits (stronger signal).
-    True  — pure volume/price signal, no article confirmation.
+entries 標 `disabled=True` 略過(人工標「這檔 × 這個 main 別在公開
+站顯示」)。`locked=True` 不過濾(只凍結 admin 編輯,不影響顯示)。
 
-DB migration path: replace _load_themes() body only — all callers unchanged.
+ETF(代號 00 開頭 / 名稱含 ETF)在累加迴圈直接跳過,與 ingest 端
+build script 一致。
+
+對應 ingest commit: GarlicChives/StockGG-ingest@1660b8c
+(整套舊機制 build_theme_dictionary / src/theme / theme_classifier
+2026-05 清除)
 """
 import json
-from dataclasses import dataclass, field
-from datetime import date, timedelta
+import re
+from collections import defaultdict
+from dataclasses import dataclass
 from pathlib import Path
 
-DICT_FILE    = Path(__file__).resolve().parents[2] / "data" / "theme_dictionary.json"
-PRIMARY_DAYS = 7
-MIN_SCORE    = 1.0   # minimum weighted keyword occurrence count for article confirmation
-MIN_VOLUME   = 2     # minimum top-30 members required for a theme to be "hot"
+DICT_FILE = Path(__file__).resolve().parents[2] / "data" / "theme_dictionary.json"
+MIN_VOLUME = 2  # minimum top-30 members for a cluster to qualify (保留舊門檻)
+
+_ETF_TW_RE = re.compile(r"^00\d")
 
 
-# ── Data classes (DB-migration-ready field naming) ────────────────────────────
+def _is_etf(ticker: str, name: str = "") -> bool:
+    if _ETF_TW_RE.match(ticker):
+        return True
+    return "ETF" in (name or "").upper()
+
 
 @dataclass
 class FocalStock:
     ticker: str
     name: str
-    market: str           # "TW" | "US"
     change_pct: float | None
     trading_value: float
     rank: int
     limit_up: bool
-    articles: list[dict]
-    score: float          # weighted keyword score (0 for volume-only)
-    primary_keyword_hits: int  # primary-window articles with keyword match
 
 
 @dataclass
 class WatchStock:
-    code_or_ticker: str   # maps to theme_dict.tw_stocks.code / us_stocks.ticker
+    code: str
     name: str
-    market: str           # "TW" | "US"
-    change_pct: float | None = None   # most recent available trading day change%
+    change_pct: float | None = None
 
 
 @dataclass
-class ThemeCluster:
-    theme_id: str
-    name: str
-    keyword: str             # primary keyword used for article scoring & segment extraction
+class IndustryCluster:
+    cluster_id: str        # "main::PCB" or "sub::PCB|硬板..."
+    level: str             # "main" | "sub"
+    name: str              # main name (level=main) or sub name (level=sub)
+    main: str              # parent main industry (==name for level=main)
     focal: list[FocalStock]
     watch: list[WatchStock]
-    total_score: float
-    primary_art_count: int   # sum of primary keyword hits across focal stocks
-    volume_only: bool = False  # True when surfaced via volume-rotation pathway (no keyword confirm)
-    upstream: list[str] = field(default_factory=list)    # upstream theme/material names
-    downstream: list[str] = field(default_factory=list)  # downstream application names
-    tw_trading_value: float = 0.0  # Step1: sum of TW focal stocks' trading value (TWD)
-    us_trading_value: float = 0.0  # Step1: sum of US focal stocks' trading value (USD)
-    # Steps 2&3 (watch stock TV) are added in generate_html.py after yfinance fetch
+    trading_value: float   # sum of focal stocks' trading_value (TWD)
 
 
-# ── Dictionary loader (swap body for DB migration) ────────────────────────────
-
-def _load_themes() -> list[dict]:
-    """Return list of non-disabled theme dicts from JSON file.
-
-    `disabled=True` themes are filtered out — set by the StockGG-ingest admin
-    UI (`src/utils/themes.py::set_disabled`) to flag themes that are too broad
-    or otherwise shouldn't surface on the public site. `locked` is NOT
-    filtered: locked themes are frozen against automated stock additions but
-    remain publicly visible.
-
-    Uses `.get("disabled", False)` so the filter stays backwards-compatible
-    with older theme_dictionary.json snapshots that pre-date the field.
-
-    DB migration: replace this body with:
-        rows = asyncio.run(conn.fetch(
-            "SELECT * FROM theme_dictionary WHERE NOT disabled"
-        ))
-        return [dict(r) for r in rows]
-    """
+def _load_dict() -> dict:
     if not DICT_FILE.exists():
-        return []
+        return {"stocks": {}}
     with DICT_FILE.open(encoding="utf-8") as f:
-        data = json.load(f)
-    return [t for t in data.get("themes", []) if not t.get("disabled", False)]
+        return json.load(f)
 
 
-# ── Scoring ───────────────────────────────────────────────────────────────────
+def _focal_from(ticker: str, info: dict) -> FocalStock:
+    return FocalStock(
+        ticker=ticker,
+        name=info.get("name", ticker),
+        change_pct=info.get("change_pct"),
+        trading_value=float(info.get("trading_value") or 0),
+        rank=int(info.get("rank") or 99),
+        limit_up=bool(info.get("limit_up", False)),
+    )
 
-def _score_articles(articles: list[dict], keyword: str) -> tuple[float, int]:
+
+def detect_industry_clusters(
+    tw_top30: dict[str, dict],
+) -> tuple[list[IndustryCluster], list[IndustryCluster]]:
+    """Aggregate TW top-30 trading value into main + (main, sub) buckets.
+
+    Args:
+        tw_top30: ticker -> {name, change_pct, trading_value, rank, limit_up}
+                  caller should have already filtered ETFs but we re-guard.
+
+    Returns:
+        (main_clusters, sub_clusters), each sorted by trading_value desc and
+        gated by MIN_VOLUME (≥ 2 top-30 members per cluster).
     """
-    Count occurrences of a single precise keyword across article list.
-    Primary window (≤7 days) × weight 2; secondary (8-60 days) × weight 1.
-    Returns (weighted_occurrence_total, primary_article_count_with_match).
-    """
-    cutoff_primary = date.today() - timedelta(days=PRIMARY_DAYS)
-    kw = keyword.lower()
-    total_score = 0.0
-    primary_count = 0
+    data = _load_dict()
+    all_stocks = data.get("stocks", {})
+    if not all_stocks:
+        return [], []
 
-    for art in articles:
-        pub = art.get("published_at")
-        if pub is None:
+    # ETF guard on top-30 (defensive — caller usually filters too)
+    top30 = {t: info for t, info in tw_top30.items() if not _is_etf(t, info.get("name", ""))}
+    top30_set = set(top30)
+
+    # Aggregation buckets
+    main_focal: dict[str, list[str]] = defaultdict(list)
+    sub_focal: dict[tuple[str, str], list[str]] = defaultdict(list)
+    main_tv: dict[str, float] = defaultdict(float)
+    sub_tv: dict[tuple[str, str], float] = defaultdict(float)
+
+    for ticker, top_info in top30.items():
+        dict_info = all_stocks.get(ticker)
+        if not dict_info:
             continue
-        if hasattr(pub, "date"):
-            art_date = pub.date()
-        elif isinstance(pub, str):
-            from datetime import date as _date
-            try:
-                art_date = _date.fromisoformat(pub[:10])
-            except ValueError:
+        tv = float(top_info.get("trading_value") or 0)
+        for entry in dict_info.get("industries", []):
+            if entry.get("disabled"):
                 continue
-        else:
-            art_date = pub
-        is_primary = art_date >= cutoff_primary
-        weight = 2.0 if is_primary else 1.0
+            main = (entry.get("main") or "").strip()
+            if not main:
+                continue
+            # Same ticker may have multiple entries with same main — guard.
+            if ticker not in main_focal[main]:
+                main_focal[main].append(ticker)
+                main_tv[main] += tv
+            for sub in entry.get("subs", []) or []:
+                sub = (sub or "").strip()
+                if not sub:
+                    continue
+                key = (main, sub)
+                if ticker not in sub_focal[key]:
+                    sub_focal[key].append(ticker)
+                    sub_tv[key] += tv
 
-        text = (
-            (art.get("full_content") or "")
-            + " "
-            + (art.get("title") or "")
-        ).lower()
-        count = text.count(kw)
-        if count:
-            total_score += count * weight
-            if is_primary:
-                primary_count += 1
+    # Watch stocks: dictionary stocks NOT in top-30 for each touched main / sub.
+    main_watch: dict[str, list[WatchStock]] = defaultdict(list)
+    sub_watch: dict[tuple[str, str], list[WatchStock]] = defaultdict(list)
 
-    return total_score, primary_count
-
-
-# ── Main entry point ──────────────────────────────────────────────────────────
-
-def detect_clusters(
-    stocks: dict[str, dict],        # ticker → {name, market, rank, change_pct, trading_value, ...}
-    ticker_arts: dict[str, list],   # ticker → list of article dicts (needs full_content, published_at)
-) -> list[ThemeCluster]:
-    """
-    Match top-30 stocks to theme clusters.
-    Gate 1 (dictionary membership) is always required.
-    Gate 2a (keyword) or Gate 2b (≥2 members in top-30) must also be satisfied.
-    """
-    themes = _load_themes()
-    if not themes:
-        return []
-
-    all_focal_codes = set(stocks.keys())
-
-    clusters: list[ThemeCluster] = []
-    for theme in themes:
-        keyword = theme.get("keyword", "")
-        if not keyword:
+    for ticker, info in all_stocks.items():
+        if ticker in top30_set or _is_etf(ticker, info.get("name", "")):
             continue
+        seen_main: set[str] = set()
+        seen_sub: set[tuple[str, str]] = set()
+        for entry in info.get("industries", []):
+            if entry.get("disabled"):
+                continue
+            main = (entry.get("main") or "").strip()
+            if not main:
+                continue
+            if main_focal.get(main) and main not in seen_main:
+                main_watch[main].append(WatchStock(ticker, info.get("name", ticker)))
+                seen_main.add(main)
+            for sub in entry.get("subs", []) or []:
+                sub = (sub or "").strip()
+                if not sub:
+                    continue
+                key = (main, sub)
+                if sub_focal.get(key) and key not in seen_sub:
+                    sub_watch[key].append(WatchStock(ticker, info.get("name", ticker)))
+                    seen_sub.add(key)
 
-        # Gate: ≥ MIN_VOLUME dictionary members must appear in today's top-30
-        dict_tw = {s["code"] for s in theme.get("tw_stocks", [])}
-        dict_us = {s["ticker"] for s in theme.get("us_stocks", [])}
-        dict_members = dict_tw | dict_us
-        candidates = [t for t in all_focal_codes if t in dict_members]
-        if len(candidates) < MIN_VOLUME:
+    # Assemble clusters with MIN_VOLUME gate
+    main_clusters: list[IndustryCluster] = []
+    for name, tickers in main_focal.items():
+        if len(tickers) < MIN_VOLUME:
             continue
-
-        # Score all candidates (for display & sorting; not a gate)
-        focal_stocks: list[FocalStock] = []
-        for ticker in candidates:
-            arts = ticker_arts.get(ticker, [])
-            score, primary_hits = _score_articles(arts, keyword)
-            info = stocks[ticker]
-            focal_stocks.append(FocalStock(
-                ticker=ticker,
-                name=info.get("name", ticker),
-                market=info.get("market", ""),
-                change_pct=info.get("change_pct"),
-                trading_value=info.get("trading_value", 0),
-                rank=info.get("rank", 99),
-                limit_up=bool(info.get("limit_up", False)),
-                articles=arts,
-                score=score,
-                primary_keyword_hits=primary_hits,
-            ))
-
-        # volume_only: True when no member has keyword article confirmation
-        has_keyword = any(fs.score >= MIN_SCORE for fs in focal_stocks)
-        volume_only = not has_keyword
-
-        focal_stocks.sort(key=lambda s: (-s.score, s.rank))
-
-        # Watch stocks: theme dictionary members NOT in today's top-30
-        tw_watch = [
-            WatchStock(s["code"], s["name"], "TW")
-            for s in theme.get("tw_stocks", [])
-            if s["code"] not in all_focal_codes
-        ]
-        us_watch = [
-            WatchStock(s["ticker"], s["name"], "US")
-            for s in theme.get("us_stocks", [])
-            if s["ticker"] not in all_focal_codes
-        ]
-
-        total_score = sum(s.score for s in focal_stocks)
-        primary_art_count = sum(s.primary_keyword_hits for s in focal_stocks)
-        tw_tv = sum(s.trading_value for s in focal_stocks if s.market == "TW")
-        us_tv = sum(s.trading_value for s in focal_stocks if s.market == "US")
-
-        sc = theme.get("supply_chain", {})
-        clusters.append(ThemeCluster(
-            theme_id=theme["id"],
-            name=theme["name"],
-            keyword=keyword,
-            focal=focal_stocks,
-            watch=(tw_watch[:6] + us_watch[:4]),
-            total_score=total_score,
-            primary_art_count=primary_art_count,
-            volume_only=volume_only,
-            upstream=sc.get("upstream", []),
-            downstream=sc.get("downstream", []),
-            tw_trading_value=tw_tv,
-            us_trading_value=us_tv,
+        focal = [_focal_from(t, top30[t]) for t in tickers]
+        focal.sort(key=lambda s: -s.trading_value)
+        watch = main_watch[name][:15]
+        main_clusters.append(IndustryCluster(
+            cluster_id=f"main::{name}",
+            level="main",
+            name=name,
+            main=name,
+            focal=focal,
+            watch=watch,
+            trading_value=main_tv[name],
         ))
+    main_clusters.sort(key=lambda c: -c.trading_value)
 
-    # Sort by total theme trading value (Step1 focal; Steps2&3 watch TV added in generate_html.py)
-    # US values are in USD, TW in TWD — same-market themes are directly comparable;
-    # cross-market sort is approximate (USD ≈ 30× TWD for equal economic weight).
-    return sorted(clusters, key=lambda c: -(c.tw_trading_value + c.us_trading_value))
+    sub_clusters: list[IndustryCluster] = []
+    for (main, sub), tickers in sub_focal.items():
+        if len(tickers) < MIN_VOLUME:
+            continue
+        focal = [_focal_from(t, top30[t]) for t in tickers]
+        focal.sort(key=lambda s: -s.trading_value)
+        watch = sub_watch[(main, sub)][:12]
+        sub_clusters.append(IndustryCluster(
+            cluster_id=f"sub::{main}|{sub}",
+            level="sub",
+            name=sub,
+            main=main,
+            focal=focal,
+            watch=watch,
+            trading_value=sub_tv[(main, sub)],
+        ))
+    sub_clusters.sort(key=lambda c: -c.trading_value)
+
+    return main_clusters, sub_clusters
