@@ -19,7 +19,7 @@ Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
 | ❌ **不要呼叫** Gemini / OpenAI / 任何 LLM API | 公開 repo 沒任何 LLM key，也不該有 |
 | ❌ **不要爬任何網站** | 法律隔離邊界，原始內容只能在私有 repo |
 | ❌ **不要在這裡跑 LLM-generated 分析** | 分析是私有 repo 的事，這裡只讀已存的結果 |
-| ✅ **要加新 query 就同步擴 allowlist** | `supabase/functions/db-proxy-public/index.ts` 的 `ALLOWED` 集合，加完 `supabase functions deploy db-proxy-public --project-ref mnseyguxiiditaybpfup`；不擴會 CI 403 |
+| ✅ **要加新 query 就同步擴 allowlist** | 改 `supabase/functions/db-proxy-public/index.ts` 的 `ALLOWED`，然後跑 `bash scripts/deploy_db_proxy_public.sh`（wrapper 內含 Supabase CLI auth liveness probe，token 失效會給繁中提示）。不擴會 CI 403 |
 | ✅ **不確定查詢能不能跑時，本機跑 generate_html.py 看 403** | 是最快的 sanity check |
 
 ## 關鍵檔案
