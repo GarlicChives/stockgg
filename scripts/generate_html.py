@@ -2029,12 +2029,19 @@ function _renderThemeChart(cardId) {{
 
   _disposeThemeCharts();
   const chartOpts = {{
-    layout: {{ background: {{ type: 'solid', color: 'transparent' }}, textColor: '#7c8290' }},
+    layout: {{
+      background: {{ type: 'solid', color: 'transparent' }},
+      textColor: '#7c8290',
+      attributionLogo: false,            // 隱掉右下角 TradingView LOGO
+    }},
     grid: {{ vertLines: {{ color: 'rgba(255,255,255,.04)' }}, horzLines: {{ color: 'rgba(255,255,255,.04)' }} }},
     rightPriceScale: {{ borderColor: 'rgba(255,255,255,.08)' }},
     timeScale: {{ borderColor: 'rgba(255,255,255,.08)', timeVisible: false }},
     crosshair: {{ mode: 1 }},
     autoSize: true,
+    // 禁滾輪縮放(行為怪異),平移與拖拉縮放保留
+    handleScroll: {{ mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: true }},
+    handleScale: {{ mouseWheel: false, axisPressedMouseMove: true, pinch: true }},
   }};
   _tcCharts.tv = LightweightCharts.createChart(tvEl, chartOpts);
   const tvSeriesObj = _tcCharts.tv.addAreaSeries({{
