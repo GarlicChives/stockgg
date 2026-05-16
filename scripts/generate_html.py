@@ -531,8 +531,8 @@ def _industry_section_html(
     univ_html = ""
     if universal:
         chips = "".join(
-            f'<button class="univ-chip" data-ticker="{html_lib.escape(t)}" type="button" '
-            f"onclick=\"toggleUniv({json.dumps(t)})\">"
+            f'<button class="univ-chip" data-ticker="{html_lib.escape(t)}" type="button"'
+            f" onclick='toggleUniv({json.dumps(t)})'>"
             f"{html_lib.escape(t)}&nbsp;{html_lib.escape(n)}</button>"
             for t, n in universal.items()
         )
@@ -756,10 +756,7 @@ def build_focus_html(
         modal_data[ticker] = ""
 
     sub_html = _industry_section_html(sub_clusters, all_stocks, "sub")
-    return (
-        '<div class="section-hdr">🎯 子產業排行</div>' + sub_html,
-        modal_data,
-    )
+    return sub_html, modal_data
 
 
 # ── 股市筆記 tab ──────────────────────────────────────────────────────────────
