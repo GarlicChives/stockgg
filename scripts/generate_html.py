@@ -537,16 +537,64 @@ def _build_stock_cards(ticker_list: list[tuple[str, dict]],
     return ''.join(cards), modal_data
 
 
+def _sparkline_svg(values: list[float], width: int = 84, height: int = 22) -> str:
+    """簡易 inline SVG sparkline。values 是 daily total TV(>= 2 點才畫)。
+    Area fill + stroke,顏色用 CSS 控制(.sparkline path/area)。
+    """
+    pts = [v for v in values if v and v > 0]
+    if len(pts) < 2:
+        return ""
+    max_v = max(pts)
+    min_v = min(pts)
+    span = max_v - min_v
+    if span <= 0:
+        return ""
+    n = len(values)
+    step = width / (n - 1)
+    line_pts = []
+    for i, v in enumerate(values):
+        if v is None or v <= 0:
+            v = min_v
+        x = i * step
+        y = height - ((v - min_v) / span) * height
+        line_pts.append(f"{x:.1f},{y:.1f}")
+    line = "M" + " L".join(line_pts)
+    # 收尾到右下 + 左下,形成 area
+    area = line + f" L{width},{height} L0,{height} Z"
+    return (
+        f'<svg class="sparkline" viewBox="0 0 {width} {height}" preserveAspectRatio="none">'
+        f'<path class="spark-area" d="{area}" />'
+        f'<path class="spark-line" d="{line}" />'
+        f'</svg>'
+    )
+
+
+def _aggregate_history_tv(member_keys: list[str], history_payload: dict) -> list[float]:
+    """合併 member_keys 對應的 daily TV(同日加總),回傳 sorted-by-date 的 value list。"""
+    daily: dict[str, float] = {}
+    for k in member_keys:
+        for row in history_payload.get(k, []):
+            d = row.get("d")
+            stocks = row.get("s", {})
+            day_tv = sum((v[0] or 0) for v in stocks.values() if v)
+            daily[d] = daily.get(d, 0) + day_tv
+    return [daily[d] for d in sorted(daily.keys())]
+
+
 def _industry_section_html(
     clusters: list[IndustryCluster],
     all_stocks: dict,
     level: str,
+    history_payload: dict | None = None,
 ) -> str:
     """Render industry cluster cards. level = "main" | "sub".
     前哨觀察(watch)已從顯示移除(2026-05-16),只保留今日焦點。
     sub level:加廣泛概念股 panel(>3 個 cluster 出現的 ticker 可點擊濾除,
-    觸發 FLIP 動畫重排 + TV 重算)。
+    觸發 FLIP 動畫重排 + TV 重算)。每張卡內嵌 sparkline(過去 180 天
+    TV trend);點擊彈出 modal 大圖。
     """
+    if history_payload is None:
+        history_payload = {}
     if not clusters:
         label = "主產業" if level == "main" else "子產業"
         return f'<p class="muted-note">今日尚無{label}熱門產業</p>'
@@ -606,11 +654,31 @@ def _industry_section_html(
         )
 
         card_id = f"cc-{level}-{idx}"
+        member_keys = [f"{m}||{s}" for m, s in (c.members or [])]
         cluster_json.append({
             "cardId": card_id,
+            "memberKeys": member_keys,
+            "name": c.name,
             "focal": [{"ticker": s.ticker, "tv": s.trading_value} for s in c.focal],
             "baseTv": c.trading_value,
         })
+
+        # Sparkline (server-side SVG):過去 180 天 TV trend。資料來自
+        # history_payload(可能空 → 不渲染)。點擊整張 card 彈 modal 大圖。
+        spark_html = ""
+        if level == "sub" and member_keys:
+            spark_values = _aggregate_history_tv(member_keys, history_payload)
+            if len(spark_values) >= 2:
+                spark_svg = _sparkline_svg(spark_values)
+                if spark_svg:
+                    spark_html = (
+                        f'<button class="spark-btn" type="button" '
+                        f"onclick=\"openThemeChart('{card_id}')\" "
+                        f'title="點擊看 6 個月 TV / 漲跌大圖">'
+                        f'{spark_svg}'
+                        f'<span class="spark-label">{len(spark_values)}d</span>'
+                        f'</button>'
+                    )
         focal_pills = "".join(
             _stk_pill(
                 s.ticker, all_stocks,
@@ -655,6 +723,7 @@ def _industry_section_html(
     {name_html}
     {metric_html}
     <span class="cluster-meta">{meta_text}</span>
+    {spark_html}
   </div>
   {subtitle}
   <div class="cluster-focal-stocks">{focal_pills}</div>
@@ -770,6 +839,7 @@ def build_focus_html(
     tw_ranks: list,
     sub_clusters: list,
     stocks_info: dict,
+    theme_history_payload: dict,
 ) -> tuple[str, dict]:
     """Build the 熱門題材 tab — 只渲染子產業 ranked list。
 
@@ -779,6 +849,11 @@ def build_focus_html(
 
     `_merge_identical_focal` 已在 focus_themes 那邊套用 —— focal ticker
     set 完全相同的子產業會被合併成 "A & B & C: ...stocks"。
+
+    2026-05-16 加:每個 cluster 卡片內嵌 6 個月 TV trend sparkline (SVG);
+    點 sparkline 彈出 modal 大圖。資料來自 theme_history_payload(可能空,
+    則不渲染圖表),由 ingest 端 src/analysis/theme_history.py 寫 DB 後
+    Q11 fetch 進來。
 
     Returns (html, modal_data) — modal_data 仍以 ticker 為 key,
     內容由下游 analyst consensus builder 填入。
@@ -808,8 +883,11 @@ def build_focus_html(
     for ticker in {s.ticker for c in sub_clusters for s in c.focal}:
         modal_data[ticker] = ""
 
-    sub_html = _industry_section_html(sub_clusters, all_stocks, "sub")
-    return sub_html, modal_data
+    sub_html = _industry_section_html(sub_clusters, all_stocks, "sub", theme_history_payload)
+    # Inline theme history payload for sparkline + modal chart JS
+    history_json = json.dumps(theme_history_payload, ensure_ascii=False, separators=(",", ":"))
+    history_script = f"<script>window.IIA_HISTORY={history_json};</script>"
+    return sub_html + history_script, modal_data
 
 
 # ── 股市筆記 tab ──────────────────────────────────────────────────────────────
@@ -1064,6 +1142,27 @@ async def generate():
     except Exception as exc:
         print(f"  ⚠ catalyst_events query failed: {exc}")
 
+    # Theme history (Q11) — 過去 180 天 per (main, sub) per day 的 focal
+    # breakdown,供 cluster 卡片 sparkline + 點擊彈出大圖使用。資料由
+    # StockGG-ingest 端 src/analysis/theme_history.py 寫入。若 table 還沒
+    # 建立(ingest 還沒 deploy),靜默回退到「無 chart」狀態,公開站照常運作。
+    theme_history_rows: list = []
+    _hist_keys = list({f"{m}||{s}" for c in sub_clusters for m, s in c.members})
+    if _hist_keys:
+        try:
+            theme_history_rows = [dict(r) for r in await conn.fetch(
+                """SELECT rank_date, main_industry, sub_industry,
+                          focal_count, focal_breakdown, total_tv, avg_chg_pct
+                   FROM theme_history
+                   WHERE main_industry || '||' || sub_industry = ANY($1::text[])
+                     AND rank_date >= CURRENT_DATE - INTERVAL '180 days'
+                   ORDER BY main_industry, sub_industry, rank_date""",
+                _hist_keys,
+            )]
+            print(f"  Theme history: {len(theme_history_rows)} rows for {len(_hist_keys)} (main,sub) keys")
+        except Exception as exc:
+            print(f"  ⚠ theme_history query failed (table not yet populated?): {exc}")
+
     await conn.close()
 
     # yfinance: 為「market_notes 提到但不在 top-N rankings 也不在 Q8 回傳」
@@ -1101,7 +1200,29 @@ async def generate():
     report_html = _pillify_in_html(report_html, stocks_info)
     updated_at  = datetime.now(timezone.utc).strftime("%m/%d %H:%M UTC")
 
-    focus_html, modal_data = build_focus_html(tw_ranks, sub_clusters, stocks_info)
+    # Build IIA_HISTORY payload: {"main||sub": [{d, s:{ticker:[tv,chg]}}, ...]}
+    # Compact array form (tv, chg) to keep bundle size manageable.
+    theme_history_payload: dict[str, list] = {}
+    for r in theme_history_rows:
+        key = f"{r['main_industry']}||{r['sub_industry']}"
+        d = r["rank_date"]
+        date_str = d.isoformat() if hasattr(d, "isoformat") else str(d)[:10]
+        breakdown = r["focal_breakdown"] or {}
+        if isinstance(breakdown, str):
+            try:
+                breakdown = json.loads(breakdown)
+            except Exception:
+                breakdown = {}
+        stocks_compact = {
+            tk: [v.get("tv"), v.get("chg")]
+            for tk, v in breakdown.items()
+            if isinstance(v, dict)
+        }
+        theme_history_payload.setdefault(key, []).append({"d": date_str, "s": stocks_compact})
+
+    focus_html, modal_data = build_focus_html(
+        tw_ranks, sub_clusters, stocks_info, theme_history_payload,
+    )
     notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)
     catalyst_html = build_catalyst_html(catalyst_events, stocks_info)
 
@@ -1381,6 +1502,47 @@ tr:last-child td{{border-bottom:none}}
 .cluster-metric.neutral{{background:rgba(255,255,255,.05);color:var(--muted)}}
 .cluster-meta{{font-size:.72rem;color:var(--muted);margin-left:auto}}
 .cluster-subtitle{{font-size:.7rem;color:var(--muted);margin:.1rem 0 .35rem;letter-spacing:.02em}}
+
+/* Sparkline button (cluster card 內嵌 6 個月 TV trend) */
+.spark-btn{{display:inline-flex;align-items:center;gap:.3rem;
+            background:transparent;border:none;cursor:pointer;
+            padding:.1rem .35rem;border-radius:5px;transition:background .15s}}
+.spark-btn:hover{{background:rgba(255,255,255,.05)}}
+.sparkline{{display:block;width:84px;height:22px}}
+.sparkline .spark-line{{fill:none;stroke:var(--accent);stroke-width:1.2;
+                        stroke-linecap:round;stroke-linejoin:round}}
+.sparkline .spark-area{{fill:var(--accent);opacity:.18}}
+.spark-label{{font-size:.62rem;color:var(--muted);font-weight:600}}
+
+/* Theme chart modal — bottom sheet on mobile, centered on desktop */
+dialog#theme-chart-dialog{{background:var(--card);border:1px solid var(--border);
+                          border-radius:14px;color:var(--text);padding:0;
+                          width:min(920px,96vw);max-height:90vh;overflow:hidden;
+                          position:fixed;top:50%;left:50%;
+                          transform:translate(-50%,-50%);margin:0}}
+dialog#theme-chart-dialog[open]{{display:flex;flex-direction:column}}
+dialog#theme-chart-dialog::backdrop{{background:rgba(0,0,0,.65)}}
+@media(max-width:680px){{
+  dialog#theme-chart-dialog{{width:100vw;max-height:88vh;
+                              top:auto;bottom:0;left:0;right:0;transform:none;
+                              border-radius:14px 14px 0 0;border-bottom:none}}
+}}
+.tc-hdr{{display:flex;align-items:center;gap:.6rem;
+        padding:.85rem 1.1rem;border-bottom:1px solid var(--border);
+        flex-shrink:0}}
+.tc-title{{font-size:1rem;font-weight:700;flex:1;line-height:1.35}}
+.tc-meta{{font-size:.72rem;color:var(--muted)}}
+.tc-close{{background:transparent;color:var(--muted);font-size:1.1rem;
+          padding:.2rem .4rem;border-radius:5px;line-height:1;border:none;cursor:pointer}}
+.tc-close:hover{{background:rgba(255,255,255,.06);color:var(--text)}}
+.tc-body{{padding:.8rem 1rem 1rem;overflow-y:auto;flex:1}}
+.tc-chart{{width:100%;height:260px;margin-bottom:.5rem}}
+.tc-chart-label{{font-size:.7rem;font-weight:600;color:var(--muted);
+                 letter-spacing:.04em;margin:.5rem 0 .25rem;
+                 display:flex;align-items:center;gap:.4rem}}
+.tc-chart-label::before{{content:"";width:3px;height:11px;background:var(--accent);
+                         border-radius:2px}}
+.tc-empty{{color:var(--muted);font-size:.85rem;text-align:center;padding:2rem 0}}
 .cluster-section-label{{font-size:.68rem;color:var(--muted);font-weight:600;
                          text-transform:uppercase;letter-spacing:.04em;margin:.55rem 0 .3rem}}
 .cluster-focal-stocks{{display:flex;flex-wrap:wrap;gap:.45rem;margin-bottom:.4rem}}
@@ -1590,6 +1752,25 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
   <div class="modal-body" id="modal-body"></div>
 </dialog>
 
+<!-- Theme chart modal (子產業 6 個月 TV / 平均漲跌 趨勢) -->
+<dialog id="theme-chart-dialog">
+  <div class="tc-hdr">
+    <div style="flex:1">
+      <div class="tc-title" id="tc-title"></div>
+      <div class="tc-meta" id="tc-meta"></div>
+    </div>
+    <button class="tc-close" type="button"
+            onclick="document.getElementById('theme-chart-dialog').close()">✕</button>
+  </div>
+  <div class="tc-body">
+    <div class="tc-chart-label">成交金額 TV</div>
+    <div class="tc-chart" id="tc-chart-tv"></div>
+    <div class="tc-chart-label">平均漲跌 %</div>
+    <div class="tc-chart" id="tc-chart-chg"></div>
+    <div class="tc-empty" id="tc-empty" style="display:none">尚無歷史資料(資料每日 18:30 由 ingest 端產生)</div>
+  </div>
+</dialog>
+
 <footer>
   <div class="disclaimer">
     <h3>⚠ 投資免責聲明</h3>
@@ -1679,6 +1860,11 @@ function toggleUniv(ticker) {{
     b.classList.toggle('disabled', _univDis.has(ticker));
   }});
   _recalcClusters('sub');
+  // 若 theme chart modal 開著,連動重算
+  const dlg = document.getElementById('theme-chart-dialog');
+  if (dlg && dlg.open && _openThemeCardId) {{
+    _renderThemeChart(_openThemeCardId);
+  }}
 }}
 
 function _recalcClusters(level) {{
@@ -1759,6 +1945,148 @@ function _recalcClusters(level) {{
     }}));
   }}
 }}
+
+/* ── Theme chart modal — 6 個月 TV / 平均漲跌 趨勢 ────────────────────────── */
+let _lwcLoadPromise = null;
+let _openThemeCardId = null;       // 目前打開的 cluster cardId(null = 關)
+let _tcCharts = {{ tv: null, chg: null, tvSeries: null, chgSeries: null }};
+
+function _loadLightweightCharts() {{
+  if (window.LightweightCharts) return Promise.resolve();
+  if (_lwcLoadPromise) return _lwcLoadPromise;
+  _lwcLoadPromise = new Promise((resolve, reject) => {{
+    const s = document.createElement('script');
+    s.src = 'https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js';
+    s.onload = () => resolve();
+    s.onerror = (e) => {{ _lwcLoadPromise = null; reject(e); }};
+    document.head.appendChild(s);
+  }});
+  return _lwcLoadPromise;
+}}
+
+function _findClusterDef(cardId) {{
+  const all = (window.IIA_CLUSTERS || {{}}).sub || [];
+  return all.find(c => c.cardId === cardId);
+}}
+
+/* 算單一 cluster 的 daily {{tv, chg}} time series,套用 _univDis 過濾 */
+function _computeClusterSeries(cluster) {{
+  const hist = window.IIA_HISTORY || {{}};
+  const keys = cluster.memberKeys || [];
+  const daily = {{}};  // d -> {{tvSum, chgSum, chgN}}
+  keys.forEach(k => {{
+    (hist[k] || []).forEach(row => {{
+      const stocks = row.s || {{}};
+      const cur = daily[row.d] || (daily[row.d] = {{ tvSum: 0, chgSum: 0, chgN: 0 }});
+      for (const [ticker, v] of Object.entries(stocks)) {{
+        if (_univDis.has(ticker)) continue;
+        const tv = (v && v[0]) || 0;
+        const chg = (v && v[1] !== null && v[1] !== undefined) ? v[1] : null;
+        cur.tvSum += tv;
+        if (chg !== null) {{ cur.chgSum += chg; cur.chgN += 1; }}
+      }}
+    }});
+  }});
+  const dates = Object.keys(daily).sort();
+  const tvSeries = dates.map(d => ({{ time: d, value: daily[d].tvSum / 1e8 }}));      // 億
+  const chgSeries = dates.map(d => ({{
+    time: d, value: daily[d].chgN > 0 ? +(daily[d].chgSum / daily[d].chgN).toFixed(2) : 0,
+  }}));
+  return {{ tvSeries, chgSeries }};
+}}
+
+function _disposeThemeCharts() {{
+  ['tv', 'chg'].forEach(k => {{
+    if (_tcCharts[k]) {{
+      try {{ _tcCharts[k].remove(); }} catch (e) {{}}
+      _tcCharts[k] = null;
+    }}
+  }});
+  _tcCharts.tvSeries = null;
+  _tcCharts.chgSeries = null;
+}}
+
+function _renderThemeChart(cardId) {{
+  const cluster = _findClusterDef(cardId);
+  if (!cluster) return;
+  const {{ tvSeries, chgSeries }} = _computeClusterSeries(cluster);
+  document.getElementById('tc-title').textContent = '🔸 ' + cluster.name;
+  document.getElementById('tc-meta').textContent =
+    tvSeries.length ? (tvSeries.length + ' 天歷史 · ' + cluster.focal.length + ' 檔焦點(濾後)') : '';
+  const empty = document.getElementById('tc-empty');
+  const tvEl = document.getElementById('tc-chart-tv');
+  const chgEl = document.getElementById('tc-chart-chg');
+  if (!tvSeries.length) {{
+    empty.style.display = '';
+    tvEl.style.display = 'none';
+    chgEl.style.display = 'none';
+    return;
+  }}
+  empty.style.display = 'none';
+  tvEl.style.display = '';
+  chgEl.style.display = '';
+
+  _disposeThemeCharts();
+  const chartOpts = {{
+    layout: {{ background: {{ type: 'solid', color: 'transparent' }}, textColor: '#7c8290' }},
+    grid: {{ vertLines: {{ color: 'rgba(255,255,255,.04)' }}, horzLines: {{ color: 'rgba(255,255,255,.04)' }} }},
+    rightPriceScale: {{ borderColor: 'rgba(255,255,255,.08)' }},
+    timeScale: {{ borderColor: 'rgba(255,255,255,.08)', timeVisible: false }},
+    crosshair: {{ mode: 1 }},
+    autoSize: true,
+  }};
+  _tcCharts.tv = LightweightCharts.createChart(tvEl, chartOpts);
+  const tvSeriesObj = _tcCharts.tv.addAreaSeries({{
+    lineColor: '#10b981', topColor: 'rgba(16,185,129,.35)', bottomColor: 'rgba(16,185,129,.02)',
+    priceFormat: {{ type: 'custom', formatter: v => v.toFixed(0) + '億' }},
+  }});
+  tvSeriesObj.setData(tvSeries);
+  _tcCharts.tvSeries = tvSeriesObj;
+
+  _tcCharts.chg = LightweightCharts.createChart(chgEl, chartOpts);
+  const chgSeriesObj = _tcCharts.chg.addLineSeries({{
+    color: '#94aef7',
+    priceFormat: {{ type: 'custom', formatter: v => (v >= 0 ? '+' : '') + v.toFixed(2) + '%' }},
+  }});
+  chgSeriesObj.setData(chgSeries);
+  _tcCharts.chgSeries = chgSeriesObj;
+
+  // 同步 x 軸
+  _tcCharts.tv.timeScale().subscribeVisibleLogicalRangeChange(r => r && _tcCharts.chg?.timeScale().setVisibleLogicalRange(r));
+  _tcCharts.chg.timeScale().subscribeVisibleLogicalRangeChange(r => r && _tcCharts.tv?.timeScale().setVisibleLogicalRange(r));
+}}
+
+function openThemeChart(cardId) {{
+  _openThemeCardId = cardId;
+  const dlg = document.getElementById('theme-chart-dialog');
+  if (!dlg) return;
+  dlg.showModal();
+  _loadLightweightCharts()
+    .then(() => _renderThemeChart(cardId))
+    .catch(err => {{
+      console.error('Failed to load Lightweight Charts', err);
+      document.getElementById('tc-empty').textContent = '圖表載入失敗';
+      document.getElementById('tc-empty').style.display = '';
+    }});
+}}
+
+// 關 dialog 時清理
+(function () {{
+  const dlg = document.getElementById('theme-chart-dialog');
+  if (!dlg) return;
+  dlg.addEventListener('close', () => {{
+    _openThemeCardId = null;
+    _disposeThemeCharts();
+  }});
+  // backdrop click 關閉(像 art-modal)
+  dlg.addEventListener('click', (e) => {{
+    const rect = dlg.getBoundingClientRect();
+    if (e.clientX < rect.left || e.clientX > rect.right
+        || e.clientY < rect.top || e.clientY > rect.bottom) {{
+      dlg.close();
+    }}
+  }});
+}})();
 
 function toggleEl(id) {{
   const el = document.getElementById(id);

@@ -62,6 +62,11 @@ const ALLOWED: Set<string> = new Set([
   // market_notes_json live in the same row but are written ~10h apart, so the
   // latest row often has a NULL market_notes_json before 18:00 TW)
   "select report_date, market_notes_json from analysis_reports where market_notes_json is not null order by report_date desc limit 1",
+
+  // Q11 — theme_history past 180 days for given (main, sub) composite keys.
+  // Composite filter via "main||sub" string ANY($1::text[]) so JS-side can
+  // pass an array of keys derived from currently-rendered clusters.
+  "select rank_date, main_industry, sub_industry, focal_count, focal_breakdown, total_tv, avg_chg_pct from theme_history where main_industry || '||' || sub_industry = any($1::text[]) and rank_date >= current_date - interval '180 days' order by main_industry, sub_industry, rank_date",
 ])
 
 function normalize(q: string): string {
