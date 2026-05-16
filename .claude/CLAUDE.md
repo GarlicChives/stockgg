@@ -29,7 +29,7 @@ Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
 - `src/utils/db.py` — async DB client（用 `SUPABASE_ANON_KEY` + `db-proxy-public`）
 - `data/theme_dictionary.json` — statementdog 主產業 / 子產業階層字典（2026-05 改 schema:ticker-centric `stocks` 物件,純台股;由 ingest 端 `scrape_statementdog_industries.py` 產生再 sync 到本 repo）
 - `supabase/functions/db-proxy-public/index.ts` — Edge Function 含 SQL allowlist
-- `.github/workflows/market_briefing.yml` — render + deploy（07:30 / 18:15 / 23:15 TW cron + repository_dispatch）
+- `.github/workflows/market_briefing.yml` — render + deploy（07:30 / 18:15 / 23:15 TW cron + repository_dispatch）。`concurrency: publish-daily-site` 同 workflow 排隊不互相取消;commit-and-push step 含 `-X ours` rebase retry x3,避免本地 dev push 與 bot 撞 race
 
 ## 本地操作
 

@@ -14,6 +14,12 @@ on:
   repository_dispatch:         # POSTed from StockGG-ingest after analysis writes
     types: [analysis-updated]
 
+# 同 workflow 同時只一個 instance(排隊不取消),避免多個 run 互相覆蓋
+# docs/index.html 造成 push race。
+concurrency:
+  group: publish-daily-site
+  cancel-in-progress: false
+
 permissions:
   contents: write              # needed to push docs/index.html
 
@@ -41,12 +47,30 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
       - name: Commit HTML to repo
+        # Push race 處理:夾在 checkout 與 push 之間,別人(我或另一個
+        # workflow)可能已 push 新 commit。rebase 取我們新生成的版本
+        # (-X ours)後 retry,最多 3 次。
         run: |
+          set -e
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add docs/index.html
-          git diff --cached --quiet && echo "No changes" || \
-            git commit -m "chore: update daily report [skip ci]" && git push
+          if git diff --cached --quiet; then
+            echo "No changes — skip commit"
+            exit 0
+          fi
+          git commit -m "chore: update daily report [skip ci]"
+          for attempt in 1 2 3; do
+            if git push; then
+              echo "Push succeeded on attempt $attempt"
+              exit 0
+            fi
+            echo "Push attempt $attempt rejected — pull --rebase (-X ours for docs)"
+            git fetch origin main
+            git pull --rebase -X ours origin main
+          done
+          echo "Push failed after 3 attempts" >&2
+          exit 1
 
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
