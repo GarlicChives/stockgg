@@ -2011,8 +2011,9 @@ function _renderThemeChart(cardId) {{
   if (!cluster) return;
   const {{ tvSeries, chgSeries }} = _computeClusterSeries(cluster);
   document.getElementById('tc-title').textContent = '🔸 ' + cluster.name;
+  const activeFocalN = cluster.focal.filter(f => !_univDis.has(f.ticker)).length;
   document.getElementById('tc-meta').textContent =
-    tvSeries.length ? (tvSeries.length + ' 天歷史 · ' + cluster.focal.length + ' 檔焦點(濾後)') : '';
+    tvSeries.length ? (tvSeries.length + ' 天歷史 · ' + activeFocalN + ' 檔焦點(濾後)') : '';
   const empty = document.getElementById('tc-empty');
   const tvEl = document.getElementById('tc-chart-tv');
   const chgEl = document.getElementById('tc-chart-chg');
