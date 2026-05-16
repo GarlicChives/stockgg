@@ -507,13 +507,45 @@ def _industry_section_html(
 ) -> str:
     """Render industry cluster cards. level = "main" | "sub".
     前哨觀察(watch)已從顯示移除(2026-05-16),只保留今日焦點。
+    sub level:加廣泛概念股 panel(>3 個 cluster 出現的 ticker 可點擊濾除,
+    觸發 FLIP 動畫重排 + TV 重算)。
     """
     if not clusters:
         label = "主產業" if level == "main" else "子產業"
         return f'<p class="muted-note">今日尚無{label}熱門產業</p>'
 
+    # 廣泛概念股(sub-only):同 ticker 在 >3 個 merged/dedup'd sub-cluster
+    # 出現 → 變成可濾除 chip
+    universal: dict[str, str] = {}
+    if level == "sub":
+        from collections import Counter
+        counts: Counter = Counter()
+        for c in clusters:
+            for s in c.focal:
+                counts[s.ticker] += 1
+        for t, n in counts.items():
+            if n > 3:
+                info = all_stocks.get(t, {})
+                universal[t] = (info.get("name") or t)[:8]
+
+    univ_html = ""
+    if universal:
+        chips = "".join(
+            f'<button class="univ-chip" data-ticker="{html_lib.escape(t)}" type="button" '
+            f"onclick=\"toggleUniv({json.dumps(t)})\">"
+            f"{html_lib.escape(t)}&nbsp;{html_lib.escape(n)}</button>"
+            for t, n in universal.items()
+        )
+        univ_html = (
+            '<div class="univ-panel">'
+            '<span class="univ-label">廣泛概念股(點擊濾除):</span>'
+            f'{chips}'
+            '</div>'
+        )
+
     cards = []
-    for c in clusters:
+    cluster_json: list[dict] = []
+    for idx, c in enumerate(clusters):
         n_focal = len(c.focal)
         if n_focal >= 5:
             strength_cls, strength_lbl = "strength-high", "強勢"
@@ -522,7 +554,19 @@ def _industry_section_html(
         else:
             strength_cls, strength_lbl = "strength-vol", "量能輪動"
 
-        focal_pills = "".join(_stk_pill(s.ticker, all_stocks) for s in c.focal)
+        card_id = f"cc-{level}-{idx}"
+        cluster_json.append({
+            "cardId": card_id,
+            "focal": [{"ticker": s.ticker, "tv": s.trading_value} for s in c.focal],
+            "baseTv": c.trading_value,
+        })
+        focal_pills = "".join(
+            _stk_pill(
+                s.ticker, all_stocks,
+                extra_attrs=f'data-cluster-ticker="{html_lib.escape(s.ticker)}" data-tv="{int(s.trading_value)}"',
+            )
+            for s in c.focal
+        )
 
         tv_str = f"{c.trading_value/1e8:.0f}億" if c.trading_value > 0 else ""
         meta_text = f"{n_focal} 檔焦點" + (f" · {tv_str}" if tv_str else "")
@@ -555,7 +599,7 @@ def _industry_section_html(
             name_html = f'<span class="cluster-name">{icon} {html_lib.escape(c.name)}</span>'
 
         cards.append(f"""
-<div class="cluster-card">
+<div class="cluster-card" id="{card_id}">
   <div class="cluster-hdr">
     {name_html}
     <span class="cluster-strength {strength_cls}">{strength_lbl}</span>
@@ -565,7 +609,15 @@ def _industry_section_html(
   <div class="cluster-focal-stocks">{focal_pills}</div>
 </div>""")
 
-    return '<div class="focus-clusters">' + "".join(cards) + "</div>"
+    cluster_json_str = json.dumps(cluster_json, ensure_ascii=False, separators=(",", ":"))
+    return (
+        univ_html
+        + f'<div id="cluster-container-{level}" class="focus-clusters">'
+        + "".join(cards)
+        + "</div>"
+        + f"<script>if(!window.IIA_CLUSTERS)window.IIA_CLUSTERS={{}};"
+          f"window.IIA_CLUSTERS.{level}={cluster_json_str};</script>"
+    )
 
 
 _WEEKDAY_TW = ["週一", "週二", "週三", "週四", "週五", "週六", "週日"]
@@ -1388,6 +1440,8 @@ dialog#art-modal::backdrop{{background:rgba(0,0,0,.65)}}
            background:var(--card);border:1px solid var(--border);border-radius:7px;
            padding:.3rem .6rem;cursor:pointer;transition:.15s;font-size:.82rem}}
 .stk-pill:hover{{border-color:var(--accent)}}
+.stk-pill.pill-disabled{{opacity:.32;filter:grayscale(.75);transition:opacity .18s,filter .18s}}
+.cluster-card{{transition:transform .38s cubic-bezier(.25,.46,.45,.94)}}
 .stk-pill[onclick=""],.stk-pill:not([onclick]){{cursor:default}}
 .sp-ticker{{font-weight:800;font-size:.85rem}}
 .sp-name{{font-size:.72rem;color:var(--muted)}}
@@ -1548,6 +1602,97 @@ function _initMergedNames() {{
 }}
 window.addEventListener('load', _initMergedNames);
 window.addEventListener('resize', _initMergedNames);
+
+/* 廣泛概念股濾除 — 點 univ-chip 把該 ticker 在每個 cluster 內反灰、
+ * cluster meta 重算、整列依 activeTv 重排(FLIP 動畫) */
+const _univDis = new Set();
+function toggleUniv(ticker) {{
+  if (_univDis.has(ticker)) _univDis.delete(ticker);
+  else _univDis.add(ticker);
+  document.querySelectorAll('.univ-chip[data-ticker="' + ticker + '"]').forEach(b => {{
+    b.classList.toggle('disabled', _univDis.has(ticker));
+  }});
+  _recalcClusters('sub');
+}}
+
+function _recalcClusters(level) {{
+  const container = document.getElementById('cluster-container-' + level);
+  if (!container) return;
+  const clusters = (window.IIA_CLUSTERS || {{}})[level] || [];
+  if (!clusters.length) return;
+
+  const cardEls = {{}};
+  clusters.forEach(c => {{
+    const el = document.getElementById(c.cardId);
+    if (el) cardEls[c.cardId] = el;
+  }});
+
+  // F — record positions BEFORE
+  const firsts = {{}};
+  Object.entries(cardEls).forEach(([id, el]) => {{
+    if (el.style.display !== 'none') firsts[id] = el.getBoundingClientRect();
+  }});
+
+  // 1. focal pill 反灰
+  clusters.forEach(c => {{
+    const el = cardEls[c.cardId];
+    if (!el) return;
+    el.querySelectorAll('[data-cluster-ticker]').forEach(pill => {{
+      pill.classList.toggle('pill-disabled', _univDis.has(pill.dataset.clusterTicker));
+    }});
+  }});
+
+  // 2. 重算每個 cluster 的 active 狀態
+  const states = clusters.map(c => {{
+    const activeFocal = c.focal.filter(f => !_univDis.has(f.ticker));
+    const disabledTv  = c.focal.reduce((s, f) => _univDis.has(f.ticker) ? s + f.tv : s, 0);
+    return {{ cardId: c.cardId, activeFocal, activeTv: c.baseTv - disabledTv, visible: activeFocal.length > 0 }};
+  }});
+
+  // 3. 卡片顯示 / 隱藏 + meta 更新
+  states.forEach(s => {{
+    const el = cardEls[s.cardId];
+    if (!el) return;
+    if (!s.visible) {{ el.style.display = 'none'; return; }}
+    el.style.display = '';
+    const meta = el.querySelector('.cluster-meta');
+    if (meta) {{
+      const tvStr = (s.activeTv / 1e8).toFixed(0) + '億';
+      meta.textContent = s.activeFocal.length + ' 檔焦點' + (s.activeTv > 0 ? ' · ' + tvStr : '');
+    }}
+  }});
+
+  // 4. 依 activeTv 重排 DOM
+  const visibleSorted = states.filter(s => s.visible).sort((a, b) => b.activeTv - a.activeTv);
+  visibleSorted.forEach(s => {{
+    const el = cardEls[s.cardId];
+    if (el) container.appendChild(el);
+  }});
+
+  // L+I+P — FLIP
+  const lasts = {{}};
+  Object.entries(cardEls).forEach(([id, el]) => {{
+    if (el.style.display !== 'none') lasts[id] = el.getBoundingClientRect();
+  }});
+  const animated = [];
+  Object.keys(firsts).forEach(id => {{
+    const el = cardEls[id];
+    if (!el || !lasts[id]) return;
+    const dy = firsts[id].top - lasts[id].top;
+    if (Math.abs(dy) < 1) return;
+    el.style.transition = 'none';
+    el.style.transform = 'translateY(' + dy + 'px)';
+    animated.push(el);
+  }});
+  if (animated.length) {{
+    requestAnimationFrame(() => requestAnimationFrame(() => {{
+      animated.forEach(el => {{
+        el.style.transition = 'transform .38s cubic-bezier(.25,.46,.45,.94)';
+        el.style.transform = '';
+      }});
+    }}));
+  }}
+}}
 
 function toggleEl(id) {{
   const el = document.getElementById(id);
