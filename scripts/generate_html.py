@@ -407,6 +407,43 @@ def _yf_batch_fetch(entries: list[tuple[str, str]]) -> dict[str, dict]:
     return result
 
 
+def _yf_ma20_bias_batch(tw_tickers: list[str]) -> dict[str, float]:
+    """Batch yfinance,回傳 {ticker: ma20_bias%}。
+    ma20_bias = (今日收盤 - 20MA) / 20MA * 100。台股 only(TW 焦點股用)。
+    """
+    if not tw_tickers:
+        return {}
+    try:
+        import yfinance as yf
+    except ImportError:
+        return {}
+    yf_map = {
+        (t + ".TW" if not t.upper().endswith(".TW") else t): t
+        for t in tw_tickers
+    }
+    result: dict[str, float] = {}
+    try:
+        syms = list(yf_map)
+        raw = yf.download(syms, period="2mo", progress=False, auto_adjust=True, group_by="ticker")
+        if raw.empty:
+            return result
+        for yf_sym, orig in yf_map.items():
+            try:
+                close = (raw[yf_sym]["Close"] if len(syms) > 1 else raw["Close"]).dropna()
+                if len(close) < 20:
+                    continue
+                ma20 = float(close.iloc[-20:].mean())
+                if ma20 <= 0:
+                    continue
+                today = float(close.iloc[-1])
+                result[orig] = round((today - ma20) / ma20 * 100, 2)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return result
+
+
 # ── Ranking rows HTML ─────────────────────────────────────────────────────────
 
 def rank_rows_html(ranks, market: str) -> str:
@@ -543,16 +580,30 @@ def _industry_section_html(
             '</div>'
         )
 
+    def _metric_badge(label: str, value: float | None, title: str) -> str:
+        """指標 badge:正紅 / 負綠 / 平盤白 / None 灰(沿用 fmt_pct 的 css class)。"""
+        if value is None:
+            return (f'<span class="cluster-metric neutral" title="{title}">'
+                    f'{label} —</span>')
+        pct_str, cls = fmt_pct(value)
+        return (f'<span class="cluster-metric {cls}" title="{title}">'
+                f'{label} {pct_str}</span>')
+
     cards = []
     cluster_json: list[dict] = []
     for idx, c in enumerate(clusters):
         n_focal = len(c.focal)
-        if n_focal >= 5:
-            strength_cls, strength_lbl = "strength-high", "強勢"
-        elif n_focal >= 3:
-            strength_cls, strength_lbl = "strength-mid", "中型"
-        else:
-            strength_cls, strength_lbl = "strength-vol", "量能輪動"
+        # 焦點股平均漲跌幅
+        chgs = [s.change_pct for s in c.focal if s.change_pct is not None]
+        avg_chg = sum(chgs) / len(chgs) if chgs else None
+        # 焦點股平均 20MA 乖離率(來自 all_stocks 由 yfinance 補進來的值)
+        ma20s = [all_stocks.get(s.ticker, {}).get("ma20_bias") for s in c.focal]
+        ma20s = [m for m in ma20s if m is not None]
+        avg_ma20 = sum(ma20s) / len(ma20s) if ma20s else None
+        metric_html = (
+            _metric_badge("漲跌", avg_chg, "焦點股平均漲跌幅")
+            + _metric_badge("乖離", avg_ma20, "焦點股平均 20MA 乖離率")
+        )
 
         card_id = f"cc-{level}-{idx}"
         cluster_json.append({
@@ -602,7 +653,7 @@ def _industry_section_html(
 <div class="cluster-card" id="{card_id}">
   <div class="cluster-hdr">
     {name_html}
-    <span class="cluster-strength {strength_cls}">{strength_lbl}</span>
+    {metric_html}
     <span class="cluster-meta">{meta_text}</span>
   </div>
   {subtitle}
@@ -718,6 +769,7 @@ def build_catalyst_html(events: list[dict], stocks_info: dict | None = None) -> 
 def build_focus_html(
     tw_ranks: list,
     sub_clusters: list,
+    stocks_info: dict,
 ) -> tuple[str, dict]:
     """Build the 熱門題材 tab — 只渲染子產業 ranked list。
 
@@ -745,6 +797,7 @@ def build_focus_html(
             "trading_value": float(r["trading_value"] or 0),
             "rank": r["rank"],
             "limit_up": bool(r.get("is_limit_up_30m")),
+            "ma20_bias": stocks_info.get(r["ticker"], {}).get("ma20_bias"),
         }
 
     if not sub_clusters:
@@ -914,6 +967,16 @@ async def generate():
     # 不在 UI 顯示;前哨觀察(watch)同步從卡片移除 → 不再需要查 watch change_pct
     # 也不再 yfinance 補 watch close,純粹靠 stocks_info(top-N from SQL)。
 
+    # MA20 乖離率:給每個 sub-cluster 算「焦點股平均 20MA 乖離」用。
+    # yfinance 一次性 batch 抓所有焦點 ticker 的 2 個月收盤,算 MA20 +
+    # bias%,patch 回 stocks_info(_industry_section_html 從那邊讀)。
+    _focal_tw = list({s.ticker for c in sub_clusters for s in c.focal})
+    if _focal_tw:
+        _ma20 = await asyncio.to_thread(_yf_ma20_bias_batch, _focal_tw)
+        for t, bias in _ma20.items():
+            if t in stocks_info:
+                stocks_info[t]["ma20_bias"] = bias
+
     # Parse market_notes before closing (needed for tickers query).
     # raw_response and market_notes_json live in the same analysis_reports
     # row but are written ~10h apart (daily_briefing 07:30 writes raw_response,
@@ -1038,7 +1101,7 @@ async def generate():
     report_html = _pillify_in_html(report_html, stocks_info)
     updated_at  = datetime.now(timezone.utc).strftime("%m/%d %H:%M UTC")
 
-    focus_html, modal_data = build_focus_html(tw_ranks, sub_clusters)
+    focus_html, modal_data = build_focus_html(tw_ranks, sub_clusters, stocks_info)
     notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)
     catalyst_html = build_catalyst_html(catalyst_events, stocks_info)
 
@@ -1306,10 +1369,16 @@ tr:last-child td{{border-bottom:none}}
   .cn-merged:not(.expanded) > span:nth-child(n+4){{display:none}}
   .cn-merged[data-parts="3"]:not(.expanded) .cn-toggle{{display:inline-block}}
 }}
-.cluster-strength{{font-size:.65rem;font-weight:700;padding:.15rem .4rem;border-radius:4px}}
-.strength-high{{background:#1a3a2a;color:#4caf82}}
-.strength-mid{{background:#1e2235;color:var(--muted)}}
-.strength-vol{{background:#2a2a1a;color:#c8a84b}}
+/* Cluster header metrics (取代舊 cluster-strength badge):
+   focal 股平均漲跌、平均 20MA 乖離。.up/.down/.flat/.neutral 沿用 fmt_pct
+   的 css class (.cluster-metric.up 等比 global .up 更具體,wins) */
+.cluster-metric{{font-size:.66rem;font-weight:700;padding:.16rem .42rem;
+                 border-radius:4px;font-variant-numeric:tabular-nums;
+                 white-space:nowrap;cursor:help}}
+.cluster-metric.up{{background:rgba(239,83,80,.16);color:#f47471}}
+.cluster-metric.down{{background:rgba(38,166,154,.14);color:#5dc4b9}}
+.cluster-metric.flat{{background:rgba(255,255,255,.06);color:#fff}}
+.cluster-metric.neutral{{background:rgba(255,255,255,.05);color:var(--muted)}}
 .cluster-meta{{font-size:.72rem;color:var(--muted);margin-left:auto}}
 .cluster-subtitle{{font-size:.7rem;color:var(--muted);margin:.1rem 0 .35rem;letter-spacing:.02em}}
 .cluster-section-label{{font-size:.68rem;color:var(--muted);font-weight:600;
