@@ -53,7 +53,7 @@ const ALLOWED: Set<string> = new Set([
   "select distinct on (ticker) ticker, change_pct from trading_rankings where ticker = any($1::text[]) order by ticker, rank_date desc",
 
   // Q8 — name + change% + market for market_notes tickers not in top-30
-  "select distinct on (ticker) ticker, name, change_pct, market from trading_rankings where ticker = any($1::text[]) order by ticker, rank_date desc",
+  "select distinct on (ticker) ticker, name, change_pct, close_price, market from trading_rankings where ticker = any($1::text[]) order by ticker, rank_date desc",
 
   // Q9 — catalyst events window: past 14 days through next 21 days
   "select id, event_date, event_type, ticker, market, title, importance, preview_text from catalyst_events where event_date >= current_date - interval '14 days' and event_date <= current_date + interval '21 days' order by event_date, importance desc, ticker",

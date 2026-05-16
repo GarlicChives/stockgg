@@ -203,4 +203,42 @@ def detect_industry_clusters(
         ))
     sub_clusters.sort(key=lambda c: -c.trading_value)
 
-    return main_clusters, sub_clusters
+    return main_clusters, _merge_identical_focal(sub_clusters)
+
+
+def _merge_identical_focal(clusters: list[IndustryCluster]) -> list[IndustryCluster]:
+    """合併 focal ticker set 完全相同的 cluster(用於子產業聚合)。
+
+    範例:
+      電阻器: 國巨、台達電
+      電容器: 國巨、台達電
+      電感器: 國巨、台達電
+    → 電阻器 & 電容器 & 電感器: 國巨、台達電
+    """
+    from collections import OrderedDict
+    groups: "OrderedDict[frozenset[str], list[IndustryCluster]]" = OrderedDict()
+    for c in clusters:
+        key = frozenset(s.ticker for s in c.focal)
+        groups.setdefault(key, []).append(c)
+
+    merged: list[IndustryCluster] = []
+    for members in groups.values():
+        if len(members) == 1:
+            merged.append(members[0])
+            continue
+        first = members[0]
+        # 名稱以 " & " 串接,維持原順序;parent main 也聚合(去重後串接)
+        joined_name = " & ".join(c.name for c in members)
+        unique_mains = list(dict.fromkeys(c.main for c in members))
+        joined_main = " & ".join(unique_mains)
+        joined_id = "|".join(c.cluster_id for c in members)
+        merged.append(IndustryCluster(
+            cluster_id=f"merged::{joined_id}",
+            level=first.level,
+            name=joined_name,
+            main=joined_main,
+            focal=first.focal,
+            watch=[],  # 合併後 watch 不再有意義(可能各 sub 不同),且公開頁面已不顯示
+            trading_value=first.trading_value,
+        ))
+    return merged

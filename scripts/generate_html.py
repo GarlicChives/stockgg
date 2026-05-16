@@ -56,10 +56,14 @@ SOURCE_NAMES = {
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def fmt_pct(v) -> tuple[str, str]:
+    """格式化漲跌% (亞洲慣例:紅=漲 綠=跌 白=平盤)。返回 (顯示字串, CSS class)。"""
     if v is None:
-        return "N/A", "neutral"
-    css = "up" if v >= 0 else "down"
-    return f"{'+' if v >= 0 else ''}{v:.2f}%", css
+        return "—", "neutral"
+    if v > 0:
+        return f"+{v:.2f}%", "up"
+    if v < 0:
+        return f"{v:.2f}%", "down"
+    return "0.00%", "flat"
 
 
 def strip_preamble(text: str) -> str:
@@ -159,15 +163,24 @@ def extract_relevant_para(content: str, ticker: str, name: str, max_chars: int =
 # ── Unified stock pill (全站統一顯示模組) ─────────────────────────────────────
 
 def _stk_pill(ticker: str, stocks_info: dict, clickable: bool = True, extra_attrs: str = "") -> str:
-    """Unified stock chip: ticker + market badge + name + change%."""
+    """Unified stock chip: ticker + market badge + name + "price(chg%)" 報價。
+
+    報價 span 用 fmt_pct 的 css class (up=紅 down=綠 flat=白 neutral=灰),
+    全站股票標的(報告段末 pill / 題材卡 / 跨來源議題 / rankings 表) 共用。
+    """
     info = stocks_info.get(ticker, {})
     _core = ticker.split(".")[0]
     market = info.get("market") or ("TW" if _core.isdigit() else "US")
     name = info.get("name", "")
     chg = info.get("change_pct")
+    close = info.get("close_price")
     mkt_cls = "mkt-tw" if market == "TW" else "mkt-us"
-    pct_str = (f"{'+' if chg >= 0 else ''}{chg:.1f}%") if chg is not None else "—"
-    pct_cls = ("up" if chg >= 0 else "down") if chg is not None else "neutral"
+    pct_str, pct_cls = fmt_pct(chg)
+    if close is not None:
+        price_str = f"{close:.2f}"
+        quote = f"{price_str}({pct_str})" if chg is not None else price_str
+    else:
+        quote = pct_str
     name_span = f'<span class="sp-name">{html_lib.escape(name[:8])}</span>' if name else ""
     click = f" onclick='showArtModal({json.dumps(ticker)},{json.dumps(name[:12])})'" if clickable else ""
     extra = f" {extra_attrs}" if extra_attrs else ""
@@ -176,7 +189,7 @@ def _stk_pill(ticker: str, stocks_info: dict, clickable: bool = True, extra_attr
         f'<span class="sp-ticker">{html_lib.escape(ticker)}</span>'
         f'<span class="mkt-badge {mkt_cls}">{market}</span>'
         f'{name_span}'
-        f'<span class="sp-pct {pct_cls}">{pct_str}</span>'
+        f'<span class="sp-quote {pct_cls}">{quote}</span>'
         f'</div>'
     )
 
@@ -353,9 +366,9 @@ def _build_analyst_html(data: dict) -> str:
 
 
 def _yf_batch_fetch(entries: list[tuple[str, str]]) -> dict[str, dict]:
-    """Sync: batch-fetch change% and today's trading value via yfinance.
+    """Sync: batch-fetch close / change% / trading value via yfinance.
     entries = [(ticker, market), ...]
-    Returns {ticker: {"change_pct": float|None, "trading_value": float|None}}
+    Returns {ticker: {"close": float|None, "change_pct": float|None, "trading_value": float|None}}
     """
     try:
         import yfinance as yf
@@ -377,7 +390,9 @@ def _yf_batch_fetch(entries: list[tuple[str, str]]) -> dict[str, dict]:
             try:
                 close = (raw[yf_sym]["Close"] if len(syms) > 1 else raw["Close"]).dropna()
                 vol   = (raw[yf_sym]["Volume"] if len(syms) > 1 else raw["Volume"]).dropna()
-                entry: dict = {"change_pct": None, "trading_value": None}
+                entry: dict = {"close": None, "change_pct": None, "trading_value": None}
+                if len(close) >= 1:
+                    entry["close"] = float(close.iloc[-1])
                 if len(close) >= 2:
                     entry["change_pct"] = round(
                         float((close.iloc[-1] - close.iloc[-2]) / close.iloc[-2] * 100), 2
@@ -395,18 +410,26 @@ def _yf_batch_fetch(entries: list[tuple[str, str]]) -> dict[str, dict]:
 # ── Ranking rows HTML ─────────────────────────────────────────────────────────
 
 def rank_rows_html(ranks, market: str) -> str:
+    """Render rows for the rankings table. 股價與漲跌% 合併為單欄
+    "price(chg%)",CSS class 由 fmt_pct 決定(up/down/flat/neutral)。
+    無單位前綴(NT$/$ 拿掉);Asia 慣例:紅漲綠跌白平。
+    """
     rows = []
     for r in ranks:
         chg = float(r["change_pct"]) if r["change_pct"] is not None else None
-        pct, css = fmt_pct(chg)
+        close = float(r["close_price"]) if r.get("close_price") is not None else None
+        pct_str, pct_cls = fmt_pct(chg)
         if market == "US":
             val = f"${float(r['trading_value'] or 0)/1e9:.1f}B"
-            price = f"${float(r['close_price']):.2f}" if r.get("close_price") is not None else "—"
         else:
             val = f"{float(r['trading_value'] or 0)/1e8:.0f}億"
             if r.get("is_limit_up_30m"):
                 val += " ⬆"
-            price = f"NT${float(r['close_price']):.2f}" if r.get("close_price") is not None else "—"
+        if close is not None:
+            price_str = f"{close:.2f}"
+            quote = f"{price_str} ({pct_str})" if chg is not None else price_str
+        else:
+            quote = pct_str
         board = ""
         if market == "TW":
             extra = json.loads(r.get("extra") or "{}") if isinstance(r.get("extra"), str) else (r.get("extra") or {})
@@ -416,12 +439,11 @@ def rank_rows_html(ranks, market: str) -> str:
             f'<tr><td class="rank">{r["rank"]}</td>'
             f'<td class="ticker">{html_lib.escape(r["ticker"])}</td>'
             f'<td class="name">{html_lib.escape((r["name"] or "")[:10])}{board}</td>'
-            f'<td class="num">{price}</td>'
-            f'<td class="num">{val}</td>'
-            f'<td class="num {css}">{pct}</td></tr>'
+            f'<td class="num {pct_cls}">{quote}</td>'
+            f'<td class="num">{val}</td></tr>'
         )
     if not rows:
-        return '<tr><td colspan="6" style="color:var(--muted);text-align:center">尚無資料</td></tr>'
+        return '<tr><td colspan="5" style="color:var(--muted);text-align:center">尚無資料</td></tr>'
     return ''.join(rows)
 
 
@@ -483,7 +505,9 @@ def _industry_section_html(
     all_stocks: dict,
     level: str,
 ) -> str:
-    """Render industry cluster cards. level = "main" | "sub"."""
+    """Render industry cluster cards. level = "main" | "sub".
+    前哨觀察(watch)已從顯示移除(2026-05-16),只保留今日焦點。
+    """
     if not clusters:
         label = "主產業" if level == "main" else "子產業"
         return f'<p class="muted-note">今日尚無{label}熱門產業</p>'
@@ -499,9 +523,6 @@ def _industry_section_html(
             strength_cls, strength_lbl = "strength-vol", "量能輪動"
 
         focal_pills = "".join(_stk_pill(s.ticker, all_stocks) for s in c.focal)
-        watch_pills = "".join(
-            _stk_pill(w.code, all_stocks, clickable=False) for w in c.watch
-        )
 
         tv_str = f"{c.trading_value/1e8:.0f}億" if c.trading_value > 0 else ""
         meta_text = f"{n_focal} 檔焦點" + (f" · {tv_str}" if tv_str else "")
@@ -520,9 +541,8 @@ def _industry_section_html(
     <span class="cluster-meta">{meta_text}</span>
   </div>
   {subtitle}
-  <div class="cluster-section-label">今日焦點（在前30）</div>
+  <div class="cluster-section-label">今日焦點（在前{RANKINGS_TOP_N}）</div>
   <div class="cluster-focal-stocks">{focal_pills}</div>
-  {('<div class="cluster-section-label">前哨觀察</div><div class="cluster-watch-stocks">' + watch_pills + "</div>") if watch_pills else ""}
 </div>""")
 
     return '<div class="focus-clusters">' + "".join(cards) + "</div>"
@@ -625,14 +645,17 @@ def build_catalyst_html(events: list[dict], stocks_info: dict | None = None) -> 
 
 def build_focus_html(
     tw_ranks: list,
-    main_clusters: list,
     sub_clusters: list,
 ) -> tuple[str, dict]:
-    """Build the 熱門題材 tab with 主產業 / 子產業 sub-tabs.
+    """Build the 熱門題材 tab — 只渲染子產業 ranked list。
 
-    2026-05 改版:從舊「主題 keyword cluster」結構改為「主產業 / 子產業」
-    雙層 ranked list。台股 only(theme_dictionary 改 source 為
-    statementdog.com/taiex 之後不再有美股)。
+    2026-05-16 改:移除主產業 sub-tab(資訊與子產業重疊),主產業仍由
+    `detect_industry_clusters` 計算但不在公開站顯示。前哨觀察(watch)同步
+    從卡片內移除(只剩今日焦點 focal pills)。
+
+    `_merge_identical_focal` 已在 focus_themes 那邊套用 —— focal ticker
+    set 完全相同的子產業會被合併成 "A & B & C: ...stocks"。
+
     Returns (html, modal_data) — modal_data 仍以 ticker 為 key,
     內容由下游 analyst consensus builder 填入。
     """
@@ -646,51 +669,25 @@ def build_focus_html(
             "market": "TW",
             "board": extra.get("board", "TWSE"),
             "change_pct": float(r["change_pct"]) if r["change_pct"] is not None else None,
+            "close_price": float(r["close_price"]) if r.get("close_price") is not None else None,
             "trading_value": float(r["trading_value"] or 0),
             "rank": r["rank"],
             "limit_up": bool(r.get("is_limit_up_30m")),
         }
-    # Watch stocks (not in top-30) — merge into lookup so _stk_pill can render
-    for c in main_clusters + sub_clusters:
-        for w in c.watch:
-            if w.code not in all_stocks:
-                all_stocks[w.code] = {
-                    "name": w.name,
-                    "market": "TW",
-                    "change_pct": w.change_pct,
-                    "trading_value": 0,
-                    "rank": 99,
-                    "limit_up": False,
-                }
 
-    if not main_clusters and not sub_clusters:
+    if not sub_clusters:
         return '<p class="muted-note">今日尚無熱門產業</p>', {}
 
     # Modal data placeholders — analyst consensus filled downstream
     modal_data: dict[str, str] = {}
-    for ticker in {s.ticker for c in (main_clusters + sub_clusters) for s in c.focal}:
+    for ticker in {s.ticker for c in sub_clusters for s in c.focal}:
         modal_data[ticker] = ""
 
-    main_html = _industry_section_html(main_clusters, all_stocks, "main")
     sub_html = _industry_section_html(sub_clusters, all_stocks, "sub")
-
-    html = (
-        '<div class="sub-tabs">'
-        '<button class="sub-tab-btn active" data-stab="ind-main"'
-        ' onclick="showSubTab(\'ind-main\')">主產業</button>'
-        '<button class="sub-tab-btn" data-stab="ind-sub"'
-        ' onclick="showSubTab(\'ind-sub\')">子產業</button>'
-        '</div>'
-        '<div id="stab-ind-main" class="sub-tab-pane active">'
-        '<div class="section-hdr">🎯 主產業排行</div>'
-        + main_html +
-        '</div>'
-        '<div id="stab-ind-sub" class="sub-tab-pane">'
-        '<div class="section-hdr">🎯 子產業排行</div>'
-        + sub_html +
-        '</div>'
+    return (
+        '<div class="section-hdr">🎯 子產業排行</div>' + sub_html,
+        modal_data,
     )
-    return html, modal_data
 
 
 # ── 股市筆記 tab ──────────────────────────────────────────────────────────────
@@ -820,6 +817,7 @@ async def generate():
             "name": r["name"] or r["ticker"],
             "market": "US",
             "change_pct": float(r["change_pct"]) if r["change_pct"] is not None else None,
+            "close_price": float(r["close_price"]) if r.get("close_price") is not None else None,
             "trading_value": float(r["trading_value"] or 0),
             "rank": r["rank"],
             "limit_up": False,
@@ -831,6 +829,7 @@ async def generate():
             "market": "TW",
             "board": extra.get("board", "TWSE"),
             "change_pct": float(r["change_pct"]) if r["change_pct"] is not None else None,
+            "close_price": float(r["close_price"]) if r.get("close_price") is not None else None,
             "trading_value": float(r["trading_value"] or 0),
             "rank": r["rank"],
             "limit_up": bool(r.get("is_limit_up_30m")),
@@ -841,24 +840,10 @@ async def generate():
     # statementdog.com/taiex source 之後不再有美股)。產生主產業與子產業
     # 兩份 ranked list。
     tw_top_volume = {t: info for t, info in stocks_info.items() if info.get("market") == "TW"}
-    main_clusters, sub_clusters = detect_industry_clusters(tw_top_volume)
-    all_clusters = main_clusters + sub_clusters
-
-    # Fetch recent change% for watch stocks (not in today's top-30, from past rankings)
-    if all_clusters:
-        watch_tickers = list({w.code for c in all_clusters for w in c.watch})
-        if watch_tickers:
-            wp_rows = await conn.fetch(
-                """SELECT DISTINCT ON (ticker) ticker, change_pct
-                   FROM trading_rankings
-                   WHERE ticker = ANY($1::text[])
-                   ORDER BY ticker, rank_date DESC""",
-                watch_tickers,
-            )
-            watch_prices = {r["ticker"]: (float(r["change_pct"]) if r["change_pct"] is not None else None) for r in wp_rows}
-            for c in all_clusters:
-                for w in c.watch:
-                    w.change_pct = watch_prices.get(w.code)
+    _main_clusters, sub_clusters = detect_industry_clusters(tw_top_volume)
+    # main_clusters 仍計算(供未來/ ingest backport 用),但公開站 2026-05-16 起
+    # 不在 UI 顯示;前哨觀察(watch)同步從卡片移除 → 不再需要查 watch change_pct
+    # 也不再 yfinance 補 watch close,純粹靠 stocks_info(top-N from SQL)。
 
     # Parse market_notes before closing (needed for tickers query).
     # raw_response and market_notes_json live in the same analysis_reports
@@ -906,7 +891,7 @@ async def generate():
     except Exception:
         pass
 
-    # Extend stocks_info with change% for market notes tickers not already in top-30
+    # Extend stocks_info with close / change% for market notes tickers not in top-N
     if market_notes and market_notes.get("topics"):
         notes_tickers = list({
             t for topic in market_notes["topics"]
@@ -915,7 +900,7 @@ async def generate():
         })
         if notes_tickers:
             nr = await conn.fetch(
-                """SELECT DISTINCT ON (ticker) ticker, name, change_pct, market
+                """SELECT DISTINCT ON (ticker) ticker, name, change_pct, close_price, market
                    FROM trading_rankings WHERE ticker = ANY($1::text[])
                    ORDER BY ticker, rank_date DESC""",
                 notes_tickers,
@@ -925,6 +910,7 @@ async def generate():
                     "name": r["name"] or r["ticker"],
                     "market": r["market"],
                     "change_pct": float(r["change_pct"]) if r["change_pct"] is not None else None,
+                    "close_price": float(r["close_price"]) if r.get("close_price") is not None else None,
                     "trading_value": 0,
                     "rank": 99,
                     "limit_up": False,
@@ -948,14 +934,11 @@ async def generate():
 
     await conn.close()
 
-    # yfinance: refresh change% for watch stocks + fetch metadata for notes
-    # tickers not already in rankings. 2026-05 後 cluster.trading_value 只
-    # 累加 top-30 focal,不再加 watch TV(配合新演算法純依字典 main/sub
-    # 分桶,不引入 watch 推升 cluster TV)。
+    # yfinance: 為「market_notes 提到但不在 top-N rankings 也不在 Q8 回傳」
+    # 的 ticker 補抓 close / change_pct,塞回 stocks_info(讓段末 pill 與
+    # topic-card pill 都能正確顯示 price(chg%)。watch 路徑已移除,因公開站
+    # 已不顯示前哨觀察。
     _yf_needed: list[tuple[str, str]] = []
-    for c in all_clusters:
-        for w in c.watch:
-            _yf_needed.append((w.code, "TW"))  # watch 純台股
     if market_notes and market_notes.get("topics"):
         for topic in market_notes["topics"]:
             for t in topic.get("tickers", []):
@@ -965,12 +948,6 @@ async def generate():
     if _yf_needed:
         _yf_needed = list({t[0]: t for t in _yf_needed}.values())  # dedup by ticker
         yf_data = await asyncio.to_thread(_yf_batch_fetch, _yf_needed)
-        # Refresh watch change_pct from yfinance (fresher than DB)
-        for c in all_clusters:
-            for w in c.watch:
-                d = yf_data.get(w.code, {})
-                if d.get("change_pct") is not None:
-                    w.change_pct = d["change_pct"]
         # Patch stocks_info for market_notes tickers not in any ranking
         for ticker, market in _yf_needed:
             if ticker not in stocks_info:
@@ -979,6 +956,7 @@ async def generate():
                     "name": _gemini_name_lookup.get(ticker) or _theme_name_lookup.get(ticker) or ticker,
                     "market": market,
                     "change_pct": d.get("change_pct"),
+                    "close_price": d.get("close"),
                     "trading_value": 0,
                     "rank": 99,
                     "limit_up": False,
@@ -991,7 +969,7 @@ async def generate():
     report_html = _pillify_in_html(report_html, stocks_info)
     updated_at  = datetime.now(timezone.utc).strftime("%m/%d %H:%M UTC")
 
-    focus_html, modal_data = build_focus_html(tw_ranks, main_clusters, sub_clusters)
+    focus_html, modal_data = build_focus_html(tw_ranks, sub_clusters)
     notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)
     catalyst_html = build_catalyst_html(catalyst_events, stocks_info)
 
@@ -1365,9 +1343,9 @@ dialog#art-modal::backdrop{{background:rgba(0,0,0,.65)}}
 .stk-pill[onclick=""],.stk-pill:not([onclick]){{cursor:default}}
 .sp-ticker{{font-weight:800;font-size:.85rem}}
 .sp-name{{font-size:.72rem;color:var(--muted)}}
-.sp-pct{{font-weight:700;font-size:.8rem}}
+.sp-quote{{font-weight:700;font-size:.78rem;font-variant-numeric:tabular-nums}}
 
-.up{{color:var(--up)}} .down{{color:var(--down)}} .neutral{{color:var(--muted)}}
+.up{{color:var(--up)}} .down{{color:var(--down)}} .flat{{color:#fff}} .neutral{{color:var(--muted)}}
 footer{{color:var(--muted);font-size:.75rem;
         padding:1.5rem 1rem;border-top:1px solid var(--border);margin-top:.5rem;
         line-height:1.6}}
@@ -1407,9 +1385,8 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
         <div class="sec">美股 成交值前 {RANKINGS_TOP_N}</div>
         <table>
           <thead><tr><th>#</th><th>代號</th><th>名稱</th>
-            <th style="text-align:right">股價</th>
-            <th style="text-align:right">成交值</th>
-            <th style="text-align:right">漲跌</th></tr></thead>
+            <th style="text-align:right">股價(漲跌%)</th>
+            <th style="text-align:right">成交值</th></tr></thead>
           <tbody>{rank_rows_html(us_ranks, 'US')}</tbody>
         </table>
       </div>
@@ -1417,9 +1394,8 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
         <div class="sec">台股 成交值前 {RANKINGS_TOP_N}</div>
         <table>
           <thead><tr><th>#</th><th>代號</th><th>名稱</th>
-            <th style="text-align:right">股價</th>
-            <th style="text-align:right">成交值</th>
-            <th style="text-align:right">漲跌</th></tr></thead>
+            <th style="text-align:right">股價(漲跌%)</th>
+            <th style="text-align:right">成交值</th></tr></thead>
           <tbody>{rank_rows_html(tw_ranks, 'TW')}</tbody>
         </table>
       </div>
