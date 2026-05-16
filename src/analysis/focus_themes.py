@@ -26,7 +26,7 @@ build script 一致。
 import json
 import re
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 DICT_FILE = Path(__file__).resolve().parents[2] / "data" / "theme_dictionary.json"
@@ -67,6 +67,11 @@ class IndustryCluster:
     focal: list[FocalStock]
     watch: list[WatchStock]
     trading_value: float   # sum of focal stocks' trading_value (TWD)
+    # 對應原始 theme_history 表的 (main, sub) keys。
+    # - 未合併 sub cluster:單一 [(main, name)]
+    # - 合併後 sub cluster:多個 [(m1, s1), (m2, s2), ...] 對應每個成員
+    # - main cluster:空 list(主產業層級不查 theme_history)
+    members: list[tuple[str, str]] = field(default_factory=list)
 
 
 def _load_dict() -> dict:
@@ -200,6 +205,7 @@ def detect_industry_clusters(
             focal=focal,
             watch=watch,
             trading_value=sub_tv[(main, sub)],
+            members=[(main, sub)],
         ))
     sub_clusters.sort(key=lambda c: -c.trading_value)
 
@@ -247,6 +253,9 @@ def _merge_identical_focal(clusters: list[IndustryCluster]) -> list[IndustryClus
         unique_mains = list(dict.fromkeys(c.main for c in members))
         joined_main = " & ".join(unique_mains)
         joined_id = "|".join(c.cluster_id for c in members)
+        merged_members: list[tuple[str, str]] = []
+        for m in members:
+            merged_members.extend(m.members)
         merged.append(IndustryCluster(
             cluster_id=f"merged::{joined_id}",
             level=first.level,
@@ -255,5 +264,6 @@ def _merge_identical_focal(clusters: list[IndustryCluster]) -> list[IndustryClus
             focal=first.focal,
             watch=[],  # 合併後 watch 不再有意義(可能各 sub 不同),且公開頁面已不顯示
             trading_value=first.trading_value,
+            members=merged_members,
         ))
     return merged
