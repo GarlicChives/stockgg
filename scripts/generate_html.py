@@ -562,7 +562,6 @@ def _industry_section_html(
     <span class="cluster-meta">{meta_text}</span>
   </div>
   {subtitle}
-  <div class="cluster-section-label">今日焦點（在前{RANKINGS_TOP_N}）</div>
   <div class="cluster-focal-stocks">{focal_pills}</div>
 </div>""")
 
