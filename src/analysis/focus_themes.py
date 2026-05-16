@@ -203,7 +203,22 @@ def detect_industry_clusters(
         ))
     sub_clusters.sort(key=lambda c: -c.trading_value)
 
+    # 同名子產業可能掛在多個主產業下(例如「記憶體」同時屬於 電腦及週邊
+    # 設備 與 通信網路)。頁面只呈現 TV 較大的那個,小的丟掉。
+    sub_clusters = _dedup_by_name(sub_clusters)
     return main_clusters, _merge_identical_focal(sub_clusters)
+
+
+def _dedup_by_name(clusters: list[IndustryCluster]) -> list[IndustryCluster]:
+    """同名 cluster 只保留 TV 最大的(輸入已按 TV desc 排序,first wins)。"""
+    seen: set[str] = set()
+    result: list[IndustryCluster] = []
+    for c in clusters:
+        if c.name in seen:
+            continue
+        seen.add(c.name)
+        result.append(c)
+    return result
 
 
 def _merge_identical_focal(clusters: list[IndustryCluster]) -> list[IndustryCluster]:
