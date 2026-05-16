@@ -533,10 +533,31 @@ def _industry_section_html(
             if level == "sub" else ""
         )
 
+        # Merged cluster name(focal 完全相同的子產業聚合) → 拆成 parts
+        # 渲染,讓 CSS media query 控制 mobile/tablet 收合;否則純文字。
+        if " & " in c.name:
+            parts = c.name.split(" & ")
+            parts_html_pieces = []
+            for i, p in enumerate(parts):
+                if i > 0:
+                    parts_html_pieces.append('<span class="cn-sep"> &amp; </span>')
+                parts_html_pieces.append(
+                    f'<span class="cn-part">{html_lib.escape(p)}</span>'
+                )
+            name_html = (
+                f'<span class="cluster-name cn-merged" data-parts="{len(parts)}">'
+                f'{icon} {"".join(parts_html_pieces)}'
+                f'<button class="cn-toggle" type="button" '
+                f'onclick="toggleClusterName(this)">+ ▾</button>'
+                f'</span>'
+            )
+        else:
+            name_html = f'<span class="cluster-name">{icon} {html_lib.escape(c.name)}</span>'
+
         cards.append(f"""
 <div class="cluster-card">
   <div class="cluster-hdr">
-    <span class="cluster-name">{icon} {html_lib.escape(c.name)}</span>
+    {name_html}
     <span class="cluster-strength {strength_cls}">{strength_lbl}</span>
     <span class="cluster-meta">{meta_text}</span>
   </div>
@@ -1209,6 +1230,34 @@ tr:last-child td{{border-bottom:none}}
                border-left:3px solid var(--accent);will-change:transform}}
 .cluster-hdr{{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;margin-bottom:.7rem}}
 .cluster-name{{font-size:.95rem;font-weight:700}}
+
+/* Merged cluster name (focal 完全相同的子產業聚合) — mobile/tablet 收合 */
+.cn-merged{{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:.1rem .25rem}}
+.cn-part{{display:inline}}
+.cn-sep{{display:inline;color:var(--muted);font-weight:500}}
+.cn-toggle{{display:none;font-size:.7rem;font-weight:700;
+            background:var(--accent-glow,rgba(108,142,245,.15));
+            color:var(--accent);border:none;padding:.05rem .4rem;
+            border-radius:4px;cursor:pointer;margin-left:.25rem;
+            font-family:inherit;line-height:1.4}}
+.cn-toggle:hover{{filter:brightness(1.2)}}
+/* Tablet (≤900px): 預設顯示前 3 parts;超過 4 出現按鈕 */
+@media(max-width:900px){{
+  .cn-merged:not(.expanded) > span:nth-child(n+6){{display:none}}
+  .cn-merged[data-parts="4"]:not(.expanded) .cn-toggle,
+  .cn-merged[data-parts="5"]:not(.expanded) .cn-toggle,
+  .cn-merged[data-parts="6"]:not(.expanded) .cn-toggle,
+  .cn-merged[data-parts="7"]:not(.expanded) .cn-toggle,
+  .cn-merged[data-parts="8"]:not(.expanded) .cn-toggle,
+  .cn-merged[data-parts="9"]:not(.expanded) .cn-toggle,
+  .cn-merged[data-parts="10"]:not(.expanded) .cn-toggle{{display:inline-block}}
+  .cn-merged.expanded .cn-toggle{{display:inline-block}}
+}}
+/* Mobile (≤480px): 預設顯示前 2 parts;超過 3 出現按鈕 */
+@media(max-width:480px){{
+  .cn-merged:not(.expanded) > span:nth-child(n+4){{display:none}}
+  .cn-merged[data-parts="3"]:not(.expanded) .cn-toggle{{display:inline-block}}
+}}
 .cluster-strength{{font-size:.65rem;font-weight:700;padding:.15rem .4rem;border-radius:4px}}
 .strength-high{{background:#1a3a2a;color:#4caf82}}
 .strength-mid{{background:#1e2235;color:var(--muted)}}
@@ -1463,6 +1512,43 @@ function showArtModal(ticker, name) {{
   document.getElementById('modal-body').innerHTML = artModalData[ticker] || '<p style="color:#7a8ba0">尚無分析師或文章資料</p>';
   modal.showModal();
 }}
+
+/* Merged cluster name — 計算螢幕對應 visible 閾值並產出 "+N ▾" / "收合 ▴" */
+function _mergedVisibleCount() {{
+  const w = window.innerWidth;
+  if (w <= 480) return 2;
+  if (w <= 900) return 3;
+  return Infinity;
+}}
+
+function _refreshClusterToggle(el) {{
+  const btn = el.querySelector('.cn-toggle');
+  if (!btn) return;
+  const parts = parseInt(el.dataset.parts, 10) || 0;
+  if (el.classList.contains('expanded')) {{
+    btn.textContent = '收合 ▴';
+    return;
+  }}
+  const visible = _mergedVisibleCount();
+  if (parts > visible) {{
+    btn.textContent = '+' + (parts - visible) + ' ▾';
+  }} else {{
+    btn.textContent = '';
+  }}
+}}
+
+function toggleClusterName(btn) {{
+  const el = btn.closest('.cn-merged');
+  if (!el) return;
+  el.classList.toggle('expanded');
+  _refreshClusterToggle(el);
+}}
+
+function _initMergedNames() {{
+  document.querySelectorAll('.cn-merged').forEach(_refreshClusterToggle);
+}}
+window.addEventListener('load', _initMergedNames);
+window.addEventListener('resize', _initMergedNames);
 
 function toggleEl(id) {{
   const el = document.getElementById(id);
