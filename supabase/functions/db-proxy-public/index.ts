@@ -43,11 +43,11 @@ const ALLOWED: Set<string> = new Set([
   "select max(rank_date) from trading_rankings where market='us'",
   "select max(rank_date) from trading_rankings where market='tw'",
 
-  // Q5 — US top 30 today
-  "select row_number() over (order by trading_value desc nulls last)::int as rank, ticker, name, trading_value, change_pct, extra from trading_rankings where rank_date=$1 and market='us' order by trading_value desc nulls last limit 30",
+  // Q5 — US top 50 today (includes close_price; LIMIT bumped 30→50 2026-05)
+  "select row_number() over (order by trading_value desc nulls last)::int as rank, ticker, name, trading_value, change_pct, close_price, extra from trading_rankings where rank_date=$1 and market='us' order by trading_value desc nulls last limit 50",
 
-  // Q6 — TW top 30 today (includes is_limit_up_30m)
-  "select row_number() over (order by trading_value desc nulls last)::int as rank, ticker, name, trading_value, change_pct, is_limit_up_30m, extra from trading_rankings where rank_date=$1 and market='tw' order by trading_value desc nulls last limit 30",
+  // Q6 — TW top 50 today (includes close_price + is_limit_up_30m)
+  "select row_number() over (order by trading_value desc nulls last)::int as rank, ticker, name, trading_value, change_pct, close_price, is_limit_up_30m, extra from trading_rankings where rank_date=$1 and market='tw' order by trading_value desc nulls last limit 50",
 
   // Q7 — change% for watch tickers (focus theme watch list)
   "select distinct on (ticker) ticker, change_pct from trading_rankings where ticker = any($1::text[]) order by ticker, rank_date desc",

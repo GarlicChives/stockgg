@@ -28,6 +28,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from src.analysis.focus_themes import detect_industry_clusters, IndustryCluster
+from src.utils.config import RANKINGS_TOP_N
 
 OUT_FILE = Path(__file__).resolve().parents[1] / "docs" / "index.html"
 
@@ -400,10 +401,12 @@ def rank_rows_html(ranks, market: str) -> str:
         pct, css = fmt_pct(chg)
         if market == "US":
             val = f"${float(r['trading_value'] or 0)/1e9:.1f}B"
+            price = f"${float(r['close_price']):.2f}" if r.get("close_price") is not None else "—"
         else:
             val = f"{float(r['trading_value'] or 0)/1e8:.0f}億"
             if r.get("is_limit_up_30m"):
                 val += " ⬆"
+            price = f"NT${float(r['close_price']):.2f}" if r.get("close_price") is not None else "—"
         board = ""
         if market == "TW":
             extra = json.loads(r.get("extra") or "{}") if isinstance(r.get("extra"), str) else (r.get("extra") or {})
@@ -413,11 +416,12 @@ def rank_rows_html(ranks, market: str) -> str:
             f'<tr><td class="rank">{r["rank"]}</td>'
             f'<td class="ticker">{html_lib.escape(r["ticker"])}</td>'
             f'<td class="name">{html_lib.escape((r["name"] or "")[:10])}{board}</td>'
+            f'<td class="num">{price}</td>'
             f'<td class="num">{val}</td>'
             f'<td class="num {css}">{pct}</td></tr>'
         )
     if not rows:
-        return '<tr><td colspan="5" style="color:var(--muted);text-align:center">尚無資料</td></tr>'
+        return '<tr><td colspan="6" style="color:var(--muted);text-align:center">尚無資料</td></tr>'
     return ''.join(rows)
 
 
@@ -783,22 +787,23 @@ async def generate():
     us_ranks, tw_ranks = [], []
     if us_rank_date:
         us_ranks = [dict(r) for r in await conn.fetch(
-            """SELECT ROW_NUMBER() OVER (ORDER BY trading_value DESC NULLS LAST)::int AS rank,
-                      ticker, name, trading_value, change_pct, extra
-               FROM trading_rankings
-               WHERE rank_date=$1 AND market='US'
-               ORDER BY trading_value DESC NULLS LAST
-               LIMIT 30""",
+            f"""SELECT ROW_NUMBER() OVER (ORDER BY trading_value DESC NULLS LAST)::int AS rank,
+                       ticker, name, trading_value, change_pct, close_price, extra
+                FROM trading_rankings
+                WHERE rank_date=$1 AND market='US'
+                ORDER BY trading_value DESC NULLS LAST
+                LIMIT {RANKINGS_TOP_N}""",
             us_rank_date,
         )]
     if tw_rank_date:
         tw_ranks = [dict(r) for r in await conn.fetch(
-            """SELECT ROW_NUMBER() OVER (ORDER BY trading_value DESC NULLS LAST)::int AS rank,
-                      ticker, name, trading_value, change_pct, is_limit_up_30m, extra
-               FROM trading_rankings
-               WHERE rank_date=$1 AND market='TW'
-               ORDER BY trading_value DESC NULLS LAST
-               LIMIT 30""",
+            f"""SELECT ROW_NUMBER() OVER (ORDER BY trading_value DESC NULLS LAST)::int AS rank,
+                       ticker, name, trading_value, change_pct, close_price,
+                       is_limit_up_30m, extra
+                FROM trading_rankings
+                WHERE rank_date=$1 AND market='TW'
+                ORDER BY trading_value DESC NULLS LAST
+                LIMIT {RANKINGS_TOP_N}""",
             tw_rank_date,
         )]
 
@@ -835,8 +840,8 @@ async def generate():
     # Industry clustering — TW top-30 only (theme_dictionary 2026-05 改成
     # statementdog.com/taiex source 之後不再有美股)。產生主產業與子產業
     # 兩份 ranked list。
-    tw_top30 = {t: info for t, info in stocks_info.items() if info.get("market") == "TW"}
-    main_clusters, sub_clusters = detect_industry_clusters(tw_top30)
+    tw_top_volume = {t: info for t, info in stocks_info.items() if info.get("market") == "TW"}
+    main_clusters, sub_clusters = detect_industry_clusters(tw_top_volume)
     all_clusters = main_clusters + sub_clusters
 
     # Fetch recent change% for watch stocks (not in today's top-30, from past rankings)
@@ -1399,18 +1404,20 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
     </div>
     <div class="ranks">
       <div class="card">
-        <div class="sec">美股 成交值前 30</div>
+        <div class="sec">美股 成交值前 {RANKINGS_TOP_N}</div>
         <table>
           <thead><tr><th>#</th><th>代號</th><th>名稱</th>
+            <th style="text-align:right">股價</th>
             <th style="text-align:right">成交值</th>
             <th style="text-align:right">漲跌</th></tr></thead>
           <tbody>{rank_rows_html(us_ranks, 'US')}</tbody>
         </table>
       </div>
       <div class="card">
-        <div class="sec">台股 成交值前 30</div>
+        <div class="sec">台股 成交值前 {RANKINGS_TOP_N}</div>
         <table>
           <thead><tr><th>#</th><th>代號</th><th>名稱</th>
+            <th style="text-align:right">股價</th>
             <th style="text-align:right">成交值</th>
             <th style="text-align:right">漲跌</th></tr></thead>
           <tbody>{rank_rows_html(tw_ranks, 'TW')}</tbody>

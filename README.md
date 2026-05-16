@@ -17,7 +17,7 @@ transcripts — all of that lives in a separate private system.
   Fear & Greed
 - **綜合多空判斷** — short / medium / long term direction tags
 - **未來事件日曆** — upcoming earnings (yfinance) + macro events
-- **熱門題材** — TW main + sub industry ranking on top-30 volume stocks
+- **熱門題材** — TW main + sub industry ranking on top-N volume stocks (N=`RANKINGS_TOP_N` in `src/utils/config.py`)
 - **跨來源議題** — common topics across multiple sources (≥ 2)
 
 ## How it's served

@@ -6,7 +6,7 @@
 
 演算法
 ------
-對台股 top-30 成交值股票,每檔股票讀 `stocks[ticker].industries[]`,
+對台股 top-N 成交值股票,每檔股票讀 `stocks[ticker].industries[]`,
 累加 trading_value 到:
   - `main_tv[main]`            每個主產業桶
   - `sub_tv[(main, sub)]`      每個 (主, 子) 桶
@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DICT_FILE = Path(__file__).resolve().parents[2] / "data" / "theme_dictionary.json"
-MIN_VOLUME = 2  # minimum top-30 members for a cluster to qualify (保留舊門檻)
+MIN_VOLUME = 2  # minimum top-N members for a cluster to qualify (保留舊門檻)
 
 _ETF_TW_RE = re.compile(r"^00\d")
 
@@ -88,25 +88,25 @@ def _focal_from(ticker: str, info: dict) -> FocalStock:
 
 
 def detect_industry_clusters(
-    tw_top30: dict[str, dict],
+    tw_top_volume: dict[str, dict],
 ) -> tuple[list[IndustryCluster], list[IndustryCluster]]:
-    """Aggregate TW top-30 trading value into main + (main, sub) buckets.
+    """Aggregate TW top-N trading value into main + (main, sub) buckets.
 
     Args:
-        tw_top30: ticker -> {name, change_pct, trading_value, rank, limit_up}
+        tw_top_volume: ticker -> {name, change_pct, trading_value, rank, limit_up}
                   caller should have already filtered ETFs but we re-guard.
 
     Returns:
         (main_clusters, sub_clusters), each sorted by trading_value desc and
-        gated by MIN_VOLUME (≥ 2 top-30 members per cluster).
+        gated by MIN_VOLUME (≥ 2 top-N members per cluster).
     """
     data = _load_dict()
     all_stocks = data.get("stocks", {})
     if not all_stocks:
         return [], []
 
-    # ETF guard on top-30 (defensive — caller usually filters too)
-    top30 = {t: info for t, info in tw_top30.items() if not _is_etf(t, info.get("name", ""))}
+    # ETF guard on top-N (defensive — caller usually filters too)
+    top30 = {t: info for t, info in tw_top_volume.items() if not _is_etf(t, info.get("name", ""))}
     top30_set = set(top30)
 
     # Aggregation buckets
@@ -139,7 +139,7 @@ def detect_industry_clusters(
                     sub_focal[key].append(ticker)
                     sub_tv[key] += tv
 
-    # Watch stocks: dictionary stocks NOT in top-30 for each touched main / sub.
+    # Watch stocks: dictionary stocks NOT in top-N for each touched main / sub.
     main_watch: dict[str, list[WatchStock]] = defaultdict(list)
     sub_watch: dict[tuple[str, str], list[WatchStock]] = defaultdict(list)
 
