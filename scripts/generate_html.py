@@ -481,7 +481,8 @@ def _yf_market_index_history(period: str = "6mo") -> dict[str, list[dict]]:
     except ImportError:
         return {}
     result: dict[str, list[dict]] = {}
-    syms_map = {"^TWII": "TWII", "^TWO": "TPEX"}
+    # ^TWO 在 yfinance 抓不到資料,^TWOII 是有效的 TPEx Composite Index symbol
+    syms_map = {"^TWII": "TWII", "^TWOII": "TPEX"}
     try:
         raw = yf.download(list(syms_map), period=period, progress=False,
                           auto_adjust=True, group_by="ticker")
@@ -2303,43 +2304,76 @@ function _findClusterDef(cardId) {{
 }}
 
 /* 算單一 cluster 的 daily series:
- *   - netSeries:三大法人淨流入(億)
- *   - priceSeries:market-cap weighted index = Σ(close × shares_out) per day
- *                 之後 _rebaseSeries 把它 rebase 到 100(從 chart 共同 start day)
+ *   - netSeries:三大法人淨流入(億),用真實當日值,不 forward-fill
+ *     (法人買賣超是日結 transaction,沒交易=0,不能用昨日延伸)
+ *   - priceSeries:market-cap = Σ(close × shares_out) per day,
+ *     **per-ticker forward-fill**(歷史上焦點股不一定每天都在 top-50,
+ *     缺的日子用該檔上一次有資料的 close × shares 延續,標準加權指數做法)
+ *     之後 _rebaseSeries 把它 rebase 到 100。
  * payload 5-tuple [tv, chg, close, net_inst, shares_out]
- * 鎖定今天的 cluster.focal ticker set,套 _univDis 過濾。
- * shares_out 缺(stock_meta 還沒抓到該檔)→ 該檔不貢獻 mcap,但仍貢獻 net。 */
+ * 鎖定今天的 cluster.focal ticker set,套 _univDis 過濾。 */
 function _computeClusterSeries(cluster) {{
   const hist = window.IIA_HISTORY || {{}};
   const keys = cluster.memberKeys || [];
-  const todayFocals = new Set((cluster.focal || []).map(f => f.ticker));
-  const daily = {{}};
+  const todayFocals = [...new Set((cluster.focal || []).map(f => f.ticker))]
+    .filter(t => !_univDis.has(t));
+
+  // 收集所有出現過的 dates(across all member keys)
+  const dateSet = new Set();
+  keys.forEach(k => (hist[k] || []).forEach(row => dateSet.add(row.d)));
+  const dates = [...dateSet].sort();
+  if (!dates.length) return {{ netSeries: [], priceSeries: [] }};
+
+  // per-ticker raw 歷史:date -> {{close, shares, net}}
+  const raw = {{}};   // ticker -> {{date -> obj}}
+  todayFocals.forEach(t => {{ raw[t] = {{}}; }});
   keys.forEach(k => {{
     (hist[k] || []).forEach(row => {{
       const stocks = row.s || {{}};
-      const cur = daily[row.d] || (daily[row.d] = {{ netSum: 0, mcapSum: 0 }});
       for (const [ticker, v] of Object.entries(stocks)) {{
-        if (!todayFocals.has(ticker)) continue;
-        if (_univDis.has(ticker)) continue;
-        const close = (v && v[2] != null) ? v[2] : null;
-        const net = (v && v[3] != null) ? v[3] : 0;
-        const shares = (v && v[4] != null) ? v[4] : null;
-        cur.netSum += net;
-        if (close !== null && shares !== null) {{
-          cur.mcapSum += close * shares;
-        }}
+        if (!raw[ticker]) continue;
+        raw[ticker][row.d] = {{
+          close:  (v && v[2] != null) ? v[2] : null,
+          net:    (v && v[3] != null) ? v[3] : null,
+          shares: (v && v[4] != null) ? v[4] : null,
+        }};
       }}
     }});
   }});
-  const dates = Object.keys(daily).sort();
-  const netSeries = dates.map(d => {{
-    const v = daily[d].netSum / 1e8;
-    return {{ time: d, value: v, color: v >= 0 ? 'rgba(239,83,80,.8)' : 'rgba(38,166,154,.8)' }};
+
+  // per-ticker forward-fill close/shares (net 不 fill)
+  const filled = {{}};
+  todayFocals.forEach(t => {{
+    filled[t] = {{}};
+    let lastClose = null, lastShares = null;
+    dates.forEach(d => {{
+      const day = raw[t][d];
+      if (day && day.close != null) lastClose = day.close;
+      if (day && day.shares != null) lastShares = day.shares;
+      if (lastClose != null && lastShares != null) {{
+        filled[t][d] = {{ close: lastClose, shares: lastShares }};
+      }}
+    }});
   }});
-  // 用 daily market cap 當「加權指數」原始值,_rebaseSeries 之後會 normalize 到 100
-  const priceSeries = dates.map(d => ({{
-    time: d, value: daily[d].mcapSum,
-  }})).filter(p => p.value > 0);
+
+  // 合成 daily mcap (filled) + daily net (raw only)
+  const netSeries = [];
+  const priceSeries = [];
+  dates.forEach(d => {{
+    let mcap = 0, net = 0;
+    todayFocals.forEach(t => {{
+      const f = filled[t][d];
+      if (f) mcap += f.close * f.shares;
+      const r = raw[t][d];
+      if (r && r.net != null) net += r.net;
+    }});
+    const netBn = net / 1e8;
+    netSeries.push({{
+      time: d, value: netBn,
+      color: netBn >= 0 ? 'rgba(239,83,80,.8)' : 'rgba(38,166,154,.8)',
+    }});
+    if (mcap > 0) priceSeries.push({{ time: d, value: mcap }});
+  }});
   return {{ netSeries, priceSeries }};
 }}
 
