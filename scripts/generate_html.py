@@ -1030,16 +1030,10 @@ def build_focus_html(
         modal_data[ticker] = ""
 
     sub_html = _industry_section_html(sub_clusters, all_stocks, "sub", theme_history_payload)
-    # Inline theme history + 大盤指數 payload for sparkline + modal chart JS
-    history_json = json.dumps(theme_history_payload, ensure_ascii=False, separators=(",", ":"))
-    index_json = json.dumps(market_index_payload or {}, ensure_ascii=False, separators=(",", ":"))
-    payload_script = (
-        f"<script>"
-        f"window.IIA_HISTORY={history_json};"
-        f"window.IIA_INDEX_HISTORY={index_json};"
-        f"</script>"
-    )
-    return sub_html + payload_script, modal_data
+    # 註:theme_history + 大盤指數 payload 不再 inline 進 HTML,改寫到
+    # docs/history.json 由 modal chart 首次開啟時 fetch(降首屏約 1 MB)。
+    # sparkline SVG 是 server-side 預渲染,不需要 history.json。
+    return sub_html, modal_data
 
 
 # ── 焦點排行 tab (Sprint 3) ───────────────────────────────────────────────────
@@ -1131,11 +1125,19 @@ def build_focus_ranking_html(
             )
         return "".join(out)
 
+    def _dl(tid: str, fname: str) -> str:
+        return (f'<button class="rank-dl" type="button" '
+                f'onclick="downloadRankCSV(\'{tid}\',\'{fname}\')" '
+                f'title="下載 CSV">⬇ CSV</button>')
+
     return (
         '<div class="ranks">'
         '<div class="card">'
-        '<div class="sec">💰 高殖利率焦點 Top 15</div>'
-        '<table>'
+        '<div class="sec sec-row">'
+        '<span>💰 高殖利率焦點 Top 15</span>'
+        + _dl('rank-yield', 'stockgg-high-yield') +
+        '</div>'
+        '<table id="rank-yield">'
         '<thead><tr><th>#</th><th>代號</th><th>名稱</th>'
         '<th style="text-align:right">股價(漲跌)</th>'
         '<th style="text-align:right">殖利率</th>'
@@ -1145,8 +1147,11 @@ def build_focus_ranking_html(
         '</table>'
         '</div>'
         '<div class="card">'
-        '<div class="sec">📉 估值偏低焦點 Top 15(PE TTM)</div>'
-        '<table>'
+        '<div class="sec sec-row">'
+        '<span>📉 估值偏低焦點 Top 15(PE TTM)</span>'
+        + _dl('rank-pe', 'stockgg-low-pe') +
+        '</div>'
+        '<table id="rank-pe">'
         '<thead><tr><th>#</th><th>代號</th><th>名稱</th>'
         '<th style="text-align:right">股價(漲跌)</th>'
         '<th style="text-align:right">PE</th>'
@@ -1589,6 +1594,18 @@ async def generate():
     # Duplicate for seamless loop; animation runs translateX(-50%)
     tape_html = f'<div class="tape-track">{tape_content}&ensp;&ensp;&ensp;&ensp;{tape_content}</div>'
 
+    # ── SEO / Open Graph(Line / FB / X / Google preview)──────────────────────
+    site_url = "https://stockgg.v4578469.workers.dev"
+    _twii_close, _twii_chg = ind("^TWII")
+    _n_themes = len(sub_clusters)
+    _seo_bits = ["台股每日題材趨勢分析"]
+    if _twii_close is not None and _twii_chg is not None:
+        _seo_bits.append(f"加權指數 {_twii_close:,.0f}({_twii_chg:+.2f}%)")
+    if _n_themes:
+        _seo_bits.append(f"{_n_themes} 個熱門題材")
+    _seo_bits.append("外資三大法人流向、AI 智能解析")
+    seo_description = "｜".join(_seo_bits)[:155]
+
     # Modal data JS (escaped JSON string values)
     modal_js_entries = ",\n".join(
         f'  {json.dumps(k)}: {json.dumps(v)}'
@@ -1601,7 +1618,21 @@ async def generate():
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IIA 投資情報 {report_date}</title>
+<meta name="description" content="{seo_description}">
+<meta name="theme-color" content="#0f1117">
+<link rel="canonical" href="{site_url}">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
+<!-- Open Graph(Facebook / Line / 一般 social preview)-->
+<meta property="og:type" content="website">
+<meta property="og:locale" content="zh_TW">
+<meta property="og:site_name" content="IIA 投資情報">
+<meta property="og:url" content="{site_url}">
+<meta property="og:title" content="IIA 投資情報 {report_date}">
+<meta property="og:description" content="{seo_description}">
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="IIA 投資情報 {report_date}">
+<meta name="twitter:description" content="{seo_description}">
 <style>
 :root {{
   --bg:#0f1117; --card:#1a1d26; --border:#2a2e40;
@@ -1669,6 +1700,13 @@ header{{background:var(--card);border-bottom:1px solid var(--border);
        padding:1.2rem 1.35rem;margin-bottom:1.1rem}}
 .sec{{font-size:1rem;font-weight:700;color:var(--accent);letter-spacing:.04em;
       margin-bottom:.85rem}}
+.sec-row{{display:flex;align-items:center;justify-content:space-between;gap:.6rem}}
+.rank-dl{{font-family:inherit;font-size:.66rem;font-weight:600;
+          padding:.22rem .55rem;border-radius:5px;cursor:pointer;
+          background:rgba(124,138,242,.08);color:var(--accent);
+          border:1px solid rgba(124,138,242,.3);transition:.15s;
+          letter-spacing:.04em;flex-shrink:0}}
+.rank-dl:hover{{background:rgba(124,138,242,.18);border-color:var(--accent)}}
 .section-hdr{{font-size:.88rem;font-weight:700;color:var(--accent);letter-spacing:.04em;
               margin:1rem 0 .65rem}}
 
@@ -1857,6 +1895,17 @@ dialog#theme-chart-dialog::backdrop{{background:rgba(0,0,0,.65)}}
 .tc-chart-label::before{{content:"";width:3px;height:11px;background:var(--accent);
                          border-radius:2px}}
 .tc-legend{{display:inline-flex;gap:.3rem;margin-left:.6rem;flex-wrap:wrap}}
+/* 時間粒度 chip(1M/3M/6M/1Y/ALL) */
+.tc-period{{display:inline-flex;gap:.15rem;align-items:center;flex-shrink:0}}
+.tc-period-chip{{font-size:.66rem;font-weight:700;padding:.22rem .45rem;
+                  border-radius:5px;background:rgba(255,255,255,.05);
+                  color:var(--muted);border:none;cursor:pointer;
+                  transition:.15s;font-family:inherit;letter-spacing:.02em}}
+.tc-period-chip:hover{{color:var(--text)}}
+.tc-period-chip.active{{background:var(--accent-glow);color:var(--accent)}}
+@media(max-width:480px){{
+  .tc-period-chip{{padding:.18rem .35rem;font-size:.6rem}}
+}}
 .tc-leg-chip{{display:inline-flex;align-items:center;gap:.3rem;
               font-size:.66rem;font-weight:700;padding:.15rem .45rem;
               border-radius:4px;background:rgba(255,255,255,.05);
@@ -2023,6 +2072,21 @@ footer .disclaimer{{max-width:760px;margin:0 auto .8rem;text-align:left}}
 footer .disclaimer h3{{color:#a0b0cc;font-size:.78rem;font-weight:600;
                        margin:0 0 .35rem;letter-spacing:.04em}}
 footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--border)}}
+.share-row{{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;
+            gap:.4rem;max-width:760px;margin:0 auto 1rem;padding-bottom:.8rem;
+            border-bottom:1px dashed var(--border)}}
+.share-label{{color:var(--muted);font-size:.72rem;margin-right:.25rem}}
+.share-btn{{font-family:inherit;font-size:.72rem;font-weight:600;
+            padding:.32rem .7rem;border-radius:6px;cursor:pointer;
+            background:rgba(255,255,255,.04);color:var(--text);
+            border:1px solid var(--border);transition:.15s}}
+.share-btn:hover{{background:rgba(124,138,242,.12);
+                   border-color:rgba(124,138,242,.4);color:var(--accent)}}
+@media(max-width:480px){{
+  .share-row{{gap:.3rem}}
+  .share-btn{{padding:.28rem .55rem;font-size:.68rem}}
+  .share-label{{flex-basis:100%;text-align:center;margin:0 0 .35rem}}
+}}
 </style>
 </head>
 <body>
@@ -2101,9 +2165,16 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
 <!-- Theme chart modal (子產業 6 個月 TV / 平均漲跌 趨勢) -->
 <dialog id="theme-chart-dialog">
   <div class="tc-hdr">
-    <div style="flex:1">
+    <div style="flex:1;min-width:0">
       <div class="tc-title" id="tc-title"></div>
       <div class="tc-meta" id="tc-meta"></div>
+    </div>
+    <div class="tc-period">
+      <button class="tc-period-chip" data-period="1m" type="button" onclick="setChartPeriod('1m')">1M</button>
+      <button class="tc-period-chip" data-period="3m" type="button" onclick="setChartPeriod('3m')">3M</button>
+      <button class="tc-period-chip active" data-period="6m" type="button" onclick="setChartPeriod('6m')">6M</button>
+      <button class="tc-period-chip" data-period="1y" type="button" onclick="setChartPeriod('1y')">1Y</button>
+      <button class="tc-period-chip" data-period="all" type="button" onclick="setChartPeriod('all')">ALL</button>
     </div>
     <button class="tc-close" type="button"
             onclick="document.getElementById('theme-chart-dialog').close()">✕</button>
@@ -2125,6 +2196,14 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
 </dialog>
 
 <footer>
+  <div class="share-row">
+    <span class="share-label">分享今日報告：</span>
+    <button class="share-btn share-native" type="button" onclick="shareReport('native')" hidden>原生分享</button>
+    <button class="share-btn" type="button" onclick="shareReport('line')">Line</button>
+    <button class="share-btn" type="button" onclick="shareReport('x')">X</button>
+    <button class="share-btn" type="button" onclick="shareReport('fb')">Facebook</button>
+    <button class="share-btn" type="button" onclick="shareReport('copy')">複製連結</button>
+  </div>
   <div class="disclaimer">
     <h3>⚠ 投資免責聲明</h3>
     <p>本網站內容由自動化系統匯整公開市場資料、研究文章與 AI 分析模型產出，
@@ -2300,11 +2379,56 @@ function _recalcClusters(level) {{
 }}
 
 /* ── Theme chart modal — 6 個月 TV / 平均漲跌 趨勢 ────────────────────────── */
+/* IIA_HISTORY / IIA_INDEX_HISTORY 不再 inline(~1 MB),改 fetch history.json,
+ * 由 openThemeChart 首次點擊時觸發。後續同 session 一次就好。 */
+let _historyLoadPromise = null;
+function _loadHistory() {{
+  if (window.IIA_HISTORY) return Promise.resolve();
+  if (_historyLoadPromise) return _historyLoadPromise;
+  _historyLoadPromise = fetch('history.json', {{ cache: 'force-cache' }})
+    .then(r => {{ if (!r.ok) throw new Error('history.json ' + r.status); return r.json(); }})
+    .then(data => {{
+      window.IIA_HISTORY = data.history || {{}};
+      window.IIA_INDEX_HISTORY = data.index || {{}};
+    }})
+    .catch(err => {{
+      _historyLoadPromise = null;  // 失敗時可重試
+      throw err;
+    }});
+  return _historyLoadPromise;
+}}
+
 let _lwcLoadPromise = null;
 let _openThemeCardId = null;       // 目前打開的 cluster cardId(null = 關)
 let _tcCharts = {{ net: null, price: null, netSeries: null,
                     clusterSeries: null, twiiSeries: null, tpexSeries: null }};
 const _lineVis = {{ cluster: true, twii: true, tpex: true }};
+// 時間粒度('1m'/'3m'/'6m'/'1y'/'all'),預設 6m,點 chip 切換
+let _chartPeriod = '6m';
+const _PERIOD_DAYS = {{ '1m': 30, '3m': 90, '6m': 180, '1y': 365 }};
+
+/* 給定 series([{{time:'YYYY-MM-DD',...}}, ...]),按 _chartPeriod 截尾段。
+ * cutoff 用 series 最末天往回推(不是 today),避免週末/假期讓 1m 變空。
+ * 'all' 或無 mapping 不過濾。 */
+function _filterByPeriod(series) {{
+  if (!series || !series.length || _chartPeriod === 'all') return series;
+  const days = _PERIOD_DAYS[_chartPeriod];
+  if (!days) return series;
+  const lastTime = series[series.length - 1].time;
+  const lastMs = new Date(lastTime + 'T00:00:00Z').getTime();
+  const cutoffMs = lastMs - days * 86400000;
+  const cutoff = new Date(cutoffMs).toISOString().slice(0, 10);
+  return series.filter(p => p.time >= cutoff);
+}}
+
+function setChartPeriod(p) {{
+  if (p === _chartPeriod) return;
+  _chartPeriod = p;
+  document.querySelectorAll('.tc-period-chip').forEach(b => {{
+    b.classList.toggle('active', b.dataset.period === p);
+  }});
+  if (_openThemeCardId) _renderThemeChart(_openThemeCardId);
+}}
 
 function _loadLightweightCharts() {{
   if (window.LightweightCharts) return Promise.resolve();
@@ -2432,13 +2556,19 @@ function _disposeThemeCharts() {{
 function _renderThemeChart(cardId) {{
   const cluster = _findClusterDef(cardId);
   if (!cluster) return;
-  const {{ netSeries, priceSeries }} = _computeClusterSeries(cluster);
-  const twiiRaw = _computeIndexSeries('TWII');
-  const tpexRaw = _computeIndexSeries('TPEX');
+  let {{ netSeries, priceSeries }} = _computeClusterSeries(cluster);
+  let twiiRaw = _computeIndexSeries('TWII');
+  let tpexRaw = _computeIndexSeries('TPEX');
+  // 按 _chartPeriod 截尾段(1M/3M/6M/1Y/ALL)
+  netSeries = _filterByPeriod(netSeries);
+  priceSeries = _filterByPeriod(priceSeries);
+  twiiRaw = _filterByPeriod(twiiRaw);
+  tpexRaw = _filterByPeriod(tpexRaw);
   document.getElementById('tc-title').textContent = '🔸 ' + cluster.name;
   const activeFocalN = cluster.focal.filter(f => !_univDis.has(f.ticker)).length;
+  const periodLabel = _chartPeriod === 'all' ? '全部' : _chartPeriod.toUpperCase();
   document.getElementById('tc-meta').textContent =
-    netSeries.length ? (netSeries.length + ' 天歷史 · ' + activeFocalN + ' 檔焦點(濾後)') : '';
+    netSeries.length ? (periodLabel + ' · ' + netSeries.length + ' 天 · ' + activeFocalN + ' 檔焦點(濾後)') : '';
   const empty = document.getElementById('tc-empty');
   const netEl = document.getElementById('tc-chart-net');
   const priceEl = document.getElementById('tc-chart-price');
@@ -2524,12 +2654,18 @@ function openThemeChart(cardId) {{
   const dlg = document.getElementById('theme-chart-dialog');
   if (!dlg) return;
   dlg.showModal();
-  _loadLightweightCharts()
+  // 顯示 loading hint(首次 fetch history.json 可能要 ~1 秒)
+  const tcEmpty = document.getElementById('tc-empty');
+  if (!window.IIA_HISTORY) {{
+    tcEmpty.textContent = '載入歷史資料中…';
+    tcEmpty.style.display = '';
+  }}
+  Promise.all([_loadLightweightCharts(), _loadHistory()])
     .then(() => _renderThemeChart(cardId))
     .catch(err => {{
-      console.error('Failed to load Lightweight Charts', err);
-      document.getElementById('tc-empty').textContent = '圖表載入失敗';
-      document.getElementById('tc-empty').style.display = '';
+      console.error('Failed to load chart deps', err);
+      tcEmpty.textContent = '圖表載入失敗';
+      tcEmpty.style.display = '';
     }});
 }}
 
@@ -2563,6 +2699,84 @@ function toggleEl(id) {{
 document.getElementById('art-modal').addEventListener('click', function(e) {{
   if (e.target === this) this.close();
 }});
+
+/* ── 分享報告 ─────────────────────────────────────────────────────────────── */
+/* 桌機 → 對應社群 share URL 開新視窗;手機(支援 navigator.share)→ 原生 sheet。
+ * 標題 + 描述從 <meta> 取,免再 hard-code。 */
+function shareReport(target) {{
+  const url = (document.querySelector('link[rel="canonical"]')?.href) || location.href;
+  const title = (document.querySelector('meta[property="og:title"]')?.content) || document.title;
+  const desc = (document.querySelector('meta[name="description"]')?.content) || '';
+  const text = title + ' — ' + desc;
+  const u = encodeURIComponent(url);
+  const t = encodeURIComponent(text);
+  if (target === 'native' && navigator.share) {{
+    navigator.share({{ title, text: desc, url }}).catch(() => {{}});
+    return;
+  }}
+  if (target === 'copy') {{
+    if (navigator.clipboard) {{
+      navigator.clipboard.writeText(url).then(() => _shareToast('已複製連結 ✓'),
+                                              () => _shareToast('複製失敗,請手動複製'));
+    }} else {{
+      _shareToast(url);
+    }}
+    return;
+  }}
+  const links = {{
+    line: 'https://social-plugins.line.me/lineit/share?url=' + u,
+    x:    'https://twitter.com/intent/tweet?url=' + u + '&text=' + t,
+    fb:   'https://www.facebook.com/sharer/sharer.php?u=' + u,
+  }};
+  if (links[target]) window.open(links[target], '_blank', 'noopener,width=600,height=540');
+}}
+
+function _shareToast(msg) {{
+  let el = document.getElementById('share-toast');
+  if (!el) {{
+    el = document.createElement('div');
+    el.id = 'share-toast';
+    el.style.cssText = 'position:fixed;left:50%;bottom:1.5rem;transform:translateX(-50%);' +
+      'background:rgba(15,17,23,.95);border:1px solid var(--accent);color:var(--text);' +
+      'padding:.6rem 1.1rem;border-radius:8px;font-size:.78rem;font-weight:600;' +
+      'z-index:9999;box-shadow:0 4px 18px rgba(0,0,0,.6);transition:opacity .25s';
+    document.body.appendChild(el);
+  }}
+  el.textContent = msg;
+  el.style.opacity = '1';
+  setTimeout(() => {{ el.style.opacity = '0'; }}, 1800);
+}}
+
+// mobile: 顯示原生分享按鈕(opt-in 給支援 navigator.share 的環境)
+if (navigator.share) {{
+  document.querySelector('.share-native')?.removeAttribute('hidden');
+}}
+
+/* ── 焦點排行 → CSV 下載 ──────────────────────────────────────────────────── */
+/* 從現有 <table> DOM 萃取(避免重複資料);UTF-8 BOM 讓 Excel 開檔不亂碼。
+ * 註:Python fstring 會 escape \\n / \\r,寫進 JS 必須雙反斜線。 */
+function downloadRankCSV(tableId, baseName) {{
+  const tbl = document.getElementById(tableId);
+  if (!tbl) return;
+  const esc = (s) => {{
+    s = (s || '').replace(/\\s+/g, ' ').trim();
+    return /[",\\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }};
+  const rowsToCsv = (sel) => [...tbl.querySelectorAll(sel)].map(tr =>
+    [...tr.children].map(td => esc(td.textContent)).join(',')
+  );
+  const lines = [...rowsToCsv('thead tr'), ...rowsToCsv('tbody tr')].filter(Boolean);
+  if (!lines.length) return;
+  const csv = '\\ufeff' + lines.join('\\r\\n');  // BOM for Excel
+  const blob = new Blob([csv], {{ type: 'text/csv;charset=utf-8' }});
+  const today = new Date().toISOString().slice(0, 10);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = baseName + '-' + today + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {{ URL.revokeObjectURL(a.href); a.remove(); }}, 100);
+}}
 </script>
 </body>
 </html>"""
@@ -2570,6 +2784,18 @@ document.getElementById('art-modal').addEventListener('click', function(e) {{
     OUT_FILE.parent.mkdir(parents=True, exist_ok=True)
     OUT_FILE.write_text(page, encoding="utf-8")
     print(f"Generated {OUT_FILE}  ({len(page):,} bytes)")
+
+    # 把 chart 用的歷史 payload 寫到獨立 history.json,modal 首次打開才 fetch。
+    # 結構:{"history": {"main||sub":[...]}, "index": {"TWII":[...], "TPEX":[...]}}
+    hist_file = OUT_FILE.parent / "history.json"
+    hist_file.write_text(
+        json.dumps(
+            {"history": theme_history_payload, "index": market_index_payload or {}},
+            ensure_ascii=False, separators=(",", ":"),
+        ),
+        encoding="utf-8",
+    )
+    print(f"Generated {hist_file}  ({hist_file.stat().st_size:,} bytes)")
 
 
 if __name__ == "__main__":
