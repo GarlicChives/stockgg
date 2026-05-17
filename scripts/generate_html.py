@@ -735,9 +735,12 @@ def _industry_section_html(
     if level == "sub":
         # 指標說明 panel(預設收合,點 ⓘ 展開)。文案要跟 _yf_ma20_bias_batch
         # / 770~787 的 simple-mean 邏輯對齊;改公式必須同步改這段。
+        # 指標說明:summary 固定位置,展開時 panel 以 absolute 浮層動畫滑下;
+        # 動畫由 anim-details JS 處理(攔截 summary click,max-height transition)
         explainer_html = (
-            '<details class="metric-explainer">'
+            '<details class="metric-explainer anim-details">'
             '<summary>ⓘ 指標計算說明</summary>'
+            '<div class="anim-panel metric-panel">'
             '<ul>'
             '<li><b>漲跌</b>：cluster 焦點股「當日收盤漲跌%」的<b>簡單算術平均</b>'
             '(skip 缺值)。例：3 檔焦點 +2% / -1% / +5% → 平均 +2.00%。</li>'
@@ -754,6 +757,7 @@ def _industry_section_html(
             '<p class="metric-note">⚠ 五項皆為<b>簡單算術平均</b>(每檔等權重),'
             '與點開 chart modal 內的「焦點股加權指數」(用市值 × shares 加權) <b>不同</b>。'
             '小型股對 cluster header 的影響與大型股相同。</p>'
+            '</div>'
             '</details>'
         )
         sort_html = (
@@ -762,7 +766,10 @@ def _industry_section_html(
             '<span class="sort-label">排序：</span>'
             '<button class="sort-chip active" data-sort="tv"    type="button" onclick="setClusterSort(\'tv\')">成交金額</button>'
             '<button class="sort-chip"        data-sort="chg"   type="button" onclick="setClusterSort(\'chg\')">平均漲跌</button>'
+            '<button class="sort-chip"        data-sort="bias"  type="button" onclick="setClusterSort(\'bias\')">平均乖離</button>'
+            '<button class="sort-chip"        data-sort="pe"    type="button" onclick="setClusterSort(\'pe\')">平均 PE</button>'
             '<button class="sort-chip"        data-sort="yield" type="button" onclick="setClusterSort(\'yield\')">平均殖利率</button>'
+            '<button class="sort-chip"        data-sort="beta"  type="button" onclick="setClusterSort(\'beta\')">平均 β</button>'
             '</div>'
             + explainer_html
             + '</div>'
@@ -829,22 +836,28 @@ def _industry_section_html(
 
         card_id = f"cc-{level}-{idx}"
         member_keys = [f"{m}||{s}" for m, s in (c.members or [])]
-        # focal entries 加 chg + yield,供前端 sort chip(漲跌 / 殖利率)
-        # 用 active focal 平均;toggle universal 後前端依 _univDis 重算。
+        # focal entries 帶 6 維 metric,供前端 sort chip / modal chip 用。
+        # toggle universal 後前端依 _univDis 重算。
+        def _focal_entry(s):
+            info = all_stocks.get(s.ticker, {})
+            mkt = info.get("market") or ("TW" if s.ticker.split(".")[0].isdigit() else "US")
+            return {
+                "ticker": s.ticker,
+                "n":     (info.get("name") or "")[:10],
+                "mkt":   mkt,
+                "tv":    s.trading_value,
+                "chg":   info.get("change_pct"),
+                "yld":   info.get("dividend_yield"),
+                "close": info.get("close_price"),
+                "bias":  info.get("ma20_bias"),
+                "pe":    info.get("pe_ttm"),
+                "beta":  info.get("beta"),
+            }
         cluster_json.append({
             "cardId": card_id,
             "memberKeys": member_keys,
             "name": c.name,
-            "focal": [
-                {
-                    "ticker": s.ticker,
-                    "n":   (all_stocks.get(s.ticker, {}).get("name") or "")[:10],
-                    "tv":  s.trading_value,
-                    "chg": all_stocks.get(s.ticker, {}).get("change_pct"),
-                    "yld": all_stocks.get(s.ticker, {}).get("dividend_yield"),
-                }
-                for s in c.focal
-            ],
+            "focal": [_focal_entry(s) for s in c.focal],
             "baseTv": c.trading_value,
         })
 
@@ -1926,22 +1939,31 @@ tr:last-child td{{border-bottom:none}}
 .univ-chip.disabled{{background:#1e1215;color:#6a5060;border-color:#2e2025;text-decoration:line-through}}
 
 /* ── Cluster sort chips ── */
-/* sort chip 與 ⓘ 指標說明合併一列(左:排序,右:ⓘ 說明) */
-.sort-explainer-row{{display:flex;align-items:flex-start;flex-wrap:wrap;
-                      gap:.5rem 1rem;margin-bottom:.7rem}}
+/* sort chip 與 ⓘ 指標說明合併一列(左:排序,右:ⓘ 說明)。
+ * 容器 position:relative,讓展開的 panel 可以 absolute 浮層,
+ * summary 位置完全不動;close 動畫由 anim-details JS 跑 max-height transition */
+.sort-explainer-row{{position:relative;display:flex;align-items:center;
+                      flex-wrap:wrap;gap:.5rem 1rem;margin-bottom:.7rem}}
 .sort-explainer-row .sort-row{{margin-bottom:0;flex:0 1 auto}}
 .sort-explainer-row .metric-explainer{{margin-bottom:0;margin-left:auto;flex:0 1 auto}}
-.sort-explainer-row .metric-explainer:not([open]){{padding:.2rem .55rem;background:transparent;border-color:transparent}}
-.sort-explainer-row .metric-explainer[open]{{flex:1 1 100%;max-width:100%}}
-.metric-explainer{{background:rgba(124,138,242,.04);border:1px solid var(--border);
-                    border-radius:6px;padding:.4rem .7rem;margin-bottom:.6rem;font-size:.72rem;
-                    color:var(--muted);line-height:1.55}}
+.metric-explainer{{padding:.2rem 0;font-size:.72rem;color:var(--muted);line-height:1.55}}
 .metric-explainer summary{{cursor:pointer;color:var(--accent);font-weight:600;
                             font-size:.73rem;letter-spacing:.02em;user-select:none;
-                            list-style:none;padding:.15rem 0}}
+                            list-style:none;padding:.18rem .55rem;border-radius:5px;
+                            transition:background .15s}}
+.metric-explainer summary:hover{{background:rgba(124,138,242,.08)}}
 .metric-explainer summary::-webkit-details-marker{{display:none}}
-.metric-explainer[open] summary{{margin-bottom:.4rem;border-bottom:1px solid var(--border);
-                                  padding-bottom:.35rem}}
+/* 展開的 panel = absolute 浮層,寬度跟著 sort-explainer-row,
+ * 顯示在 row 下方;max-height + opacity 雙重 transition 跑動畫 */
+.metric-explainer .metric-panel{{position:absolute;top:calc(100% + .35rem);
+                                  left:0;right:0;z-index:25;
+                                  background:rgba(20,24,36,.96);
+                                  border:1px solid var(--border);border-radius:8px;
+                                  box-shadow:0 8px 24px rgba(0,0,0,.45);
+                                  padding:.7rem 1rem;
+                                  max-height:0;overflow:hidden;opacity:0;
+                                  transition:max-height .28s ease,opacity .22s ease,padding .15s}}
+.metric-explainer[open] .metric-panel{{padding:.7rem 1rem;opacity:1}}
 .metric-explainer ul{{padding-left:1.1rem;margin:0;list-style:disc}}
 .metric-explainer li{{margin-bottom:.3rem}}
 .metric-explainer li b{{color:var(--text);font-weight:700}}
@@ -2025,6 +2047,8 @@ tr:last-child td{{border-bottom:none}}
 .cluster-metric.flat{{background:rgba(255,255,255,.06);color:#fff}}
 .cluster-metric.neutral{{background:rgba(255,255,255,.05);color:var(--muted)}}
 .cluster-meta{{font-size:.72rem;color:var(--muted);margin-left:auto}}
+.cluster-meta .meta-label{{opacity:.75}}
+.cluster-meta .meta-val{{font-weight:700;margin-left:.15rem}}
 .cluster-subtitle{{font-size:.7rem;color:var(--muted);margin:.1rem 0 .35rem;letter-spacing:.02em}}
 
 /* Sparkline button (cluster card 內嵌 6 個月 TV trend) */
@@ -2097,16 +2121,12 @@ dialog#theme-chart-dialog::backdrop{{background:rgba(0,0,0,.65)}}
                     border-radius:6px;background:rgba(255,255,255,.015)}}
 .tc-tickerlist-label{{font-size:.7rem;color:var(--muted);font-weight:600;
                        white-space:nowrap;padding-top:.18rem}}
-.tc-ticker-chips{{display:flex;flex-wrap:wrap;gap:.3rem .35rem;flex:1;min-width:0}}
-.tc-ticker-chip{{font-family:inherit;font-size:.7rem;font-weight:600;
-                  padding:.18rem .55rem;border-radius:4px;cursor:pointer;
-                  background:rgba(124,138,242,.10);color:var(--accent);
-                  border:1px solid rgba(124,138,242,.3);transition:.15s;
-                  letter-spacing:.02em;line-height:1.4}}
-.tc-ticker-chip:hover{{background:rgba(124,138,242,.2)}}
-.tc-ticker-chip.disabled{{background:rgba(255,255,255,.03);color:var(--muted);
-                           border-color:var(--border);text-decoration:line-through;
-                           opacity:.55}}
+.tc-ticker-chips{{display:flex;flex-wrap:wrap;gap:.4rem .5rem;flex:1;min-width:0}}
+/* Modal 內可點擊 ticker pill:複用 .stk-pill 樣式,加 disable 視覺 */
+.modal-tk-pill{{cursor:pointer;transition:opacity .18s,filter .18s,border-color .18s}}
+.modal-tk-pill:hover{{border-color:var(--accent)}}
+.modal-tk-pill.is-dis{{opacity:.35;filter:grayscale(.8)}}
+.modal-tk-pill.is-dis .sp-quote{{text-decoration:line-through}}
 /* tooltip 觸發 ⓘ icon(native title attribute) */
 .tc-info{{display:inline-flex;align-items:center;justify-content:center;
           width:14px;height:14px;border-radius:50%;
@@ -2643,7 +2663,7 @@ function _recalcClusters(level) {{
     }});
   }});
 
-  // 2. 重算每個 cluster 的 active 狀態 + 各 sort 維度值
+  // 2. 重算每個 cluster 的 active 狀態 + 6 維 sort 值(PE 跟 Python 一致 skip ≤ 0)
   const _mean = (arr) => {{
     const xs = arr.filter(v => v != null);
     return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
@@ -2658,10 +2678,26 @@ function _recalcClusters(level) {{
       visible: activeFocal.length > 0,
       avgChg:   _mean(activeFocal.map(f => f.chg)),
       avgYield: _mean(activeFocal.map(f => f.yld)),
+      avgBias:  _mean(activeFocal.map(f => f.bias)),
+      avgPe:    _mean(activeFocal.map(f => (f.pe != null && f.pe > 0) ? f.pe : null)),
+      avgBeta:  _mean(activeFocal.map(f => f.beta)),
     }};
   }});
 
-  // 3. 卡片顯示 / 隱藏 + meta 更新
+  // 3. 卡片顯示 / 隱藏 + meta 更新(meta 依 _clusterSort 顯不同維度)
+  // META_FMT 把 sort key → (label, formatter, css class)。tv 額外帶單位「億」。
+  // chg / bias 用 fmt(漲紅跌綠);pe/yield/beta 無顏色。
+  const _fmtPct2 = (v) => v == null ? '—' : (v > 0 ? '+' : '') + v.toFixed(2) + '%';
+  const _pctCls = (v) => v == null ? 'neutral' : (v > 0 ? 'up' : v < 0 ? 'down' : 'flat');
+  const META_FMT = {{
+    tv:    {{ label: '成交額',  val: (s) => (s.activeTv / 1e8).toFixed(0) + '億',         cls: (s) => 'neutral' }},
+    chg:   {{ label: '平均漲跌', val: (s) => _fmtPct2(s.avgChg),                          cls: (s) => _pctCls(s.avgChg) }},
+    bias:  {{ label: '平均乖離', val: (s) => _fmtPct2(s.avgBias),                         cls: (s) => _pctCls(s.avgBias) }},
+    pe:    {{ label: '平均 PE',  val: (s) => s.avgPe == null ? '—' : s.avgPe.toFixed(1),  cls: (s) => 'neutral' }},
+    yield: {{ label: '平均殖利', val: (s) => s.avgYield == null ? '—' : s.avgYield.toFixed(2) + '%', cls: (s) => 'neutral' }},
+    beta:  {{ label: '平均 β',   val: (s) => s.avgBeta == null ? '—' : s.avgBeta.toFixed(2), cls: (s) => 'neutral' }},
+  }};
+  const fmt = META_FMT[_clusterSort] || META_FMT.tv;
   states.forEach(s => {{
     const el = cardEls[s.cardId];
     if (!el) return;
@@ -2669,8 +2705,11 @@ function _recalcClusters(level) {{
     el.style.display = '';
     const meta = el.querySelector('.cluster-meta');
     if (meta) {{
-      const tvStr = (s.activeTv / 1e8).toFixed(0) + '億';
-      meta.textContent = s.activeFocal.length + ' 檔焦點' + (s.activeTv > 0 ? ' · ' + tvStr : '');
+      const valStr = fmt.val(s);
+      const showLabel = _clusterSort !== 'tv';  // tv 不需 label(沿用原顯示),其他要前綴
+      meta.innerHTML = s.activeFocal.length + ' 檔焦點 · '
+        + (showLabel ? '<span class="meta-label">' + fmt.label + '</span> ' : '')
+        + '<span class="meta-val ' + fmt.cls(s) + '">' + valStr + '</span>';
     }}
   }});
 
@@ -2678,6 +2717,9 @@ function _recalcClusters(level) {{
   const _key = (s) => {{
     if (_clusterSort === 'chg')   return s.avgChg;
     if (_clusterSort === 'yield') return s.avgYield;
+    if (_clusterSort === 'bias')  return s.avgBias;
+    if (_clusterSort === 'pe')    return s.avgPe;
+    if (_clusterSort === 'beta')  return s.avgBeta;
     return s.activeTv;  // 'tv' default
   }};
   const visibleSorted = states.filter(s => s.visible).sort((a, b) => {{
@@ -2909,20 +2951,48 @@ function _applyNetMode(series) {{
   }});
 }}
 
+/* JS 版本的 fmt_pct(對齊 Python helpers.fmt_pct 行為,亞洲紅漲綠跌) */
+function _fmtPctJs(v) {{
+  if (v == null) return {{ str: '—', cls: 'neutral' }};
+  if (v > 0)  return {{ str: '+' + v.toFixed(2) + '%', cls: 'up' }};
+  if (v < 0)  return {{ str: v.toFixed(2) + '%', cls: 'down' }};
+  return {{ str: '0.00%', cls: 'flat' }};
+}}
+/* HTML escape — modal chip 內 ticker / name 都會塞回 DOM,防注入 */
+function _escHtml(s) {{
+  s = String(s == null ? '' : s);
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}}
+
 /* Modal 的 ticker chip 列表渲染。狀態 = _modalTickerDis ∪ _univDis(外層已 disable 的不顯示)。
- * 點擊 toggle modal-only disable,然後 re-render(setData 路徑,不 dispose) */
+ * 點擊 toggle modal-only disable,然後 re-render(setData 路徑,不 dispose)。
+ * Chip 結構複用 .stk-pill 全站樣式(sp-ticker / mkt-badge / sp-name / sp-quote),
+ * 加 .modal-tk-pill 給 cursor + disable 視覺 */
 function _renderTickerChips(cluster) {{
   const box = document.getElementById('tc-ticker-chips');
   if (!box) return;
   const focals = (cluster.focal || []).filter(f => !_univDis.has(f.ticker));
   box.innerHTML = focals.map(f => {{
-    const dis = _modalTickerDis.has(f.ticker) ? ' disabled' : '';
-    const name = (f.n || '').replace(/"/g, '&quot;');
-    return '<button class="tc-ticker-chip' + dis + '" type="button" '
-      + 'data-ticker="' + f.ticker + '" '
-      + 'onclick="toggleModalTicker(\\'' + f.ticker + '\\')">'
-      + f.ticker + (name ? ' ' + name : '')
-      + '</button>';
+    const dis = _modalTickerDis.has(f.ticker) ? ' is-dis' : '';
+    const mktCls = f.mkt === 'TW' ? 'mkt-tw' : 'mkt-us';
+    const pct = _fmtPctJs(f.chg);
+    let quote;
+    if (f.close != null) {{
+      quote = f.close.toFixed(2) + (f.chg != null ? '(' + pct.str + ')' : '');
+    }} else {{
+      quote = pct.str;
+    }}
+    const nameHtml = f.n ? '<span class="sp-name">' + _escHtml(f.n) + '</span>' : '';
+    const tk = _escHtml(f.ticker);
+    return '<div class="stk-pill modal-tk-pill' + dis + '" '
+      + 'data-ticker="' + tk + '" '
+      + 'onclick="toggleModalTicker(\\'' + tk + '\\')">'
+      + '<span class="sp-ticker">' + tk + '</span>'
+      + '<span class="mkt-badge ' + mktCls + '">' + _escHtml(f.mkt) + '</span>'
+      + nameHtml
+      + '<span class="sp-quote ' + pct.cls + '">' + _escHtml(quote) + '</span>'
+      + '</div>';
   }}).join('');
 }}
 
@@ -3271,6 +3341,58 @@ document.addEventListener('click', e => {{
     const dd = document.getElementById('search-dropdown');
     if (dd) dd.hidden = true;
   }}
+}});
+
+/* ── 動畫 <details> ─────────────────────────────────────────────────────────
+ * 攔截 .anim-details summary click,跑 max-height + opacity transition。
+ * 注意:transitionend 對每個 property 都會 fire,opacity (.22s) 早於
+ * max-height (.28s),必須 filter propertyName === 'max-height' 才不會
+ * 在 opacity 完成時誤清 inline maxHeight 導致 panel collapse。 */
+function _animDetailsOpen(details) {{
+  const panel = details.querySelector('.anim-panel');
+  if (!panel) return;
+  details.open = true;
+  panel.style.maxHeight = '0px';
+  panel.style.opacity = '0';
+  void panel.offsetWidth;
+  const targetH = panel.scrollHeight;
+  panel.style.maxHeight = targetH + 'px';
+  panel.style.opacity = '1';
+  panel.addEventListener('transitionend', function te(e) {{
+    if (e.propertyName !== 'max-height') return;
+    panel.style.maxHeight = 'none';  // 完成後設 none,讓 [open] 規則接手
+    panel.removeEventListener('transitionend', te);
+  }});
+}}
+function _animDetailsClose(details) {{
+  const panel = details.querySelector('.anim-panel');
+  if (!panel) {{ details.open = false; return; }}
+  panel.style.maxHeight = panel.scrollHeight + 'px';
+  void panel.offsetWidth;
+  panel.style.maxHeight = '0px';
+  panel.style.opacity = '0';
+  panel.addEventListener('transitionend', function te(e) {{
+    if (e.propertyName !== 'max-height') return;
+    details.open = false;
+    panel.style.maxHeight = '';
+    panel.style.opacity = '';
+    panel.removeEventListener('transitionend', te);
+  }});
+}}
+document.addEventListener('click', e => {{
+  const summary = e.target.closest('summary');
+  if (!summary) return;
+  const details = summary.parentElement;
+  if (!details || !details.classList.contains('anim-details')) return;
+  e.preventDefault();
+  if (details.open) _animDetailsClose(details);
+  else _animDetailsOpen(details);
+}});
+
+/* 點 anim-details 外面 → 收起(避免 panel 一直浮在上面擋畫面) */
+document.addEventListener('click', e => {{
+  if (e.target.closest('.anim-details')) return;
+  document.querySelectorAll('.anim-details[open]').forEach(d => _animDetailsClose(d));
 }});
 
 /* ── 焦點排行 → CSV 下載 ──────────────────────────────────────────────────── */
