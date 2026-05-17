@@ -1137,7 +1137,7 @@ def build_focus_ranking_html(
             sector = html_lib.escape(c["sector"]) if c["sector"] else "—"
             click = f"showArtModal({json.dumps(c['ticker'])},{json.dumps(c['name'][:12])})"
             out.append(
-                f'<tr class="rank-row" onclick="{click}">'
+                f"<tr class=\"rank-row\" onclick='{click}'>"
                 f'<td class="rank">{i}</td>'
                 f'<td class="ticker">{html_lib.escape(c["ticker"])}</td>'
                 f'<td class="name">{html_lib.escape(c["name"])}</td>'
