@@ -282,8 +282,26 @@ _REC_LABEL: dict[str, tuple[str, str]] = {
 }
 
 
-def _yf_analyst_batch(tickers: list[str]) -> dict[str, dict]:
+def _yf_resolve_sym(ticker: str, board: str | None) -> str:
+    """共用 helper:選對 yfinance suffix。
+    board ∈ {'TWSE', 'TPEX', 'US', None};None → 預設 TWSE(數字 ticker 加 .TW)。
+    上櫃股(TPEX)必須加 .TWO,不然 yfinance 回 "possibly delisted"。
+    """
+    up = ticker.upper()
+    if up.endswith(".TW") or up.endswith(".TWO"):
+        return ticker
+    if board == "TPEX":
+        return ticker + ".TWO"
+    core = ticker.split(".")[0]
+    if core.isdigit():  # TW numeric ticker,board 未知或 TWSE → 預設 .TW
+        return ticker + ".TW"
+    return ticker  # US
+
+
+def _yf_analyst_batch(ticker_boards: dict[str, str | None]) -> dict[str, dict]:
     """Concurrently fetch analyst consensus (target price + recommendation) via yfinance.
+    ticker_boards: {ticker: board},board ∈ {'TWSE', 'TPEX', 'US', None}。
+    None 時對 TW 數字 ticker 預設 .TW;若 .TW 沒資料 fallback 試 .TWO。
     Returns {ticker: {target_mean, target_median, target_high, target_low, n_analysts,
                        recommendation, currency}} for tickers that have data.
     """
@@ -293,11 +311,18 @@ def _yf_analyst_batch(tickers: list[str]) -> dict[str, dict]:
     except ImportError:
         return {}
 
-    def _fetch_one(orig: str) -> tuple[str, dict | None]:
-        core = orig.split(".")[0]
-        yf_sym = (core + ".TW") if core.isdigit() else orig
+    def _fetch_one(orig: str, board: str | None) -> tuple[str, dict | None]:
+        yf_sym = _yf_resolve_sym(orig, board)
         try:
             info = yf.Ticker(yf_sym).info
+            # 若 .TW 沒拿到 targetMeanPrice 且 ticker 是 TW 數字,fallback 試 .TWO
+            if not info.get("targetMeanPrice"):
+                core = orig.split(".")[0]
+                if core.isdigit() and yf_sym.upper().endswith(".TW") and not yf_sym.upper().endswith(".TWO"):
+                    try:
+                        info = yf.Ticker(core + ".TWO").info
+                    except Exception:
+                        pass
             mean = info.get("targetMeanPrice")
             if not mean:
                 return orig, None
@@ -315,7 +340,7 @@ def _yf_analyst_batch(tickers: list[str]) -> dict[str, dict]:
 
     result: dict[str, dict] = {}
     with ThreadPoolExecutor(max_workers=6) as ex:
-        futures = {ex.submit(_fetch_one, t): t for t in tickers}
+        futures = {ex.submit(_fetch_one, t, b): t for t, b in ticker_boards.items()}
         for fut in as_completed(futures):
             orig, data = fut.result()
             if data:
@@ -412,45 +437,64 @@ def _build_analyst_html(data: dict) -> str:
     )
 
 
-def _yf_batch_fetch(entries: list[tuple[str, str]]) -> dict[str, dict]:
+def _yf_batch_fetch(entries: list[tuple[str, str, str | None]]) -> dict[str, dict]:
     """Sync: batch-fetch close / change% / trading value via yfinance.
-    entries = [(ticker, market), ...]
+    entries = [(ticker, market, board|None), ...]; board ∈ {'TWSE','TPEX',None}。
+    對 board=None 的 TW 數字 ticker 預設 .TW,空回時 fallback 試 .TWO。
     Returns {ticker: {"close": float|None, "change_pct": float|None, "trading_value": float|None}}
     """
     try:
         import yfinance as yf
     except ImportError:
         return {}
-    yf_map: dict[str, str] = {}  # yf_sym -> original_ticker
-    for orig, market in entries:
-        yf_sym = (orig + ".TW") if market == "TW" and not orig.upper().endswith(".TW") else orig
-        yf_map[yf_sym] = orig
-    result: dict[str, dict] = {}
-    if not yf_map:
-        return result
-    try:
-        syms = list(yf_map)
-        raw = yf.download(syms, period="2d", progress=False, auto_adjust=True, group_by="ticker")
-        if raw.empty:
-            return result
-        for yf_sym, orig in yf_map.items():
-            try:
-                close = (raw[yf_sym]["Close"] if len(syms) > 1 else raw["Close"]).dropna()
-                vol   = (raw[yf_sym]["Volume"] if len(syms) > 1 else raw["Volume"]).dropna()
-                entry: dict = {"close": None, "change_pct": None, "trading_value": None}
-                if len(close) >= 1:
+
+    def _do_download(yf_map: dict[str, str]) -> dict[str, dict]:
+        """主 batch:download → 取每個 yf_sym 的 close/vol → entry dict"""
+        out: dict[str, dict] = {}
+        if not yf_map:
+            return out
+        try:
+            syms = list(yf_map)
+            raw = yf.download(syms, period="2d", progress=False, auto_adjust=True, group_by="ticker")
+            if raw.empty:
+                return out
+            for yf_sym, orig in yf_map.items():
+                try:
+                    close = (raw[yf_sym]["Close"] if len(syms) > 1 else raw["Close"]).dropna()
+                    vol   = (raw[yf_sym]["Volume"] if len(syms) > 1 else raw["Volume"]).dropna()
+                    if len(close) == 0:
+                        continue
+                    entry: dict = {"close": None, "change_pct": None, "trading_value": None}
                     entry["close"] = float(close.iloc[-1])
-                if len(close) >= 2:
-                    entry["change_pct"] = round(
-                        float((close.iloc[-1] - close.iloc[-2]) / close.iloc[-2] * 100), 2
-                    )
-                if len(close) >= 1 and len(vol) >= 1:
-                    entry["trading_value"] = float(close.iloc[-1] * vol.iloc[-1])
-                result[orig] = entry
-            except Exception:
-                pass
-    except Exception:
-        pass
+                    if len(close) >= 2:
+                        entry["change_pct"] = round(
+                            float((close.iloc[-1] - close.iloc[-2]) / close.iloc[-2] * 100), 2
+                        )
+                    if len(vol) >= 1:
+                        entry["trading_value"] = float(close.iloc[-1] * vol.iloc[-1])
+                    out[orig] = entry
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        return out
+
+    # 第一輪:依 board 組正確 suffix
+    yf_map: dict[str, str] = {_yf_resolve_sym(orig, board): orig for orig, _mkt, board in entries}
+    result = _do_download(yf_map)
+
+    # 第二輪 fallback:對沒拿到資料的 TW 數字 ticker 且第一輪用了 .TW,改試 .TWO
+    missing_tw = [
+        orig for orig, _mkt, board in entries
+        if orig not in result
+        and orig.split(".")[0].isdigit()
+        and not orig.upper().endswith(".TWO")
+        and board != "TPEX"  # 已是 TPEX 就用過 .TWO 了,不必再試
+    ]
+    if missing_tw:
+        retry_map = {orig.split(".")[0] + ".TWO": orig for orig in missing_tw}
+        result.update(_do_download(retry_map))
+
     return result
 
 
@@ -512,11 +556,7 @@ def _yf_ma20_bias_batch(ticker_boards: dict[str, str]) -> dict[str, float]:
         import yfinance as yf
     except ImportError:
         return {}
-    def _yf_sym(t: str, board: str) -> str:
-        if t.upper().endswith(".TW") or t.upper().endswith(".TWO"):
-            return t
-        return t + (".TWO" if board == "TPEX" else ".TW")
-    yf_map = {_yf_sym(t, b): t for t, b in ticker_boards.items()}
+    yf_map = {_yf_resolve_sym(t, b): t for t, b in ticker_boards.items()}
     result: dict[str, float] = {}
     try:
         syms = list(yf_map)
@@ -1556,12 +1596,14 @@ async def generate():
             for t in topic.get("tickers", []):
                 if t not in stocks_info:
                     _core = t.split(".")[0]
-                    _yf_needed.append((t, "TW" if _core.isdigit() else "US"))
+                    # board unknown(這些 ticker 不在 trading_rankings 內);
+                    # _yf_batch_fetch 對 board=None 會試 .TW 再 fallback .TWO
+                    _yf_needed.append((t, "TW" if _core.isdigit() else "US", None))
     if _yf_needed:
         _yf_needed = list({t[0]: t for t in _yf_needed}.values())  # dedup by ticker
         yf_data = await asyncio.to_thread(_yf_batch_fetch, _yf_needed)
         # Patch stocks_info for market_notes tickers not in any ranking
-        for ticker, market in _yf_needed:
+        for ticker, market, _board in _yf_needed:
             if ticker not in stocks_info:
                 d = yf_data.get(ticker, {})
                 stocks_info[ticker] = {
@@ -1622,7 +1664,11 @@ async def generate():
             _all_modal_tickers.update(_topic.get("tickers", []))
     if _all_modal_tickers:
         print(f"  Fetching analyst data for {len(_all_modal_tickers)} tickers…")
-        _analyst = await asyncio.to_thread(_yf_analyst_batch, list(_all_modal_tickers))
+        # 帶 board 給 _yf_analyst_batch,讓 TPEX 股(如 5347)能正確抓到 .TWO
+        _modal_tk_boards: dict[str, str | None] = {
+            t: stocks_info.get(t, {}).get("board") for t in _all_modal_tickers
+        }
+        _analyst = await asyncio.to_thread(_yf_analyst_batch, _modal_tk_boards)
     else:
         _analyst = {}
 
