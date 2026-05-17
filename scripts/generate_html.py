@@ -407,6 +407,36 @@ def _yf_batch_fetch(entries: list[tuple[str, str]]) -> dict[str, dict]:
     return result
 
 
+def _yf_market_index_history(period: str = "6mo") -> dict[str, list[dict]]:
+    """抓大盤(^TWII)與櫃買(^TWO)指數歷史 close,供 chart 三線 overlay 對比。
+    Returns: {'TWII': [{d, close}, ...], 'TPEX': [{d, close}, ...]}
+    """
+    try:
+        import yfinance as yf
+    except ImportError:
+        return {}
+    result: dict[str, list[dict]] = {}
+    syms_map = {"^TWII": "TWII", "^TWO": "TPEX"}
+    try:
+        raw = yf.download(list(syms_map), period=period, progress=False,
+                          auto_adjust=True, group_by="ticker")
+        if raw.empty:
+            return result
+        for yf_sym, key in syms_map.items():
+            try:
+                close = (raw[yf_sym]["Close"] if len(syms_map) > 1 else raw["Close"]).dropna()
+                series = []
+                for ts, v in close.items():
+                    d = ts.date().isoformat() if hasattr(ts, "date") else str(ts)[:10]
+                    series.append({"d": d, "close": round(float(v), 2)})
+                result[key] = series
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return result
+
+
 def _yf_ma20_bias_batch(tw_tickers: list[str]) -> dict[str, float]:
     """Batch yfinance,回傳 {ticker: ma20_bias%}。
     ma20_bias = (今日收盤 - 20MA) / 20MA * 100。台股 only(TW 焦點股用)。
@@ -849,6 +879,7 @@ def build_focus_html(
     sub_clusters: list,
     stocks_info: dict,
     theme_history_payload: dict,
+    market_index_payload: dict | None = None,
 ) -> tuple[str, dict]:
     """Build the 熱門題材 tab — 只渲染子產業 ranked list。
 
@@ -893,10 +924,16 @@ def build_focus_html(
         modal_data[ticker] = ""
 
     sub_html = _industry_section_html(sub_clusters, all_stocks, "sub", theme_history_payload)
-    # Inline theme history payload for sparkline + modal chart JS
+    # Inline theme history + 大盤指數 payload for sparkline + modal chart JS
     history_json = json.dumps(theme_history_payload, ensure_ascii=False, separators=(",", ":"))
-    history_script = f"<script>window.IIA_HISTORY={history_json};</script>"
-    return sub_html + history_script, modal_data
+    index_json = json.dumps(market_index_payload or {}, ensure_ascii=False, separators=(",", ":"))
+    payload_script = (
+        f"<script>"
+        f"window.IIA_HISTORY={history_json};"
+        f"window.IIA_INDEX_HISTORY={index_json};"
+        f"</script>"
+    )
+    return sub_html + payload_script, modal_data
 
 
 # ── 股市筆記 tab ──────────────────────────────────────────────────────────────
@@ -1231,8 +1268,13 @@ async def generate():
         }
         theme_history_payload.setdefault(key, []).append({"d": date_str, "s": stocks_compact})
 
+    # 大盤(^TWII)+ 櫃買(^TWO)指數歷史,供 chart 第二張三線 overlay 對比
+    # 焦點股 line vs 大盤 vs 櫃買(都 rebase to 100,看相對強弱)。
+    market_index_payload = await asyncio.to_thread(_yf_market_index_history, "6mo")
+
     focus_html, modal_data = build_focus_html(
         tw_ranks, sub_clusters, stocks_info, theme_history_payload,
+        market_index_payload,
     )
     notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)
     catalyst_html = build_catalyst_html(catalyst_events, stocks_info)
@@ -1554,6 +1596,19 @@ dialog#theme-chart-dialog::backdrop{{background:rgba(0,0,0,.65)}}
                  display:flex;align-items:center;gap:.4rem}}
 .tc-chart-label::before{{content:"";width:3px;height:11px;background:var(--accent);
                          border-radius:2px}}
+.tc-legend{{display:inline-flex;gap:.3rem;margin-left:.6rem;flex-wrap:wrap}}
+.tc-leg-chip{{display:inline-flex;align-items:center;gap:.3rem;
+              font-size:.66rem;font-weight:700;padding:.15rem .45rem;
+              border-radius:4px;background:rgba(255,255,255,.05);
+              color:var(--muted);border:none;cursor:pointer;transition:.15s;
+              font-family:inherit}}
+.tc-leg-chip .leg-sw{{display:inline-block;width:10px;height:2px;
+                      background:currentColor;border-radius:1px}}
+.tc-leg-chip:hover{{color:var(--text)}}
+.tc-leg-chip.active.leg-cluster{{color:#10b981}}
+.tc-leg-chip.active.leg-twii{{color:#f59e0b}}
+.tc-leg-chip.active.leg-tpex{{color:#94aef7}}
+.tc-leg-chip:not(.active){{opacity:.5;text-decoration:line-through}}
 .tc-empty{{color:var(--muted);font-size:.85rem;text-align:center;padding:2rem 0}}
 .cluster-section-label{{font-size:.68rem;color:var(--muted);font-weight:600;
                          text-transform:uppercase;letter-spacing:.04em;margin:.55rem 0 .3rem}}
@@ -1777,7 +1832,14 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
   <div class="tc-body">
     <div class="tc-chart-label">三大法人資金淨流入流出(億 TWD)</div>
     <div class="tc-chart" id="tc-chart-net"></div>
-    <div class="tc-chart-label">焦點股平均股價</div>
+    <div class="tc-chart-label">
+      焦點股加權指數(rebase 100,Sprint 1 暫用平均股價)
+      <span class="tc-legend">
+        <button class="tc-leg-chip leg-cluster active" type="button" onclick="toggleIndexLine('cluster')"><span class="leg-sw"></span>焦點股</button>
+        <button class="tc-leg-chip leg-twii active" type="button" onclick="toggleIndexLine('twii')"><span class="leg-sw"></span>大盤(TWII)</button>
+        <button class="tc-leg-chip leg-tpex active" type="button" onclick="toggleIndexLine('tpex')"><span class="leg-sw"></span>櫃買(TPEX)</button>
+      </span>
+    </div>
     <div class="tc-chart" id="tc-chart-price"></div>
     <div class="tc-empty" id="tc-empty" style="display:none">尚無歷史資料(資料每日 18:30 由 ingest 端產生)</div>
   </div>
@@ -1961,7 +2023,9 @@ function _recalcClusters(level) {{
 /* ── Theme chart modal — 6 個月 TV / 平均漲跌 趨勢 ────────────────────────── */
 let _lwcLoadPromise = null;
 let _openThemeCardId = null;       // 目前打開的 cluster cardId(null = 關)
-let _tcCharts = {{ net: null, price: null, netSeries: null, priceSeries: null }};
+let _tcCharts = {{ net: null, price: null, netSeries: null,
+                    clusterSeries: null, twiiSeries: null, tpexSeries: null }};
+const _lineVis = {{ cluster: true, twii: true, tpex: true }};
 
 function _loadLightweightCharts() {{
   if (window.LightweightCharts) return Promise.resolve();
@@ -1982,21 +2046,21 @@ function _findClusterDef(cardId) {{
 }}
 
 /* 算單一 cluster 的 daily 三大法人淨流入(億) + 平均股價 series。
- * 為了讓 chart 與 meta「N 檔焦點(濾後)」一致,**鎖定今天的 cluster.focal
- * ticker set**:歷史每日的 focal_breakdown 只取這幾檔的資料聚合,該檔
- * 那天若沒在 top-50 就 0 不貢獻(避免歷史上其他熱股污染平均)。
- * payload 每檔 stock 是 4-tuple [tv, chg, close, net_inst]。 */
+ * 鎖定今天的 cluster.focal ticker set。
+ * payload 每檔 stock 是 4-tuple [tv, chg, close, net_inst]
+ * (ingest Sprint 2 完成後會擴成 5-tuple 加 shares_out,屆時 priceSeries
+ *  swap 為 market-cap weighted index)。 */
 function _computeClusterSeries(cluster) {{
   const hist = window.IIA_HISTORY || {{}};
   const keys = cluster.memberKeys || [];
   const todayFocals = new Set((cluster.focal || []).map(f => f.ticker));
-  const daily = {{}};  // d -> {{netSum, priceSum, priceN}}
+  const daily = {{}};
   keys.forEach(k => {{
     (hist[k] || []).forEach(row => {{
       const stocks = row.s || {{}};
       const cur = daily[row.d] || (daily[row.d] = {{ netSum: 0, priceSum: 0, priceN: 0 }});
       for (const [ticker, v] of Object.entries(stocks)) {{
-        if (!todayFocals.has(ticker)) continue;  // 只取今天的 focal
+        if (!todayFocals.has(ticker)) continue;
         if (_univDis.has(ticker)) continue;
         const net = (v && v[3] != null) ? v[3] : 0;
         const close = (v && v[2] != null) ? v[2] : null;
@@ -2006,16 +2070,33 @@ function _computeClusterSeries(cluster) {{
     }});
   }});
   const dates = Object.keys(daily).sort();
-  // 紅買綠賣亞洲慣例,histogram 每根 bar 自帶 color
   const netSeries = dates.map(d => {{
-    const v = daily[d].netSum / 1e8;  // 億
+    const v = daily[d].netSum / 1e8;
     return {{ time: d, value: v, color: v >= 0 ? 'rgba(239,83,80,.8)' : 'rgba(38,166,154,.8)' }};
   }});
   const priceSeries = dates.map(d => ({{
     time: d,
     value: daily[d].priceN > 0 ? +(daily[d].priceSum / daily[d].priceN).toFixed(2) : 0,
-  }})).filter(p => p.value > 0);   // 沒任何今天 focal 出現的日子不畫
+  }})).filter(p => p.value > 0);
   return {{ netSeries, priceSeries }};
+}}
+
+/* rebase series to 100 at common start date,回傳 {{time, value}} list。
+ * common start 取三條線的最晚開始日,確保起點對齊。
+ * 若 series 為空 / 無 base 對應 → 回 [] */
+function _rebaseSeries(series, startDate) {{
+  if (!series || !series.length) return [];
+  const base = series.find(p => p.time >= startDate);
+  if (!base || !base.value) return [];
+  return series
+    .filter(p => p.time >= startDate)
+    .map(p => ({{ time: p.time, value: +(p.value / base.value * 100).toFixed(2) }}));
+}}
+
+/* 從 IIA_INDEX_HISTORY 撈大盤 / 櫃買的 (time, close) series */
+function _computeIndexSeries(key) {{
+  const arr = (window.IIA_INDEX_HISTORY || {{}})[key] || [];
+  return arr.map(p => ({{ time: p.d, value: p.close }}));
 }}
 
 function _disposeThemeCharts() {{
@@ -2026,13 +2107,17 @@ function _disposeThemeCharts() {{
     }}
   }});
   _tcCharts.netSeries = null;
-  _tcCharts.priceSeries = null;
+  _tcCharts.clusterSeries = null;
+  _tcCharts.twiiSeries = null;
+  _tcCharts.tpexSeries = null;
 }}
 
 function _renderThemeChart(cardId) {{
   const cluster = _findClusterDef(cardId);
   if (!cluster) return;
   const {{ netSeries, priceSeries }} = _computeClusterSeries(cluster);
+  const twiiRaw = _computeIndexSeries('TWII');
+  const tpexRaw = _computeIndexSeries('TPEX');
   document.getElementById('tc-title').textContent = '🔸 ' + cluster.name;
   const activeFocalN = cluster.focal.filter(f => !_univDis.has(f.ticker)).length;
   document.getElementById('tc-meta').textContent =
@@ -2066,7 +2151,7 @@ function _renderThemeChart(cardId) {{
     handleScale: {{ mouseWheel: false, axisPressedMouseMove: true, pinch: true }},
   }};
 
-  // Chart 1:資金淨流入流出 histogram(紅買綠賣,base=0,bar 自帶 color)
+  // Chart 1:資金淨流入流出 histogram
   _tcCharts.net = LightweightCharts.createChart(netEl, chartOpts);
   const netSer = _tcCharts.net.addHistogramSeries({{
     priceFormat: {{ type: 'custom', formatter: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '億' }},
@@ -2075,22 +2160,46 @@ function _renderThemeChart(cardId) {{
   netSer.setData(netSeries);
   _tcCharts.netSeries = netSer;
 
-  // Chart 2:平均股價 line
-  _tcCharts.price = LightweightCharts.createChart(priceEl, chartOpts);
-  const priceSer = _tcCharts.price.addLineSeries({{
-    color: '#10b981',
-    priceFormat: {{ type: 'custom', formatter: v => v.toFixed(2) }},
-  }});
-  priceSer.setData(priceSeries);
-  _tcCharts.priceSeries = priceSer;
+  // Chart 2:三線疊加 (rebase to 100 從 cluster series 第一天起算對齊)
+  // 共同 start date = max(cluster.first, twii.first, tpex.first)
+  const starts = [
+    priceSeries[0]?.time, twiiRaw[0]?.time, tpexRaw[0]?.time
+  ].filter(Boolean).sort();
+  const startDate = starts[starts.length - 1];  // 最晚開始的
+  const clusterRebased = _rebaseSeries(priceSeries, startDate);
+  const twiiRebased = _rebaseSeries(twiiRaw, startDate);
+  const tpexRebased = _rebaseSeries(tpexRaw, startDate);
 
-  // fit-to-content:讓 chart 自動把 data 撐滿水平方向,避免左邊大塊空白
+  _tcCharts.price = LightweightCharts.createChart(priceEl, chartOpts);
+  const lineOpts = (color) => ({{
+    color, lineWidth: 2,
+    priceFormat: {{ type: 'custom', formatter: v => v.toFixed(1) }},
+  }});
+  _tcCharts.clusterSeries = _tcCharts.price.addLineSeries(lineOpts('#10b981'));
+  _tcCharts.clusterSeries.setData(clusterRebased);
+  _tcCharts.clusterSeries.applyOptions({{ visible: _lineVis.cluster }});
+  _tcCharts.twiiSeries = _tcCharts.price.addLineSeries(lineOpts('#f59e0b'));
+  _tcCharts.twiiSeries.setData(twiiRebased);
+  _tcCharts.twiiSeries.applyOptions({{ visible: _lineVis.twii }});
+  _tcCharts.tpexSeries = _tcCharts.price.addLineSeries(lineOpts('#94aef7'));
+  _tcCharts.tpexSeries.setData(tpexRebased);
+  _tcCharts.tpexSeries.applyOptions({{ visible: _lineVis.tpex }});
+
   _tcCharts.net.timeScale().fitContent();
   _tcCharts.price.timeScale().fitContent();
 
-  // 同步 x 軸
   _tcCharts.net.timeScale().subscribeVisibleLogicalRangeChange(r => r && _tcCharts.price?.timeScale().setVisibleLogicalRange(r));
   _tcCharts.price.timeScale().subscribeVisibleLogicalRangeChange(r => r && _tcCharts.net?.timeScale().setVisibleLogicalRange(r));
+}}
+
+function toggleIndexLine(key) {{
+  _lineVis[key] = !_lineVis[key];
+  const seriesKey = key === 'cluster' ? 'clusterSeries' : key === 'twii' ? 'twiiSeries' : 'tpexSeries';
+  if (_tcCharts[seriesKey]) {{
+    _tcCharts[seriesKey].applyOptions({{ visible: _lineVis[key] }});
+  }}
+  const btn = document.querySelector('.tc-leg-chip.leg-' + key);
+  if (btn) btn.classList.toggle('active', _lineVis[key]);
 }}
 
 function openThemeChart(cardId) {{
