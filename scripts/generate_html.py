@@ -185,30 +185,12 @@ def _stk_pill(ticker: str, stocks_info: dict, clickable: bool = True, extra_attr
     click = f" onclick='showArtModal({json.dumps(ticker)},{json.dumps(name[:12])})'" if clickable else ""
     extra = f" {extra_attrs}" if extra_attrs else ""
 
-    # F3: 52w 位置%(需 close + week52_high + week52_low 全到位)。
-    # 接近年高 (>80%) 標紅、接近年低 (<20%) 標綠、中段灰。
-    w52_html = ""
-    w52_high = info.get("week52_high")
-    w52_low  = info.get("week52_low")
-    if close is not None and w52_high is not None and w52_low is not None and w52_high > w52_low:
-        pos = max(0, min(100, (close - w52_low) / (w52_high - w52_low) * 100))
-        if pos >= 80:
-            w52_cls = "w52-high"
-        elif pos <= 20:
-            w52_cls = "w52-low"
-        else:
-            w52_cls = "w52-mid"
-        w52_html = (f'<span class="sp-w52 {w52_cls}" '
-                    f'title="距離年高 / 年低區間位置;{w52_low:.0f}–{w52_high:.0f}">'
-                    f'52w {pos:.0f}%</span>')
-
     return (
         f'<div class="stk-pill"{click}{extra}>'
         f'<span class="sp-ticker">{html_lib.escape(ticker)}</span>'
         f'<span class="mkt-badge {mkt_cls}">{market}</span>'
         f'{name_span}'
         f'<span class="sp-quote {pct_cls}">{quote}</span>'
-        f'{w52_html}'
         f'</div>'
     )
 
@@ -2322,12 +2304,6 @@ dialog#art-modal::backdrop{{background:rgba(0,0,0,.65)}}
 .sp-ticker{{font-weight:800;font-size:.85rem}}
 .sp-name{{font-size:.72rem;color:var(--muted)}}
 .sp-quote{{font-weight:700;font-size:.78rem;font-variant-numeric:tabular-nums}}
-/* F3: 52w 位置%(stk-pill 內小標籤,只在 stock_meta 有資料時出) */
-.sp-w52{{font-size:.62rem;font-weight:700;padding:.08rem .3rem;border-radius:3px;
-        letter-spacing:.02em;cursor:help}}
-.sp-w52.w52-high{{background:rgba(239,83,80,.16);color:#f47471}}     /* 近年高 → 紅 */
-.sp-w52.w52-low{{background:rgba(38,166,154,.14);color:#5dc4b9}}     /* 近年低 → 綠 */
-.sp-w52.w52-mid{{background:rgba(255,255,255,.05);color:var(--muted)}}
 
 .up{{color:var(--up)}} .down{{color:var(--down)}} .flat{{color:#fff}} .neutral{{color:var(--muted)}}
 footer{{color:var(--muted);font-size:.75rem;
