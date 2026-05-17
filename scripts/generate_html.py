@@ -1981,17 +1981,22 @@ function _findClusterDef(cardId) {{
   return all.find(c => c.cardId === cardId);
 }}
 
-/* 算單一 cluster 的 daily 三大法人淨流入(億) + 平均股價 series,
- * 套用 _univDis 過濾。payload 每檔 stock 是 4-tuple [tv, chg, close, net_inst]。 */
+/* 算單一 cluster 的 daily 三大法人淨流入(億) + 平均股價 series。
+ * 為了讓 chart 與 meta「N 檔焦點(濾後)」一致,**鎖定今天的 cluster.focal
+ * ticker set**:歷史每日的 focal_breakdown 只取這幾檔的資料聚合,該檔
+ * 那天若沒在 top-50 就 0 不貢獻(避免歷史上其他熱股污染平均)。
+ * payload 每檔 stock 是 4-tuple [tv, chg, close, net_inst]。 */
 function _computeClusterSeries(cluster) {{
   const hist = window.IIA_HISTORY || {{}};
   const keys = cluster.memberKeys || [];
+  const todayFocals = new Set((cluster.focal || []).map(f => f.ticker));
   const daily = {{}};  // d -> {{netSum, priceSum, priceN}}
   keys.forEach(k => {{
     (hist[k] || []).forEach(row => {{
       const stocks = row.s || {{}};
       const cur = daily[row.d] || (daily[row.d] = {{ netSum: 0, priceSum: 0, priceN: 0 }});
       for (const [ticker, v] of Object.entries(stocks)) {{
+        if (!todayFocals.has(ticker)) continue;  // 只取今天的 focal
         if (_univDis.has(ticker)) continue;
         const net = (v && v[3] != null) ? v[3] : 0;
         const close = (v && v[2] != null) ? v[2] : null;
@@ -2009,7 +2014,7 @@ function _computeClusterSeries(cluster) {{
   const priceSeries = dates.map(d => ({{
     time: d,
     value: daily[d].priceN > 0 ? +(daily[d].priceSum / daily[d].priceN).toFixed(2) : 0,
-  }}));
+  }})).filter(p => p.value > 0);   // 沒任何今天 focal 出現的日子不畫
   return {{ netSeries, priceSeries }};
 }}
 
@@ -2078,6 +2083,10 @@ function _renderThemeChart(cardId) {{
   }});
   priceSer.setData(priceSeries);
   _tcCharts.priceSeries = priceSer;
+
+  // fit-to-content:讓 chart 自動把 data 撐滿水平方向,避免左邊大塊空白
+  _tcCharts.net.timeScale().fitContent();
+  _tcCharts.price.timeScale().fitContent();
 
   // 同步 x 軸
   _tcCharts.net.timeScale().subscribeVisibleLogicalRangeChange(r => r && _tcCharts.price?.timeScale().setVisibleLogicalRange(r));
