@@ -730,6 +730,18 @@ def _industry_section_html(
                 info = all_stocks.get(t, {})
                 universal[t] = (info.get("name") or t)[:8]
 
+    # sort chip row(sub level only):換維度看 cluster 排序。預設 TV desc。
+    sort_html = ""
+    if level == "sub":
+        sort_html = (
+            '<div class="sort-row">'
+            '<span class="sort-label">排序：</span>'
+            '<button class="sort-chip active" data-sort="tv"    type="button" onclick="setClusterSort(\'tv\')">TV</button>'
+            '<button class="sort-chip"        data-sort="chg"   type="button" onclick="setClusterSort(\'chg\')">平均漲跌</button>'
+            '<button class="sort-chip"        data-sort="yield" type="button" onclick="setClusterSort(\'yield\')">平均殖利率</button>'
+            '</div>'
+        )
+
     univ_html = ""
     if universal:
         chips = "".join(
@@ -791,11 +803,22 @@ def _industry_section_html(
 
         card_id = f"cc-{level}-{idx}"
         member_keys = [f"{m}||{s}" for m, s in (c.members or [])]
+        # focal entries 加 chg + yield,供前端 sort chip(漲跌 / 殖利率)
+        # 用 active focal 平均;toggle universal 後前端依 _univDis 重算。
         cluster_json.append({
             "cardId": card_id,
             "memberKeys": member_keys,
             "name": c.name,
-            "focal": [{"ticker": s.ticker, "tv": s.trading_value} for s in c.focal],
+            "focal": [
+                {
+                    "ticker": s.ticker,
+                    "n":   (all_stocks.get(s.ticker, {}).get("name") or "")[:10],
+                    "tv":  s.trading_value,
+                    "chg": all_stocks.get(s.ticker, {}).get("change_pct"),
+                    "yld": all_stocks.get(s.ticker, {}).get("dividend_yield"),
+                }
+                for s in c.focal
+            ],
             "baseTv": c.trading_value,
         })
 
@@ -867,7 +890,8 @@ def _industry_section_html(
 
     cluster_json_str = json.dumps(cluster_json, ensure_ascii=False, separators=(",", ":"))
     return (
-        univ_html
+        sort_html
+        + univ_html
         + f'<div id="cluster-container-{level}" class="focus-clusters">'
         + "".join(cards)
         + "</div>"
@@ -1611,6 +1635,39 @@ async def generate():
         f'  {json.dumps(k)}: {json.dumps(v)}'
         for k, v in modal_data.items()
     )
+
+    # ── Radar chart metrics(modal 內 5 維雷達圖)──────────────────────────────
+    # 涵蓋所有焦點股 + ranking + market_notes 提到的 ticker。
+    # 缺維度的留 None,前端 normalize 函數視為 0(該軸點落中心)。
+    def _f(v):
+        try:
+            return float(v) if v is not None else None
+        except (TypeError, ValueError):
+            return None
+    radar_metrics: dict[str, dict] = {}
+    for tk in set(list(stocks_info.keys()) + list((stock_meta or {}).keys())):
+        info = stocks_info.get(tk, {})
+        meta = (stock_meta or {}).get(tk, {})
+        close = _f(info.get("close_price"))
+        w52h, w52l = _f(meta.get("week52_high")), _f(meta.get("week52_low"))
+        w52pos = None
+        if close is not None and w52h and w52l and w52h > w52l:
+            w52pos = max(0.0, min(1.0, (close - w52l) / (w52h - w52l)))
+        radar_metrics[tk] = {
+            "chg":  _f(info.get("change_pct")),
+            "pe":   _f(meta.get("pe_ttm")),
+            "yld":  _f(meta.get("dividend_yield")),
+            "w52":  w52pos,
+            "beta": _f(meta.get("beta")),
+        }
+    def _mavg(key):
+        xs = [m[key] for m in radar_metrics.values() if m.get(key) is not None]
+        return round(sum(xs) / len(xs), 4) if xs else None
+    radar_market_avg = {k: _mavg(k) for k in ("chg", "pe", "yld", "w52", "beta")}
+    radar_payload_json = json.dumps(
+        {"stocks": radar_metrics, "market": radar_market_avg},
+        ensure_ascii=False, separators=(",", ":"),
+    )
     # ── Page HTML ─────────────────────────────────────────────────────────────
     page = f"""<!DOCTYPE html>
 <html lang="zh-TW">
@@ -1682,6 +1739,41 @@ header{{background:var(--card);border-bottom:1px solid var(--border);
 }}
 .tab-pane{{display:none}}
 .tab-pane.active{{display:block}}
+
+/* ── Site search(header 右側 ticker/公司搜尋)─────────────────────────── */
+.search-box{{position:relative;margin-left:auto}}
+.search-box input{{font-family:inherit;font-size:.78rem;width:14rem;
+                    background:rgba(255,255,255,.04);color:var(--text);
+                    border:1px solid var(--border);border-radius:6px;
+                    padding:.35rem .65rem;transition:.15s;outline:none}}
+.search-box input:focus{{border-color:var(--accent);
+                          background:rgba(124,138,242,.06)}}
+.search-box input::placeholder{{color:var(--muted);font-weight:500}}
+.search-dropdown{{position:absolute;top:calc(100% + 4px);right:0;left:0;
+                   max-height:340px;overflow-y:auto;
+                   background:#161922;border:1px solid var(--border);
+                   border-radius:7px;box-shadow:0 6px 22px rgba(0,0,0,.5);
+                   z-index:200;font-size:.76rem}}
+.search-item{{display:flex;align-items:center;gap:.55rem;
+               padding:.45rem .7rem;cursor:pointer;
+               border-bottom:1px solid rgba(255,255,255,.04)}}
+.search-item:last-child{{border-bottom:none}}
+.search-item:hover, .search-item.kb-active{{background:rgba(124,138,242,.13)}}
+.si-ticker{{font-weight:700;color:var(--accent);min-width:3.2rem}}
+.si-name{{color:var(--text);flex:1;white-space:nowrap;overflow:hidden;
+          text-overflow:ellipsis}}
+.si-cluster{{color:var(--muted);font-size:.68rem;white-space:nowrap}}
+.search-empty{{padding:.6rem .8rem;color:var(--muted);font-style:italic}}
+/* highlight 動畫 — 搜尋結果跳轉到該 cluster 卡片時高亮 1.5s */
+.cluster-card.search-hi{{animation:searchHi 1.6s ease-out}}
+@keyframes searchHi {{
+  0%, 30% {{ box-shadow: 0 0 0 2px var(--accent), 0 0 24px rgba(124,138,242,.5); }}
+  100% {{ box-shadow: none; }}
+}}
+@media(max-width:680px){{
+  .search-box{{flex-basis:100%;margin:.4rem 0 0}}
+  .search-box input{{width:100%}}
+}}
 
 .wrap{{max-width:1120px;margin:0 auto;padding:1.25rem 1.1rem}}
 
@@ -1806,6 +1898,39 @@ tr:last-child td{{border-bottom:none}}
             background:#1a2030;color:var(--accent);border:1px solid #2a3a50;transition:.15s}}
 .univ-chip:hover{{background:#1e2a40}}
 .univ-chip.disabled{{background:#1e1215;color:#6a5060;border-color:#2e2025;text-decoration:line-through}}
+
+/* ── Cluster sort chips ── */
+.sort-row{{display:flex;align-items:center;flex-wrap:wrap;gap:.4rem;
+           margin-bottom:.7rem;padding:.1rem .15rem}}
+.sort-label{{font-size:.7rem;color:var(--muted);font-weight:600}}
+.sort-chip{{font-family:inherit;font-size:.7rem;font-weight:600;
+            padding:.22rem .65rem;border-radius:5px;cursor:pointer;
+            background:rgba(255,255,255,.04);color:var(--muted);
+            border:1px solid var(--border);transition:.15s;letter-spacing:.02em}}
+.sort-chip:hover{{color:var(--text);background:rgba(124,138,242,.08)}}
+.sort-chip.active{{background:var(--accent-glow);color:var(--accent);
+                    border-color:rgba(124,138,242,.4)}}
+
+/* ── Modal radar chart(個股 5 維 vs 焦點股平均)─────────────────────────── */
+.radar-card{{background:rgba(255,255,255,.02);border:1px solid var(--border);
+             border-radius:8px;padding:.7rem .8rem;margin-bottom:1rem}}
+.radar-title{{font-size:.72rem;color:var(--muted);font-weight:600;
+               margin-bottom:.3rem;text-align:center;letter-spacing:.04em}}
+.radar-svg{{width:100%;max-width:260px;height:auto;display:block;margin:0 auto}}
+.radar-grid{{fill:none;stroke:rgba(255,255,255,.08);stroke-width:.5}}
+.radar-spoke{{stroke:rgba(255,255,255,.06);stroke-width:.5}}
+.radar-avg{{fill:rgba(124,138,242,.10);stroke:rgba(124,138,242,.55);
+             stroke-width:.9;stroke-dasharray:2 1.5}}
+.radar-stock{{fill:rgba(239,83,80,.18);stroke:rgba(239,83,80,.85);
+               stroke-width:1.3}}
+.radar-label{{fill:#a8b5c8;font-size:6.5px;font-weight:600;
+               font-family:inherit}}
+.radar-val{{fill:var(--accent);font-size:5.8px;font-weight:700;
+             font-family:inherit;letter-spacing:.02em}}
+.radar-legend{{display:flex;justify-content:center;gap:1.2rem;
+                font-size:.66rem;margin-top:.4rem;font-weight:600}}
+.rl-stock{{color:#ef5350}}
+.rl-avg{{color:var(--accent)}}
 
 /* ── Theme clusters ── */
 .focus-clusters{{display:flex;flex-direction:column;gap:.85rem;margin-bottom:1.5rem}}
@@ -2102,6 +2227,14 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
     <button class="tab-btn"        data-tab="ranking" onclick="showTab('ranking')">焦點排行</button>
     <button class="tab-btn"        data-tab="notes"   onclick="showTab('notes')">股市筆記</button>
   </nav>
+  <div class="search-box">
+    <input type="search" id="site-search" placeholder="搜尋 ticker / 公司"
+           autocomplete="off" spellcheck="false"
+           oninput="onSearchInput(this.value)"
+           onfocus="onSearchInput(this.value)"
+           onkeydown="onSearchKey(event)">
+    <div class="search-dropdown" id="search-dropdown" hidden></div>
+  </div>
 </header>
 
 <div class="wrap">
@@ -2223,6 +2356,7 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
 const artModalData = {{
 {modal_js_entries}
 }};
+window.IIA_RADAR = {radar_payload_json};
 
 function showTab(name) {{
   document.querySelectorAll('.tab-btn').forEach(b =>
@@ -2238,10 +2372,82 @@ function showSubTab(name) {{
     p.classList.toggle('active', p.id === 'stab-' + name));
 }}
 
+/* 個股 5 維雷達:漲跌 / PE / 殖利率 / 52w% / β,normalize 到 0~1 後畫
+ * polygon。同時疊一條 dashed 全焦點股平均對比。SVG concat 不用 template
+ * literal 是為了避開 Python fstring `{{}}` escape 噪音。 */
+function _radarSvg(ticker) {{
+  const data = (window.IIA_RADAR || {{}});
+  const m = (data.stocks || {{}})[ticker];
+  if (!m) return '';
+  const avg = data.market || {{}};
+  // 維度 normalize:統一 0~1 範圍。PE 越低越好(反向),其他越高越好。
+  const N = {{
+    chg:  v => v == null ? 0 : Math.max(0, Math.min(1, (v + 8) / 16)),
+    pe:   v => v == null ? 0 : Math.max(0, Math.min(1, 1 - v / 40)),
+    yld:  v => v == null ? 0 : Math.max(0, Math.min(1, v / 8)),
+    w52:  v => v == null ? 0 : Math.max(0, Math.min(1, v)),
+    beta: v => v == null ? 0 : Math.max(0, Math.min(1, v / 2)),
+  }};
+  const dims = [
+    {{ key:'chg',  label:'漲跌',  raw:m.chg,  fmt:v => v==null?'—':(v>=0?'+':'')+v.toFixed(2)+'%' }},
+    {{ key:'pe',   label:'PE',    raw:m.pe,   fmt:v => v==null?'—':v.toFixed(1) }},
+    {{ key:'yld',  label:'殖利',  raw:m.yld,  fmt:v => v==null?'—':v.toFixed(2)+'%' }},
+    {{ key:'w52',  label:'52w%',  raw:m.w52,  fmt:v => v==null?'—':(v*100).toFixed(0)+'%' }},
+    {{ key:'beta', label:'β',     raw:m.beta, fmt:v => v==null?'—':v.toFixed(2) }},
+  ];
+  // 若 5 維全 null,無資料就不畫
+  if (dims.every(d => d.raw == null)) return '';
+  const cx = 80, cy = 80, r = 50;
+  const ang = (i) => -Math.PI/2 + i * 2*Math.PI/dims.length;
+  const pt = (i, v) => {{
+    const a = ang(i);
+    return [cx + Math.cos(a)*r*v, cy + Math.sin(a)*r*v];
+  }};
+  const pts = (vals) => vals.map((v, i) => {{
+    const [x, y] = pt(i, v);
+    return x.toFixed(1)+','+y.toFixed(1);
+  }}).join(' ');
+  const stockVals = dims.map(d => N[d.key](d.raw));
+  const avgVals = dims.map(d => N[d.key](avg[d.key]));
+  const ringVals = (s) => dims.map(_ => s);
+  const parts = [];
+  parts.push('<div class="radar-card">');
+  parts.push('<div class="radar-title">五維雷達 vs 全焦點股平均</div>');
+  parts.push('<svg class="radar-svg" viewBox="0 0 160 165">');
+  parts.push('<polygon class="radar-grid" points="' + pts(ringVals(1))    + '"/>');
+  parts.push('<polygon class="radar-grid" points="' + pts(ringVals(0.66)) + '"/>');
+  parts.push('<polygon class="radar-grid" points="' + pts(ringVals(0.33)) + '"/>');
+  dims.forEach((_, i) => {{
+    const [x, y] = pt(i, 1);
+    parts.push('<line class="radar-spoke" x1="' + cx + '" y1="' + cy +
+               '" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '"/>');
+  }});
+  parts.push('<polygon class="radar-avg"   points="' + pts(avgVals)   + '"/>');
+  parts.push('<polygon class="radar-stock" points="' + pts(stockVals) + '"/>');
+  dims.forEach((d, i) => {{
+    const [lx, ly] = pt(i, 1.32);
+    const ca = Math.cos(ang(i));
+    const anchor = ca > 0.2 ? 'start' : (ca < -0.2 ? 'end' : 'middle');
+    parts.push('<text class="radar-label" x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) +
+               '" text-anchor="' + anchor + '">' + d.label + '</text>');
+    parts.push('<text class="radar-val" x="' + lx.toFixed(1) + '" y="' + (ly+7).toFixed(1) +
+               '" text-anchor="' + anchor + '">' + d.fmt(d.raw) + '</text>');
+  }});
+  parts.push('</svg>');
+  parts.push('<div class="radar-legend">');
+  parts.push('<span class="rl-stock">▬ ' + ticker + '</span>');
+  parts.push('<span class="rl-avg">▬ 焦點股平均</span>');
+  parts.push('</div>');
+  parts.push('</div>');
+  return parts.join('');
+}}
+
 function showArtModal(ticker, name) {{
   const modal = document.getElementById('art-modal');
   document.getElementById('modal-title').textContent = ticker + ' ' + name;
-  document.getElementById('modal-body').innerHTML = artModalData[ticker] || '<p style="color:#7a8ba0">尚無分析師或文章資料</p>';
+  const radar = _radarSvg(ticker);
+  const body = artModalData[ticker] || '<p style="color:#7a8ba0">尚無分析師或文章資料</p>';
+  document.getElementById('modal-body').innerHTML = radar + body;
   modal.showModal();
 }}
 
@@ -2285,6 +2491,18 @@ window.addEventListener('resize', _initMergedNames);
 /* 廣泛概念股濾除 — 點 univ-chip 把該 ticker 在每個 cluster 內反灰、
  * cluster meta 重算、整列依 activeTv 重排(FLIP 動畫) */
 const _univDis = new Set();
+
+/* cluster 排序維度('tv'/'chg'/'yield'),預設 'tv',點 sort-chip 切換。
+ * 'chg' / 'yield' 在 _recalcClusters 內用 active focal 平均算。 */
+let _clusterSort = 'tv';
+function setClusterSort(mode) {{
+  if (mode === _clusterSort) return;
+  _clusterSort = mode;
+  document.querySelectorAll('.sort-chip').forEach(b => {{
+    b.classList.toggle('active', b.dataset.sort === mode);
+  }});
+  _recalcClusters('sub');
+}}
 function toggleUniv(ticker) {{
   if (_univDis.has(ticker)) _univDis.delete(ticker);
   else _univDis.add(ticker);
@@ -2326,11 +2544,22 @@ function _recalcClusters(level) {{
     }});
   }});
 
-  // 2. 重算每個 cluster 的 active 狀態
+  // 2. 重算每個 cluster 的 active 狀態 + 各 sort 維度值
+  const _mean = (arr) => {{
+    const xs = arr.filter(v => v != null);
+    return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
+  }};
   const states = clusters.map(c => {{
     const activeFocal = c.focal.filter(f => !_univDis.has(f.ticker));
     const disabledTv  = c.focal.reduce((s, f) => _univDis.has(f.ticker) ? s + f.tv : s, 0);
-    return {{ cardId: c.cardId, activeFocal, activeTv: c.baseTv - disabledTv, visible: activeFocal.length > 0 }};
+    return {{
+      cardId: c.cardId,
+      activeFocal,
+      activeTv: c.baseTv - disabledTv,
+      visible: activeFocal.length > 0,
+      avgChg:   _mean(activeFocal.map(f => f.chg)),
+      avgYield: _mean(activeFocal.map(f => f.yld)),
+    }};
   }});
 
   // 3. 卡片顯示 / 隱藏 + meta 更新
@@ -2346,8 +2575,19 @@ function _recalcClusters(level) {{
     }}
   }});
 
-  // 4. 依 activeTv 重排 DOM
-  const visibleSorted = states.filter(s => s.visible).sort((a, b) => b.activeTv - a.activeTv);
+  // 4. 依 _clusterSort 重排 DOM(desc;None 排到最後)
+  const _key = (s) => {{
+    if (_clusterSort === 'chg')   return s.avgChg;
+    if (_clusterSort === 'yield') return s.avgYield;
+    return s.activeTv;  // 'tv' default
+  }};
+  const visibleSorted = states.filter(s => s.visible).sort((a, b) => {{
+    const va = _key(a), vb = _key(b);
+    if (va == null && vb == null) return 0;
+    if (va == null) return 1;
+    if (vb == null) return -1;
+    return vb - va;
+  }});
   visibleSorted.forEach(s => {{
     const el = cardEls[s.cardId];
     if (el) container.appendChild(el);
@@ -2751,6 +2991,102 @@ function _shareToast(msg) {{
 if (navigator.share) {{
   document.querySelector('.share-native')?.removeAttribute('hidden');
 }}
+
+/* ── 站內搜尋 ─────────────────────────────────────────────────────────────── */
+/* 從 IIA_CLUSTERS.sub 建反向索引(ticker → cluster cardId + name)。
+ * 預先建一次,後續每次按鍵 O(N) linear scan(N ~ 100 個 ticker 可接受)。 */
+const _searchIdx = (() => {{
+  const out = [];
+  const seen = new Set();
+  ((window.IIA_CLUSTERS || {{}}).sub || []).forEach(c => {{
+    (c.focal || []).forEach(f => {{
+      if (seen.has(f.ticker)) return;
+      seen.add(f.ticker);
+      out.push({{ ticker: f.ticker, name: f.n || '', cardId: c.cardId, cluster: c.name }});
+    }});
+  }});
+  return out;
+}})();
+
+let _searchKbIdx = -1;
+
+function onSearchInput(q) {{
+  const dd = document.getElementById('search-dropdown');
+  q = (q || '').trim().toLowerCase();
+  if (!q) {{ dd.hidden = true; return; }}
+  // ticker / 公司名 / cluster 名(子產業)三軸搜尋。dedup by ticker,
+  // 同 ticker 在多 cluster 只取第一個(scrollIntoView 跳哪都合理)。
+  const hits = _searchIdx.filter(it =>
+    it.ticker.toLowerCase().includes(q) ||
+    (it.name    && it.name.toLowerCase().includes(q)) ||
+    (it.cluster && it.cluster.toLowerCase().includes(q))
+  ).slice(0, 12);
+  if (!hits.length) {{
+    dd.innerHTML = '<div class="search-empty">無相符結果(只搜尋熱門題材內的焦點股)</div>';
+  }} else {{
+    dd.innerHTML = hits.map((it, i) =>
+      '<div class="search-item" data-i="' + i +
+      '" data-ticker="' + it.ticker +
+      '" data-card="' + it.cardId +
+      '" onclick="onSearchPick(this)">' +
+      '<span class="si-ticker">' + it.ticker + '</span>' +
+      '<span class="si-name">' + it.name + '</span>' +
+      '<span class="si-cluster">' + it.cluster + '</span>' +
+      '</div>'
+    ).join('');
+  }}
+  dd.hidden = false;
+  _searchKbIdx = -1;
+}}
+
+function onSearchKey(e) {{
+  const dd = document.getElementById('search-dropdown');
+  if (e.key === 'Escape') {{
+    dd.hidden = true;
+    e.target.blur();
+    return;
+  }}
+  const items = dd.querySelectorAll('.search-item');
+  if (!items.length) return;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {{
+    e.preventDefault();
+    _searchKbIdx = e.key === 'ArrowDown'
+      ? Math.min(_searchKbIdx + 1, items.length - 1)
+      : Math.max(_searchKbIdx - 1, 0);
+    items.forEach((it, i) => it.classList.toggle('kb-active', i === _searchKbIdx));
+    items[_searchKbIdx]?.scrollIntoView({{ block: 'nearest' }});
+    return;
+  }}
+  if (e.key === 'Enter') {{
+    e.preventDefault();
+    const target = _searchKbIdx >= 0 ? items[_searchKbIdx] : items[0];
+    if (target) onSearchPick(target);
+  }}
+}}
+
+function onSearchPick(el) {{
+  const cardId = el.dataset.card;
+  showTab('focus');
+  const card = document.getElementById(cardId);
+  if (card) {{
+    setTimeout(() => {{
+      card.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
+      card.classList.remove('search-hi');
+      void card.offsetWidth;  // restart animation
+      card.classList.add('search-hi');
+    }}, 80);
+  }}
+  document.getElementById('search-dropdown').hidden = true;
+  document.getElementById('site-search').value = '';
+}}
+
+// 點 search-box 外面 → 收 dropdown
+document.addEventListener('click', e => {{
+  if (!e.target.closest('.search-box')) {{
+    const dd = document.getElementById('search-dropdown');
+    if (dd) dd.hidden = true;
+  }}
+}});
 
 /* ── 焦點排行 → CSV 下載 ──────────────────────────────────────────────────── */
 /* 從現有 <table> DOM 萃取(避免重複資料);UTF-8 BOM 讓 Excel 開檔不亂碼。
