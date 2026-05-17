@@ -749,6 +749,24 @@ def _aggregate_history_net(member_keys: list[str], history_payload: dict) -> lis
     return [daily[d] / 1e8 for d in sorted(daily.keys())]  # 換成億單位
 
 
+def _aggregate_ticker_net_inst(focal_tickers: list[str],
+                                ticker_net_inst: dict[str, dict[str, float]],
+                                n_days: int = 180) -> list[float]:
+    """合併 focal_tickers 跨 main 的 daily net_inst(億 TWD)。
+    用於 hl_sub cluster sparkline:member_keys (近一年焦點||...) 沒 theme_history
+    row,但其 focal ticker 在「其他 main」row 內出現過,net_inst 是 ticker-level
+    transaction 跨 (m,s) 同值,可由 ticker_net_inst 反向索引拿。
+    回 list[float] 億 TWD,最後 n_days 個 trading day。
+    """
+    daily: dict[str, float] = {}
+    for tk in focal_tickers:
+        for d, v in (ticker_net_inst or {}).get(tk, {}).items():
+            if v is not None:
+                daily[d] = daily.get(d, 0) + v
+    sorted_days = sorted(daily.keys())[-n_days:]
+    return [daily[d] / 1e8 for d in sorted_days]
+
+
 def _industry_section_html(
     clusters: list[IndustryCluster],
     all_stocks: dict,
@@ -756,6 +774,7 @@ def _industry_section_html(
     history_payload: dict | None = None,
     highlight_subs: dict[str, list[tuple[str, str]]] | None = None,
     stock_meta: dict | None = None,
+    ticker_net_inst: dict[str, dict[str, float]] | None = None,
 ) -> str:
     """Render industry cluster cards. level = "main" | "sub" | "hl_sub" | "pan_sub"。
     前哨觀察(watch)已從顯示移除(2026-05-16),只保留今日焦點。
@@ -940,13 +959,20 @@ def _industry_section_html(
         })
 
         # Sparkline (server-side SVG):過去 N 天三大法人淨流入(億)柱狀圖。
-        # 紅買綠賣亞洲慣例。資料空 → 不渲染 SVG,但對 hl_sub level 還是會
-        # 顯一個 chart 按鈕(theme_history 沒「近一年焦點」main 的 row,
-        # 但 chart modal 的加權指數靠 ticker_close Q13 還是能畫出來,
-        # 只有 net histogram 會空)。
+        # 紅買綠賣亞洲慣例。
+        #   pan_sub:走 member_keys → theme_history_payload (現有路徑)
+        #   hl_sub:走 focal tickers → ticker_net_inst 反向索引(跨 main 拿,
+        #     因為「近一年焦點||...」自己沒 theme_history row,但 focal ticker
+        #     在其他 main 的 row 內有 net_inst,值跨 (m,s) 同 day 相同可共用)
         spark_html = ""
-        if is_sub_level and member_keys:
-            spark_values = _aggregate_history_net(member_keys, history_payload)
+        if is_sub_level:
+            if level == "hl_sub" and ticker_net_inst:
+                focal_tks = [s.ticker for s in c.focal]
+                spark_values = _aggregate_ticker_net_inst(focal_tks, ticker_net_inst)
+            elif member_keys:
+                spark_values = _aggregate_history_net(member_keys, history_payload)
+            else:
+                spark_values = []
             if len(spark_values) >= 2:
                 spark_svg = _sparkline_bars_svg(spark_values)
                 if spark_svg:
@@ -958,13 +984,6 @@ def _industry_section_html(
                         f'<span class="spark-label">{len(spark_values)}d</span>'
                         f'</button>'
                     )
-            elif level == "hl_sub":
-                # hl_sub 沒 sparkline 資料時,仍給一個 chart 入口(用 ticker_close 算)
-                spark_html = (
-                    f'<button class="spark-btn spark-btn-icon" type="button" '
-                    f"onclick=\"openThemeChart('{card_id}')\" "
-                    f'title="點擊看 6 個月焦點股加權指數 vs 大盤">📊</button>'
-                )
         # focal pills 預設依該股當日漲跌 desc 排(對齊 cluster header 預設 active 的 漲跌 badge);
         # None 排尾段。JS setFocalSort 點擊後會 re-order DOM。
         def _focal_chg_key(s):
@@ -1202,6 +1221,7 @@ def build_focus_html(
     market_index_payload: dict | None = None,
     stock_meta: dict | None = None,
     highlight_subs: dict[str, list[tuple[str, str]]] | None = None,
+    ticker_net_inst: dict[str, dict[str, float]] | None = None,
 ) -> tuple[str, dict]:
     """Build the 熱門題材 tab — 只渲染子產業 ranked list。
 
@@ -1267,6 +1287,7 @@ def build_focus_html(
     hl_html = _industry_section_html(
         hl_clusters, all_stocks, "hl_sub", theme_history_payload,
         highlight_subs=highlight_subs, stock_meta=stock_meta,
+        ticker_net_inst=ticker_net_inst,
     ) if hl_clusters else '<p class="muted-note">今日「近一年焦點」題材無焦點股入榜</p>'
     pan_html = _industry_section_html(
         pan_clusters, all_stocks, "pan_sub", theme_history_payload,
@@ -1707,7 +1728,27 @@ async def generate():
     # StockGG-ingest 端 src/analysis/theme_history.py 寫入。若 table 還沒
     # 建立(ingest 還沒 deploy),靜默回退到「無 chart」狀態,公開站照常運作。
     theme_history_rows: list = []
-    _hist_keys = list({f"{m}||{s}" for c in sub_clusters for m, s in c.members})
+    _hist_keys_set: set[str] = {f"{m}||{s}" for c in sub_clusters for m, s in c.members}
+    # 加上 hl_sub cluster 焦點股的「其他 main」分類 (m, s) keys:讓 theme_history
+    # 抓得到這些 ticker 的 net_inst(focal_breakdown 內),否則 hl_sub cluster
+    # 的 sparkline + chart histogram 都是空的。同 ticker 同日的 net_inst 在不同
+    # (m, s) row 是同值,任何一個 row 拿得到都行。
+    _hl_focal_tickers = {
+        s.ticker for c in sub_clusters
+        for s in c.focal
+        if (c.main == HIGHLIGHT_MAIN or any(m == HIGHLIGHT_MAIN for m, _ in (c.members or [])))
+    }
+    if _hl_focal_tickers:
+        _theme_dict = json.loads(_THEME_DICT_PATH.read_text(encoding="utf-8")) if _THEME_DICT_PATH.exists() else {}
+        for tk in _hl_focal_tickers:
+            info = (_theme_dict.get("stocks") or {}).get(tk, {})
+            for ind in info.get("industries", []) if isinstance(info, dict) else []:
+                m = ind.get("main")
+                if not m or m == HIGHLIGHT_MAIN or ind.get("disabled"):
+                    continue
+                for s in ind.get("subs", []):
+                    _hist_keys_set.add(f"{m}||{s}")
+    _hist_keys = list(_hist_keys_set)
     if _hist_keys:
         try:
             theme_history_rows = [dict(r) for r in await conn.fetch(
@@ -1763,8 +1804,13 @@ async def generate():
     updated_at  = datetime.now(timezone.utc).strftime("%m/%d %H:%M UTC")
 
     # Build IIA_HISTORY payload: {"main||sub": [{d, s:{ticker:[tv,chg]}}, ...]}
-    # Compact array form (tv, chg) to keep bundle size manageable.
+    # Compact array form (tv, chg) to keep bundle size manageable。
+    # 同時建一個 per-ticker net_inst 反向索引,給 hl_sub cluster 用(它的
+    # member_keys (近一年焦點||...) 沒 theme_history row,但其 focal ticker
+    # 在「其他 main」(半導體等)的 row 內出現過,net_inst 是 ticker-level
+    # transaction,跨 (m,s) 值一樣,所以可以共用)。
     theme_history_payload: dict[str, list] = {}
+    ticker_net_inst: dict[str, dict[str, float]] = {}  # ticker -> {date_str: net_inst (shares)}
     for r in theme_history_rows:
         key = f"{r['main_industry']}||{r['sub_industry']}"
         d = r["rank_date"]
@@ -1783,6 +1829,15 @@ async def generate():
             if isinstance(v, dict)
         }
         theme_history_payload.setdefault(key, []).append({"d": date_str, "s": stocks_compact})
+        # 反向索引 ticker → date → net_inst(同 ticker 同日跨 (m,s) 值一樣,
+        # setdefault 第一次寫入,後續同日寫入會 dedup 為同值)
+        for tk, v in breakdown.items():
+            if not isinstance(v, dict):
+                continue
+            ni = v.get("net_inst")
+            if ni is None:
+                continue
+            ticker_net_inst.setdefault(tk, {})[date_str] = ni
 
     # ticker_close_history (Q13) — per-ticker × per-date close + shares_out,
     # 400 天歷史。用來:
@@ -1825,6 +1880,7 @@ async def generate():
         tw_ranks, sub_clusters, stocks_info, theme_history_payload,
         market_index_payload, stock_meta,
         highlight_subs=highlight_subs,
+        ticker_net_inst=ticker_net_inst,
     )
     notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)
     ranking_html = build_focus_ranking_html(_focal_tw, stocks_info, stock_meta)
@@ -3238,6 +3294,16 @@ function _loadHistory() {{
       window.IIA_HISTORY = data.history || {{}};
       window.IIA_INDEX_HISTORY = data.index || {{}};
       window.IIA_TICKER_CLOSE = data.ticker_close || {{}};  // Q13 per-ticker 400 天 close+shares
+      // ticker_net_inst:per-ticker daily 法人淨買賣股數;hl_sub cluster
+      // 也能拿到 net_inst(從 focal ticker 在「其他 main」row 內 backfill)
+      const tni = data.ticker_net_inst || {{}};
+      const tniIdx = {{}};
+      for (const tk in tni) {{
+        const m = {{}};
+        (tni[tk] || []).forEach(p => {{ m[p.d] = p.n; }});
+        tniIdx[tk] = m;
+      }}
+      window.IIA_TICKER_NET_INST = tniIdx;
     }})
     .catch(err => {{
       _historyLoadPromise = null;  // 失敗時可重試
@@ -3316,32 +3382,38 @@ function _findClusterDef(cardId) {{
  * 鎖定今天的 cluster.focal ticker set,**同時套 _univDis(外層) + _modalTickerDis(modal 內)** 過濾。 */
 function _computeClusterSeries(cluster) {{
   const hist = window.IIA_HISTORY || {{}};
-  const tch  = window.IIA_TICKER_CLOSE || {{}};  // Q13:per-ticker 400 天 close+shares
+  const tch  = window.IIA_TICKER_CLOSE || {{}};       // Q13:per-ticker 400 天 close+shares
+  const tnet = window.IIA_TICKER_NET_INST || {{}};    // per-ticker daily net_inst(跨 main 索引)
   const keys = cluster.memberKeys || [];
   const todayFocals = [...new Set((cluster.focal || []).map(f => f.ticker))]
     .filter(t => !_univDis.has(t) && !_modalTickerDis.has(t));
 
-  // 收集所有出現過的 dates(ticker_close ∪ theme_history member keys)
-  // ticker_close 涵蓋 400 天且每個 focal ticker 都有,通常 superset 包含 hist 的日期。
+  // 收集所有出現過的 dates(ticker_close ∪ ticker_net_inst ∪ theme_history)
   const dateSet = new Set();
   todayFocals.forEach(t => (tch[t] || []).forEach(p => dateSet.add(p.d)));
+  todayFocals.forEach(t => Object.keys(tnet[t] || {{}}).forEach(d => dateSet.add(d)));
   keys.forEach(k => (hist[k] || []).forEach(row => dateSet.add(row.d)));
   const dates = [...dateSet].sort();
   if (!dates.length) return {{ netSeries: [], priceSeries: [] }};
 
-  // close + shares 來源(優先 ticker_close,fallback theme_history 5-tuple):
-  //   ticker_close[ticker] = [{{d, c, s}}, ...]  ← 由 Q13 拉,所有 focal 都有
-  //   hist[key].s[ticker] = [tv,chg,close,net,shares] ← 舊路徑,hl 沒這資料
-  // net_inst 仍從 hist 拿(daily transaction,只有有進 top-50 那天才有值;
-  // hl_sub cluster 沒這 row → 整條 netSeries 是 0,histogram 顯示空白可接受)
+  // 三個資料源:
+  //   ticker_close[ticker] = [{{d, c, s}}, ...]  ← 400 天 close+shares,所有 focal 都有
+  //   ticker_net_inst[ticker][date] = net_shares ← 跨 main 反向索引,hl_sub 也能拿
+  //   hist[key].s[ticker] = [tv,chg,close,net,shares] ← 舊路徑當 fallback
   const raw = {{}};   // ticker -> {{date -> {{close, shares, net}}}}
   todayFocals.forEach(t => {{
     raw[t] = {{}};
-    // 1) 先填 ticker_close 的 close+shares
+    // 1) ticker_close 的 close+shares
     (tch[t] || []).forEach(p => {{
       raw[t][p.d] = {{ close: p.c, shares: p.s, net: null }};
     }});
-    // 2) 補 hist 的 net_inst(以及 fallback close/shares 若 tch 沒這天)
+    // 2) ticker_net_inst 的 net(per-ticker,跨 main 已合一)
+    const tnetMap = tnet[t] || {{}};
+    Object.entries(tnetMap).forEach(([d, n]) => {{
+      const slot = raw[t][d] || (raw[t][d] = {{ close: null, shares: null, net: null }});
+      slot.net = n;
+    }});
+    // 3) fallback 從 hist 補 close/shares/net(舊路徑;新路徑沒值的話)
     keys.forEach(k => {{
       (hist[k] || []).forEach(row => {{
         const v = (row.s || {{}})[t];
@@ -3349,7 +3421,7 @@ function _computeClusterSeries(cluster) {{
         const slot = raw[t][row.d] || (raw[t][row.d] = {{ close: null, shares: null, net: null }});
         if (slot.close == null && v[2] != null) slot.close = v[2];
         if (slot.shares == null && v[4] != null) slot.shares = v[4];
-        if (v[3] != null) slot.net = (slot.net || 0) + v[3];
+        if (slot.net == null && v[3] != null) slot.net = v[3];
       }});
     }});
   }});
@@ -3947,9 +4019,15 @@ function downloadRankCSV(tableId, baseName) {{
 
     # 把 chart 用的歷史 payload 寫到獨立 history.json,modal 首次打開才 fetch。
     # 結構:
-    #   history:      {"main||sub":[{d, s:{ticker:[tv,chg,close,net,shares]}}, ...]}
-    #   index:        {"TWII":[{d, close}], "TPEX":[...]}
-    #   ticker_close: {ticker:[{d, c, s}, ...]}  ← Q13,for hl_sub cluster modal
+    #   history:          {"main||sub":[{d, s:{ticker:[tv,chg,close,net,shares]}}, ...]}
+    #   index:            {"TWII":[{d, close}], "TPEX":[...]}
+    #   ticker_close:     {ticker:[{d, c, s}, ...]}  ← Q13,for hl_sub 加權指數
+    #   ticker_net_inst:  {ticker:{date: net_shares}} ← per-ticker 反向索引,
+    #                     hl_sub cluster sparkline + histogram 跨 main 合成用
+    ticker_net_inst_payload = {
+        tk: [{"d": d, "n": v} for d, v in sorted(days.items())]
+        for tk, days in ticker_net_inst.items()
+    }
     hist_file = OUT_FILE.parent / "history.json"
     hist_file.write_text(
         json.dumps(
@@ -3957,6 +4035,7 @@ function downloadRankCSV(tableId, baseName) {{
                 "history": theme_history_payload,
                 "index": market_index_payload or {},
                 "ticker_close": ticker_close_payload,
+                "ticker_net_inst": ticker_net_inst_payload,
             },
             ensure_ascii=False, separators=(",", ":"),
         ),
