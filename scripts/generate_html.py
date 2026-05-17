@@ -1014,7 +1014,10 @@ def _industry_section_html(
         # 前哨 section(只在 highlight_subs 有提供時):從該 cluster 的 members
         # 找 main=HIGHLIGHT_MAIN 的 sub,取 theme_dictionary 完整 ticker list
         # 扣掉 focal 就是「該題材還在但今日沒進 top-50」的標的。
-        sentinel_html = ""
+        # toggle 按鈕直接 append 到 focal_pills 末段,panel 在下方獨立 block,
+        # JS toggleSentinelInline 透過 data-target 找 panel 動畫展開/收合。
+        sentinel_toggle = ""  # inline button(append to focal_pills)
+        sentinel_panel = ""   # panel block(在 focal-stocks div 下方)
         if highlight_subs:
             focal_tk_set = {s.ticker for s in c.focal}
             sentinel_pool: dict[str, str] = {}  # ticker -> name(去重)
@@ -1050,16 +1053,21 @@ def _industry_section_html(
                     ),
                 )
                 snt_html = "".join(_snt_pill(tk, nm) for tk, nm in items)
-                # 前哨 section 預設收合,點 ▾ 動畫展開(複用 .anim-details JS
-                # max-height transition);summary 只顯計數 + 小箭頭,避免噪音
-                sentinel_html = (
-                    f'<details class="cluster-sentinel anim-details">'
-                    f'<summary class="sntl-summary" title="展開 {len(items)} 檔同題材未進 top-50 的前哨">'
+                panel_id = f"{card_id}-sntl"
+                # inline toggle:append 到 focal_pills,跟焦點 chip 同行末段
+                sentinel_toggle = (
+                    f'<button class="sntl-toggle-inline" type="button" '
+                    f'data-target="{panel_id}" '
+                    f'onclick="toggleSentinelInline(this)" '
+                    f'title="展開 {len(items)} 檔同題材未進 top-50 的前哨">'
                     f'<span class="sntl-arrow">▾</span>'
                     f'<span class="sntl-count">前哨 {len(items)}</span>'
-                    f'</summary>'
-                    f'<div class="anim-panel cluster-sentinel-stocks">{snt_html}</div>'
-                    f'</details>'
+                    f'</button>'
+                )
+                # panel block:預設 hidden,JS 切 max-height + opacity 動畫
+                sentinel_panel = (
+                    f'<div class="cluster-sentinel-stocks anim-panel" '
+                    f'id="{panel_id}" hidden>{snt_html}</div>'
                 )
 
         # Cluster name:
@@ -1112,8 +1120,8 @@ def _industry_section_html(
     {spark_html}
   </div>
   {subtitle}
-  <div class="cluster-focal-stocks">{focal_pills}</div>
-  {sentinel_html}
+  <div class="cluster-focal-stocks">{focal_pills}{sentinel_toggle}</div>
+  {sentinel_panel}
 </div>""")
 
     cluster_json_str = json.dumps(cluster_json, ensure_ascii=False, separators=(",", ":"))
@@ -1306,7 +1314,7 @@ def build_focus_html(
     # sub-tabs:🌟 近一年焦點 / 📊 泛分類(同 cluster card 排行版型)
     nav_html = (
         '<div class="sub-tabs">'
-        '<button class="sub-tab-btn active" data-stab="hl"  type="button" onclick="showSubTab(\'hl\')">🌟 近一年焦點</button>'
+        '<button class="sub-tab-btn active" data-stab="hl"  type="button" onclick="showSubTab(\'hl\')">🌟 焦點</button>'
         '<button class="sub-tab-btn"        data-stab="pan" type="button" onclick="showSubTab(\'pan\')">📊 泛分類</button>'
         '</div>'
     )
@@ -2314,26 +2322,29 @@ tr:last-child td{{border-bottom:none}}
 .rl-avg{{color:var(--accent)}}
 
 /* ── Highlight 區 (近一年焦點) ─────────────────────────────────────────── */
-/* cluster card 內前哨 section(只在近一年焦點 sub-tab 的 cluster 出現):
- * 該題材完整 ticker list 扣掉今日 focal,顯為虛線淡色 pill + PE chip,
- * 視覺跟今日焦點 pill 區隔(non-clickable 不開 modal)。
- * 預設收合,點 summary 的 ▾ 動畫展開(複用 .anim-details JS) */
-.cluster-sentinel{{margin-top:.35rem;padding-top:.4rem;
-                    border-top:1px dashed rgba(255,255,255,.08)}}
-.cluster-sentinel .sntl-summary{{cursor:pointer;list-style:none;
-                                   display:inline-flex;align-items:center;gap:.25rem;
-                                   padding:.18rem .55rem;border-radius:4px;
-                                   font-size:.66rem;color:var(--muted);font-weight:600;
-                                   letter-spacing:.04em;user-select:none;
-                                   background:rgba(255,255,255,.02);
-                                   transition:background .15s,color .15s}}
-.cluster-sentinel .sntl-summary::-webkit-details-marker{{display:none}}
-.cluster-sentinel .sntl-summary:hover{{color:var(--accent);background:rgba(124,138,242,.08)}}
-.cluster-sentinel .sntl-arrow{{display:inline-block;font-size:.7rem;line-height:1;
-                                 transition:transform .25s ease}}
-.cluster-sentinel[open] .sntl-arrow{{transform:rotate(180deg)}}
+/* 前哨 section:toggle 按鈕 inline append 到 focal 末段,點開後 panel 在
+ * focal-stocks div 下方動畫展開(同題材完整 ticker list 扣掉今日 focal,
+ * 顯虛線淡色 pill + PE chip,non-clickable)。 */
+.sntl-toggle-inline{{display:inline-flex;align-items:center;gap:.25rem;
+                      padding:.18rem .55rem;border-radius:4px;
+                      font-size:.66rem;color:var(--muted);font-weight:600;
+                      letter-spacing:.04em;user-select:none;cursor:pointer;
+                      background:rgba(255,255,255,.02);border:1px dashed rgba(255,255,255,.12);
+                      font-family:inherit;line-height:1.4;
+                      transition:background .15s,color .15s,border-color .15s}}
+.sntl-toggle-inline:hover{{color:var(--accent);background:rgba(124,138,242,.08);
+                            border-color:rgba(124,138,242,.4)}}
+.sntl-toggle-inline .sntl-arrow{{display:inline-block;font-size:.7rem;line-height:1;
+                                   transition:transform .25s ease}}
+.sntl-toggle-inline.expanded .sntl-arrow{{transform:rotate(180deg)}}
 .cluster-sentinel-stocks{{display:flex;flex-wrap:wrap;gap:.3rem .35rem;
-                            margin-top:.4rem}}
+                            margin-top:.4rem;padding-top:.4rem;
+                            border-top:1px dashed rgba(255,255,255,.08);
+                            overflow:hidden;
+                            transition:max-height .28s ease,opacity .22s ease}}
+/* 顯式 override:.cluster-sentinel-stocks 設了 display:flex 會蓋掉 [hidden]
+ * 屬性的 UA display:none,要再加一條 [hidden] 規則特異性提升才能真隱 */
+.cluster-sentinel-stocks[hidden]{{display:none}}
 .snt-pill{{display:inline-flex;align-items:center;gap:.3rem;
             padding:.2rem .55rem;border-radius:5px;
             background:rgba(255,255,255,.02);
@@ -4008,6 +4019,43 @@ document.addEventListener('click', e => {{
   if (e.target.closest('.anim-details')) return;
   document.querySelectorAll('.anim-details[open]').forEach(d => _animDetailsClose(d));
 }});
+
+/* 前哨 inline toggle:button 在 focal-stocks div 內、panel 在 div 下方 sibling,
+ * data-target 對應 panel id。max-height + opacity transition,跟 anim-details
+ * 同 pattern 但不需要 <details>/<summary> 結構限制(讓 button 能 inline 在
+ * 一排焦點 chip 之間)。 */
+function toggleSentinelInline(btn) {{
+  const panel = document.getElementById(btn.dataset.target);
+  if (!panel) return;
+  const isHidden = panel.hidden;
+  if (isHidden) {{
+    panel.hidden = false;
+    panel.style.maxHeight = '0px';
+    panel.style.opacity = '0';
+    void panel.offsetWidth;
+    panel.style.maxHeight = panel.scrollHeight + 'px';
+    panel.style.opacity = '1';
+    btn.classList.add('expanded');
+    panel.addEventListener('transitionend', function te(e) {{
+      if (e.propertyName !== 'max-height') return;
+      panel.style.maxHeight = 'none';
+      panel.removeEventListener('transitionend', te);
+    }});
+  }} else {{
+    panel.style.maxHeight = panel.scrollHeight + 'px';
+    void panel.offsetWidth;
+    panel.style.maxHeight = '0px';
+    panel.style.opacity = '0';
+    btn.classList.remove('expanded');
+    panel.addEventListener('transitionend', function te(e) {{
+      if (e.propertyName !== 'max-height') return;
+      panel.hidden = true;
+      panel.style.maxHeight = '';
+      panel.style.opacity = '';
+      panel.removeEventListener('transitionend', te);
+    }});
+  }}
+}}
 
 /* ── 焦點排行 → CSV 下載 ──────────────────────────────────────────────────── */
 /* 從現有 <table> DOM 萃取(避免重複資料);UTF-8 BOM 讓 Excel 開檔不亂碼。
