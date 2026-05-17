@@ -793,8 +793,9 @@ def _industry_section_html(
         label = "主產業" if level == "main" else "子產業"
         return f'<p class="muted-note">今日尚無{label}熱門產業</p>'
 
-    # 廣泛概念股(sub-only):同 ticker 在 >3 個 merged/dedup'd sub-cluster
-    # 出現 → 變成可濾除 chip
+    # 廣泛概念股(sub-only):同 ticker 在 N 個 sub-cluster 出現 → 變成可濾除 chip。
+    # threshold 動態:cluster 數多(>20)用 >3;少(hl_sub 通常 12 上下)放寬到 >1,
+    # 避免人工編彙的 cluster 集合內幾乎沒人達 >3 門檻 → universal panel 永遠空
     universal: dict[str, str] = {}
     if level in ("sub", "hl_sub", "pan_sub"):
         from collections import Counter
@@ -802,8 +803,9 @@ def _industry_section_html(
         for c in clusters:
             for s in c.focal:
                 counts[s.ticker] += 1
+        threshold = 3 if len(clusters) > 20 else 1
         for t, n in counts.items():
-            if n > 3:
+            if n > threshold:
                 info = all_stocks.get(t, {})
                 universal[t] = (info.get("name") or t)[:8]
 
@@ -1076,7 +1078,7 @@ def _industry_section_html(
                 f'<span class="cluster-name cn-collapsible" data-collapsed="1">'
                 f'{icon} '
                 f'<span class="cn-short-text">{html_lib.escape(short)}…</span>'
-                f'<span class="cn-full-text" hidden>{html_lib.escape(c.name)}</span>'
+                f'<span class="cn-full-text">{html_lib.escape(c.name)}</span>'
                 f'<button class="cn-toggle-btn" type="button" '
                 f'onclick="toggleClusterNameCollapsed(this)" '
                 f'title="展開完整題材名稱">展開</button>'
@@ -2355,10 +2357,12 @@ tr:last-child td{{border-bottom:none}}
 .cluster-name{{font-size:.95rem;font-weight:700}}
 
 /* Merged cluster name (focal 完全相同的子產業聚合) — mobile/tablet 收合 */
-/* cluster name 過長(>30 字)收合機制:預設顯短版 + …,點按鈕展開全名 */
+/* cluster name 過長(>30 字)收合機制:預設顯短版 + …,點按鈕展開全名。
+ * 用 data-collapsed attribute 控制顯隱(不用 hidden 屬性 — 之前撞 CSS
+ * `display:inline` override 導致兩 span 同時顯,標題重複) */
 .cn-collapsible{{display:inline-flex;align-items:baseline;gap:.3rem;flex-wrap:wrap}}
-.cn-collapsible .cn-short-text,
-.cn-collapsible .cn-full-text{{display:inline}}
+.cn-collapsible[data-collapsed="1"] .cn-full-text{{display:none}}
+.cn-collapsible[data-collapsed="0"] .cn-short-text{{display:none}}
 .cn-toggle-btn{{font-size:.65rem;font-weight:600;padding:.1rem .45rem;
                 border:1px solid var(--border);border-radius:4px;
                 background:rgba(124,138,242,.08);color:var(--accent);
@@ -3001,17 +3005,16 @@ function toggleClusterName(btn) {{
   _refreshClusterToggle(el);
 }}
 
-/* 30 字以上 cluster name 收合/展開:純 hidden 切換,跟 cn-merged 兩套機制
- * 並存(cn-collapsible 走長度判斷,cn-merged 走 mobile media query)。 */
+/* 30 字以上 cluster name 收合/展開:CSS 走 data-collapsed attribute
+ * 控制兩個 span 顯隱(不用 hidden 屬性,因 .cn-collapsible 容器 CSS 設了
+ * display:inline-flex 會覆蓋掉子 span 的 hidden),JS 只負責 toggle data 跟
+ * 按鈕文字。 */
 function toggleClusterNameCollapsed(btn) {{
   const el = btn.closest('.cn-collapsible');
   if (!el) return;
   const wasCollapsed = el.dataset.collapsed === '1';
-  const nowCollapsed = !wasCollapsed;
-  el.querySelector('.cn-short-text').hidden = !nowCollapsed;
-  el.querySelector('.cn-full-text').hidden = nowCollapsed;
-  el.dataset.collapsed = nowCollapsed ? '1' : '0';
-  btn.textContent = nowCollapsed ? '展開' : '收合';
+  el.dataset.collapsed = wasCollapsed ? '0' : '1';
+  btn.textContent = wasCollapsed ? '收合' : '展開';
 }}
 
 function _initMergedNames() {{
