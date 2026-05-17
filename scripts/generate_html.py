@@ -764,7 +764,7 @@ def _industry_section_html(
             '<div class="sort-explainer-row">'
             '<div class="sort-row">'
             '<span class="sort-label">排序：</span>'
-            '<button class="sort-chip active" data-sort="tv"    type="button" onclick="setClusterSort(\'tv\')">成交金額</button>'
+            '<button class="sort-chip active" data-sort="tv" data-dir="desc" type="button" onclick="setClusterSort(\'tv\')">成交金額</button>'
             '<button class="sort-chip"        data-sort="chg"   type="button" onclick="setClusterSort(\'chg\')">平均漲跌</button>'
             '<button class="sort-chip"        data-sort="bias"  type="button" onclick="setClusterSort(\'bias\')">平均乖離</button>'
             '<button class="sort-chip"        data-sort="pe"    type="button" onclick="setClusterSort(\'pe\')">平均 PE</button>'
@@ -1980,6 +1980,9 @@ tr:last-child td{{border-bottom:none}}
 .sort-chip:hover{{color:var(--text);background:rgba(124,138,242,.08)}}
 .sort-chip.active{{background:var(--accent-glow);color:var(--accent);
                     border-color:rgba(124,138,242,.4)}}
+/* desc / asc 方向箭頭(只在 active chip 出現,點同 chip 切換方向) */
+.sort-chip.active[data-dir="desc"]::after{{content:" ↓";font-weight:800}}
+.sort-chip.active[data-dir="asc"]::after{{content:" ↑";font-weight:800}}
 
 /* ── Modal radar chart(個股 5 維 vs 焦點股平均)─────────────────────────── */
 .radar-card{{background:rgba(255,255,255,.02);border:1px solid var(--border);
@@ -2611,14 +2614,22 @@ window.addEventListener('resize', _initMergedNames);
  * cluster meta 重算、整列依 activeTv 重排(FLIP 動畫) */
 const _univDis = new Set();
 
-/* cluster 排序維度('tv'/'chg'/'yield'),預設 'tv',點 sort-chip 切換。
- * 'chg' / 'yield' 在 _recalcClusters 內用 active focal 平均算。 */
+/* cluster 排序維度('tv'/'chg'/'bias'/'pe'/'yield'/'beta'),預設 'tv' desc。
+ * 重複點同一個 chip → 切換 desc ↔ asc;切到不同 chip → 重置為 desc。
+ * 各維度的 avg 在 _recalcClusters 內用 active focal 算。null 永遠排尾段(不受方向影響)。 */
 let _clusterSort = 'tv';
+let _clusterSortDir = 'desc';
 function setClusterSort(mode) {{
-  if (mode === _clusterSort) return;
-  _clusterSort = mode;
+  if (mode === _clusterSort) {{
+    _clusterSortDir = _clusterSortDir === 'desc' ? 'asc' : 'desc';
+  }} else {{
+    _clusterSort = mode;
+    _clusterSortDir = 'desc';
+  }}
   document.querySelectorAll('.sort-chip').forEach(b => {{
-    b.classList.toggle('active', b.dataset.sort === mode);
+    const on = b.dataset.sort === _clusterSort;
+    b.classList.toggle('active', on);
+    b.dataset.dir = on ? _clusterSortDir : '';
   }});
   _recalcClusters('sub');
 }}
@@ -2722,12 +2733,14 @@ function _recalcClusters(level) {{
     if (_clusterSort === 'beta')  return s.avgBeta;
     return s.activeTv;  // 'tv' default
   }};
+  const _dirMul = _clusterSortDir === 'asc' ? -1 : 1;
   const visibleSorted = states.filter(s => s.visible).sort((a, b) => {{
     const va = _key(a), vb = _key(b);
+    // null 永遠排尾段(無論 asc/desc),避免缺資料 cluster 卡在最前面
     if (va == null && vb == null) return 0;
     if (va == null) return 1;
     if (vb == null) return -1;
-    return vb - va;
+    return (vb - va) * _dirMul;
   }});
   visibleSorted.forEach(s => {{
     const el = cardEls[s.cardId];
