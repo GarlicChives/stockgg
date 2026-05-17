@@ -3004,7 +3004,6 @@ function _renderTickerChips(cluster) {{
     .slice().sort((a, b) => (b.tv || 0) - (a.tv || 0));
   box.innerHTML = focals.map(f => {{
     const dis = _modalTickerDis.has(f.ticker) ? ' is-dis' : '';
-    const mktCls = f.mkt === 'TW' ? 'mkt-tw' : 'mkt-us';
     const pct = _fmtPctJs(f.chg);
     let quote;
     if (f.close != null) {{
@@ -3014,11 +3013,12 @@ function _renderTickerChips(cluster) {{
     }}
     const nameHtml = f.n ? '<span class="sp-name">' + _escHtml(f.n) + '</span>' : '';
     const tk = _escHtml(f.ticker);
+    // 不顯 mkt-badge(TW/US):modal 左欄空間有限,且全部都是同一 cluster 內的標的,
+    // 市場類別由 cluster 上下文已表達,pill 內再標一次是 noise
     return '<div class="stk-pill modal-tk-pill' + dis + '" '
       + 'data-ticker="' + tk + '" '
       + 'onclick="toggleModalTicker(\\'' + tk + '\\')">'
       + '<span class="sp-ticker">' + tk + '</span>'
-      + '<span class="mkt-badge ' + mktCls + '">' + _escHtml(f.mkt) + '</span>'
       + nameHtml
       + '<span class="sp-quote ' + pct.cls + '">' + _escHtml(quote) + '</span>'
       + '</div>';
@@ -3145,15 +3145,26 @@ function _renderThemeChart(cardId) {{
   netSer.setData(netSeries);
   _tcCharts.netSeries = netSer;
 
-  // **重要**:rightPriceScale 寬度可能不同(net 用「億」會更寬的數字),
-  // 兩張 chart plot area 左邊起點會錯。強制 rightPriceScale 共用最小寬度
-  // (minimumWidth)讓兩張 chart 的 X 軸 0 點對齊,crosshair 才會同位。
-  const PRICE_SCALE_MIN = 56;
-  _tcCharts.price.priceScale('right').applyOptions({{ minimumWidth: PRICE_SCALE_MIN }});
-  _tcCharts.net.priceScale('right').applyOptions({{ minimumWidth: PRICE_SCALE_MIN }});
-
   _tcCharts.price.timeScale().fitContent();
   _tcCharts.net.timeScale().fitContent();
+
+  // **關鍵 crosshair 對齊**:lightweight-charts 的 right priceScale 寬度依
+  // 內容自動撐(net 的「+800.0億」比 price 的「190.0」寬幾 px),導致兩張
+  // chart 的 plot area 左邊起點錯位 → 同一時間 T 落在不同 X pixel →
+  // 兩條垂直虛線會差幾 px。修法:render 完後 measure 兩邊實際寬度,
+  // 取 max 套 minimumWidth(設 min 比實際寬只會多撐不會 truncate),
+  // 兩張 chart 的 right scale 就完全同寬,plot area 對齊。
+  // 用 requestAnimationFrame 確保 DOM layout 完成才 measure。
+  requestAnimationFrame(() => {{
+    if (!_tcCharts.price || !_tcCharts.net) return;
+    const pW = _tcCharts.price.priceScale('right').width();
+    const nW = _tcCharts.net.priceScale('right').width();
+    const maxW = Math.max(pW, nW);
+    if (maxW > 0) {{
+      _tcCharts.price.priceScale('right').applyOptions({{ minimumWidth: maxW }});
+      _tcCharts.net.priceScale('right').applyOptions({{ minimumWidth: maxW }});
+    }}
+  }});
 
   // Time-range sync(不用 logical-range):時間語意更穩,即使兩 series 點數不同
   // 也能精準對齊;搭配上面 startDate 對齊,X 軸 pixel 一致
