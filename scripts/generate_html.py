@@ -772,10 +772,16 @@ def _industry_section_html(
             '</div>'
         )
 
-    def _metric_badge(label: str, value: float | None, title: str, sort_key: str) -> str:
-        """指標 badge(可點擊觸發 setClusterSort):正紅 / 負綠 / 平盤白 / None 灰。"""
-        onclick = f"onclick=\"setClusterSort('{sort_key}')\""
-        common = f'class="cluster-metric metric-btn {{cls}}" data-sort="{sort_key}" role="button" tabindex="0" title="{title}" {onclick}'
+    # badges = per-cluster 焦點股排序觸發(只動該題材內的 pill 順序,不影響外層 cluster 排序)。
+    # 預設每個 cluster 內 focal 都依 乖離(bias)desc。
+    def _metric_badge(label: str, value: float | None, title: str, sort_key: str,
+                      card_id: str, is_default_sort: bool = False) -> str:
+        """指標 badge(可點擊觸發 setFocalSort):正紅 / 負綠 / 平盤白 / None 灰。"""
+        onclick = f"onclick=\"setFocalSort('{card_id}','{sort_key}')\""
+        active = " is-active-sort" if is_default_sort else ""
+        ddir = ' data-dir="desc"' if is_default_sort else ""
+        common = (f'class="cluster-metric metric-btn {{cls}}{active}" data-sort="{sort_key}"{ddir} '
+                  f'role="button" tabindex="0" title="{title}" {onclick}')
         if value is None:
             return f'<span {common.format(cls="neutral")}>{label} —</span>'
         pct_str, cls = fmt_pct(value)
@@ -814,23 +820,26 @@ def _industry_section_html(
         avg_yield = _mean([all_stocks.get(s.ticker, {}).get("dividend_yield") for s in c.focal])
         avg_beta = _mean([all_stocks.get(s.ticker, {}).get("beta") for s in c.focal])
 
-        def _plain_badge(label: str, value: float | None, title: str, sort_key: str, fmt: str = "{:.2f}") -> str:
-            """中性 badge(無顏色,可點擊觸發 setClusterSort)。value=None 仍可點(用 — 顯示)。"""
-            onclick = f"onclick=\"setClusterSort('{sort_key}')\""
-            common = f'class="cluster-metric metric-btn neutral" data-sort="{sort_key}" role="button" tabindex="0" title="{title}" {onclick}'
+        def _plain_badge(label: str, value: float | None, title: str, sort_key: str,
+                         card_id: str, fmt: str = "{:.2f}") -> str:
+            """中性 badge(無顏色,可點擊觸發 setFocalSort)。value=None 仍可點(用 — 顯示)。"""
+            onclick = f"onclick=\"setFocalSort('{card_id}','{sort_key}')\""
+            common = (f'class="cluster-metric metric-btn neutral" data-sort="{sort_key}" '
+                      f'role="button" tabindex="0" title="{title}" {onclick}')
             val_str = "—" if value is None else fmt.format(value)
             return f'<span {common}>{label} {val_str}</span>'
 
         # 順序:乖離 / 漲跌 / PE / 殖利 / β(用戶要求,預設按乖離 desc 排)
+        # 點 badge → setFocalSort(card_id, key):只動該題材內 focal pill 順序
+        card_id = f"cc-{level}-{idx}"
         metric_html = (
-            _metric_badge("乖離", avg_ma20, "焦點股平均 20MA 乖離率(點擊排序)", "bias")
-            + _metric_badge("漲跌", avg_chg, "焦點股平均漲跌幅(點擊排序)", "chg")
-            + _plain_badge("PE", avg_pe, "焦點股平均 PE (TTM)(點擊排序)", "pe", "{:.1f}")
-            + _plain_badge("殖利", avg_yield, "焦點股平均殖利率 %(點擊排序)", "yield", "{:.2f}%")
-            + _plain_badge("β", avg_beta, "焦點股平均 Beta(對大盤)(點擊排序)", "beta", "{:.2f}")
+            _metric_badge("乖離", avg_ma20, "點擊依此題材內個股 20MA 乖離率排序", "bias", card_id, is_default_sort=True)
+            + _metric_badge("漲跌", avg_chg, "點擊依此題材內個股漲跌幅排序", "chg", card_id)
+            + _plain_badge("PE", avg_pe, "點擊依此題材內個股 PE (TTM)排序", "pe", card_id, "{:.1f}")
+            + _plain_badge("殖利", avg_yield, "點擊依此題材內個股殖利率排序", "yield", card_id, "{:.2f}%")
+            + _plain_badge("β", avg_beta, "點擊依此題材內個股 Beta 排序", "beta", card_id, "{:.2f}")
         )
 
-        card_id = f"cc-{level}-{idx}"
         member_keys = [f"{m}||{s}" for m, s in (c.members or [])]
         # focal entries 帶 6 維 metric,供前端 sort chip / modal chip 用。
         # toggle universal 後前端依 _univDis 重算。
@@ -873,12 +882,18 @@ def _industry_section_html(
                         f'<span class="spark-label">{len(spark_values)}d</span>'
                         f'</button>'
                     )
+        # focal pills 預設依該股 20MA 乖離 desc 排(對齊 cluster header 預設 active 的 乖離 badge);
+        # None 排尾段。JS setFocalSort 點擊後會 re-order DOM。
+        def _focal_bias_key(s):
+            b = all_stocks.get(s.ticker, {}).get("ma20_bias")
+            return (1, 0) if b is None else (0, -b)
+        focal_sorted = sorted(c.focal, key=_focal_bias_key)
         focal_pills = "".join(
             _stk_pill(
                 s.ticker, all_stocks,
                 extra_attrs=f'data-cluster-ticker="{html_lib.escape(s.ticker)}" data-tv="{int(s.trading_value)}"',
             )
-            for s in c.focal
+            for s in focal_sorted
         )
 
         tv_str = f"{c.trading_value/1e8:.0f}億" if c.trading_value > 0 else ""
@@ -2668,18 +2683,64 @@ const _univDis = new Set();
  * 各維度的 avg 在 _recalcClusters 內用 active focal 算。null 永遠排尾段(不受方向影響)。 */
 let _clusterSort = 'bias';
 let _clusterSortDir = 'desc';
-/* 兩處 UI 同步:頂端 sort-chip 列(全 6 維 含 tv)+ 各 cluster header
- * 的 5 顆 metric badge(.cluster-metric.metric-btn)。共用 data-sort 識別。 */
+/* 只刷頂端 sort-chip 列(管 cluster 外層排序)。
+ * cluster header badge 是 per-cluster focal 排序,由 _renderFocalSort 管,
+ * 跟頂端列無關,不要在這裡 touch。 */
 function _refreshSortUi() {{
   document.querySelectorAll('.sort-chip').forEach(b => {{
     const on = b.dataset.sort === _clusterSort;
     b.classList.toggle('active', on);
     b.dataset.dir = on ? _clusterSortDir : '';
   }});
-  document.querySelectorAll('.cluster-metric.metric-btn').forEach(b => {{
-    const on = b.dataset.sort === _clusterSort;
+}}
+
+/* ── Per-cluster focal sort ─────────────────────────────────────────────────
+ * cluster header 的 metric badge(乖離/漲跌/PE/殖利/β)點擊只動該題材
+ * 內的 focal pill 順序,不影響外層 cluster 排序。state per cardId,
+ * 預設 bias desc(對齊 Python 端 focal_sorted 初始順序)。 */
+const _focalSort = new Map();  // cardId -> { key, dir }
+function _getFocalSort(cardId) {{
+  if (!_focalSort.has(cardId)) _focalSort.set(cardId, {{ key: 'bias', dir: 'desc' }});
+  return _focalSort.get(cardId);
+}}
+function setFocalSort(cardId, key) {{
+  const cur = _getFocalSort(cardId);
+  if (cur.key === key) cur.dir = cur.dir === 'desc' ? 'asc' : 'desc';
+  else {{ cur.key = key; cur.dir = 'desc'; }}
+  _renderFocalSort(cardId);
+}}
+function _renderFocalSort(cardId) {{
+  const card = document.getElementById(cardId);
+  if (!card) return;
+  const cluster = ((window.IIA_CLUSTERS || {{}}).sub || []).find(c => c.cardId === cardId);
+  if (!cluster) return;
+  const state = _getFocalSort(cardId);
+  // 排序 focal entries(skip _univDis 在外層 _recalcClusters 用 pill-disabled
+  // 表達,排序這裡不過濾,保持 pill 都存在,只是順序變)。
+  const dirMul = state.dir === 'asc' ? -1 : 1;
+  const sorted = cluster.focal.slice().sort((a, b) => {{
+    const va = a[state.key], vb = b[state.key];
+    if (va == null && vb == null) return 0;
+    if (va == null) return 1;
+    if (vb == null) return -1;
+    return (vb - va) * dirMul;
+  }});
+  // 拿 DOM pill 重排
+  const container = card.querySelector('.cluster-focal-stocks');
+  if (!container) return;
+  const pillMap = {{}};
+  container.querySelectorAll('.stk-pill[data-cluster-ticker]').forEach(p => {{
+    pillMap[p.dataset.clusterTicker] = p;
+  }});
+  sorted.forEach(f => {{
+    const p = pillMap[f.ticker];
+    if (p) container.appendChild(p);
+  }});
+  // 更新該卡片內 badge 的 active 狀態(只此卡)
+  card.querySelectorAll('.cluster-metric.metric-btn').forEach(b => {{
+    const on = b.dataset.sort === state.key;
     b.classList.toggle('is-active-sort', on);
-    if (on) b.dataset.dir = _clusterSortDir;
+    if (on) b.dataset.dir = state.dir;
     else b.removeAttribute('data-dir');
   }});
 }}
