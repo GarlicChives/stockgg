@@ -208,12 +208,27 @@ def _stk_pill(ticker: str, stocks_info: dict, clickable: bool = True, extra_attr
     click = f" onclick='showArtModal({json.dumps(ticker)},{json.dumps(name[:12])})'" if clickable else ""
     extra = f" {extra_attrs}" if extra_attrs else ""
 
+    # 處置/漲跌停 flag tag(ingest 端 extra 帶進來,2026-05-18 起)。
+    # is_punish 包含 一般處置 + 嚴格處置(punish_type 可區分);is_limit_up
+    # 用收盤判定;is_special 表示「不在 top-50 但因 punish/limit 進來」。
+    tags: list[str] = []
+    if info.get("is_punish"):
+        ptype = info.get("punish_type")
+        title = "嚴格處置" if ptype == "strict" else "處置股"
+        tags.append(f'<span class="sp-tag tag-punish" title="{title}">處</span>')
+    if info.get("limit_up"):
+        tags.append('<span class="sp-tag tag-limit-up" title="漲停">漲停</span>')
+    if info.get("is_limit_down"):
+        tags.append('<span class="sp-tag tag-limit-down" title="跌停">跌停</span>')
+    tags_html = "".join(tags)
+
     return (
         f'<div class="stk-pill"{click}{extra}>'
         f'<span class="sp-ticker">{html_lib.escape(ticker)}</span>'
         f'<span class="mkt-badge {mkt_cls}">{market}</span>'
         f'{name_span}'
         f'<span class="sp-quote {pct_cls}">{quote}</span>'
+        f'{tags_html}'
         f'</div>'
     )
 
@@ -631,8 +646,9 @@ def rank_rows_html(ranks, market: str) -> str:
             extra = json.loads(r.get("extra") or "{}") if isinstance(r.get("extra"), str) else (r.get("extra") or {})
             b = extra.get("board", "TWSE")
             board = f'<span class="board-badge {b.lower()}">{b}</span>'
+        rank_disp = r["rank"] if r["rank"] is not None else "—"
         rows.append(
-            f'<tr><td class="rank">{r["rank"]}</td>'
+            f'<tr><td class="rank">{rank_disp}</td>'
             f'<td class="ticker">{html_lib.escape(r["ticker"])}</td>'
             f'<td class="name">{html_lib.escape((r["name"] or "")[:10])}{board}</td>'
             f'<td class="num {pct_cls}">{quote}</td>'
@@ -1273,7 +1289,11 @@ def build_focus_html(
             "close_price": float(r["close_price"]) if r.get("close_price") is not None else None,
             "trading_value": float(r["trading_value"] or 0),
             "rank": r["rank"],
-            "limit_up": bool(r.get("is_limit_up_30m")),
+            "limit_up": bool(extra.get("is_limit_up") or r.get("is_limit_up_30m")),
+            "is_limit_down": bool(extra.get("is_limit_down")),
+            "is_punish": bool(extra.get("is_punish")),
+            "punish_type": extra.get("punish_type"),
+            "is_special": bool(extra.get("is_special")),
             "ma20_bias": stocks_info.get(r["ticker"], {}).get("ma20_bias"),
             # F2/F3 stock_meta 帶進來:cluster metric badge 與 pill 52w% 都讀這
             "week52_high": float(meta["week52_high"]) if meta.get("week52_high") is not None else None,
@@ -1587,6 +1607,11 @@ async def generate():
         }
     for r in tw_ranks:
         extra = json.loads(r.get("extra") or "{}") if isinstance(r.get("extra"), str) else (r.get("extra") or {})
+        # 2026-05-18 起 ingest 端會把處置/漲跌停 ticker 也寫進 trading_rankings
+        # (即使不在 top-50,rank=NULL,extra 帶 flag),公開站靠這些 flag
+        # 顯小 tag「處」/「漲」/「跌」並進 cluster detection。向下相容:flag
+        # 沒帶就 False。is_limit_up_30m 是舊欄保留(避免破壞舊資料),is_limit_up
+        # 是新的收盤判定。
         stocks_info[r["ticker"]] = {
             "name": r["name"] or r["ticker"],
             "market": "TW",
@@ -1594,8 +1619,12 @@ async def generate():
             "change_pct": float(r["change_pct"]) if r["change_pct"] is not None else None,
             "close_price": float(r["close_price"]) if r.get("close_price") is not None else None,
             "trading_value": float(r["trading_value"] or 0),
-            "rank": r["rank"],
-            "limit_up": bool(r.get("is_limit_up_30m")),
+            "rank": r["rank"],  # 可能 None(extra.is_special=true 但不在 top-50)
+            "limit_up": bool(extra.get("is_limit_up") or r.get("is_limit_up_30m")),
+            "is_limit_down": bool(extra.get("is_limit_down")),
+            "is_punish": bool(extra.get("is_punish")),
+            "punish_type": extra.get("punish_type"),  # 'normal' | 'strict' | None
+            "is_special": bool(extra.get("is_special")),  # 非 top-50 但因 punish/limit 加入
         }
     stocks_info = {k: v for k, v in stocks_info.items() if not _is_etf(k, v.get("name", ""))}
 
@@ -2702,6 +2731,16 @@ dialog#art-modal::backdrop{{background:rgba(0,0,0,.65)}}
 .sp-ticker{{font-weight:800;font-size:.85rem}}
 .sp-name{{font-size:.72rem;color:var(--muted)}}
 .sp-quote{{font-weight:700;font-size:.78rem;font-variant-numeric:tabular-nums}}
+/* 處置 / 漲跌停 小 tag(2026-05-18 ingest 端開始寫 extra flag,公開站 pill 顯)
+ * 處 = 橙黃(警示),漲停 = 紅(亞洲漲),跌停 = 綠(亞洲跌) */
+.sp-tag{{font-size:.58rem;font-weight:700;padding:.06rem .3rem;border-radius:3px;
+         letter-spacing:.04em;line-height:1.3;flex-shrink:0;cursor:help}}
+.sp-tag.tag-punish{{background:rgba(245,158,11,.18);color:#f59e0b;
+                     border:1px solid rgba(245,158,11,.35)}}
+.sp-tag.tag-limit-up{{background:rgba(239,83,80,.18);color:#f47471;
+                       border:1px solid rgba(239,83,80,.4)}}
+.sp-tag.tag-limit-down{{background:rgba(38,166,154,.18);color:#5dc4b9;
+                         border:1px solid rgba(38,166,154,.4)}}
 
 .up{{color:var(--up)}} .down{{color:var(--down)}} .flat{{color:#fff}} .neutral{{color:var(--muted)}}
 footer{{color:var(--muted);font-size:.75rem;
