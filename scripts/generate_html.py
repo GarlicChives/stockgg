@@ -746,9 +746,9 @@ def _industry_section_html(
             '<div class="sort-explainer-row">'
             '<div class="sort-row">'
             '<span class="sort-label">排序：</span>'
-            '<button class="sort-chip active" data-sort="tv" data-dir="desc" type="button" onclick="setClusterSort(\'tv\')">成交金額</button>'
+            '<button class="sort-chip"        data-sort="tv" type="button" onclick="setClusterSort(\'tv\')">成交金額</button>'
             '<button class="sort-chip"        data-sort="chg"   type="button" onclick="setClusterSort(\'chg\')">平均漲跌</button>'
-            '<button class="sort-chip"        data-sort="bias"  type="button" onclick="setClusterSort(\'bias\')">平均乖離</button>'
+            '<button class="sort-chip active" data-sort="bias" data-dir="desc" type="button" onclick="setClusterSort(\'bias\')">平均乖離</button>'
             '<button class="sort-chip"        data-sort="pe"    type="button" onclick="setClusterSort(\'pe\')">平均 PE</button>'
             '<button class="sort-chip"        data-sort="yield" type="button" onclick="setClusterSort(\'yield\')">平均殖利率</button>'
             '<button class="sort-chip"        data-sort="beta"  type="button" onclick="setClusterSort(\'beta\')">平均 β</button>'
@@ -772,14 +772,27 @@ def _industry_section_html(
             '</div>'
         )
 
-    def _metric_badge(label: str, value: float | None, title: str) -> str:
-        """指標 badge:正紅 / 負綠 / 平盤白 / None 灰(沿用 fmt_pct 的 css class)。"""
+    def _metric_badge(label: str, value: float | None, title: str, sort_key: str) -> str:
+        """指標 badge(可點擊觸發 setClusterSort):正紅 / 負綠 / 平盤白 / None 灰。"""
+        onclick = f"onclick=\"setClusterSort('{sort_key}')\""
+        common = f'class="cluster-metric metric-btn {{cls}}" data-sort="{sort_key}" role="button" tabindex="0" title="{title}" {onclick}'
         if value is None:
-            return (f'<span class="cluster-metric neutral" title="{title}">'
-                    f'{label} —</span>')
+            return f'<span {common.format(cls="neutral")}>{label} —</span>'
         pct_str, cls = fmt_pct(value)
-        return (f'<span class="cluster-metric {cls}" title="{title}">'
-                f'{label} {pct_str}</span>')
+        return f'<span {common.format(cls=cls)}>{label} {pct_str}</span>'
+
+    # 預設依「平均乖離」desc 排序:None 排尾段。clusters 先 pre-sort,DOM
+    # 順序跟 JS _clusterSort='bias' 一致,首次 _recalcClusters 不會觸發
+    # FLIP 動畫(dy≈0)→ 無視覺跳動
+    def _calc_avg_bias(c):
+        xs = [all_stocks.get(s.ticker, {}).get("ma20_bias") for s in c.focal]
+        xs = [x for x in xs if x is not None]
+        return sum(xs) / len(xs) if xs else None
+    clusters = sorted(
+        clusters,
+        key=lambda c: (0 if _calc_avg_bias(c) is not None else 1,
+                       -(_calc_avg_bias(c) or 0))
+    )
 
     cards = []
     cluster_json: list[dict] = []
@@ -801,19 +814,20 @@ def _industry_section_html(
         avg_yield = _mean([all_stocks.get(s.ticker, {}).get("dividend_yield") for s in c.focal])
         avg_beta = _mean([all_stocks.get(s.ticker, {}).get("beta") for s in c.focal])
 
-        def _plain_badge(label: str, value: float | None, title: str, fmt: str = "{:.2f}") -> str:
-            """中性 badge(無顏色),純資訊。"""
-            if value is None:
-                return ""
-            return (f'<span class="cluster-metric neutral" title="{title}">'
-                    f'{label} {fmt.format(value)}</span>')
+        def _plain_badge(label: str, value: float | None, title: str, sort_key: str, fmt: str = "{:.2f}") -> str:
+            """中性 badge(無顏色,可點擊觸發 setClusterSort)。value=None 仍可點(用 — 顯示)。"""
+            onclick = f"onclick=\"setClusterSort('{sort_key}')\""
+            common = f'class="cluster-metric metric-btn neutral" data-sort="{sort_key}" role="button" tabindex="0" title="{title}" {onclick}'
+            val_str = "—" if value is None else fmt.format(value)
+            return f'<span {common}>{label} {val_str}</span>'
 
+        # 順序:乖離 / 漲跌 / PE / 殖利 / β(用戶要求,預設按乖離 desc 排)
         metric_html = (
-            _metric_badge("漲跌", avg_chg, "焦點股平均漲跌幅")
-            + _metric_badge("乖離", avg_ma20, "焦點股平均 20MA 乖離率")
-            + _plain_badge("PE", avg_pe, "焦點股平均 PE (TTM)", "{:.1f}")
-            + _plain_badge("殖利", avg_yield, "焦點股平均殖利率 %", "{:.2f}%")
-            + _plain_badge("β", avg_beta, "焦點股平均 Beta(對大盤)", "{:.2f}")
+            _metric_badge("乖離", avg_ma20, "焦點股平均 20MA 乖離率(點擊排序)", "bias")
+            + _metric_badge("漲跌", avg_chg, "焦點股平均漲跌幅(點擊排序)", "chg")
+            + _plain_badge("PE", avg_pe, "焦點股平均 PE (TTM)(點擊排序)", "pe", "{:.1f}")
+            + _plain_badge("殖利", avg_yield, "焦點股平均殖利率 %(點擊排序)", "yield", "{:.2f}%")
+            + _plain_badge("β", avg_beta, "焦點股平均 Beta(對大盤)(點擊排序)", "beta", "{:.2f}")
         )
 
         card_id = f"cc-{level}-{idx}"
@@ -2031,6 +2045,15 @@ tr:last-child td{{border-bottom:none}}
 .cluster-metric.down{{background:rgba(38,166,154,.14);color:#5dc4b9}}
 .cluster-metric.flat{{background:rgba(255,255,255,.06);color:#fff}}
 .cluster-metric.neutral{{background:rgba(255,255,255,.05);color:var(--muted)}}
+/* metric-btn:badge 可點擊觸發 setClusterSort,is-active-sort 標當前排序維度 */
+.cluster-metric.metric-btn{{cursor:pointer;transition:filter .15s,outline-color .15s,box-shadow .15s;
+                             user-select:none;outline:1px solid transparent;outline-offset:0}}
+.cluster-metric.metric-btn:hover{{filter:brightness(1.18)}}
+.cluster-metric.metric-btn:focus-visible{{outline-color:var(--accent)}}
+.cluster-metric.metric-btn.is-active-sort{{outline:1.5px solid var(--accent);outline-offset:1px;
+                                            box-shadow:0 0 0 2px rgba(124,138,242,.18)}}
+.cluster-metric.metric-btn.is-active-sort[data-dir="desc"]::after{{content:" ↓";opacity:.85}}
+.cluster-metric.metric-btn.is-active-sort[data-dir="asc"]::after{{content:" ↑";opacity:.85}}
 .cluster-meta{{font-size:.72rem;color:var(--muted);margin-left:auto}}
 .cluster-meta .meta-label{{opacity:.75}}
 .cluster-meta .meta-val{{font-weight:700;margin-left:.15rem}}
@@ -2624,15 +2647,42 @@ function _initMergedNames() {{
 window.addEventListener('load', _initMergedNames);
 window.addEventListener('resize', _initMergedNames);
 
+/* 頁面 load 時刷一次 sort UI 狀態 + 跑 _recalcClusters 把 cluster meta
+ * 文字校正成「平均乖離 X%」(Python 初始 render 只寫「N 檔焦點 · TV」)。
+ * 因 Python 端已 pre-sort by bias desc,DOM 順序跟 JS 算出來一致 →
+ * FLIP 動畫 dy≈0 不會跳。 */
+window.addEventListener('load', () => {{
+  if (typeof _refreshSortUi === 'function') _refreshSortUi();
+  if (typeof _recalcClusters === 'function' && (window.IIA_CLUSTERS || {{}}).sub) {{
+    _recalcClusters('sub');
+  }}
+}});
+
 /* 廣泛概念股濾除 — 點 univ-chip 把該 ticker 在每個 cluster 內反灰、
  * cluster meta 重算、整列依 activeTv 重排(FLIP 動畫) */
 const _univDis = new Set();
 
-/* cluster 排序維度('tv'/'chg'/'bias'/'pe'/'yield'/'beta'),預設 'tv' desc。
- * 重複點同一個 chip → 切換 desc ↔ asc;切到不同 chip → 重置為 desc。
+/* cluster 排序維度('tv'/'chg'/'bias'/'pe'/'yield'/'beta'),預設 'bias' desc(用戶要求)。
+ * 重複點同一個 chip / 任一個 cluster header badge → 切換 desc ↔ asc;
+ * 切到不同 key → 重置為 desc。
  * 各維度的 avg 在 _recalcClusters 內用 active focal 算。null 永遠排尾段(不受方向影響)。 */
-let _clusterSort = 'tv';
+let _clusterSort = 'bias';
 let _clusterSortDir = 'desc';
+/* 兩處 UI 同步:頂端 sort-chip 列(全 6 維 含 tv)+ 各 cluster header
+ * 的 5 顆 metric badge(.cluster-metric.metric-btn)。共用 data-sort 識別。 */
+function _refreshSortUi() {{
+  document.querySelectorAll('.sort-chip').forEach(b => {{
+    const on = b.dataset.sort === _clusterSort;
+    b.classList.toggle('active', on);
+    b.dataset.dir = on ? _clusterSortDir : '';
+  }});
+  document.querySelectorAll('.cluster-metric.metric-btn').forEach(b => {{
+    const on = b.dataset.sort === _clusterSort;
+    b.classList.toggle('is-active-sort', on);
+    if (on) b.dataset.dir = _clusterSortDir;
+    else b.removeAttribute('data-dir');
+  }});
+}}
 function setClusterSort(mode) {{
   if (mode === _clusterSort) {{
     _clusterSortDir = _clusterSortDir === 'desc' ? 'asc' : 'desc';
@@ -2640,11 +2690,7 @@ function setClusterSort(mode) {{
     _clusterSort = mode;
     _clusterSortDir = 'desc';
   }}
-  document.querySelectorAll('.sort-chip').forEach(b => {{
-    const on = b.dataset.sort === _clusterSort;
-    b.classList.toggle('active', on);
-    b.dataset.dir = on ? _clusterSortDir : '';
-  }});
+  _refreshSortUi();
   _recalcClusters('sub');
 }}
 function toggleUniv(ticker) {{
