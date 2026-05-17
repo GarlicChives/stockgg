@@ -2066,32 +2066,67 @@ tr:last-child td{{border-bottom:none}}
 .sparkline .spark-mid{{stroke:rgba(255,255,255,.08);stroke-width:.5}}
 .spark-label{{font-size:.62rem;color:var(--muted);font-weight:600}}
 
-/* Theme chart modal — bottom sheet on mobile, centered on desktop */
+/* Theme chart modal — 自適應 vh、左右兩欄、無外層 scrollbar(只左欄超過時隱藏式滾) */
 dialog#theme-chart-dialog{{background:var(--card);border:1px solid var(--border);
                           border-radius:14px;color:var(--text);padding:0;
-                          width:min(920px,96vw);max-height:90vh;overflow:hidden;
+                          width:min(1100px,96vw);height:min(820px,92vh);overflow:hidden;
                           position:fixed;top:50%;left:50%;
                           transform:translate(-50%,-50%);margin:0}}
-dialog#theme-chart-dialog[open]{{display:flex;flex-direction:column}}
+dialog#theme-chart-dialog[open]{{display:flex;flex-direction:column;
+                                  animation:tcDialogOpen .26s cubic-bezier(.2,.7,.25,1)}}
 dialog#theme-chart-dialog::backdrop{{background:rgba(0,0,0,.65)}}
+dialog#theme-chart-dialog[open]::backdrop{{animation:tcBackdropFade .26s ease-out}}
+@keyframes tcDialogOpen{{
+  from{{opacity:0;transform:translate(-50%,-46%) scale(.96)}}
+  to  {{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+}}
+@keyframes tcBackdropFade{{from{{opacity:0}}to{{opacity:1}}}}
 @media(max-width:680px){{
-  dialog#theme-chart-dialog{{width:100vw;max-height:88vh;
-                              top:auto;bottom:0;left:0;right:0;transform:none;
+  dialog#theme-chart-dialog{{width:100vw;height:90vh;
+                              top:auto;bottom:0;left:0;right:0;
+                              transform:translateY(0);
                               border-radius:14px 14px 0 0;border-bottom:none}}
+  @keyframes tcDialogOpen{{
+    from{{opacity:0;transform:translateY(20px)}}
+    to  {{opacity:1;transform:translateY(0)}}
+  }}
 }}
 .tc-hdr{{display:flex;align-items:center;gap:.6rem;
         padding:.85rem 1.1rem;border-bottom:1px solid var(--border);
         flex-shrink:0}}
-.tc-title{{font-size:1rem;font-weight:700;flex:1;line-height:1.35}}
-.tc-meta{{font-size:.72rem;color:var(--muted)}}
+.tc-title{{font-size:1rem;font-weight:700;line-height:1.35}}
 .tc-close{{background:transparent;color:var(--muted);font-size:1.1rem;
           padding:.2rem .4rem;border-radius:5px;line-height:1;border:none;cursor:pointer}}
 .tc-close:hover{{background:rgba(255,255,255,.06);color:var(--text)}}
-.tc-body{{padding:.8rem 1rem 1rem;overflow-y:auto;flex:1}}
-.tc-chart{{width:100%;height:260px;margin-bottom:.5rem}}
+/* body 改成左右 flex 兩欄;不滾自己,charts-col 各 chart 用 flex:1 撐滿 vh */
+.tc-body{{padding:.6rem .8rem .8rem;flex:1;display:flex;gap:.7rem;
+         min-height:0;overflow:hidden}}
+@media(max-width:680px){{
+  .tc-body{{flex-direction:column;gap:.5rem}}
+}}
+/* 左欄:垂直 ticker 列表,scrollbar 隱藏但仍可滾 */
+.tc-tickerlist-col{{flex:0 0 250px;display:flex;flex-direction:column;gap:.4rem;
+                     padding:.55rem .55rem;border:1px solid var(--border);
+                     border-radius:8px;background:rgba(255,255,255,.015);
+                     overflow:hidden;min-height:0}}
+@media(max-width:680px){{
+  .tc-tickerlist-col{{flex:0 0 auto;max-height:30vh}}
+}}
+.tc-tickerlist-label{{font-size:.7rem;color:var(--muted);font-weight:600;
+                       letter-spacing:.04em;padding:.1rem .2rem .3rem;flex-shrink:0;
+                       border-bottom:1px solid var(--border)}}
+.tc-ticker-chips{{display:flex;flex-direction:column;gap:.32rem;flex:1;min-height:0;
+                   overflow-y:auto;padding-right:.1rem;
+                   scrollbar-width:none}}
+.tc-ticker-chips::-webkit-scrollbar{{display:none}}
+.tc-ticker-chips .modal-tk-pill{{align-self:stretch}}
+/* 右欄:charts 容器,垂直堆兩張 chart,各 flex:1 撐滿空高 */
+.tc-charts-col{{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;
+                 gap:.2rem}}
+.tc-chart{{width:100%;flex:1;min-height:160px}}
 .tc-chart-label{{font-size:.7rem;font-weight:600;color:var(--muted);
-                 letter-spacing:.04em;margin:.5rem 0 .25rem;
-                 display:flex;align-items:center;gap:.4rem}}
+                 letter-spacing:.04em;margin:.3rem 0 .1rem;
+                 display:flex;align-items:center;gap:.4rem;flex-shrink:0}}
 .tc-chart-label::before{{content:"";width:3px;height:11px;background:var(--accent);
                          border-radius:2px}}
 .tc-legend{{display:inline-flex;gap:.3rem;margin-left:.6rem;flex-wrap:wrap}}
@@ -2118,18 +2153,21 @@ dialog#theme-chart-dialog::backdrop{{background:rgba(0,0,0,.65)}}
 .tc-leg-chip.active.leg-twii{{color:#f59e0b}}
 .tc-leg-chip.active.leg-tpex{{color:#94aef7}}
 .tc-leg-chip:not(.active){{opacity:.5;text-decoration:line-through}}
-/* Modal 內可點擊 ticker chip 列表(取代原 tc-meta 計數)。disable 只 modal 內生效 */
-.tc-tickerlist-row{{display:flex;align-items:flex-start;flex-wrap:wrap;gap:.4rem .55rem;
-                    margin:.1rem 0 .8rem;padding:.5rem .65rem;border:1px solid var(--border);
-                    border-radius:6px;background:rgba(255,255,255,.015)}}
-.tc-tickerlist-label{{font-size:.7rem;color:var(--muted);font-weight:600;
-                       white-space:nowrap;padding-top:.18rem}}
-.tc-ticker-chips{{display:flex;flex-wrap:wrap;gap:.4rem .5rem;flex:1;min-width:0}}
-/* Modal 內可點擊 ticker pill:複用 .stk-pill 樣式,加 disable 視覺 */
-.modal-tk-pill{{cursor:pointer;transition:opacity .18s,filter .18s,border-color .18s}}
+/* Modal 內可點擊 ticker pill:複用 .stk-pill 樣式,加 disable 視覺。
+ * 在左欄垂直列表時 width:100%、內容 nowrap(中文不要破字)、
+ * 超寬就讓 sp-name 截字。 */
+.modal-tk-pill{{cursor:pointer;flex-shrink:0;
+                transition:opacity .18s,filter .18s,border-color .18s}}
 .modal-tk-pill:hover{{border-color:var(--accent)}}
 .modal-tk-pill.is-dis{{opacity:.35;filter:grayscale(.8)}}
 .modal-tk-pill.is-dis .sp-quote{{text-decoration:line-through}}
+.modal-tk-pill .sp-ticker,
+.modal-tk-pill .mkt-badge,
+.modal-tk-pill .sp-name,
+.modal-tk-pill .sp-quote{{white-space:nowrap}}
+.modal-tk-pill .sp-name{{overflow:hidden;text-overflow:ellipsis;min-width:0;
+                          flex-shrink:0;max-width:7em}}
+.modal-tk-pill .sp-quote{{margin-left:auto;flex-shrink:0}}
 /* tooltip 觸發 ⓘ icon(native title attribute) */
 .tc-info{{display:inline-flex;align-items:center;justify-content:center;
           width:14px;height:14px;border-radius:50%;
@@ -2400,10 +2438,7 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
 <!-- Theme chart modal (子產業 6 個月 TV / 平均漲跌 趨勢) -->
 <dialog id="theme-chart-dialog">
   <div class="tc-hdr">
-    <div style="flex:1;min-width:0">
-      <div class="tc-title" id="tc-title"></div>
-      <div class="tc-meta" id="tc-meta"></div>
-    </div>
+    <div class="tc-title" id="tc-title" style="flex:1;min-width:0"></div>
     <div class="tc-period">
       <button class="tc-period-chip" data-period="1m" type="button" onclick="setChartPeriod('1m')">1M</button>
       <button class="tc-period-chip" data-period="3m" type="button" onclick="setChartPeriod('3m')">3M</button>
@@ -2415,38 +2450,41 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
             onclick="document.getElementById('theme-chart-dialog').close()">✕</button>
   </div>
   <div class="tc-body">
-    <!-- 焦點 ticker chip 列表(點擊在 modal 內 disable;關閉 modal 即重置) -->
-    <div class="tc-tickerlist-row">
-      <span class="tc-tickerlist-label">焦點(點擊納入/排除)：</span>
+    <!-- 左欄:焦點 ticker 垂直列表(點擊在 modal 內 disable;依成交金額 desc 排序) -->
+    <aside class="tc-tickerlist-col">
+      <div class="tc-tickerlist-label">焦點 · 點擊納入/排除</div>
       <div class="tc-ticker-chips" id="tc-ticker-chips"></div>
-    </div>
+    </aside>
 
-    <!-- Chart 1:焦點股加權指數 vs 大盤(改放上面) -->
-    <div class="tc-chart-label">
-      焦點股加權指數 vs 大盤
-      <span class="tc-info" tabindex="0"
-            title="加權指數計算法&#10;1. 每檔焦點股當日市值 = 收盤價 × 流通在外股數(shares_outstanding)&#10;2. cluster daily mcap = Σ 全部焦點股當日市值;某檔某日缺資料時用該檔最後一次有資料的 close × shares 延續(per-ticker forward-fill,標準加權指數做法)&#10;3. 三條線(cluster / TWII / TPEX)同時 rebase 到 100(取三條共同起點當基準),純看相對強弱不看絕對水位&#10;4. shares_outstanding 來自 stock_meta(每週日 04:00 由 ingest 端 yfinance Ticker.info 拉),新熱門股當日由 18:30 cron 即時補&#10;5. cluster 線會依「焦點 chip 列表」即時重算">ⓘ</span>
-      <span class="tc-legend">
-        <button class="tc-leg-chip leg-cluster active" type="button" onclick="toggleIndexLine('cluster')"><span class="leg-sw"></span>焦點股</button>
-        <button class="tc-leg-chip leg-twii active" type="button" onclick="toggleIndexLine('twii')"><span class="leg-sw"></span>大盤(TWII)</button>
-        <button class="tc-leg-chip leg-tpex active" type="button" onclick="toggleIndexLine('tpex')"><span class="leg-sw"></span>櫃買(TPEX)</button>
-      </span>
-    </div>
-    <div class="tc-chart" id="tc-chart-price"></div>
+    <!-- 右欄:兩張 chart 上下排列,各自 flex:1 自適應 -->
+    <div class="tc-charts-col">
+      <!-- Chart 1(上):焦點股加權指數 vs 大盤 -->
+      <div class="tc-chart-label">
+        焦點股加權指數 vs 大盤
+        <span class="tc-info" tabindex="0"
+              title="加權指數計算法&#10;1. 每檔焦點股當日市值 = 收盤價 × 流通在外股數(shares_outstanding)&#10;2. cluster daily mcap = Σ 全部焦點股當日市值;某檔某日缺資料時用該檔最後一次有資料的 close × shares 延續(per-ticker forward-fill,標準加權指數做法)&#10;3. 三條線(cluster / TWII / TPEX)同時 rebase 到 100(取三條共同起點當基準),純看相對強弱不看絕對水位&#10;4. shares_outstanding 來自 stock_meta(每週日 04:00 由 ingest 端 yfinance Ticker.info 拉),新熱門股當日由 18:30 cron 即時補&#10;5. cluster 線會依「焦點 chip 列表」即時重算">ⓘ</span>
+        <span class="tc-legend">
+          <button class="tc-leg-chip leg-cluster active" type="button" onclick="toggleIndexLine('cluster')"><span class="leg-sw"></span>焦點股</button>
+          <button class="tc-leg-chip leg-twii active" type="button" onclick="toggleIndexLine('twii')"><span class="leg-sw"></span>大盤(TWII)</button>
+          <button class="tc-leg-chip leg-tpex active" type="button" onclick="toggleIndexLine('tpex')"><span class="leg-sw"></span>櫃買(TPEX)</button>
+        </span>
+      </div>
+      <div class="tc-chart" id="tc-chart-price"></div>
 
-    <!-- Chart 2:三大法人資金淨流入流出(改放下面)+ 當日/累計 切換 -->
-    <div class="tc-chart-label">
-      三大法人資金淨流入流出(億 TWD)
-      <span class="tc-info" tabindex="0"
-            title="資料來源:TWSE T86(集中市場)+ TPEX 3insti(店頭)三大法人(外資 + 投信 + 自營商)當日合計買賣超「金額」(NTD)。&#10;cluster 當日淨流入 = Σ 全部焦點股淨買賣金額(單位轉億 TWD);某檔某日缺資料當 0(不 forward-fill,因為法人買賣超是日結 transaction)。&#10;紅柱 = 法人淨買、綠柱 = 法人淨賣。&#10;切換「累計」會把當日數值改成從圖表起點開始的滾動累加,看資金長期流向。">ⓘ</span>
-      <span class="tc-net-mode">
-        <button class="tc-mode-chip active" data-mode="daily" type="button" onclick="setNetMode('daily')">當日</button>
-        <button class="tc-mode-chip" data-mode="cum" type="button" onclick="setNetMode('cum')">累計</button>
-      </span>
-    </div>
-    <div class="tc-chart" id="tc-chart-net"></div>
+      <!-- Chart 2(下):三大法人資金淨流入流出 + 當日/累計 切換 -->
+      <div class="tc-chart-label">
+        三大法人資金淨流入流出(億 TWD)
+        <span class="tc-info" tabindex="0"
+              title="資料來源:TWSE T86(集中市場)+ TPEX 3insti(店頭)三大法人(外資 + 投信 + 自營商)當日合計買賣超「金額」(NTD)。&#10;cluster 當日淨流入 = Σ 全部焦點股淨買賣金額(單位轉億 TWD);某檔某日缺資料當 0(不 forward-fill,因為法人買賣超是日結 transaction)。&#10;紅柱 = 法人淨買、綠柱 = 法人淨賣。&#10;切換「累計」會把當日數值改成從圖表起點開始的滾動累加,看資金長期流向。">ⓘ</span>
+        <span class="tc-net-mode">
+          <button class="tc-mode-chip active" data-mode="daily" type="button" onclick="setNetMode('daily')">當日</button>
+          <button class="tc-mode-chip" data-mode="cum" type="button" onclick="setNetMode('cum')">累計</button>
+        </span>
+      </div>
+      <div class="tc-chart" id="tc-chart-net"></div>
 
-    <div class="tc-empty" id="tc-empty" style="display:none">尚無歷史資料(資料每日 18:30 由 ingest 端產生)</div>
+      <div class="tc-empty" id="tc-empty" style="display:none">尚無歷史資料(資料每日 18:30 由 ingest 端產生)</div>
+    </div>
   </div>
 </dialog>
 
@@ -2985,7 +3023,9 @@ function _escHtml(s) {{
 function _renderTickerChips(cluster) {{
   const box = document.getElementById('tc-ticker-chips');
   if (!box) return;
-  const focals = (cluster.focal || []).filter(f => !_univDis.has(f.ticker));
+  // 左欄垂直列表依當日成交金額 desc 排序(常用焦點靠上,長尾擠下方)
+  const focals = (cluster.focal || []).filter(f => !_univDis.has(f.ticker))
+    .slice().sort((a, b) => (b.tv || 0) - (a.tv || 0));
   box.innerHTML = focals.map(f => {{
     const dis = _modalTickerDis.has(f.ticker) ? ' is-dis' : '';
     const mktCls = f.mkt === 'TW' ? 'mkt-tw' : 'mkt-us';
@@ -3052,9 +3092,9 @@ function _syncCrosshair(srcChart, dstChart, dstSeries) {{
 function _renderThemeChart(cardId) {{
   const cluster = _findClusterDef(cardId);
   if (!cluster) return;
-  _renderTickerChips(cluster);  // 每次 render 重畫 chip 列表(反映 disable 狀態)
+  _renderTickerChips(cluster);
+  document.getElementById('tc-title').textContent = '🔸 ' + cluster.name;
   let {{ netSeries, priceSeries }} = _computeClusterSeries(cluster);
-  netSeries = _applyNetMode(netSeries);  // 當日 vs 累計
   let twiiRaw = _computeIndexSeries('TWII');
   let tpexRaw = _computeIndexSeries('TPEX');
   // 按 _chartPeriod 截尾段(1M/3M/6M/1Y/ALL)
@@ -3062,13 +3102,16 @@ function _renderThemeChart(cardId) {{
   priceSeries = _filterByPeriod(priceSeries);
   twiiRaw = _filterByPeriod(twiiRaw);
   tpexRaw = _filterByPeriod(tpexRaw);
-  document.getElementById('tc-title').textContent = '🔸 ' + cluster.name;
-  const activeFocalN = cluster.focal.filter(f => !_univDis.has(f.ticker) && !_modalTickerDis.has(f.ticker)).length;
-  const periodLabel = _chartPeriod === 'all' ? '全部' : _chartPeriod.toUpperCase();
-  const metaEl = document.getElementById('tc-meta');
-  if (metaEl) {{
-    metaEl.textContent = netSeries.length ? (periodLabel + ' · ' + netSeries.length + ' 天 · ' + activeFocalN + ' 檔焦點') : '';
-  }}
+  // **關鍵**:四條線必須對齊到同一個 startDate,crosshair 垂直線才會在兩張
+  // chart 的相同 X pixel(時間軸對應 pixel 一致)。否則 net 比 price 早幾天
+  // 開始,X 軸 mapping 不同 → 同時間在兩圖不同位置 → 虛線錯位。
+  const starts = [
+    priceSeries[0]?.time, twiiRaw[0]?.time, tpexRaw[0]?.time, netSeries[0]?.time
+  ].filter(Boolean).sort();
+  const startDate = starts[starts.length - 1];
+  netSeries = netSeries.filter(p => p.time >= startDate);
+  // accumulator 在對齊後重算(累計起點要跟 startDate 一致才有意義)
+  netSeries = _applyNetMode(netSeries);
   const empty = document.getElementById('tc-empty');
   const netEl = document.getElementById('tc-chart-net');
   const priceEl = document.getElementById('tc-chart-price');
@@ -3098,11 +3141,7 @@ function _renderThemeChart(cardId) {{
     handleScale: {{ mouseWheel: false, axisPressedMouseMove: true, pinch: true }},
   }};
 
-  // Chart 1(現在改放上面):焦點股加權指數 vs 大盤(rebase 100)
-  const starts = [
-    priceSeries[0]?.time, twiiRaw[0]?.time, tpexRaw[0]?.time
-  ].filter(Boolean).sort();
-  const startDate = starts[starts.length - 1];
+  // Chart 1(上):焦點股加權指數 vs 大盤(rebase 100 from startDate)
   const clusterRebased = _rebaseSeries(priceSeries, startDate);
   const twiiRebased = _rebaseSeries(twiiRaw, startDate);
   const tpexRebased = _rebaseSeries(tpexRaw, startDate);
@@ -3121,7 +3160,7 @@ function _renderThemeChart(cardId) {{
   _tcCharts.tpexSeries.setData(tpexRebased);
   _tcCharts.tpexSeries.applyOptions({{ visible: _lineVis.tpex }});
 
-  // Chart 2(現在改放下面):資金淨流入流出 histogram
+  // Chart 2(下):資金淨流入流出 histogram
   _tcCharts.net = LightweightCharts.createChart(netEl, chartOpts);
   const netSer = _tcCharts.net.addHistogramSeries({{
     priceFormat: {{ type: 'custom', formatter: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '億' }},
@@ -3130,11 +3169,26 @@ function _renderThemeChart(cardId) {{
   netSer.setData(netSeries);
   _tcCharts.netSeries = netSer;
 
+  // **重要**:rightPriceScale 寬度可能不同(net 用「億」會更寬的數字),
+  // 兩張 chart plot area 左邊起點會錯。強制 rightPriceScale 共用最小寬度
+  // (minimumWidth)讓兩張 chart 的 X 軸 0 點對齊,crosshair 才會同位。
+  const PRICE_SCALE_MIN = 56;
+  _tcCharts.price.priceScale('right').applyOptions({{ minimumWidth: PRICE_SCALE_MIN }});
+  _tcCharts.net.priceScale('right').applyOptions({{ minimumWidth: PRICE_SCALE_MIN }});
+
   _tcCharts.price.timeScale().fitContent();
   _tcCharts.net.timeScale().fitContent();
 
-  _tcCharts.net.timeScale().subscribeVisibleLogicalRangeChange(r => r && _tcCharts.price?.timeScale().setVisibleLogicalRange(r));
-  _tcCharts.price.timeScale().subscribeVisibleLogicalRangeChange(r => r && _tcCharts.net?.timeScale().setVisibleLogicalRange(r));
+  // Time-range sync(不用 logical-range):時間語意更穩,即使兩 series 點數不同
+  // 也能精準對齊;搭配上面 startDate 對齊,X 軸 pixel 一致
+  let _syncBusy = false;
+  const syncRange = (src, dst) => src.timeScale().subscribeVisibleTimeRangeChange(r => {{
+    if (_syncBusy || !r || !dst) return;
+    _syncBusy = true;
+    try {{ dst.timeScale().setVisibleRange(r); }} finally {{ _syncBusy = false; }}
+  }});
+  syncRange(_tcCharts.price, _tcCharts.net);
+  syncRange(_tcCharts.net, _tcCharts.price);
 
   // crosshair 兩張圖雙向同步(垂直虛線貫穿兩張)
   _syncCrosshair(_tcCharts.price, _tcCharts.net, _tcCharts.netSeries);
