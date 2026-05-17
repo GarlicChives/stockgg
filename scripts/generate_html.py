@@ -1029,6 +1029,123 @@ def build_focus_html(
     return sub_html + payload_script, modal_data
 
 
+# ── 焦點排行 tab (Sprint 3) ───────────────────────────────────────────────────
+
+def build_focus_ranking_html(
+    focal_tickers: list[str],
+    all_stocks: dict,
+    stock_meta: dict,
+    top_n: int = 15,
+) -> str:
+    """焦點排行 tab:對「目前所有 displayed cluster 的 union focal 股」
+    按殖利率 desc 與 PE asc 各排一張 Top N table。row 點開 modal。
+
+    濾除規則:
+    - 高殖利率:dividend_yield is not None AND > 0
+    - 估值偏低:pe_ttm is not None AND > 0(濾掉虧損股,負 PE 沒參考意義)
+    """
+    if not stock_meta or not focal_tickers:
+        return ('<p class="muted-note">尚無 stock_meta 資料'
+                '(等 ingest weekly cron 跑完即會自動填入)</p>')
+
+    def _f(v):
+        """DB NUMERIC 經 JSON 可能是 str/Decimal,統一轉 float / None。"""
+        if v is None:
+            return None
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
+    candidates: list[dict] = []
+    for tk in set(focal_tickers):
+        meta = stock_meta.get(tk) or {}
+        stk = all_stocks.get(tk) or {}
+        candidates.append({
+            "ticker": tk,
+            "name": (meta.get("name_zh") or stk.get("name") or tk)[:10],
+            "close": _f(stk.get("close_price")),
+            "chg": _f(stk.get("change_pct")),
+            "pe_ttm": _f(meta.get("pe_ttm")),
+            "dividend_yield": _f(meta.get("dividend_yield")),
+            "market_cap": _f(meta.get("market_cap")),
+            "sector": (meta.get("sector") or "")[:14],
+        })
+
+    by_yield = sorted(
+        [c for c in candidates
+         if c["dividend_yield"] is not None and c["dividend_yield"] > 0],
+        key=lambda c: -c["dividend_yield"],
+    )[:top_n]
+    by_pe = sorted(
+        [c for c in candidates
+         if c["pe_ttm"] is not None and c["pe_ttm"] > 0],
+        key=lambda c: c["pe_ttm"],
+    )[:top_n]
+
+    def _mcap_str(v: float | None) -> str:
+        if v is None or v <= 0:
+            return "—"
+        if v >= 1e12:
+            return f"{v/1e12:.2f} 兆"
+        return f"{v/1e8:.0f} 億"
+
+    def _rows(items: list[dict], key: str, fmt: str) -> str:
+        if not items:
+            return '<tr><td colspan="7" style="text-align:center;color:var(--muted)">無符合資料</td></tr>'
+        out = []
+        for i, c in enumerate(items, 1):
+            chg = c["chg"]
+            pct_str, pct_cls = fmt_pct(chg)
+            if c["close"] is not None:
+                quote = f"{c['close']:.2f}" + (f" ({pct_str})" if chg is not None else "")
+            else:
+                quote = pct_str
+            value = fmt.format(c[key])
+            mcap = _mcap_str(c["market_cap"])
+            sector = html_lib.escape(c["sector"]) if c["sector"] else "—"
+            click = f"showArtModal({json.dumps(c['ticker'])},{json.dumps(c['name'][:12])})"
+            out.append(
+                f'<tr class="rank-row" onclick="{click}">'
+                f'<td class="rank">{i}</td>'
+                f'<td class="ticker">{html_lib.escape(c["ticker"])}</td>'
+                f'<td class="name">{html_lib.escape(c["name"])}</td>'
+                f'<td class="num {pct_cls}">{quote}</td>'
+                f'<td class="num"><strong>{value}</strong></td>'
+                f'<td class="num">{mcap}</td>'
+                f'<td>{sector}</td>'
+                f'</tr>'
+            )
+        return "".join(out)
+
+    return (
+        '<div class="ranks">'
+        '<div class="card">'
+        '<div class="sec">💰 高殖利率焦點 Top 15</div>'
+        '<table>'
+        '<thead><tr><th>#</th><th>代號</th><th>名稱</th>'
+        '<th style="text-align:right">股價(漲跌)</th>'
+        '<th style="text-align:right">殖利率</th>'
+        '<th style="text-align:right">市值</th>'
+        '<th>產業</th></tr></thead>'
+        f'<tbody>{_rows(by_yield, "dividend_yield", "{:.2f}%")}</tbody>'
+        '</table>'
+        '</div>'
+        '<div class="card">'
+        '<div class="sec">📉 估值偏低焦點 Top 15(PE TTM)</div>'
+        '<table>'
+        '<thead><tr><th>#</th><th>代號</th><th>名稱</th>'
+        '<th style="text-align:right">股價(漲跌)</th>'
+        '<th style="text-align:right">PE</th>'
+        '<th style="text-align:right">市值</th>'
+        '<th>產業</th></tr></thead>'
+        f'<tbody>{_rows(by_pe, "pe_ttm", "{:.1f}")}</tbody>'
+        '</table>'
+        '</div>'
+        '</div>'
+    )
+
+
 # ── 股市筆記 tab ──────────────────────────────────────────────────────────────
 
 def build_notes_html(market_notes: dict | None, podcast_rows: list,
@@ -1391,6 +1508,7 @@ async def generate():
         market_index_payload, stock_meta,
     )
     notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)
+    ranking_html = build_focus_ranking_html(_focal_tw, stocks_info, stock_meta)
     catalyst_html = build_catalyst_html(catalyst_events, stocks_info)
 
     # ── Analyst target prices: batch-fetch then inject into every modal ────────
@@ -1585,6 +1703,9 @@ td{{padding:.25rem .4rem;border-bottom:1px solid rgba(42,46,64,.4);font-size:.8r
 td.rank{{color:var(--muted);width:1.6rem}}
 td.ticker{{font-weight:600}}
 td.num{{text-align:right}}
+/* Sprint 3: 焦點排行 row clickable */
+tr.rank-row{{cursor:pointer;transition:background .12s}}
+tr.rank-row:hover td{{background:rgba(16,185,129,.08)}}
 tr:last-child td{{border-bottom:none}}
 .board-badge{{font-size:.55rem;font-weight:600;padding:.1rem .3rem;
               border-radius:3px;margin-left:.3rem;vertical-align:middle}}
@@ -1890,9 +2011,10 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
 <header>
   <button class="brand" onclick="showTab('market');window.scrollTo(0,0);" title="回首頁">IIA 投資情報</button>
   <nav class="tabs">
-    <button class="tab-btn active" data-tab="market" onclick="showTab('market')">市場行情</button>
-    <button class="tab-btn"        data-tab="focus"  onclick="showTab('focus')">熱門題材</button>
-    <button class="tab-btn"        data-tab="notes"  onclick="showTab('notes')">股市筆記</button>
+    <button class="tab-btn active" data-tab="market"  onclick="showTab('market')">市場行情</button>
+    <button class="tab-btn"        data-tab="focus"   onclick="showTab('focus')">熱門題材</button>
+    <button class="tab-btn"        data-tab="ranking" onclick="showTab('ranking')">焦點排行</button>
+    <button class="tab-btn"        data-tab="notes"   onclick="showTab('notes')">股市筆記</button>
   </nav>
 </header>
 
@@ -1934,7 +2056,12 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
     {focus_html}
   </div>
 
-  <!-- Tab 3: 股市筆記 -->
+  <!-- Tab 3: 焦點排行 (Sprint 3) -->
+  <div id="tab-ranking" class="tab-pane">
+    {ranking_html}
+  </div>
+
+  <!-- Tab 4: 股市筆記 -->
   <div id="tab-notes" class="tab-pane">
     {notes_html}
   </div>
