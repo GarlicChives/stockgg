@@ -1048,9 +1048,17 @@ def _industry_section_html(
                     ),
                 )
                 snt_html = "".join(_snt_pill(tk, nm) for tk, nm in items)
-                # 純 UI 區隔(無文字 label):.cluster-sentinel-stocks 上方
-                # dashed border + 小 padding 已足夠視覺切分焦點區與前哨區
-                sentinel_html = f'<div class="cluster-sentinel-stocks">{snt_html}</div>'
+                # 前哨 section 預設收合,點 ▾ 動畫展開(複用 .anim-details JS
+                # max-height transition);summary 只顯計數 + 小箭頭,避免噪音
+                sentinel_html = (
+                    f'<details class="cluster-sentinel anim-details">'
+                    f'<summary class="sntl-summary" title="展開 {len(items)} 檔同題材未進 top-50 的前哨">'
+                    f'<span class="sntl-arrow">▾</span>'
+                    f'<span class="sntl-count">前哨 {len(items)}</span>'
+                    f'</summary>'
+                    f'<div class="anim-panel cluster-sentinel-stocks">{snt_html}</div>'
+                    f'</details>'
+                )
 
         # Cluster name:
         # - 長度 > 30 字 → 預設 collapsed(顯前 30 字 + …),點按鈕展開全名
@@ -2306,10 +2314,24 @@ tr:last-child td{{border-bottom:none}}
 /* ── Highlight 區 (近一年焦點) ─────────────────────────────────────────── */
 /* cluster card 內前哨 section(只在近一年焦點 sub-tab 的 cluster 出現):
  * 該題材完整 ticker list 扣掉今日 focal,顯為虛線淡色 pill + PE chip,
- * 視覺跟今日焦點 pill 區隔(non-clickable 不開 modal)。 */
+ * 視覺跟今日焦點 pill 區隔(non-clickable 不開 modal)。
+ * 預設收合,點 summary 的 ▾ 動畫展開(複用 .anim-details JS) */
+.cluster-sentinel{{margin-top:.35rem;padding-top:.4rem;
+                    border-top:1px dashed rgba(255,255,255,.08)}}
+.cluster-sentinel .sntl-summary{{cursor:pointer;list-style:none;
+                                   display:inline-flex;align-items:center;gap:.25rem;
+                                   padding:.18rem .55rem;border-radius:4px;
+                                   font-size:.66rem;color:var(--muted);font-weight:600;
+                                   letter-spacing:.04em;user-select:none;
+                                   background:rgba(255,255,255,.02);
+                                   transition:background .15s,color .15s}}
+.cluster-sentinel .sntl-summary::-webkit-details-marker{{display:none}}
+.cluster-sentinel .sntl-summary:hover{{color:var(--accent);background:rgba(124,138,242,.08)}}
+.cluster-sentinel .sntl-arrow{{display:inline-block;font-size:.7rem;line-height:1;
+                                 transition:transform .25s ease}}
+.cluster-sentinel[open] .sntl-arrow{{transform:rotate(180deg)}}
 .cluster-sentinel-stocks{{display:flex;flex-wrap:wrap;gap:.3rem .35rem;
-                            margin-top:.35rem;padding-top:.45rem;
-                            border-top:1px dashed rgba(255,255,255,.08)}}
+                            margin-top:.4rem}}
 .snt-pill{{display:inline-flex;align-items:center;gap:.3rem;
             padding:.2rem .55rem;border-radius:5px;
             background:rgba(255,255,255,.02);
