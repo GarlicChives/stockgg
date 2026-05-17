@@ -1126,7 +1126,7 @@ def build_focus_ranking_html(
                 f'<td class="num {pct_cls}">{quote}</td>'
                 f'<td class="num"><strong>{value}</strong></td>'
                 f'<td class="num">{mcap}</td>'
-                f'<td>{sector}</td>'
+                f'<td class="col-sector">{sector}</td>'
                 f'</tr>'
             )
         return "".join(out)
@@ -1140,7 +1140,7 @@ def build_focus_ranking_html(
         '<th style="text-align:right">股價(漲跌)</th>'
         '<th style="text-align:right">殖利率</th>'
         '<th style="text-align:right">市值</th>'
-        '<th>產業</th></tr></thead>'
+        '<th class="col-sector">產業</th></tr></thead>'
         f'<tbody>{_rows(by_yield, "dividend_yield", "{:.2f}%")}</tbody>'
         '</table>'
         '</div>'
@@ -1151,7 +1151,7 @@ def build_focus_ranking_html(
         '<th style="text-align:right">股價(漲跌)</th>'
         '<th style="text-align:right">PE</th>'
         '<th style="text-align:right">市值</th>'
-        '<th>產業</th></tr></thead>'
+        '<th class="col-sector">產業</th></tr></thead>'
         f'<tbody>{_rows(by_pe, "pe_ttm", "{:.1f}")}</tbody>'
         '</table>'
         '</div>'
@@ -1642,9 +1642,13 @@ header{{background:var(--card);border-bottom:1px solid var(--border);
 /* ── Tabs ── */
 .tabs{{display:flex;gap:.3rem}}
 .tab-btn{{background:transparent;color:var(--muted);padding:.42rem .9rem;
-          border-radius:6px;font-size:.88rem;font-weight:500;transition:.15s}}
+          border-radius:6px;font-size:.88rem;font-weight:500;transition:.15s;
+          white-space:nowrap}}  /* nowrap 防中文按鈕在窄螢幕斷行成單字 */
 .tab-btn:hover{{background:rgba(255,255,255,.04);color:var(--text)}}
 .tab-btn.active{{background:var(--accent);color:#fff}}
+@media(max-width:480px){{
+  .tab-btn{{padding:.4rem .55rem;font-size:.8rem}}  /* 4 個 button 在窄螢幕仍排得下 */
+}}
 .tab-pane{{display:none}}
 .tab-pane.active{{display:block}}
 
@@ -1715,10 +1719,15 @@ th{{color:var(--muted);font-weight:500;font-size:.7rem;text-align:left;
 td{{padding:.25rem .4rem;border-bottom:1px solid rgba(42,46,64,.4);font-size:.8rem}}
 td.rank{{color:var(--muted);width:1.6rem}}
 td.ticker{{font-weight:600}}
-td.num{{text-align:right}}
+td.name{{white-space:nowrap}}     /* 防 mobile 窄欄把名稱斷成單字直排 */
+td.num{{text-align:right;white-space:nowrap}}
 /* Sprint 3: 焦點排行 row clickable */
 tr.rank-row{{cursor:pointer;transition:background .12s}}
 tr.rank-row:hover td{{background:rgba(16,185,129,.08)}}
+/* 產業欄文字較長,mobile 隱藏空出空間給其他欄 */
+@media(max-width:600px){{
+  .col-sector{{display:none}}
+}}
 tr:last-child td{{border-bottom:none}}
 .board-badge{{font-size:.55rem;font-weight:600;padding:.1rem .3rem;
               border-radius:3px;margin-left:.3rem;vertical-align:middle}}
