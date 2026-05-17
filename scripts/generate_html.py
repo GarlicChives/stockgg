@@ -754,13 +754,20 @@ def _industry_section_html(
     all_stocks: dict,
     level: str,
     history_payload: dict | None = None,
+    highlight_subs: dict[str, list[tuple[str, str]]] | None = None,
+    stock_meta: dict | None = None,
 ) -> str:
-    """Render industry cluster cards. level = "main" | "sub".
+    """Render industry cluster cards. level = "main" | "sub" | "hl_sub" | "pan_sub"。
     前哨觀察(watch)已從顯示移除(2026-05-16),只保留今日焦點。
     sub level:加廣泛概念股 panel(>3 個 cluster 出現的 ticker 可點擊濾除,
     觸發 FLIP 動畫重排 + TV 重算)。每張卡內嵌 sparkline(過去 180 天
     TV trend);點擊彈出 modal 大圖。
+
+    2026-05-17 加:level='hl_sub' 時,從 highlight_subs(theme_dictionary
+    的「近一年焦點」main 結構)查每個 cluster 對應 sub 的完整 ticker list,
+    扣掉 focal 顯示為「前哨」chip(.snt-pill,虛線淡色,顯 PE)。
     """
+    stock_meta = stock_meta or {}
     if history_payload is None:
         history_payload = {}
     if not clusters:
@@ -770,7 +777,7 @@ def _industry_section_html(
     # 廣泛概念股(sub-only):同 ticker 在 >3 個 merged/dedup'd sub-cluster
     # 出現 → 變成可濾除 chip
     universal: dict[str, str] = {}
-    if level == "sub":
+    if level in ("sub", "hl_sub", "pan_sub"):
         from collections import Counter
         counts: Counter = Counter()
         for c in clusters:
@@ -783,7 +790,7 @@ def _industry_section_html(
 
     # sort chip row(sub level only):換維度看 cluster 排序。預設 TV desc。
     sort_html = ""
-    if level == "sub":
+    if level in ("sub", "hl_sub", "pan_sub"):
         # 指標說明 panel(預設收合,點 ⓘ 展開)。文案要跟 _yf_ma20_bias_batch
         # / 770~787 的 simple-mean 邏輯對齊;改公式必須同步改這段。
         # 指標說明:summary 固定位置,展開時 panel 以 absolute 浮層動畫滑下;
@@ -811,16 +818,18 @@ def _industry_section_html(
             '</div>'
             '</details>'
         )
+        # data-level 讓 _refreshSortUi / setClusterSort 知道這個 chip 屬於哪個 sub-tab,
+        # state per level(_clusterSort[level] / _clusterSortDir[level]),兩 tab 各管自己。
         sort_html = (
             '<div class="sort-explainer-row">'
             '<div class="sort-row">'
             '<span class="sort-label">排序：</span>'
-            '<button class="sort-chip"        data-sort="tv" type="button" onclick="setClusterSort(\'tv\')">成交金額</button>'
-            '<button class="sort-chip"        data-sort="chg"   type="button" onclick="setClusterSort(\'chg\')">平均漲跌</button>'
-            '<button class="sort-chip active" data-sort="bias" data-dir="desc" type="button" onclick="setClusterSort(\'bias\')">平均乖離</button>'
-            '<button class="sort-chip"        data-sort="pe"    type="button" onclick="setClusterSort(\'pe\')">平均 PE</button>'
-            '<button class="sort-chip"        data-sort="yield" type="button" onclick="setClusterSort(\'yield\')">平均殖利率</button>'
-            '<button class="sort-chip"        data-sort="beta"  type="button" onclick="setClusterSort(\'beta\')">平均 β</button>'
+            f'<button class="sort-chip"        data-sort="tv"    data-level="{level}" type="button" onclick="setClusterSort(\'tv\',\'{level}\')">成交金額</button>'
+            f'<button class="sort-chip active" data-sort="chg"   data-level="{level}" data-dir="desc" type="button" onclick="setClusterSort(\'chg\',\'{level}\')">平均漲跌</button>'
+            f'<button class="sort-chip"        data-sort="bias"  data-level="{level}" type="button" onclick="setClusterSort(\'bias\',\'{level}\')">平均乖離</button>'
+            f'<button class="sort-chip"        data-sort="pe"    data-level="{level}" type="button" onclick="setClusterSort(\'pe\',\'{level}\')">平均 PE</button>'
+            f'<button class="sort-chip"        data-sort="yield" data-level="{level}" type="button" onclick="setClusterSort(\'yield\',\'{level}\')">平均殖利率</button>'
+            f'<button class="sort-chip"        data-sort="beta"  data-level="{level}" type="button" onclick="setClusterSort(\'beta\',\'{level}\')">平均 β</button>'
             '</div>'
             + explainer_html
             + '</div>'
@@ -869,6 +878,9 @@ def _industry_section_html(
                        -(_calc_avg_bias(c) or 0))
     )
 
+    # sub-level 判斷:hl_sub / pan_sub 都視同 sub(顯 sparkline / subtitle 等),
+    # 提到 for-loop 外避免每 iter 重算 + 解決前向使用 UnboundLocalError
+    is_sub_level = level in ("sub", "hl_sub", "pan_sub")
     cards = []
     cluster_json: list[dict] = []
     for idx, c in enumerate(clusters):
@@ -938,7 +950,7 @@ def _industry_section_html(
         # Sparkline (server-side SVG):過去 N 天三大法人淨流入(億)柱狀圖。
         # 紅買綠賣亞洲慣例。資料空 → 不渲染。點擊整張 sparkline 彈 modal 大圖。
         spark_html = ""
-        if level == "sub" and member_keys:
+        if is_sub_level and member_keys:
             spark_values = _aggregate_history_net(member_keys, history_payload)
             if len(spark_values) >= 2:
                 spark_svg = _sparkline_bars_svg(spark_values)
@@ -971,8 +983,53 @@ def _industry_section_html(
         icon = "🔷" if level == "main" else "🔸"
         subtitle = (
             f'<div class="cluster-subtitle">屬於 {html_lib.escape(c.main)}</div>'
-            if level == "sub" else ""
+            if is_sub_level else ""
         )
+
+        # 前哨 section(只在 highlight_subs 有提供時):從該 cluster 的 members
+        # 找 main=HIGHLIGHT_MAIN 的 sub,取 theme_dictionary 完整 ticker list
+        # 扣掉 focal 就是「該題材還在但今日沒進 top-50」的標的。
+        sentinel_html = ""
+        if highlight_subs:
+            focal_tk_set = {s.ticker for s in c.focal}
+            sentinel_pool: dict[str, str] = {}  # ticker -> name(去重)
+            for m, s in (c.members or []):
+                if m != HIGHLIGHT_MAIN:
+                    continue
+                for tk, nm in highlight_subs.get(s, []):
+                    if tk not in focal_tk_set:
+                        sentinel_pool.setdefault(tk, nm)
+            if sentinel_pool:
+                def _snt_pill(tk, nm):
+                    meta = stock_meta.get(tk, {})
+                    try:
+                        pe = float(meta["pe_ttm"]) if meta.get("pe_ttm") is not None else None
+                    except (TypeError, ValueError):
+                        pe = None
+                    pe_html = (f'<span class="snt-pe">PE {pe:.1f}</span>'
+                               if pe is not None and pe > 0 else "")
+                    return (
+                        f'<div class="snt-pill" data-ticker="{html_lib.escape(tk)}" '
+                        f'title="今日未進 top-50;PE 來自 stock_meta">'
+                        f'<span class="sp-ticker">{html_lib.escape(tk)}</span>'
+                        f'<span class="sp-name">{html_lib.escape((nm or tk)[:10])}</span>'
+                        f'{pe_html}'
+                        f'</div>'
+                    )
+                # 依 PE 升序排(便宜先),None 排尾
+                items = sorted(
+                    sentinel_pool.items(),
+                    key=lambda x: (
+                        1 if stock_meta.get(x[0], {}).get("pe_ttm") in (None, 0) else 0,
+                        float(stock_meta.get(x[0], {}).get("pe_ttm") or 9e9),
+                    ),
+                )
+                snt_html = "".join(_snt_pill(tk, nm) for tk, nm in items)
+                sentinel_html = (
+                    f'<div class="cluster-section-label">前哨 ({len(items)}) '
+                    f'<span class="sntl-hint">同題材未進今日 top-50,顯 PE 供比較</span></div>'
+                    f'<div class="cluster-sentinel-stocks">{snt_html}</div>'
+                )
 
         # Merged cluster name(focal 完全相同的子產業聚合) → 拆成 parts
         # 渲染,讓 CSS media query 控制 mobile/tablet 收合;否則純文字。
@@ -1005,6 +1062,7 @@ def _industry_section_html(
   </div>
   {subtitle}
   <div class="cluster-focal-stocks">{focal_pills}</div>
+  {sentinel_html}
 </div>""")
 
     cluster_json_str = json.dumps(cluster_json, ensure_ascii=False, separators=(",", ":"))
@@ -1114,137 +1172,6 @@ def build_catalyst_html(events: list[dict], stocks_info: dict | None = None) -> 
     return '<div class="cal-list">' + "".join(day_html) + "</div>"
 
 
-def build_highlight_focus_html(
-    highlight_subs: dict[str, list[tuple[str, str]]],
-    tw_top_tickers: set[str],
-    stock_meta: dict,
-    stocks_info: dict,
-) -> tuple[str, dict[str, str]]:
-    """渲染「近一年焦點」highlight 區 — 從 theme_dictionary 直接拉,不依賴當日 top-50。
-
-    sub_name 通常為「前綴·後綴」,用前綴(· 前段)群組成 accordion。每個 sub 內
-    把 ticker 分兩類:
-      - 焦點: 今日 trading_rankings TW top-50 內 → 沿用全站 .stk-pill(可點開 modal)
-      - 前哨: 不在 top-50 → 淡色 / 虛線邊框 pill,顯 ticker + name + 小 PE chip
-
-    PE 來自 stock_meta.pe_ttm(已由上層 Q12 一次 batch fetch,涵蓋這 230 個 ticker)。
-    沒 PE 的就略過該 chip(不顯 — 號;避免噪音)。
-
-    Returns (html, extra_modal_data) — extra_modal_data 給上層 modal_data merge 用
-    (焦點股的 ticker 加進 modal 才能彈出 analyst card)。
-    """
-    if not highlight_subs:
-        return "", {}
-
-    # 用「·」前段(第一欄)群組,collation 用 dict 保留插入順序
-    from collections import defaultdict
-    prefix_to_subs: dict[str, list[str]] = defaultdict(list)
-    for sub_name in highlight_subs:
-        prefix = sub_name.split("·")[0] if "·" in sub_name else sub_name
-        prefix_to_subs[prefix].append(sub_name)
-
-    # 每個 prefix 算「該前綴下所有 sub 的焦點 ticker 數」做 accordion 摘要 + 排序權重。
-    prefix_focal_count: dict[str, int] = {}
-    for prefix, subs in prefix_to_subs.items():
-        cnt = 0
-        for s in subs:
-            for t, _n in highlight_subs[s]:
-                if t in tw_top_tickers:
-                    cnt += 1
-        prefix_focal_count[prefix] = cnt
-    # 排序:焦點多的前綴排前面 desc;同數依 prefix 字母序
-    sorted_prefixes = sorted(prefix_to_subs.keys(),
-                              key=lambda p: (-prefix_focal_count[p], p))
-
-    extra_modal: dict[str, str] = {}
-
-    def _pill_focal(ticker: str, name: str) -> str:
-        """焦點 pill — 沿用全站 .stk-pill(showArtModal 開 modal)。"""
-        extra_modal[ticker] = ""
-        return _stk_pill(ticker, stocks_info)
-
-    def _pill_sentinel(ticker: str, name: str) -> str:
-        """前哨 pill — 淡色虛線,顯 ticker + name + 小 PE chip(無當日報價)。"""
-        meta = stock_meta.get(ticker, {})
-        try:
-            pe_val = float(meta.get("pe_ttm")) if meta.get("pe_ttm") is not None else None
-        except (TypeError, ValueError):
-            pe_val = None
-        pe_html = ""
-        if pe_val is not None and pe_val > 0:
-            pe_html = f'<span class="snt-pe">PE {pe_val:.1f}</span>'
-        return (
-            f'<div class="snt-pill" data-ticker="{html_lib.escape(ticker)}" '
-            f'title="今日未進 top-50;PE 來自 stock_meta">'
-            f'<span class="sp-ticker">{html_lib.escape(ticker)}</span>'
-            f'<span class="sp-name">{html_lib.escape(name[:10])}</span>'
-            f'{pe_html}'
-            f'</div>'
-        )
-
-    parts: list[str] = [
-        '<section class="highlight-section">',
-        '<header class="hl-hdr">'
-        '<h2>🌟 近一年焦點</h2>'
-        '<span class="hl-sub">人工編彙的長線觀察題材;'
-        f'<b>{sum(prefix_focal_count.values())}</b> 檔今日進主榜(焦點)、'
-        '其餘為前哨(待觀察)</span>'
-        '</header>',
-    ]
-    for prefix in sorted_prefixes:
-        subs = prefix_to_subs[prefix]
-        focal_n = prefix_focal_count[prefix]
-        # 該前綴 ticker 總數(去重)
-        total_tickers: set[str] = set()
-        for s in subs:
-            for t, _n in highlight_subs[s]:
-                total_tickers.add(t)
-        parts.append(
-            f'<details class="hl-prefix anim-details" '
-            f'{"open" if focal_n > 0 else ""}>'
-            f'<summary>'
-            f'<span class="hl-prefix-name">{html_lib.escape(prefix)}</span>'
-            f'<span class="hl-prefix-meta">'
-            f'{len(subs)} 細分 · {len(total_tickers)} 檔 · '
-            f'<b class="hl-focal-cnt">{focal_n}</b> 焦點</span>'
-            f'</summary>'
-            f'<div class="anim-panel hl-prefix-body">'
-        )
-        for sub_name in subs:
-            # sub 後段(· 後;若無 · 就 fallback 整名)
-            sub_label = sub_name.split("·", 1)[1] if "·" in sub_name else sub_name
-            tickers = highlight_subs[sub_name]
-            focals = [(t, n) for t, n in tickers if t in tw_top_tickers]
-            sentinels = [(t, n) for t, n in tickers if t not in tw_top_tickers]
-            # 焦點依該檔今日漲跌 desc 排;前哨依 ticker asc(讓視覺穩定,可調)
-            focals.sort(key=lambda x: (
-                0 if stocks_info.get(x[0], {}).get("change_pct") is not None else 1,
-                -(stocks_info.get(x[0], {}).get("change_pct") or 0),
-            ))
-            sentinels.sort(key=lambda x: x[0])
-            focal_html = "".join(_pill_focal(t, n) for t, n in focals)
-            sentinel_html = "".join(_pill_sentinel(t, n) for t, n in sentinels)
-            focal_block = (
-                f'<div class="hl-sub-row"><span class="hl-row-label">焦點 ({len(focals)})</span>'
-                f'<div class="hl-row-pills">{focal_html}</div></div>'
-                if focals else ''
-            )
-            sentinel_block = (
-                f'<div class="hl-sub-row hl-row-sentinel"><span class="hl-row-label">前哨 ({len(sentinels)})</span>'
-                f'<div class="hl-row-pills">{sentinel_html}</div></div>'
-                if sentinels else ''
-            )
-            parts.append(
-                f'<div class="hl-sub-card">'
-                f'<div class="hl-sub-name">{html_lib.escape(sub_label)}</div>'
-                f'{focal_block}{sentinel_block}'
-                f'</div>'
-            )
-        parts.append('</div></details>')
-    parts.append('</section>')
-    return "".join(parts), extra_modal
-
-
 def build_focus_html(
     tw_ranks: list,
     sub_clusters: list,
@@ -1299,39 +1226,42 @@ def build_focus_html(
     if not sub_clusters and not highlight_subs:
         return '<p class="muted-note">今日尚無熱門產業</p>', {}
 
-    # 把 main='近一年焦點' 的 sub_cluster 從泛分類區拿掉(它們已在上方 highlight 區
-    # 顯示,不要 dup)。若 cluster 合併過(members 多個 main),只要其中一個 member
-    # 是「近一年焦點」就視為已在上區展示,從泛分類過濾掉。
-    if highlight_subs:
-        def _is_highlight_cluster(c) -> bool:
-            if c.main == HIGHLIGHT_MAIN:
-                return True
-            return any(m == HIGHLIGHT_MAIN for m, _s in (c.members or []))
-        sub_clusters = [c for c in sub_clusters if not _is_highlight_cluster(c)]
+    # 拆兩半:main='近一年焦點' 走「近一年焦點」tab(顯前哨);其他走「泛分類」tab
+    def _is_highlight_cluster(c) -> bool:
+        if c.main == HIGHLIGHT_MAIN:
+            return True
+        return any(m == HIGHLIGHT_MAIN for m, _s in (c.members or []))
+    hl_clusters = [c for c in sub_clusters if _is_highlight_cluster(c)]
+    pan_clusters = [c for c in sub_clusters if not _is_highlight_cluster(c)]
 
-    # Modal data placeholders — analyst consensus filled downstream
+    # Modal data placeholders — analyst consensus filled downstream;兩 tab 共用
     modal_data: dict[str, str] = {}
     for ticker in {s.ticker for c in (sub_clusters or []) for s in c.focal}:
         modal_data[ticker] = ""
 
-    # 近一年焦點 highlight 區放在最上面;泛分類 cluster 放下面
-    highlight_html = ""
-    if highlight_subs:
-        tw_top_tickers = {r["ticker"] for r in tw_ranks if r.get("ticker")}
-        highlight_html, hl_modal = build_highlight_focus_html(
-            highlight_subs, tw_top_tickers, stock_meta, all_stocks,
-        )
-        for tk in hl_modal:
-            modal_data.setdefault(tk, "")
+    # 兩 tab 共用 cluster card 排行版型,level 拿來區分 IIA_CLUSTERS namespace
+    # + sort chip data-level + container id;近一年焦點 tab 在 cluster card 內
+    # 多渲一個前哨 section(同題材但今日沒進 top-50 的標的)
+    hl_html = _industry_section_html(
+        hl_clusters, all_stocks, "hl_sub", theme_history_payload,
+        highlight_subs=highlight_subs, stock_meta=stock_meta,
+    ) if hl_clusters else '<p class="muted-note">今日「近一年焦點」題材無焦點股入榜</p>'
+    pan_html = _industry_section_html(
+        pan_clusters, all_stocks, "pan_sub", theme_history_payload,
+    ) if pan_clusters else '<p class="muted-note">今日無泛分類熱門題材</p>'
 
-    sub_html = _industry_section_html(sub_clusters, all_stocks, "sub", theme_history_payload) if sub_clusters else ""
-    # 註:theme_history + 大盤指數 payload 不再 inline 進 HTML,改寫到
-    # docs/history.json 由 modal chart 首次開啟時 fetch(降首屏約 1 MB)。
-    # sparkline SVG 是 server-side 預渲染,不需要 history.json。
-    pan_wrap = ('<section class="pan-section">'
-                '<header class="pan-hdr"><h2>📊 泛分類(依當日成交金額)</h2></header>'
-                + sub_html + '</section>') if sub_html else ''
-    return highlight_html + pan_wrap, modal_data
+    # sub-tabs:🌟 近一年焦點 / 📊 泛分類(同 cluster card 排行版型)
+    nav_html = (
+        '<div class="sub-tabs">'
+        '<button class="sub-tab-btn active" data-stab="hl"  type="button" onclick="showSubTab(\'hl\')">🌟 近一年焦點</button>'
+        '<button class="sub-tab-btn"        data-stab="pan" type="button" onclick="showSubTab(\'pan\')">📊 泛分類</button>'
+        '</div>'
+    )
+    panes_html = (
+        f'<div class="sub-tab-pane active" id="stab-hl">{hl_html}</div>'
+        f'<div class="sub-tab-pane" id="stab-pan">{pan_html}</div>'
+    )
+    return nav_html + panes_html, modal_data
 
 
 # ── 焦點排行 tab (Sprint 3) ───────────────────────────────────────────────────
@@ -2263,42 +2193,12 @@ tr:last-child td{{border-bottom:none}}
 .rl-avg{{color:var(--accent)}}
 
 /* ── Highlight 區 (近一年焦點) ─────────────────────────────────────────── */
-/* 上區人工編彙 long-term 觀察題材;按 prefix 群組 accordion,
- * 每 sub 內分焦點(進今日 top-50)+ 前哨(未進)。 */
-.highlight-section{{margin-bottom:2rem;border:1px solid rgba(124,138,242,.25);
-                     border-radius:10px;padding:.9rem 1rem;
-                     background:linear-gradient(180deg,rgba(124,138,242,.04),transparent 60%)}}
-.hl-hdr{{display:flex;align-items:baseline;flex-wrap:wrap;gap:.6rem;margin-bottom:.85rem}}
-.hl-hdr h2{{font-size:1.05rem;font-weight:700;color:var(--text);margin:0}}
-.hl-sub{{font-size:.74rem;color:var(--muted);line-height:1.5}}
-.hl-sub b{{color:var(--accent);font-weight:700}}
-.hl-prefix{{margin-bottom:.4rem;border:1px solid var(--border);border-radius:7px;
-            background:rgba(255,255,255,.012);overflow:hidden}}
-.hl-prefix summary{{cursor:pointer;padding:.55rem .8rem;display:flex;
-                     align-items:center;justify-content:space-between;
-                     gap:.6rem;list-style:none;user-select:none;
-                     transition:background .15s}}
-.hl-prefix summary::-webkit-details-marker{{display:none}}
-.hl-prefix summary:hover{{background:rgba(255,255,255,.025)}}
-.hl-prefix summary::before{{content:"▸";color:var(--muted);font-size:.7rem;
-                             transition:transform .15s;margin-right:.2rem;display:inline-block}}
-.hl-prefix[open] summary::before{{transform:rotate(90deg)}}
-.hl-prefix-name{{font-weight:700;font-size:.88rem;color:var(--text);flex:1}}
-.hl-prefix-meta{{font-size:.7rem;color:var(--muted);white-space:nowrap}}
-.hl-focal-cnt{{color:var(--accent-glow-strong,#94aef7);font-weight:700}}
-.hl-prefix-body{{padding:.3rem .8rem .8rem;display:flex;flex-direction:column;gap:.55rem;
-                  border-top:1px solid var(--border)}}
-.hl-sub-card{{padding:.5rem .15rem .15rem;border-radius:5px}}
-.hl-sub-name{{font-size:.76rem;font-weight:600;color:var(--muted);
-               margin-bottom:.35rem;letter-spacing:.02em}}
-.hl-sub-row{{display:flex;align-items:flex-start;gap:.4rem;flex-wrap:wrap;
-              padding:.18rem 0}}
-.hl-row-label{{font-size:.62rem;font-weight:700;color:var(--muted);
-                padding:.15rem .35rem;border-radius:3px;background:rgba(255,255,255,.04);
-                white-space:nowrap;letter-spacing:.04em;min-width:48px;text-align:center}}
-.hl-row-sentinel .hl-row-label{{background:rgba(255,165,0,.08);color:#d9a755}}
-.hl-row-pills{{display:flex;flex-wrap:wrap;gap:.3rem .35rem;flex:1;min-width:0}}
-/* 前哨 pill — 跟焦點 pill 視覺區隔:虛線、淡背景、無報價 */
+/* cluster card 內前哨 section(只在近一年焦點 sub-tab 的 cluster 出現):
+ * 該題材完整 ticker list 扣掉今日 focal,顯為虛線淡色 pill + PE chip,
+ * 視覺跟今日焦點 pill 區隔(non-clickable 不開 modal)。 */
+.cluster-sentinel-stocks{{display:flex;flex-wrap:wrap;gap:.3rem .35rem;
+                            margin-top:.35rem;padding-top:.45rem;
+                            border-top:1px dashed rgba(255,255,255,.08)}}
 .snt-pill{{display:inline-flex;align-items:center;gap:.3rem;
             padding:.2rem .55rem;border-radius:5px;
             background:rgba(255,255,255,.02);
@@ -2311,10 +2211,8 @@ tr:last-child td{{border-bottom:none}}
 .snt-pe{{font-size:.6rem;font-weight:700;padding:.08rem .3rem;border-radius:3px;
          background:rgba(124,138,242,.10);color:var(--accent);letter-spacing:.02em;
          margin-left:.15rem}}
-/* 泛分類 section wrap */
-.pan-section{{margin-bottom:1rem}}
-.pan-hdr{{margin-bottom:.7rem}}
-.pan-hdr h2{{font-size:1rem;font-weight:700;color:var(--text);margin:0}}
+.sntl-hint{{font-weight:400;font-size:.65rem;color:var(--muted);
+            margin-left:.3rem;letter-spacing:0}}
 
 /* ── Theme clusters ── */
 .focus-clusters{{display:flex;flex-direction:column;gap:.85rem;margin-bottom:1.5rem}}
@@ -2967,30 +2865,32 @@ window.addEventListener('resize', _initMergedNames);
  * 因 Python 端已 pre-sort by bias desc,DOM 順序跟 JS 算出來一致 →
  * FLIP 動畫 dy≈0 不會跳。 */
 window.addEventListener('load', () => {{
-  if (typeof _refreshSortUi === 'function') _refreshSortUi();
-  if (typeof _recalcClusters === 'function' && (window.IIA_CLUSTERS || {{}}).sub) {{
-    _recalcClusters('sub');
-  }}
+  const C = window.IIA_CLUSTERS || {{}};
+  ['hl_sub', 'pan_sub', 'sub'].forEach(lv => {{
+    if (typeof _refreshSortUi === 'function') _refreshSortUi(lv);
+    if (typeof _recalcClusters === 'function' && C[lv]) _recalcClusters(lv);
+  }});
 }});
 
 /* 廣泛概念股濾除 — 點 univ-chip 把該 ticker 在每個 cluster 內反灰、
- * cluster meta 重算、整列依 activeTv 重排(FLIP 動畫) */
+ * cluster meta 重算、整列依 activeTv 重排(FLIP 動畫)。state 全域共用,
+ * 兩 sub-tab(hl_sub / pan_sub)的 cluster 都受影響。 */
 const _univDis = new Set();
 
-/* cluster 排序維度('tv'/'chg'/'bias'/'pe'/'yield'/'beta'),預設 'bias' desc(用戶要求)。
- * 重複點同一個 chip / 任一個 cluster header badge → 切換 desc ↔ asc;
- * 切到不同 key → 重置為 desc。
- * 各維度的 avg 在 _recalcClusters 內用 active focal 算。null 永遠排尾段(不受方向影響)。 */
-let _clusterSort = 'bias';
-let _clusterSortDir = 'desc';
-/* 只刷頂端 sort-chip 列(管 cluster 外層排序)。
- * cluster header badge 是 per-cluster focal 排序,由 _renderFocalSort 管,
- * 跟頂端列無關,不要在這裡 touch。 */
-function _refreshSortUi() {{
-  document.querySelectorAll('.sort-chip').forEach(b => {{
-    const on = b.dataset.sort === _clusterSort;
+/* cluster 排序 state per level('hl_sub' / 'pan_sub'),預設 'chg' desc。
+ * 重複點同一個 chip → 切 desc ↔ asc;切不同 key → 重置 desc。
+ * 兩 tab 各管自己的 state,sort chip 用 data-level 鎖定該 tab。 */
+const _clusterSort = {{}};      // level -> 'chg' / 'bias' / ...
+const _clusterSortDir = {{}};   // level -> 'desc' / 'asc'
+function _getSortKey(level)  {{ return _clusterSort[level] || 'chg'; }}
+function _getSortDir(level)  {{ return _clusterSortDir[level] || 'desc'; }}
+/* 只刷該 level 的 sort-chip(只影響該 sub-tab),不會誤動別 tab */
+function _refreshSortUi(level) {{
+  const key = _getSortKey(level), dir = _getSortDir(level);
+  document.querySelectorAll('.sort-chip[data-level="' + level + '"]').forEach(b => {{
+    const on = b.dataset.sort === key;
     b.classList.toggle('active', on);
-    b.dataset.dir = on ? _clusterSortDir : '';
+    b.dataset.dir = on ? dir : '';
   }});
 }}
 
@@ -3049,7 +2949,7 @@ function _focalQuoteByKey(f, key) {{
 function _renderFocalSort(cardId) {{
   const card = document.getElementById(cardId);
   if (!card) return;
-  const cluster = ((window.IIA_CLUSTERS || {{}}).sub || []).find(c => c.cardId === cardId);
+  const cluster = _findClusterDef(cardId);
   if (!cluster) return;
   const state = _getFocalSort(cardId);
   // 排序 focal entries(skip _univDis 在外層 _recalcClusters 用 pill-disabled
@@ -3089,15 +2989,16 @@ function _renderFocalSort(cardId) {{
     else b.removeAttribute('data-dir');
   }});
 }}
-function setClusterSort(mode) {{
-  if (mode === _clusterSort) {{
-    _clusterSortDir = _clusterSortDir === 'desc' ? 'asc' : 'desc';
+function setClusterSort(mode, level) {{
+  level = level || 'sub';  // 舊頁面(沒 data-level)fallback 給 'sub'
+  if (mode === _getSortKey(level)) {{
+    _clusterSortDir[level] = _getSortDir(level) === 'desc' ? 'asc' : 'desc';
   }} else {{
-    _clusterSort = mode;
-    _clusterSortDir = 'desc';
+    _clusterSort[level] = mode;
+    _clusterSortDir[level] = 'desc';
   }}
-  _refreshSortUi();
-  _recalcClusters('sub');
+  _refreshSortUi(level);
+  _recalcClusters(level);
 }}
 function toggleUniv(ticker) {{
   if (_univDis.has(ticker)) _univDis.delete(ticker);
@@ -3105,7 +3006,9 @@ function toggleUniv(ticker) {{
   document.querySelectorAll('.univ-chip[data-ticker="' + ticker + '"]').forEach(b => {{
     b.classList.toggle('disabled', _univDis.has(ticker));
   }});
-  _recalcClusters('sub');
+  // 兩 sub-tab 的 cluster 都受影響(_univDis 是全域 state),都重算
+  const C = window.IIA_CLUSTERS || {{}};
+  ['hl_sub', 'pan_sub', 'sub'].forEach(lv => {{ if (C[lv]) _recalcClusters(lv); }});
   // 若 theme chart modal 開著,連動重算
   const dlg = document.getElementById('theme-chart-dialog');
   if (dlg && dlg.open && _openThemeCardId) {{
@@ -3174,7 +3077,9 @@ function _recalcClusters(level) {{
     yield: {{ label: '平均殖利', val: (s) => s.avgYield == null ? '—' : s.avgYield.toFixed(2) + '%', cls: (s) => 'neutral' }},
     beta:  {{ label: '平均 β',   val: (s) => s.avgBeta == null ? '—' : s.avgBeta.toFixed(2), cls: (s) => 'neutral' }},
   }};
-  const fmt = META_FMT[_clusterSort] || META_FMT.tv;
+  const _sortKey = _getSortKey(level);
+  const _sortDir = _getSortDir(level);
+  const fmt = META_FMT[_sortKey] || META_FMT.tv;
   states.forEach(s => {{
     const el = cardEls[s.cardId];
     if (!el) return;
@@ -3183,23 +3088,23 @@ function _recalcClusters(level) {{
     const meta = el.querySelector('.cluster-meta');
     if (meta) {{
       const valStr = fmt.val(s);
-      const showLabel = _clusterSort !== 'tv';  // tv 不需 label(沿用原顯示),其他要前綴
+      const showLabel = _sortKey !== 'tv';
       meta.innerHTML = s.activeFocal.length + ' 檔焦點 · '
         + (showLabel ? '<span class="meta-label">' + fmt.label + '</span> ' : '')
         + '<span class="meta-val ' + fmt.cls(s) + '">' + valStr + '</span>';
     }}
   }});
 
-  // 4. 依 _clusterSort 重排 DOM(desc;None 排到最後)
+  // 4. 依 per-level _clusterSort 重排 DOM(None 排到最後,不受方向影響)
   const _key = (s) => {{
-    if (_clusterSort === 'chg')   return s.avgChg;
-    if (_clusterSort === 'yield') return s.avgYield;
-    if (_clusterSort === 'bias')  return s.avgBias;
-    if (_clusterSort === 'pe')    return s.avgPe;
-    if (_clusterSort === 'beta')  return s.avgBeta;
+    if (_sortKey === 'chg')   return s.avgChg;
+    if (_sortKey === 'yield') return s.avgYield;
+    if (_sortKey === 'bias')  return s.avgBias;
+    if (_sortKey === 'pe')    return s.avgPe;
+    if (_sortKey === 'beta')  return s.avgBeta;
     return s.activeTv;  // 'tv' default
   }};
-  const _dirMul = _clusterSortDir === 'asc' ? -1 : 1;
+  const _dirMul = _sortDir === 'asc' ? -1 : 1;
   const visibleSorted = states.filter(s => s.visible).sort((a, b) => {{
     const va = _key(a), vb = _key(b);
     // null 永遠排尾段(無論 asc/desc),避免缺資料 cluster 卡在最前面
@@ -3308,8 +3213,13 @@ function _loadLightweightCharts() {{
 }}
 
 function _findClusterDef(cardId) {{
-  const all = (window.IIA_CLUSTERS || {{}}).sub || [];
-  return all.find(c => c.cardId === cardId);
+  // 跨 sub-tab(hl_sub / pan_sub / sub legacy)找 cluster def
+  const C = window.IIA_CLUSTERS || {{}};
+  for (const lv of ['hl_sub', 'pan_sub', 'sub']) {{
+    const hit = (C[lv] || []).find(c => c.cardId === cardId);
+    if (hit) return hit;
+  }}
+  return null;
 }}
 
 /* 算單一 cluster 的 daily series:
@@ -3754,12 +3664,13 @@ if (navigator.share) {{
 }}
 
 /* ── 站內搜尋 ─────────────────────────────────────────────────────────────── */
-/* 從 IIA_CLUSTERS.sub 建反向索引(ticker → cluster cardId + name)。
- * 預先建一次,後續每次按鍵 O(N) linear scan(N ~ 100 個 ticker 可接受)。 */
+/* 從 IIA_CLUSTERS 全部 sub-tab(hl_sub / pan_sub / sub legacy)建反向索引
+ * (ticker → cluster cardId + name)。預先建一次,後續每次按鍵 O(N) linear。 */
 const _searchIdx = (() => {{
   const out = [];
   const seen = new Set();
-  ((window.IIA_CLUSTERS || {{}}).sub || []).forEach(c => {{
+  const C = window.IIA_CLUSTERS || {{}};
+  ['hl_sub', 'pan_sub', 'sub'].flatMap(lv => C[lv] || []).forEach(c => {{
     (c.focal || []).forEach(f => {{
       if (seen.has(f.ticker)) return;
       seen.add(f.ticker);
@@ -3828,8 +3739,14 @@ function onSearchKey(e) {{
 function onSearchPick(el) {{
   const cardId = el.dataset.card;
   showTab('focus');
+  // 切到 cluster 所在的 sub-tab(看 cardId 開頭判 hl_sub / pan_sub)
   const card = document.getElementById(cardId);
   if (card) {{
+    const pane = card.closest('.sub-tab-pane');
+    if (pane && pane.id) {{
+      const stab = pane.id.replace(/^stab-/, '');
+      if (stab) showSubTab(stab);
+    }}
     setTimeout(() => {{
       card.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
       card.classList.remove('search-hi');
