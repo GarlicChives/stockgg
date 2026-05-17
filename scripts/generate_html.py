@@ -481,25 +481,37 @@ def _yf_market_index_history(period: str = "6mo") -> dict[str, list[dict]]:
     except ImportError:
         return {}
     result: dict[str, list[dict]] = {}
-    # ^TWO 在 yfinance 抓不到資料,^TWOII 是有效的 TPEx Composite Index symbol
+    # ^TWO 在 yfinance 完全沒資料;^TWOII (TPEx Composite) 偶爾會 flaky
+    # 回空 → 對該 symbol 個別 retry 一次,避免 chart 整個沒線
+    import time as _time
     syms_map = {"^TWII": "TWII", "^TWOII": "TPEX"}
-    try:
-        raw = yf.download(list(syms_map), period=period, progress=False,
-                          auto_adjust=True, group_by="ticker")
-        if raw.empty:
-            return result
-        for yf_sym, key in syms_map.items():
+    for yf_sym, key in syms_map.items():
+        for attempt in range(2):
             try:
-                close = (raw[yf_sym]["Close"] if len(syms_map) > 1 else raw["Close"]).dropna()
+                df = yf.download(yf_sym, period=period, progress=False, auto_adjust=True)
+                if df.empty:
+                    if attempt == 0:
+                        _time.sleep(0.7)
+                        continue
+                    break
+                # yfinance 4.x 即使單 ticker 也回 MultiIndex columns:
+                # ('Close', '^TWII') 等。需 squeeze inner level 為 Series。
+                close = df["Close"]
+                if hasattr(close, "ndim") and close.ndim == 2:
+                    close = close.iloc[:, 0]
+                close = close.dropna()
                 series = []
                 for ts, v in close.items():
                     d = ts.date().isoformat() if hasattr(ts, "date") else str(ts)[:10]
-                    series.append({"d": d, "close": round(float(v), 2)})
+                    val = v.item() if hasattr(v, "item") else float(v)
+                    series.append({"d": d, "close": round(float(val), 2)})
                 result[key] = series
+                break
             except Exception:
-                pass
-    except Exception:
-        pass
+                if attempt == 0:
+                    _time.sleep(0.7)
+                else:
+                    break
     return result
 
 
