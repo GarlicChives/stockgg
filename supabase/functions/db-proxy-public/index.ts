@@ -67,6 +67,11 @@ const ALLOWED: Set<string> = new Set([
   // Composite filter via "main||sub" string ANY($1::text[]) so JS-side can
   // pass an array of keys derived from currently-rendered clusters.
   "select rank_date, main_industry, sub_industry, focal_count, focal_breakdown, total_tv, avg_chg_pct from theme_history where main_industry || '||' || sub_industry = any($1::text[]) and rank_date >= current_date - interval '180 days' order by main_industry, sub_industry, rank_date",
+
+  // Q12 — stock_meta 公司基本面快照(由 ingest 端 src/news/stock_meta.py
+  // 週更新寫入)。一次查多檔焦點股的完整 metadata 供:加權指數計算、
+  // cluster PE/yield/beta 平均、pill 52w 位置%、modal 公司介紹 section
+  "select ticker, name_zh, name_en, sector, industry, description, website, employees, shares_outstanding, float_shares, market_cap, pe_ttm, pe_forward, pb, eps_ttm, eps_forward, book_value, dividend_yield, last_dividend, ex_dividend_date, week52_high, week52_low, beta from stock_meta where ticker = any($1::text[])",
 ])
 
 function normalize(q: string): string {

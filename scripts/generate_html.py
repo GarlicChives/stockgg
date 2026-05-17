@@ -184,12 +184,31 @@ def _stk_pill(ticker: str, stocks_info: dict, clickable: bool = True, extra_attr
     name_span = f'<span class="sp-name">{html_lib.escape(name[:8])}</span>' if name else ""
     click = f" onclick='showArtModal({json.dumps(ticker)},{json.dumps(name[:12])})'" if clickable else ""
     extra = f" {extra_attrs}" if extra_attrs else ""
+
+    # F3: 52w 位置%(需 close + week52_high + week52_low 全到位)。
+    # 接近年高 (>80%) 標紅、接近年低 (<20%) 標綠、中段灰。
+    w52_html = ""
+    w52_high = info.get("week52_high")
+    w52_low  = info.get("week52_low")
+    if close is not None and w52_high is not None and w52_low is not None and w52_high > w52_low:
+        pos = max(0, min(100, (close - w52_low) / (w52_high - w52_low) * 100))
+        if pos >= 80:
+            w52_cls = "w52-high"
+        elif pos <= 20:
+            w52_cls = "w52-low"
+        else:
+            w52_cls = "w52-mid"
+        w52_html = (f'<span class="sp-w52 {w52_cls}" '
+                    f'title="距離年高 / 年低區間位置;{w52_low:.0f}–{w52_high:.0f}">'
+                    f'52w {pos:.0f}%</span>')
+
     return (
         f'<div class="stk-pill"{click}{extra}>'
         f'<span class="sp-ticker">{html_lib.escape(ticker)}</span>'
         f'<span class="mkt-badge {mkt_cls}">{market}</span>'
         f'{name_span}'
         f'<span class="sp-quote {pct_cls}">{quote}</span>'
+        f'{w52_html}'
         f'</div>'
     )
 
@@ -320,6 +339,52 @@ def _yf_analyst_batch(tickers: list[str]) -> dict[str, dict]:
             if data:
                 result[orig] = data
     return result
+
+
+def _build_company_intro_html(meta: dict | None) -> str:
+    """F1: 公司介紹 section,顯示在 modal 頂部(analyst consensus 之前)。
+    沒有 stock_meta(非 focal 股 / ingest 還沒抓到)→ 空字串。"""
+    if not meta:
+        return ""
+    name_zh = (meta.get("name_zh") or "").strip()
+    name_en = (meta.get("name_en") or "").strip()
+    sector = (meta.get("sector") or "").strip()
+    industry = (meta.get("industry") or "").strip()
+    desc = (meta.get("description") or "").strip()
+    web = (meta.get("website") or "").strip()
+    emp = meta.get("employees")
+
+    if not any([name_zh, name_en, sector, desc, web, emp]):
+        return ""
+
+    bits = []
+    if sector or industry:
+        tag = " · ".join(x for x in [sector, industry] if x)
+        bits.append(f'<div class="ci-tags">{html_lib.escape(tag)}</div>')
+    if name_en and name_en.lower() != (name_zh or "").lower():
+        bits.append(f'<div class="ci-name-en">{html_lib.escape(name_en)}</div>')
+    meta_line = []
+    if emp:
+        try:
+            meta_line.append(f'員工 {int(emp):,} 人')
+        except Exception:
+            pass
+    if web:
+        meta_line.append(f'<a href="{html_lib.escape(web)}" target="_blank" rel="noopener">官網 ↗</a>')
+    if meta_line:
+        bits.append(f'<div class="ci-meta">{" · ".join(meta_line)}</div>')
+    if desc:
+        # 限制長度避免 modal 暴增
+        if len(desc) > 600:
+            desc = desc[:600] + "…"
+        bits.append(f'<div class="ci-desc">{html_lib.escape(desc)}</div>')
+
+    return (
+        '<div class="modal-section">'
+        '<div class="modal-section-hdr">🏢 公司介紹</div>'
+        + "".join(bits)
+        + '</div>'
+    )
 
 
 def _build_analyst_html(data: dict) -> str:
@@ -687,9 +752,28 @@ def _industry_section_html(
         ma20s = [all_stocks.get(s.ticker, {}).get("ma20_bias") for s in c.focal]
         ma20s = [m for m in ma20s if m is not None]
         avg_ma20 = sum(ma20s) / len(ma20s) if ma20s else None
+        # F2: cluster stock_meta 平均 — PE / 殖利率 / Beta(simple mean,skip None)
+        def _mean(lst):
+            xs = [x for x in lst if x is not None]
+            return sum(xs) / len(xs) if xs else None
+        avg_pe = _mean([all_stocks.get(s.ticker, {}).get("pe_ttm")
+                        for s in c.focal if (all_stocks.get(s.ticker, {}).get("pe_ttm") or 0) > 0])
+        avg_yield = _mean([all_stocks.get(s.ticker, {}).get("dividend_yield") for s in c.focal])
+        avg_beta = _mean([all_stocks.get(s.ticker, {}).get("beta") for s in c.focal])
+
+        def _plain_badge(label: str, value: float | None, title: str, fmt: str = "{:.2f}") -> str:
+            """中性 badge(無顏色),純資訊。"""
+            if value is None:
+                return ""
+            return (f'<span class="cluster-metric neutral" title="{title}">'
+                    f'{label} {fmt.format(value)}</span>')
+
         metric_html = (
             _metric_badge("漲跌", avg_chg, "焦點股平均漲跌幅")
             + _metric_badge("乖離", avg_ma20, "焦點股平均 20MA 乖離率")
+            + _plain_badge("PE", avg_pe, "焦點股平均 PE (TTM)", "{:.1f}")
+            + _plain_badge("殖利", avg_yield, "焦點股平均殖利率 %", "{:.2f}%")
+            + _plain_badge("β", avg_beta, "焦點股平均 Beta(對大盤)", "{:.2f}")
         )
 
         card_id = f"cc-{level}-{idx}"
@@ -880,6 +964,7 @@ def build_focus_html(
     stocks_info: dict,
     theme_history_payload: dict,
     market_index_payload: dict | None = None,
+    stock_meta: dict | None = None,
 ) -> tuple[str, dict]:
     """Build the 熱門題材 tab — 只渲染子產業 ranked list。
 
@@ -898,11 +983,13 @@ def build_focus_html(
     Returns (html, modal_data) — modal_data 仍以 ticker 為 key,
     內容由下游 analyst consensus builder 填入。
     """
+    stock_meta = stock_meta or {}
     all_stocks: dict[str, dict] = {}
     for r in tw_ranks:
         if _is_etf(r["ticker"], r.get("name", "")):
             continue
         extra = json.loads(r.get("extra") or "{}") if isinstance(r.get("extra"), str) else (r.get("extra") or {})
+        meta = stock_meta.get(r["ticker"], {})
         all_stocks[r["ticker"]] = {
             "name": r["name"] or r["ticker"],
             "market": "TW",
@@ -913,6 +1000,12 @@ def build_focus_html(
             "rank": r["rank"],
             "limit_up": bool(r.get("is_limit_up_30m")),
             "ma20_bias": stocks_info.get(r["ticker"], {}).get("ma20_bias"),
+            # F2/F3 stock_meta 帶進來:cluster metric badge 與 pill 52w% 都讀這
+            "week52_high": float(meta["week52_high"]) if meta.get("week52_high") is not None else None,
+            "week52_low":  float(meta["week52_low"])  if meta.get("week52_low")  is not None else None,
+            "pe_ttm":      float(meta["pe_ttm"])      if meta.get("pe_ttm")      is not None else None,
+            "dividend_yield": float(meta["dividend_yield"]) if meta.get("dividend_yield") is not None else None,
+            "beta":        float(meta["beta"])        if meta.get("beta")        is not None else None,
         }
 
     if not sub_clusters:
@@ -1101,6 +1194,27 @@ async def generate():
             if t in stocks_info:
                 stocks_info[t]["ma20_bias"] = bias
 
+    # stock_meta (Q12) — 公司基本面快照,給 sub_cluster 計算平均 PE / 殖利率
+    # / beta,給 focal pill 算 52w 位置%,給 modal 顯示公司介紹。一次撈
+    # 所有 displayed focal tickers。
+    stock_meta: dict[str, dict] = {}
+    if _focal_tw:
+        try:
+            meta_rows = await conn.fetch(
+                "SELECT ticker, name_zh, name_en, sector, industry, description, "
+                "       website, employees, shares_outstanding, float_shares, "
+                "       market_cap, pe_ttm, pe_forward, pb, eps_ttm, eps_forward, "
+                "       book_value, dividend_yield, last_dividend, ex_dividend_date, "
+                "       week52_high, week52_low, beta "
+                "FROM stock_meta WHERE ticker = ANY($1::text[])",
+                _focal_tw,
+            )
+            for r in meta_rows:
+                stock_meta[r["ticker"]] = dict(r)
+            print(f"  Stock meta: {len(stock_meta)} / {len(_focal_tw)} focal tickers covered")
+        except Exception as exc:
+            print(f"  ⚠ stock_meta query failed (table not yet populated?): {exc}")
+
     # Parse market_notes before closing (needed for tickers query).
     # raw_response and market_notes_json live in the same analysis_reports
     # row but are written ~10h apart (daily_briefing 07:30 writes raw_response,
@@ -1259,10 +1373,10 @@ async def generate():
                 breakdown = json.loads(breakdown)
             except Exception:
                 breakdown = {}
-        # Compact 4-tuple per ticker: [tv, chg, close, net_inst]
-        # net_inst = 三大法人合計買賣超金額(TWD,正買負賣);close = 該日收盤
+        # Compact 5-tuple per ticker: [tv, chg, close, net_inst, shares_out]
+        # shares_out 用來算 cluster market-cap weighted index(F0)
         stocks_compact = {
-            tk: [v.get("tv"), v.get("chg"), v.get("close"), v.get("net_inst")]
+            tk: [v.get("tv"), v.get("chg"), v.get("close"), v.get("net_inst"), v.get("shares_out")]
             for tk, v in breakdown.items()
             if isinstance(v, dict)
         }
@@ -1274,7 +1388,7 @@ async def generate():
 
     focus_html, modal_data = build_focus_html(
         tw_ranks, sub_clusters, stocks_info, theme_history_payload,
-        market_index_payload,
+        market_index_payload, stock_meta,
     )
     notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)
     catalyst_html = build_catalyst_html(catalyst_events, stocks_info)
@@ -1290,15 +1404,18 @@ async def generate():
     else:
         _analyst = {}
 
-    # Modal: analyst consensus only. Article snippets removed in
-    # repo-split Phase 3.6 — subscription text lives only in the private repo.
+    # Modal: 公司介紹(F1)+ analyst consensus。intro 在前,有 stock_meta
+    # 才出;analyst 用 yfinance 既有 batch 結果。
     for _tk in list(modal_data.keys()):
-        modal_data[_tk] = _build_analyst_html(_analyst.get(_tk, {}))
+        intro = _build_company_intro_html(stock_meta.get(_tk))
+        modal_data[_tk] = intro + _build_analyst_html(_analyst.get(_tk, {}))
     for _tk in _all_modal_tickers:
         if _tk not in modal_data:
+            intro = _build_company_intro_html(stock_meta.get(_tk))
             _a_html = _build_analyst_html(_analyst.get(_tk, {}))
-            if _a_html:
-                modal_data[_tk] = _a_html
+            combined = intro + _a_html
+            if combined:
+                modal_data[_tk] = combined
 
     # ── Indicator helpers ─────────────────────────────────────────────────────
     def ind(sym):
@@ -1674,6 +1791,13 @@ dialog#art-modal::backdrop{{background:rgba(0,0,0,.65)}}
 .modal-art-title{{font-size:.85rem;font-weight:600;color:#c8d8ea;margin-bottom:.35rem}}
 .modal-snip{{font-size:.82rem;color:#b0bfcf;white-space:pre-wrap;line-height:1.65}}
 .modal-section{{margin-bottom:.9rem}}
+/* F1: 公司介紹 section */
+.ci-tags{{font-size:.7rem;color:var(--accent);font-weight:600;margin-bottom:.25rem;letter-spacing:.04em}}
+.ci-name-en{{font-size:.78rem;color:var(--muted);font-style:italic;margin-bottom:.3rem}}
+.ci-meta{{font-size:.75rem;color:var(--muted);margin-bottom:.4rem}}
+.ci-meta a{{color:var(--accent);text-decoration:none}}
+.ci-meta a:hover{{text-decoration:underline}}
+.ci-desc{{font-size:.82rem;color:#c0cad8;line-height:1.6}}
 .modal-section-hdr{{font-size:.68rem;font-weight:600;color:var(--muted);
                     text-transform:uppercase;letter-spacing:.07em;margin-bottom:.5rem}}
 .analyst-grid{{display:grid;grid-template-columns:1fr 1fr;gap:.4rem;margin-bottom:.4rem}}
@@ -1741,6 +1865,12 @@ dialog#art-modal::backdrop{{background:rgba(0,0,0,.65)}}
 .sp-ticker{{font-weight:800;font-size:.85rem}}
 .sp-name{{font-size:.72rem;color:var(--muted)}}
 .sp-quote{{font-weight:700;font-size:.78rem;font-variant-numeric:tabular-nums}}
+/* F3: 52w 位置%(stk-pill 內小標籤,只在 stock_meta 有資料時出) */
+.sp-w52{{font-size:.62rem;font-weight:700;padding:.08rem .3rem;border-radius:3px;
+        letter-spacing:.02em;cursor:help}}
+.sp-w52.w52-high{{background:rgba(239,83,80,.16);color:#f47471}}     /* 近年高 → 紅 */
+.sp-w52.w52-low{{background:rgba(38,166,154,.14);color:#5dc4b9}}     /* 近年低 → 綠 */
+.sp-w52.w52-mid{{background:rgba(255,255,255,.05);color:var(--muted)}}
 
 .up{{color:var(--up)}} .down{{color:var(--down)}} .flat{{color:#fff}} .neutral{{color:var(--muted)}}
 footer{{color:var(--muted);font-size:.75rem;
@@ -1833,7 +1963,7 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
     <div class="tc-chart-label">三大法人資金淨流入流出(億 TWD)</div>
     <div class="tc-chart" id="tc-chart-net"></div>
     <div class="tc-chart-label">
-      焦點股加權指數(rebase 100,Sprint 1 暫用平均股價)
+      焦點股加權指數 vs 大盤(rebase 100,點 chip 隱顯)
       <span class="tc-legend">
         <button class="tc-leg-chip leg-cluster active" type="button" onclick="toggleIndexLine('cluster')"><span class="leg-sw"></span>焦點股</button>
         <button class="tc-leg-chip leg-twii active" type="button" onclick="toggleIndexLine('twii')"><span class="leg-sw"></span>大盤(TWII)</button>
@@ -2045,11 +2175,13 @@ function _findClusterDef(cardId) {{
   return all.find(c => c.cardId === cardId);
 }}
 
-/* 算單一 cluster 的 daily 三大法人淨流入(億) + 平均股價 series。
- * 鎖定今天的 cluster.focal ticker set。
- * payload 每檔 stock 是 4-tuple [tv, chg, close, net_inst]
- * (ingest Sprint 2 完成後會擴成 5-tuple 加 shares_out,屆時 priceSeries
- *  swap 為 market-cap weighted index)。 */
+/* 算單一 cluster 的 daily series:
+ *   - netSeries:三大法人淨流入(億)
+ *   - priceSeries:market-cap weighted index = Σ(close × shares_out) per day
+ *                 之後 _rebaseSeries 把它 rebase 到 100(從 chart 共同 start day)
+ * payload 5-tuple [tv, chg, close, net_inst, shares_out]
+ * 鎖定今天的 cluster.focal ticker set,套 _univDis 過濾。
+ * shares_out 缺(stock_meta 還沒抓到該檔)→ 該檔不貢獻 mcap,但仍貢獻 net。 */
 function _computeClusterSeries(cluster) {{
   const hist = window.IIA_HISTORY || {{}};
   const keys = cluster.memberKeys || [];
@@ -2058,14 +2190,17 @@ function _computeClusterSeries(cluster) {{
   keys.forEach(k => {{
     (hist[k] || []).forEach(row => {{
       const stocks = row.s || {{}};
-      const cur = daily[row.d] || (daily[row.d] = {{ netSum: 0, priceSum: 0, priceN: 0 }});
+      const cur = daily[row.d] || (daily[row.d] = {{ netSum: 0, mcapSum: 0 }});
       for (const [ticker, v] of Object.entries(stocks)) {{
         if (!todayFocals.has(ticker)) continue;
         if (_univDis.has(ticker)) continue;
-        const net = (v && v[3] != null) ? v[3] : 0;
         const close = (v && v[2] != null) ? v[2] : null;
+        const net = (v && v[3] != null) ? v[3] : 0;
+        const shares = (v && v[4] != null) ? v[4] : null;
         cur.netSum += net;
-        if (close !== null) {{ cur.priceSum += close; cur.priceN += 1; }}
+        if (close !== null && shares !== null) {{
+          cur.mcapSum += close * shares;
+        }}
       }}
     }});
   }});
@@ -2074,9 +2209,9 @@ function _computeClusterSeries(cluster) {{
     const v = daily[d].netSum / 1e8;
     return {{ time: d, value: v, color: v >= 0 ? 'rgba(239,83,80,.8)' : 'rgba(38,166,154,.8)' }};
   }});
+  // 用 daily market cap 當「加權指數」原始值,_rebaseSeries 之後會 normalize 到 100
   const priceSeries = dates.map(d => ({{
-    time: d,
-    value: daily[d].priceN > 0 ? +(daily[d].priceSum / daily[d].priceN).toFixed(2) : 0,
+    time: d, value: daily[d].mcapSum,
   }})).filter(p => p.value > 0);
   return {{ netSeries, priceSeries }};
 }}
