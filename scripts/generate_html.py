@@ -829,12 +829,12 @@ def _industry_section_html(
             val_str = "—" if value is None else fmt.format(value)
             return f'<span {common}>{label} {val_str}</span>'
 
-        # 順序:乖離 / 漲跌 / PE / 殖利 / β(用戶要求,預設按乖離 desc 排)
+        # 順序:漲跌 / 乖離 / PE / 殖利 / β(用戶要求,預設按漲跌 desc 排)
         # 點 badge → setFocalSort(card_id, key):只動該題材內 focal pill 順序
         card_id = f"cc-{level}-{idx}"
         metric_html = (
-            _metric_badge("乖離", avg_ma20, "點擊依此題材內個股 20MA 乖離率排序", "bias", card_id, is_default_sort=True)
-            + _metric_badge("漲跌", avg_chg, "點擊依此題材內個股漲跌幅排序", "chg", card_id)
+            _metric_badge("漲跌", avg_chg, "點擊依此題材內個股漲跌幅排序", "chg", card_id, is_default_sort=True)
+            + _metric_badge("乖離", avg_ma20, "點擊依此題材內個股 20MA 乖離率排序", "bias", card_id)
             + _plain_badge("PE", avg_pe, "點擊依此題材內個股 PE (TTM)排序", "pe", card_id, "{:.1f}")
             + _plain_badge("殖利", avg_yield, "點擊依此題材內個股殖利率排序", "yield", card_id, "{:.2f}%")
             + _plain_badge("β", avg_beta, "點擊依此題材內個股 Beta 排序", "beta", card_id, "{:.2f}")
@@ -882,12 +882,12 @@ def _industry_section_html(
                         f'<span class="spark-label">{len(spark_values)}d</span>'
                         f'</button>'
                     )
-        # focal pills 預設依該股 20MA 乖離 desc 排(對齊 cluster header 預設 active 的 乖離 badge);
+        # focal pills 預設依該股當日漲跌 desc 排(對齊 cluster header 預設 active 的 漲跌 badge);
         # None 排尾段。JS setFocalSort 點擊後會 re-order DOM。
-        def _focal_bias_key(s):
-            b = all_stocks.get(s.ticker, {}).get("ma20_bias")
-            return (1, 0) if b is None else (0, -b)
-        focal_sorted = sorted(c.focal, key=_focal_bias_key)
+        def _focal_chg_key(s):
+            v = s.change_pct
+            return (1, 0) if v is None else (0, -v)
+        focal_sorted = sorted(c.focal, key=_focal_chg_key)
         focal_pills = "".join(
             _stk_pill(
                 s.ticker, all_stocks,
@@ -2700,7 +2700,7 @@ function _refreshSortUi() {{
  * 預設 bias desc(對齊 Python 端 focal_sorted 初始順序)。 */
 const _focalSort = new Map();  // cardId -> { key, dir }
 function _getFocalSort(cardId) {{
-  if (!_focalSort.has(cardId)) _focalSort.set(cardId, {{ key: 'bias', dir: 'desc' }});
+  if (!_focalSort.has(cardId)) _focalSort.set(cardId, {{ key: 'chg', dir: 'desc' }});
   return _focalSort.get(cardId);
 }}
 function setFocalSort(cardId, key) {{
@@ -2709,6 +2709,43 @@ function setFocalSort(cardId, key) {{
   else {{ cur.key = key; cur.dir = 'desc'; }}
   _renderFocalSort(cardId);
 }}
+
+/* 依排序 key 算 pill 報價括號內的內容 + 顏色 class。
+ * chg(預設):「close(±X.XX%)」沿用既有格式不加 prefix
+ * 其他:「close(prefix value)」加維度 prefix,避免使用者混淆是哪一項 */
+function _focalQuoteByKey(f, key) {{
+  if (f.close == null) {{
+    // 沒收盤價就只顯該維度數字
+    if (key === 'chg') {{ const p = _fmtPctJs(f.chg); return {{ str: p.str, cls: p.cls }}; }}
+    return {{ str: '—', cls: 'neutral' }};
+  }}
+  const closeStr = f.close.toFixed(2);
+  if (key === 'chg') {{
+    const p = _fmtPctJs(f.chg);
+    return {{ str: closeStr + (f.chg != null ? '(' + p.str + ')' : ''), cls: p.cls }};
+  }}
+  if (key === 'bias') {{
+    const v = f.bias;
+    if (v == null) return {{ str: closeStr + '(乖離 —)', cls: 'neutral' }};
+    const sign = v > 0 ? '+' : '';
+    const cls = v > 0 ? 'up' : (v < 0 ? 'down' : 'flat');
+    return {{ str: closeStr + '(乖離 ' + sign + v.toFixed(2) + '%)', cls }};
+  }}
+  if (key === 'pe') {{
+    const v = f.pe;
+    return {{ str: closeStr + '(PE ' + (v == null || v <= 0 ? '—' : v.toFixed(1)) + ')', cls: 'neutral' }};
+  }}
+  if (key === 'yield') {{
+    const v = f.yld;
+    return {{ str: closeStr + '(殖利 ' + (v == null ? '—' : v.toFixed(2) + '%') + ')', cls: 'neutral' }};
+  }}
+  if (key === 'beta') {{
+    const v = f.beta;
+    return {{ str: closeStr + '(β ' + (v == null ? '—' : v.toFixed(2)) + ')', cls: 'neutral' }};
+  }}
+  return {{ str: closeStr, cls: 'neutral' }};
+}}
+
 function _renderFocalSort(cardId) {{
   const card = document.getElementById(cardId);
   if (!card) return;
@@ -2716,7 +2753,8 @@ function _renderFocalSort(cardId) {{
   if (!cluster) return;
   const state = _getFocalSort(cardId);
   // 排序 focal entries(skip _univDis 在外層 _recalcClusters 用 pill-disabled
-  // 表達,排序這裡不過濾,保持 pill 都存在,只是順序變)。
+  // 表達,排序這裡不過濾,保持 pill 都存在,只是順序變)。null 永遠排尾段
+  // 不受方向影響(避免缺資料卡在最前面誤導,實例:5347 沒 ma20_bias)。
   const dirMul = state.dir === 'asc' ? -1 : 1;
   const sorted = cluster.focal.slice().sort((a, b) => {{
     const va = a[state.key], vb = b[state.key];
@@ -2725,7 +2763,7 @@ function _renderFocalSort(cardId) {{
     if (vb == null) return -1;
     return (vb - va) * dirMul;
   }});
-  // 拿 DOM pill 重排
+  // 拿 DOM pill 重排 + 更新 quote span 顯示當前 sort key 的值
   const container = card.querySelector('.cluster-focal-stocks');
   if (!container) return;
   const pillMap = {{}};
@@ -2734,7 +2772,14 @@ function _renderFocalSort(cardId) {{
   }});
   sorted.forEach(f => {{
     const p = pillMap[f.ticker];
-    if (p) container.appendChild(p);
+    if (!p) return;
+    container.appendChild(p);
+    const q = p.querySelector('.sp-quote');
+    if (q) {{
+      const r = _focalQuoteByKey(f, state.key);
+      q.textContent = r.str;
+      q.className = 'sp-quote ' + r.cls;
+    }}
   }});
   // 更新該卡片內 badge 的 active 狀態(只此卡)
   card.querySelectorAll('.cluster-metric.metric-btn').forEach(b => {{
