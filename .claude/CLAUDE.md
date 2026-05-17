@@ -27,8 +27,8 @@ Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
 - `scripts/generate_html.py` — 單檔 HTML 渲染（~2600 行,所有頁面邏輯 + 內嵌 CSS/JS）
 - `src/analysis/focus_themes.py` — 題材叢集（純 Python）
 - `src/utils/db.py` — async DB client（用 `SUPABASE_ANON_KEY` + `db-proxy-public`）
-- `data/theme_dictionary.json` — statementdog 主產業 / 子產業階層字典（2026-05 改 schema:ticker-centric `stocks` 物件,純台股;由 ingest 端 `scrape_statementdog_industries.py` 產生再 sync 到本 repo）
-- `supabase/functions/db-proxy-public/index.ts` — Edge Function 含 SQL allowlist（目前 12 條）
+- `data/theme_dictionary.json` — statementdog 主產業 / 子產業階層字典（2026-05 改 schema:ticker-centric `stocks` 物件,純台股;由 ingest 端 `scrape_statementdog_industries.py` 產生再 sync 到本 repo）。**main='近一年焦點'** 是 ingest 端人工編彙的長線觀察題材（62 sub / 230 ticker;sub 名稱「前綴·後綴」可用 「·」 split 群組）,公開站「熱門題材」頁上區獨立渲染為 highlight section,跟下區「泛分類」(原 statementdog 47 main) 並陳
+- `supabase/functions/db-proxy-public/index.ts` — Edge Function 含 SQL allowlist（目前 12 條;Q11 theme_history 已從 180 → 400 days 對齊 ticker_close_history retention）
 - `.github/workflows/market_briefing.yml` — render + deploy（07:30 / 18:15 / 23:15 TW cron + repository_dispatch）。`concurrency: publish-daily-site` 同 workflow 排隊不互相取消;commit-and-push step 含 `-X ours` rebase retry x3,避免本地 dev push 與 bot 撞 race
 - `docs/index.html` — 渲染輸出(generate_html.py 寫入,bot CI push)
 - `docs/history.json` — chart modal 用的歷史 payload(theme_history + 大盤指數,~800KB),由 `generate_html.py` 一併寫出,前端 lazy fetch

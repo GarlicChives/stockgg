@@ -63,10 +63,11 @@ const ALLOWED: Set<string> = new Set([
   // latest row often has a NULL market_notes_json before 18:00 TW)
   "select report_date, market_notes_json from analysis_reports where market_notes_json is not null order by report_date desc limit 1",
 
-  // Q11 — theme_history past 180 days for given (main, sub) composite keys.
+  // Q11 — theme_history past 400 days for given (main, sub) composite keys.
+  // (2026-05-17 起從 180 改 400 對齊 ticker_close_history retention)
   // Composite filter via "main||sub" string ANY($1::text[]) so JS-side can
   // pass an array of keys derived from currently-rendered clusters.
-  "select rank_date, main_industry, sub_industry, focal_count, focal_breakdown, total_tv, avg_chg_pct from theme_history where main_industry || '||' || sub_industry = any($1::text[]) and rank_date >= current_date - interval '180 days' order by main_industry, sub_industry, rank_date",
+  "select rank_date, main_industry, sub_industry, focal_count, focal_breakdown, total_tv, avg_chg_pct from theme_history where main_industry || '||' || sub_industry = any($1::text[]) and rank_date >= current_date - interval '400 days' order by main_industry, sub_industry, rank_date",
 
   // Q12 — stock_meta 公司基本面快照(由 ingest 端 src/news/stock_meta.py
   // 週更新寫入)。一次查多檔焦點股的完整 metadata 供:加權指數計算、

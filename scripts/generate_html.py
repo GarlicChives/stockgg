@@ -31,8 +31,31 @@ from src.analysis.focus_themes import detect_industry_clusters, IndustryCluster
 from src.utils.config import RANKINGS_TOP_N
 
 OUT_FILE = Path(__file__).resolve().parents[1] / "docs" / "index.html"
+_THEME_DICT_PATH = Path(__file__).resolve().parents[1] / "data" / "theme_dictionary.json"
+HIGHLIGHT_MAIN = "近一年焦點"  # main industry 名稱(ingest 端 commit 254e47e 起)
 
 _ETF_TW_RE = re.compile(r'^00\d')
+
+
+def _load_highlight_subs() -> dict[str, list[tuple[str, str]]]:
+    """讀 theme_dictionary.json,回 main='近一年焦點' 的 {sub: [(ticker, name), ...]}。
+    sub 名稱通常為「前綴·後綴」形式(例「AI 伺服器/資料中心·散熱」),
+    前綴用於前端分群展示。disabled 條目跳過。
+    """
+    try:
+        d = json.loads(_THEME_DICT_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    sub_to_tickers: dict[str, list[tuple[str, str]]] = {}
+    for t, info in (d.get("stocks") or {}).items():
+        if not isinstance(info, dict):
+            continue
+        for ind in info.get("industries", []):
+            if ind.get("main") != HIGHLIGHT_MAIN or ind.get("disabled"):
+                continue
+            for s in ind.get("subs", []):
+                sub_to_tickers.setdefault(s, []).append((t, info.get("name") or t))
+    return sub_to_tickers
 
 def _is_etf(ticker: str, name: str = "") -> bool:
     if _ETF_TW_RE.match(ticker):
@@ -1091,6 +1114,137 @@ def build_catalyst_html(events: list[dict], stocks_info: dict | None = None) -> 
     return '<div class="cal-list">' + "".join(day_html) + "</div>"
 
 
+def build_highlight_focus_html(
+    highlight_subs: dict[str, list[tuple[str, str]]],
+    tw_top_tickers: set[str],
+    stock_meta: dict,
+    stocks_info: dict,
+) -> tuple[str, dict[str, str]]:
+    """渲染「近一年焦點」highlight 區 — 從 theme_dictionary 直接拉,不依賴當日 top-50。
+
+    sub_name 通常為「前綴·後綴」,用前綴(· 前段)群組成 accordion。每個 sub 內
+    把 ticker 分兩類:
+      - 焦點: 今日 trading_rankings TW top-50 內 → 沿用全站 .stk-pill(可點開 modal)
+      - 前哨: 不在 top-50 → 淡色 / 虛線邊框 pill,顯 ticker + name + 小 PE chip
+
+    PE 來自 stock_meta.pe_ttm(已由上層 Q12 一次 batch fetch,涵蓋這 230 個 ticker)。
+    沒 PE 的就略過該 chip(不顯 — 號;避免噪音)。
+
+    Returns (html, extra_modal_data) — extra_modal_data 給上層 modal_data merge 用
+    (焦點股的 ticker 加進 modal 才能彈出 analyst card)。
+    """
+    if not highlight_subs:
+        return "", {}
+
+    # 用「·」前段(第一欄)群組,collation 用 dict 保留插入順序
+    from collections import defaultdict
+    prefix_to_subs: dict[str, list[str]] = defaultdict(list)
+    for sub_name in highlight_subs:
+        prefix = sub_name.split("·")[0] if "·" in sub_name else sub_name
+        prefix_to_subs[prefix].append(sub_name)
+
+    # 每個 prefix 算「該前綴下所有 sub 的焦點 ticker 數」做 accordion 摘要 + 排序權重。
+    prefix_focal_count: dict[str, int] = {}
+    for prefix, subs in prefix_to_subs.items():
+        cnt = 0
+        for s in subs:
+            for t, _n in highlight_subs[s]:
+                if t in tw_top_tickers:
+                    cnt += 1
+        prefix_focal_count[prefix] = cnt
+    # 排序:焦點多的前綴排前面 desc;同數依 prefix 字母序
+    sorted_prefixes = sorted(prefix_to_subs.keys(),
+                              key=lambda p: (-prefix_focal_count[p], p))
+
+    extra_modal: dict[str, str] = {}
+
+    def _pill_focal(ticker: str, name: str) -> str:
+        """焦點 pill — 沿用全站 .stk-pill(showArtModal 開 modal)。"""
+        extra_modal[ticker] = ""
+        return _stk_pill(ticker, stocks_info)
+
+    def _pill_sentinel(ticker: str, name: str) -> str:
+        """前哨 pill — 淡色虛線,顯 ticker + name + 小 PE chip(無當日報價)。"""
+        meta = stock_meta.get(ticker, {})
+        try:
+            pe_val = float(meta.get("pe_ttm")) if meta.get("pe_ttm") is not None else None
+        except (TypeError, ValueError):
+            pe_val = None
+        pe_html = ""
+        if pe_val is not None and pe_val > 0:
+            pe_html = f'<span class="snt-pe">PE {pe_val:.1f}</span>'
+        return (
+            f'<div class="snt-pill" data-ticker="{html_lib.escape(ticker)}" '
+            f'title="今日未進 top-50;PE 來自 stock_meta">'
+            f'<span class="sp-ticker">{html_lib.escape(ticker)}</span>'
+            f'<span class="sp-name">{html_lib.escape(name[:10])}</span>'
+            f'{pe_html}'
+            f'</div>'
+        )
+
+    parts: list[str] = [
+        '<section class="highlight-section">',
+        '<header class="hl-hdr">'
+        '<h2>🌟 近一年焦點</h2>'
+        '<span class="hl-sub">人工編彙的長線觀察題材;'
+        f'<b>{sum(prefix_focal_count.values())}</b> 檔今日進主榜(焦點)、'
+        '其餘為前哨(待觀察)</span>'
+        '</header>',
+    ]
+    for prefix in sorted_prefixes:
+        subs = prefix_to_subs[prefix]
+        focal_n = prefix_focal_count[prefix]
+        # 該前綴 ticker 總數(去重)
+        total_tickers: set[str] = set()
+        for s in subs:
+            for t, _n in highlight_subs[s]:
+                total_tickers.add(t)
+        parts.append(
+            f'<details class="hl-prefix anim-details" '
+            f'{"open" if focal_n > 0 else ""}>'
+            f'<summary>'
+            f'<span class="hl-prefix-name">{html_lib.escape(prefix)}</span>'
+            f'<span class="hl-prefix-meta">'
+            f'{len(subs)} 細分 · {len(total_tickers)} 檔 · '
+            f'<b class="hl-focal-cnt">{focal_n}</b> 焦點</span>'
+            f'</summary>'
+            f'<div class="anim-panel hl-prefix-body">'
+        )
+        for sub_name in subs:
+            # sub 後段(· 後;若無 · 就 fallback 整名)
+            sub_label = sub_name.split("·", 1)[1] if "·" in sub_name else sub_name
+            tickers = highlight_subs[sub_name]
+            focals = [(t, n) for t, n in tickers if t in tw_top_tickers]
+            sentinels = [(t, n) for t, n in tickers if t not in tw_top_tickers]
+            # 焦點依該檔今日漲跌 desc 排;前哨依 ticker asc(讓視覺穩定,可調)
+            focals.sort(key=lambda x: (
+                0 if stocks_info.get(x[0], {}).get("change_pct") is not None else 1,
+                -(stocks_info.get(x[0], {}).get("change_pct") or 0),
+            ))
+            sentinels.sort(key=lambda x: x[0])
+            focal_html = "".join(_pill_focal(t, n) for t, n in focals)
+            sentinel_html = "".join(_pill_sentinel(t, n) for t, n in sentinels)
+            focal_block = (
+                f'<div class="hl-sub-row"><span class="hl-row-label">焦點 ({len(focals)})</span>'
+                f'<div class="hl-row-pills">{focal_html}</div></div>'
+                if focals else ''
+            )
+            sentinel_block = (
+                f'<div class="hl-sub-row hl-row-sentinel"><span class="hl-row-label">前哨 ({len(sentinels)})</span>'
+                f'<div class="hl-row-pills">{sentinel_html}</div></div>'
+                if sentinels else ''
+            )
+            parts.append(
+                f'<div class="hl-sub-card">'
+                f'<div class="hl-sub-name">{html_lib.escape(sub_label)}</div>'
+                f'{focal_block}{sentinel_block}'
+                f'</div>'
+            )
+        parts.append('</div></details>')
+    parts.append('</section>')
+    return "".join(parts), extra_modal
+
+
 def build_focus_html(
     tw_ranks: list,
     sub_clusters: list,
@@ -1098,6 +1252,7 @@ def build_focus_html(
     theme_history_payload: dict,
     market_index_payload: dict | None = None,
     stock_meta: dict | None = None,
+    highlight_subs: dict[str, list[tuple[str, str]]] | None = None,
 ) -> tuple[str, dict]:
     """Build the 熱門題材 tab — 只渲染子產業 ranked list。
 
@@ -1141,19 +1296,42 @@ def build_focus_html(
             "beta":        float(meta["beta"])        if meta.get("beta")        is not None else None,
         }
 
-    if not sub_clusters:
+    if not sub_clusters and not highlight_subs:
         return '<p class="muted-note">今日尚無熱門產業</p>', {}
+
+    # 把 main='近一年焦點' 的 sub_cluster 從泛分類區拿掉(它們已在上方 highlight 區
+    # 顯示,不要 dup)。若 cluster 合併過(members 多個 main),只要其中一個 member
+    # 是「近一年焦點」就視為已在上區展示,從泛分類過濾掉。
+    if highlight_subs:
+        def _is_highlight_cluster(c) -> bool:
+            if c.main == HIGHLIGHT_MAIN:
+                return True
+            return any(m == HIGHLIGHT_MAIN for m, _s in (c.members or []))
+        sub_clusters = [c for c in sub_clusters if not _is_highlight_cluster(c)]
 
     # Modal data placeholders — analyst consensus filled downstream
     modal_data: dict[str, str] = {}
-    for ticker in {s.ticker for c in sub_clusters for s in c.focal}:
+    for ticker in {s.ticker for c in (sub_clusters or []) for s in c.focal}:
         modal_data[ticker] = ""
 
-    sub_html = _industry_section_html(sub_clusters, all_stocks, "sub", theme_history_payload)
+    # 近一年焦點 highlight 區放在最上面;泛分類 cluster 放下面
+    highlight_html = ""
+    if highlight_subs:
+        tw_top_tickers = {r["ticker"] for r in tw_ranks if r.get("ticker")}
+        highlight_html, hl_modal = build_highlight_focus_html(
+            highlight_subs, tw_top_tickers, stock_meta, all_stocks,
+        )
+        for tk in hl_modal:
+            modal_data.setdefault(tk, "")
+
+    sub_html = _industry_section_html(sub_clusters, all_stocks, "sub", theme_history_payload) if sub_clusters else ""
     # 註:theme_history + 大盤指數 payload 不再 inline 進 HTML,改寫到
     # docs/history.json 由 modal chart 首次開啟時 fetch(降首屏約 1 MB)。
     # sparkline SVG 是 server-side 預渲染,不需要 history.json。
-    return sub_html, modal_data
+    pan_wrap = ('<section class="pan-section">'
+                '<header class="pan-hdr"><h2>📊 泛分類(依當日成交金額)</h2></header>'
+                + sub_html + '</section>') if sub_html else ''
+    return highlight_html + pan_wrap, modal_data
 
 
 # ── 焦點排行 tab (Sprint 3) ───────────────────────────────────────────────────
@@ -1455,11 +1633,19 @@ async def generate():
             if t in stocks_info:
                 stocks_info[t]["ma20_bias"] = bias
 
+    # 近一年焦點 highlight subs(從 theme_dictionary.json 讀,main='近一年焦點')。
+    # 230 個 ticker 涵蓋 AI 伺服器 / 光通訊 / ASIC / 半導體 / 先進封裝 / PCB /
+    # 記憶體 / 機器人 / 衛星 / 國防軍工 / 重電 / 綠能 等;不依賴當日 top-50,
+    # 用來顯「該 sub 內哪些是當日焦點、哪些是前哨(未進 top-50)」。
+    highlight_subs = _load_highlight_subs()
+    highlight_tickers: set[str] = {t for tickers in highlight_subs.values() for t, _ in tickers}
+
     # stock_meta (Q12) — 公司基本面快照,給 sub_cluster 計算平均 PE / 殖利率
-    # / beta,給 focal pill 算 52w 位置%,給 modal 顯示公司介紹。一次撈
-    # 所有 displayed focal tickers。
+    # / beta,給 focal pill 算 52w 位置%,給 modal 顯示公司介紹,給前哨 pill 顯 PE。
+    # 一次撈 focal_tw ∪ highlight_tickers,後者讓近一年焦點區的前哨股也能顯 PE。
+    _all_meta_tickers = list(set(_focal_tw) | highlight_tickers)
     stock_meta: dict[str, dict] = {}
-    if _focal_tw:
+    if _all_meta_tickers:
         try:
             meta_rows = await conn.fetch(
                 "SELECT ticker, name_zh, name_en, sector, industry, description, "
@@ -1468,11 +1654,12 @@ async def generate():
                 "       book_value, dividend_yield, last_dividend, ex_dividend_date, "
                 "       week52_high, week52_low, beta "
                 "FROM stock_meta WHERE ticker = ANY($1::text[])",
-                _focal_tw,
+                _all_meta_tickers,
             )
             for r in meta_rows:
                 stock_meta[r["ticker"]] = dict(r)
-            print(f"  Stock meta: {len(stock_meta)} / {len(_focal_tw)} focal tickers covered")
+            print(f"  Stock meta: {len(stock_meta)} / {len(_all_meta_tickers)} "
+                  f"tickers covered (focal={len(_focal_tw)} + highlight={len(highlight_tickers)})")
         except Exception as exc:
             print(f"  ⚠ stock_meta query failed (table not yet populated?): {exc}")
 
@@ -1652,6 +1839,7 @@ async def generate():
     focus_html, modal_data = build_focus_html(
         tw_ranks, sub_clusters, stocks_info, theme_history_payload,
         market_index_payload, stock_meta,
+        highlight_subs=highlight_subs,
     )
     notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)
     ranking_html = build_focus_ranking_html(_focal_tw, stocks_info, stock_meta)
@@ -2073,6 +2261,60 @@ tr:last-child td{{border-bottom:none}}
                 font-size:.66rem;margin-top:.4rem;font-weight:600}}
 .rl-stock{{color:#ef5350}}
 .rl-avg{{color:var(--accent)}}
+
+/* ── Highlight 區 (近一年焦點) ─────────────────────────────────────────── */
+/* 上區人工編彙 long-term 觀察題材;按 prefix 群組 accordion,
+ * 每 sub 內分焦點(進今日 top-50)+ 前哨(未進)。 */
+.highlight-section{{margin-bottom:2rem;border:1px solid rgba(124,138,242,.25);
+                     border-radius:10px;padding:.9rem 1rem;
+                     background:linear-gradient(180deg,rgba(124,138,242,.04),transparent 60%)}}
+.hl-hdr{{display:flex;align-items:baseline;flex-wrap:wrap;gap:.6rem;margin-bottom:.85rem}}
+.hl-hdr h2{{font-size:1.05rem;font-weight:700;color:var(--text);margin:0}}
+.hl-sub{{font-size:.74rem;color:var(--muted);line-height:1.5}}
+.hl-sub b{{color:var(--accent);font-weight:700}}
+.hl-prefix{{margin-bottom:.4rem;border:1px solid var(--border);border-radius:7px;
+            background:rgba(255,255,255,.012);overflow:hidden}}
+.hl-prefix summary{{cursor:pointer;padding:.55rem .8rem;display:flex;
+                     align-items:center;justify-content:space-between;
+                     gap:.6rem;list-style:none;user-select:none;
+                     transition:background .15s}}
+.hl-prefix summary::-webkit-details-marker{{display:none}}
+.hl-prefix summary:hover{{background:rgba(255,255,255,.025)}}
+.hl-prefix summary::before{{content:"▸";color:var(--muted);font-size:.7rem;
+                             transition:transform .15s;margin-right:.2rem;display:inline-block}}
+.hl-prefix[open] summary::before{{transform:rotate(90deg)}}
+.hl-prefix-name{{font-weight:700;font-size:.88rem;color:var(--text);flex:1}}
+.hl-prefix-meta{{font-size:.7rem;color:var(--muted);white-space:nowrap}}
+.hl-focal-cnt{{color:var(--accent-glow-strong,#94aef7);font-weight:700}}
+.hl-prefix-body{{padding:.3rem .8rem .8rem;display:flex;flex-direction:column;gap:.55rem;
+                  border-top:1px solid var(--border)}}
+.hl-sub-card{{padding:.5rem .15rem .15rem;border-radius:5px}}
+.hl-sub-name{{font-size:.76rem;font-weight:600;color:var(--muted);
+               margin-bottom:.35rem;letter-spacing:.02em}}
+.hl-sub-row{{display:flex;align-items:flex-start;gap:.4rem;flex-wrap:wrap;
+              padding:.18rem 0}}
+.hl-row-label{{font-size:.62rem;font-weight:700;color:var(--muted);
+                padding:.15rem .35rem;border-radius:3px;background:rgba(255,255,255,.04);
+                white-space:nowrap;letter-spacing:.04em;min-width:48px;text-align:center}}
+.hl-row-sentinel .hl-row-label{{background:rgba(255,165,0,.08);color:#d9a755}}
+.hl-row-pills{{display:flex;flex-wrap:wrap;gap:.3rem .35rem;flex:1;min-width:0}}
+/* 前哨 pill — 跟焦點 pill 視覺區隔:虛線、淡背景、無報價 */
+.snt-pill{{display:inline-flex;align-items:center;gap:.3rem;
+            padding:.2rem .55rem;border-radius:5px;
+            background:rgba(255,255,255,.02);
+            border:1px dashed rgba(255,255,255,.18);
+            color:var(--muted);font-size:.72rem;font-weight:600;
+            transition:border-color .15s,background .15s;cursor:default}}
+.snt-pill:hover{{border-color:rgba(124,138,242,.5);background:rgba(124,138,242,.06)}}
+.snt-pill .sp-ticker{{font-weight:700;font-size:.76rem;color:var(--text)}}
+.snt-pill .sp-name{{color:var(--muted);font-size:.7rem}}
+.snt-pe{{font-size:.6rem;font-weight:700;padding:.08rem .3rem;border-radius:3px;
+         background:rgba(124,138,242,.10);color:var(--accent);letter-spacing:.02em;
+         margin-left:.15rem}}
+/* 泛分類 section wrap */
+.pan-section{{margin-bottom:1rem}}
+.pan-hdr{{margin-bottom:.7rem}}
+.pan-hdr h2{{font-size:1rem;font-weight:700;color:var(--text);margin:0}}
 
 /* ── Theme clusters ── */
 .focus-clusters{{display:flex;flex-direction:column;gap:.85rem;margin-bottom:1.5rem}}
