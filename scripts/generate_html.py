@@ -757,13 +757,15 @@ def _industry_section_html(
             '</details>'
         )
         sort_html = (
-            explainer_html
-            + '<div class="sort-row">'
+            '<div class="sort-explainer-row">'
+            '<div class="sort-row">'
             '<span class="sort-label">排序：</span>'
             '<button class="sort-chip active" data-sort="tv"    type="button" onclick="setClusterSort(\'tv\')">成交金額</button>'
             '<button class="sort-chip"        data-sort="chg"   type="button" onclick="setClusterSort(\'chg\')">平均漲跌</button>'
             '<button class="sort-chip"        data-sort="yield" type="button" onclick="setClusterSort(\'yield\')">平均殖利率</button>'
             '</div>'
+            + explainer_html
+            + '</div>'
         )
 
     univ_html = ""
@@ -1924,6 +1926,13 @@ tr:last-child td{{border-bottom:none}}
 .univ-chip.disabled{{background:#1e1215;color:#6a5060;border-color:#2e2025;text-decoration:line-through}}
 
 /* ── Cluster sort chips ── */
+/* sort chip 與 ⓘ 指標說明合併一列(左:排序,右:ⓘ 說明) */
+.sort-explainer-row{{display:flex;align-items:flex-start;flex-wrap:wrap;
+                      gap:.5rem 1rem;margin-bottom:.7rem}}
+.sort-explainer-row .sort-row{{margin-bottom:0;flex:0 1 auto}}
+.sort-explainer-row .metric-explainer{{margin-bottom:0;margin-left:auto;flex:0 1 auto}}
+.sort-explainer-row .metric-explainer:not([open]){{padding:.2rem .55rem;background:transparent;border-color:transparent}}
+.sort-explainer-row .metric-explainer[open]{{flex:1 1 100%;max-width:100%}}
 .metric-explainer{{background:rgba(124,138,242,.04);border:1px solid var(--border);
                     border-radius:6px;padding:.4rem .7rem;margin-bottom:.6rem;font-size:.72rem;
                     color:var(--muted);line-height:1.55}}
