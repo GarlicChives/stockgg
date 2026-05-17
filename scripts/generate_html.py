@@ -1763,7 +1763,7 @@ async def generate():
                           focal_count, focal_breakdown, total_tv, avg_chg_pct
                    FROM theme_history
                    WHERE main_industry || '||' || sub_industry = ANY($1::text[])
-                     AND rank_date >= CURRENT_DATE - INTERVAL '180 days'
+                     AND rank_date >= CURRENT_DATE - INTERVAL '400 days'
                    ORDER BY main_industry, sub_industry, rank_date""",
                 _hist_keys,
             )]
@@ -2998,7 +2998,7 @@ function _refreshSortUi() {{
  * cluster header 的 metric badge(乖離/漲跌/PE/殖利/β)點擊只動該題材
  * 內的 focal pill 順序,不影響外層 cluster 排序。state per cardId,
  * 預設 bias desc(對齊 Python 端 focal_sorted 初始順序)。 */
-const _focalSort = new Map();  // cardId -> { key, dir }
+const _focalSort = new Map();  // cardId -> {{ key, dir }}
 function _getFocalSort(cardId) {{
   if (!_focalSort.has(cardId)) _focalSort.set(cardId, {{ key: 'chg', dir: 'desc' }});
   return _focalSort.get(cardId);
