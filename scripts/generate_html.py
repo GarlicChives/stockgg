@@ -497,20 +497,26 @@ def _yf_market_index_history(period: str = "6mo") -> dict[str, list[dict]]:
     return result
 
 
-def _yf_ma20_bias_batch(tw_tickers: list[str]) -> dict[str, float]:
+def _yf_ma20_bias_batch(ticker_boards: dict[str, str]) -> dict[str, float]:
     """Batch yfinance,回傳 {ticker: ma20_bias%}。
     ma20_bias = (今日收盤 - 20MA) / 20MA * 100。台股 only(TW 焦點股用)。
+
+    ticker_boards: {ticker: board} 其中 board ∈ {"TWSE", "TPEX"}。
+    yfinance suffix 必須對:上市(TWSE)→ .TW、上櫃(TPEX)→ .TWO。
+    若一律加 .TW 會讓上櫃股(例:5347 世界先進)抓不到資料(yfinance 回
+    "possibly delisted")→ ma20_bias 永遠 null,排序時被當缺值排尾段。
     """
-    if not tw_tickers:
+    if not ticker_boards:
         return {}
     try:
         import yfinance as yf
     except ImportError:
         return {}
-    yf_map = {
-        (t + ".TW" if not t.upper().endswith(".TW") else t): t
-        for t in tw_tickers
-    }
+    def _yf_sym(t: str, board: str) -> str:
+        if t.upper().endswith(".TW") or t.upper().endswith(".TWO"):
+            return t
+        return t + (".TWO" if board == "TPEX" else ".TW")
+    yf_map = {_yf_sym(t, b): t for t, b in ticker_boards.items()}
     result: dict[str, float] = {}
     try:
         syms = list(yf_map)
@@ -1396,9 +1402,15 @@ async def generate():
     # MA20 乖離率:給每個 sub-cluster 算「焦點股平均 20MA 乖離」用。
     # yfinance 一次性 batch 抓所有焦點 ticker 的 2 個月收盤,算 MA20 +
     # bias%,patch 回 stocks_info(_industry_section_html 從那邊讀)。
+    # **重要**:必須帶 board 進去(TWSE→.TW、TPEX→.TWO),否則上櫃股
+    # 拿不到資料。stocks_info 的 board 來自 trading_rankings.extra.board。
     _focal_tw = list({s.ticker for c in sub_clusters for s in c.focal})
-    if _focal_tw:
-        _ma20 = await asyncio.to_thread(_yf_ma20_bias_batch, _focal_tw)
+    _focal_board_map = {
+        t: stocks_info.get(t, {}).get("board", "TWSE")
+        for t in _focal_tw
+    }
+    if _focal_board_map:
+        _ma20 = await asyncio.to_thread(_yf_ma20_bias_batch, _focal_board_map)
         for t, bias in _ma20.items():
             if t in stocks_info:
                 stocks_info[t]["ma20_bias"] = bias
