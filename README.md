@@ -17,14 +17,20 @@ transcripts — all of that lives in a separate private system.
   Fear & Greed
 - **綜合多空判斷** — short / medium / long term direction tags
 - **未來事件日曆** — upcoming earnings (yfinance) + macro events
-- **熱門題材** — TW sub-industry ranking on top-N volume stocks (N=`RANKINGS_TOP_N` in `src/utils/config.py`); subs with identical focal sets get merged ("A & B & C: stocks")
+- **熱門題材** — TW sub-industry ranking on top-N volume stocks (N=`RANKINGS_TOP_N` in `src/utils/config.py`); subs with identical focal sets get merged ("A & B & C: stocks"). 加 cluster sort chip(TV / 漲跌 / 殖利率)、universal ticker filter、per-cluster 6m 資金淨流入 sparkline → 點開 modal 大圖 + 1M/3M/6M/1Y/ALL 時間粒度切換
 - **跨來源議題** — common topics across multiple sources (≥ 2)
+- **焦點排行** — Top 15 高殖利率 + Top 15 低 PE,各帶 CSV 下載
+- **股票 modal** — 點任一 ticker pill 開啟,顯示 5 維 radar(漲跌/PE/殖利率/52w%/β vs 全焦點股平均)+ 公司介紹 + analyst consensus
+- **站內搜尋** — header 右側輸入 ticker / 公司名 / 子產業關鍵字,鍵盤導覽 + 跳到對應 cluster 卡片 + highlight 動畫
+- **分享 + SEO** — Open Graph + Twitter Card,footer 4 顆 share button(Line/X/Facebook/複製連結),mobile 出現原生 share
 
 ## How it's served
 
 ```
 Supabase DB ──[anon key, 12-pattern allowlist]──▶ Cloudflare Workers
                                                   (public site)
+                                                  ├ docs/index.html (~500KB,inline state)
+                                                  └ docs/history.json (~800KB,lazy fetch)
 ```
 
 1. A separate private system runs daily/hourly: crawl public sources,
@@ -43,11 +49,13 @@ transcripts are not reachable. The allowlist source is
 
 ## Code
 
-- `scripts/generate_html.py` — single-file HTML renderer
+- `scripts/generate_html.py` — single-file HTML renderer (~2600 lines, all CSS/JS inline)
 - `src/analysis/focus_themes.py` — theme dictionary clustering
 - `src/utils/db.py` — async DB client over the restricted Edge Function
 - `data/theme_dictionary.json` — main/sub industry hierarchy (ticker-centric, TW only)
-- `supabase/functions/db-proxy-public/` — Edge Function source
+- `supabase/functions/db-proxy-public/` — Edge Function source (12-pattern allowlist)
+- `docs/index.html`, `docs/history.json` — generated artifacts served by Workers
+- `wrangler.jsonc` — Workers config (assets.directory: docs)
 
 ## Local development
 
