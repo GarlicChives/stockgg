@@ -73,6 +73,13 @@ const ALLOWED: Set<string> = new Set([
   // 週更新寫入)。一次查多檔焦點股的完整 metadata 供:加權指數計算、
   // cluster PE/yield/beta 平均、pill 52w 位置%、modal 公司介紹 section
   "select ticker, name_zh, name_en, sector, industry, description, website, employees, shares_outstanding, float_shares, market_cap, pe_ttm, pe_forward, pb, eps_ttm, eps_forward, book_value, dividend_yield, last_dividend, ex_dividend_date, week52_high, week52_low, beta from stock_meta where ticker = any($1::text[])",
+
+  // Q13 — ticker_close_history 過去 400 天 daily close + shares_outstanding。
+  // 公開站 cluster chart modal 加權指數計算的「真資料源」(替代 focal_breakdown
+  // 5-tuple 內的 close/shares,因為 focal_breakdown 只有當日進 top-50 的
+  // ticker;近一年焦點 main 整批沒進 top-50 的 ticker 用這張表才拿得到歷史)。
+  // ingest 端 src/news/stock_meta.py + scripts/backfill_ticker_history.py 寫入。
+  "select ticker, rank_date, close, shares_out from ticker_close_history where ticker = any($1::text[]) and rank_date >= current_date - interval '400 days' order by ticker, rank_date",
 ])
 
 function normalize(q: string): string {

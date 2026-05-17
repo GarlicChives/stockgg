@@ -824,8 +824,8 @@ def _industry_section_html(
             '<div class="sort-explainer-row">'
             '<div class="sort-row">'
             '<span class="sort-label">排序：</span>'
-            f'<button class="sort-chip"        data-sort="tv"    data-level="{level}" type="button" onclick="setClusterSort(\'tv\',\'{level}\')">成交金額</button>'
-            f'<button class="sort-chip active" data-sort="chg"   data-level="{level}" data-dir="desc" type="button" onclick="setClusterSort(\'chg\',\'{level}\')">平均漲跌</button>'
+            f'<button class="sort-chip active" data-sort="tv"    data-level="{level}" data-dir="desc" type="button" onclick="setClusterSort(\'tv\',\'{level}\')">成交金額</button>'
+            f'<button class="sort-chip"        data-sort="chg"   data-level="{level}" type="button" onclick="setClusterSort(\'chg\',\'{level}\')">平均漲跌</button>'
             f'<button class="sort-chip"        data-sort="bias"  data-level="{level}" type="button" onclick="setClusterSort(\'bias\',\'{level}\')">平均乖離</button>'
             f'<button class="sort-chip"        data-sort="pe"    data-level="{level}" type="button" onclick="setClusterSort(\'pe\',\'{level}\')">平均 PE</button>'
             f'<button class="sort-chip"        data-sort="yield" data-level="{level}" type="button" onclick="setClusterSort(\'yield\',\'{level}\')">平均殖利率</button>'
@@ -865,18 +865,10 @@ def _industry_section_html(
         pct_str, cls = fmt_pct(value)
         return f'<span {common.format(cls=cls)}>{label} {pct_str}</span>'
 
-    # 預設依「平均乖離」desc 排序:None 排尾段。clusters 先 pre-sort,DOM
-    # 順序跟 JS _clusterSort='bias' 一致,首次 _recalcClusters 不會觸發
-    # FLIP 動畫(dy≈0)→ 無視覺跳動
-    def _calc_avg_bias(c):
-        xs = [all_stocks.get(s.ticker, {}).get("ma20_bias") for s in c.focal]
-        xs = [x for x in xs if x is not None]
-        return sum(xs) / len(xs) if xs else None
-    clusters = sorted(
-        clusters,
-        key=lambda c: (0 if _calc_avg_bias(c) is not None else 1,
-                       -(_calc_avg_bias(c) or 0))
-    )
+    # 預設依「成交金額」desc 排序(cluster.trading_value):跟 JS
+    # _getSortKey 預設 'tv' 一致,首次 _recalcClusters 不會觸發 FLIP
+    # 動畫(dy≈0)→ 無視覺跳動。
+    clusters = sorted(clusters, key=lambda c: -(c.trading_value or 0))
 
     # sub-level 判斷:hl_sub / pan_sub 都視同 sub(顯 sparkline / subtitle 等),
     # 提到 for-loop 外避免每 iter 重算 + 解決前向使用 UnboundLocalError
@@ -948,7 +940,10 @@ def _industry_section_html(
         })
 
         # Sparkline (server-side SVG):過去 N 天三大法人淨流入(億)柱狀圖。
-        # 紅買綠賣亞洲慣例。資料空 → 不渲染。點擊整張 sparkline 彈 modal 大圖。
+        # 紅買綠賣亞洲慣例。資料空 → 不渲染 SVG,但對 hl_sub level 還是會
+        # 顯一個 chart 按鈕(theme_history 沒「近一年焦點」main 的 row,
+        # 但 chart modal 的加權指數靠 ticker_close Q13 還是能畫出來,
+        # 只有 net histogram 會空)。
         spark_html = ""
         if is_sub_level and member_keys:
             spark_values = _aggregate_history_net(member_keys, history_payload)
@@ -963,6 +958,13 @@ def _industry_section_html(
                         f'<span class="spark-label">{len(spark_values)}d</span>'
                         f'</button>'
                     )
+            elif level == "hl_sub":
+                # hl_sub 沒 sparkline 資料時,仍給一個 chart 入口(用 ticker_close 算)
+                spark_html = (
+                    f'<button class="spark-btn spark-btn-icon" type="button" '
+                    f"onclick=\"openThemeChart('{card_id}')\" "
+                    f'title="點擊看 6 個月焦點股加權指數 vs 大盤">📊</button>'
+                )
         # focal pills 預設依該股當日漲跌 desc 排(對齊 cluster header 預設 active 的 漲跌 badge);
         # None 排尾段。JS setFocalSort 點擊後會 re-order DOM。
         def _focal_chg_key(s):
@@ -981,9 +983,11 @@ def _industry_section_html(
         meta_text = f"{n_focal} 檔焦點" + (f" · {tv_str}" if tv_str else "")
 
         icon = "🔷" if level == "main" else "🔸"
+        # 近一年焦點 sub-tab 內所有 cluster 的 main 都是「近一年焦點」,顯
+        # subtitle 是 redundant noise(每張都一樣),拿掉。泛分類維持原樣。
         subtitle = (
             f'<div class="cluster-subtitle">屬於 {html_lib.escape(c.main)}</div>'
-            if is_sub_level else ""
+            if is_sub_level and level != "hl_sub" else ""
         )
 
         # 前哨 section(只在 highlight_subs 有提供時):從該 cluster 的 members
@@ -1025,15 +1029,33 @@ def _industry_section_html(
                     ),
                 )
                 snt_html = "".join(_snt_pill(tk, nm) for tk, nm in items)
-                sentinel_html = (
-                    f'<div class="cluster-section-label">前哨 ({len(items)}) '
-                    f'<span class="sntl-hint">同題材未進今日 top-50,顯 PE 供比較</span></div>'
-                    f'<div class="cluster-sentinel-stocks">{snt_html}</div>'
-                )
+                # 純 UI 區隔(無文字 label):.cluster-sentinel-stocks 上方
+                # dashed border + 小 padding 已足夠視覺切分焦點區與前哨區
+                sentinel_html = f'<div class="cluster-sentinel-stocks">{snt_html}</div>'
 
-        # Merged cluster name(focal 完全相同的子產業聚合) → 拆成 parts
-        # 渲染,讓 CSS media query 控制 mobile/tablet 收合;否則純文字。
-        if " & " in c.name:
+        # Cluster name:
+        # - 長度 > 30 字 → 預設 collapsed(顯前 30 字 + …),點按鈕展開全名
+        # - 30 字內、有 " & " → 沿用 cn-merged(mobile media query 收合)
+        # - 30 字內、純單 sub → 純文字
+        CLUSTER_NAME_TRUNCATE = 30
+        if len(c.name) > CLUSTER_NAME_TRUNCATE:
+            # 切點優先找最近的 " & " 邊界(避免切在 sub 名中間)
+            cut = CLUSTER_NAME_TRUNCATE
+            sep_idx = c.name.rfind(" & ", 0, CLUSTER_NAME_TRUNCATE + 6)
+            if sep_idx > 8:  # 至少留 8 字才用 & 邊界
+                cut = sep_idx
+            short = c.name[:cut]
+            name_html = (
+                f'<span class="cluster-name cn-collapsible" data-collapsed="1">'
+                f'{icon} '
+                f'<span class="cn-short-text">{html_lib.escape(short)}…</span>'
+                f'<span class="cn-full-text" hidden>{html_lib.escape(c.name)}</span>'
+                f'<button class="cn-toggle-btn" type="button" '
+                f'onclick="toggleClusterNameCollapsed(this)" '
+                f'title="展開完整題材名稱">展開</button>'
+                f'</span>'
+            )
+        elif " & " in c.name:
             parts = c.name.split(" & ")
             parts_html_pieces = []
             for i, p in enumerate(parts):
@@ -1762,6 +1784,39 @@ async def generate():
         }
         theme_history_payload.setdefault(key, []).append({"d": date_str, "s": stocks_compact})
 
+    # ticker_close_history (Q13) — per-ticker × per-date close + shares_out,
+    # 400 天歷史。用來:
+    # (1) hl_sub cluster chart modal 的「焦點股加權指數」資料源(theme_history
+    #     沒有「近一年焦點」main 的 row,無法用 focal_breakdown 5-tuple)
+    # (2) hl_sub cluster sparkline 也走這(close-based 趨勢)
+    # 對 pan_sub 仍可用,但目前還靠 focal_breakdown(後續可漸進切過去)
+    ticker_close_payload: dict[str, list[dict]] = {}
+    _hist_tickers = list(set(_focal_tw) | set(highlight_tickers))
+    if _hist_tickers:
+        try:
+            tch_rows = await conn.fetch(
+                "SELECT ticker, rank_date, close, shares_out FROM ticker_close_history "
+                "WHERE ticker = ANY($1::text[]) "
+                "AND rank_date >= current_date - INTERVAL '400 days' "
+                "ORDER BY ticker, rank_date",
+                _hist_tickers,
+            )
+            for r in tch_rows:
+                # rank_date 是 timestamp(asyncpg → datetime),取 YYYY-MM-DD
+                # 跟 theme_history payload 的 d 欄(YYYY-MM-DD)對齊,
+                # _computeClusterSeries 的 dateSet union 才會 match
+                _d = r["rank_date"]
+                d_str = _d.strftime("%Y-%m-%d") if hasattr(_d, "strftime") else str(_d)[:10]
+                ticker_close_payload.setdefault(r["ticker"], []).append({
+                    "d": d_str,
+                    "c": float(r["close"]) if r["close"] is not None else None,
+                    "s": float(r["shares_out"]) if r["shares_out"] is not None else None,
+                })
+            print(f"  ticker_close_history: {len(tch_rows)} rows for "
+                  f"{len(ticker_close_payload)}/{len(_hist_tickers)} tickers")
+        except Exception as exc:
+            print(f"  ⚠ ticker_close_history query failed: {exc}")
+
     # 大盤(^TWII)+ 櫃買(^TWO)指數歷史,供 chart 第二張三線 overlay 對比
     # 焦點股 line vs 大盤 vs 櫃買(都 rebase to 100,看相對強弱)。
     market_index_payload = await asyncio.to_thread(_yf_market_index_history, "6mo")
@@ -2222,6 +2277,15 @@ tr:last-child td{{border-bottom:none}}
 .cluster-name{{font-size:.95rem;font-weight:700}}
 
 /* Merged cluster name (focal 完全相同的子產業聚合) — mobile/tablet 收合 */
+/* cluster name 過長(>30 字)收合機制:預設顯短版 + …,點按鈕展開全名 */
+.cn-collapsible{{display:inline-flex;align-items:baseline;gap:.3rem;flex-wrap:wrap}}
+.cn-collapsible .cn-short-text,
+.cn-collapsible .cn-full-text{{display:inline}}
+.cn-toggle-btn{{font-size:.65rem;font-weight:600;padding:.1rem .45rem;
+                border:1px solid var(--border);border-radius:4px;
+                background:rgba(124,138,242,.08);color:var(--accent);
+                cursor:pointer;font-family:inherit;line-height:1.3;letter-spacing:.02em}}
+.cn-toggle-btn:hover{{background:rgba(124,138,242,.18);border-color:rgba(124,138,242,.5)}}
 .cn-merged{{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:.1rem .25rem}}
 .cn-part{{display:inline}}
 .cn-sep{{display:inline;color:var(--muted);font-weight:500}}
@@ -2277,6 +2341,11 @@ tr:last-child td{{border-bottom:none}}
             background:transparent;border:none;cursor:pointer;
             padding:.1rem .35rem;border-radius:5px;transition:background .15s}}
 .spark-btn:hover{{background:rgba(255,255,255,.05)}}
+/* hl_sub cluster 沒 sparkline 資料時的純 chart 入口按鈕 */
+.spark-btn-icon{{font-size:1rem;padding:.15rem .55rem;
+                  border:1px solid var(--border);color:var(--accent);
+                  background:rgba(124,138,242,.06)}}
+.spark-btn-icon:hover{{background:rgba(124,138,242,.18);border-color:rgba(124,138,242,.5)}}
 .sparkline{{display:block;width:84px;height:22px}}
 /* 紅買綠賣亞洲慣例 */
 .sparkline .spark-up{{fill:var(--up)}}
@@ -2854,6 +2923,19 @@ function toggleClusterName(btn) {{
   _refreshClusterToggle(el);
 }}
 
+/* 30 字以上 cluster name 收合/展開:純 hidden 切換,跟 cn-merged 兩套機制
+ * 並存(cn-collapsible 走長度判斷,cn-merged 走 mobile media query)。 */
+function toggleClusterNameCollapsed(btn) {{
+  const el = btn.closest('.cn-collapsible');
+  if (!el) return;
+  const wasCollapsed = el.dataset.collapsed === '1';
+  const nowCollapsed = !wasCollapsed;
+  el.querySelector('.cn-short-text').hidden = !nowCollapsed;
+  el.querySelector('.cn-full-text').hidden = nowCollapsed;
+  el.dataset.collapsed = nowCollapsed ? '1' : '0';
+  btn.textContent = nowCollapsed ? '展開' : '收合';
+}}
+
 function _initMergedNames() {{
   document.querySelectorAll('.cn-merged').forEach(_refreshClusterToggle);
 }}
@@ -2882,7 +2964,7 @@ const _univDis = new Set();
  * 兩 tab 各管自己的 state,sort chip 用 data-level 鎖定該 tab。 */
 const _clusterSort = {{}};      // level -> 'chg' / 'bias' / ...
 const _clusterSortDir = {{}};   // level -> 'desc' / 'asc'
-function _getSortKey(level)  {{ return _clusterSort[level] || 'chg'; }}
+function _getSortKey(level)  {{ return _clusterSort[level] || 'tv'; }}
 function _getSortDir(level)  {{ return _clusterSortDir[level] || 'desc'; }}
 /* 只刷該 level 的 sort-chip(只影響該 sub-tab),不會誤動別 tab */
 function _refreshSortUi(level) {{
@@ -3150,11 +3232,12 @@ let _historyLoadPromise = null;
 function _loadHistory() {{
   if (window.IIA_HISTORY) return Promise.resolve();
   if (_historyLoadPromise) return _historyLoadPromise;
-  _historyLoadPromise = fetch('history.json', {{ cache: 'force-cache' }})
+  _historyLoadPromise = fetch('history.json', {{ cache: 'no-cache' }})
     .then(r => {{ if (!r.ok) throw new Error('history.json ' + r.status); return r.json(); }})
     .then(data => {{
       window.IIA_HISTORY = data.history || {{}};
       window.IIA_INDEX_HISTORY = data.index || {{}};
+      window.IIA_TICKER_CLOSE = data.ticker_close || {{}};  // Q13 per-ticker 400 天 close+shares
     }})
     .catch(err => {{
       _historyLoadPromise = null;  // 失敗時可重試
@@ -3233,34 +3316,45 @@ function _findClusterDef(cardId) {{
  * 鎖定今天的 cluster.focal ticker set,**同時套 _univDis(外層) + _modalTickerDis(modal 內)** 過濾。 */
 function _computeClusterSeries(cluster) {{
   const hist = window.IIA_HISTORY || {{}};
+  const tch  = window.IIA_TICKER_CLOSE || {{}};  // Q13:per-ticker 400 天 close+shares
   const keys = cluster.memberKeys || [];
   const todayFocals = [...new Set((cluster.focal || []).map(f => f.ticker))]
     .filter(t => !_univDis.has(t) && !_modalTickerDis.has(t));
 
-  // 收集所有出現過的 dates(across all member keys)
+  // 收集所有出現過的 dates(ticker_close ∪ theme_history member keys)
+  // ticker_close 涵蓋 400 天且每個 focal ticker 都有,通常 superset 包含 hist 的日期。
   const dateSet = new Set();
+  todayFocals.forEach(t => (tch[t] || []).forEach(p => dateSet.add(p.d)));
   keys.forEach(k => (hist[k] || []).forEach(row => dateSet.add(row.d)));
   const dates = [...dateSet].sort();
   if (!dates.length) return {{ netSeries: [], priceSeries: [] }};
 
-  // per-ticker raw 歷史:date -> {{close, shares, net}}
-  const raw = {{}};   // ticker -> {{date -> obj}}
-  todayFocals.forEach(t => {{ raw[t] = {{}}; }});
-  keys.forEach(k => {{
-    (hist[k] || []).forEach(row => {{
-      const stocks = row.s || {{}};
-      for (const [ticker, v] of Object.entries(stocks)) {{
-        if (!raw[ticker]) continue;
-        raw[ticker][row.d] = {{
-          close:  (v && v[2] != null) ? v[2] : null,
-          net:    (v && v[3] != null) ? v[3] : null,
-          shares: (v && v[4] != null) ? v[4] : null,
-        }};
-      }}
+  // close + shares 來源(優先 ticker_close,fallback theme_history 5-tuple):
+  //   ticker_close[ticker] = [{{d, c, s}}, ...]  ← 由 Q13 拉,所有 focal 都有
+  //   hist[key].s[ticker] = [tv,chg,close,net,shares] ← 舊路徑,hl 沒這資料
+  // net_inst 仍從 hist 拿(daily transaction,只有有進 top-50 那天才有值;
+  // hl_sub cluster 沒這 row → 整條 netSeries 是 0,histogram 顯示空白可接受)
+  const raw = {{}};   // ticker -> {{date -> {{close, shares, net}}}}
+  todayFocals.forEach(t => {{
+    raw[t] = {{}};
+    // 1) 先填 ticker_close 的 close+shares
+    (tch[t] || []).forEach(p => {{
+      raw[t][p.d] = {{ close: p.c, shares: p.s, net: null }};
+    }});
+    // 2) 補 hist 的 net_inst(以及 fallback close/shares 若 tch 沒這天)
+    keys.forEach(k => {{
+      (hist[k] || []).forEach(row => {{
+        const v = (row.s || {{}})[t];
+        if (!v) return;
+        const slot = raw[t][row.d] || (raw[t][row.d] = {{ close: null, shares: null, net: null }});
+        if (slot.close == null && v[2] != null) slot.close = v[2];
+        if (slot.shares == null && v[4] != null) slot.shares = v[4];
+        if (v[3] != null) slot.net = (slot.net || 0) + v[3];
+      }});
     }});
   }});
 
-  // per-ticker forward-fill close/shares (net 不 fill)
+  // per-ticker forward-fill close/shares (net 不 fill,法人買賣超是 daily transaction)
   const filled = {{}};
   todayFocals.forEach(t => {{
     filled[t] = {{}};
@@ -3852,11 +3946,18 @@ function downloadRankCSV(tableId, baseName) {{
     print(f"Generated {OUT_FILE}  ({len(page):,} bytes)")
 
     # 把 chart 用的歷史 payload 寫到獨立 history.json,modal 首次打開才 fetch。
-    # 結構:{"history": {"main||sub":[...]}, "index": {"TWII":[...], "TPEX":[...]}}
+    # 結構:
+    #   history:      {"main||sub":[{d, s:{ticker:[tv,chg,close,net,shares]}}, ...]}
+    #   index:        {"TWII":[{d, close}], "TPEX":[...]}
+    #   ticker_close: {ticker:[{d, c, s}, ...]}  ← Q13,for hl_sub cluster modal
     hist_file = OUT_FILE.parent / "history.json"
     hist_file.write_text(
         json.dumps(
-            {"history": theme_history_payload, "index": market_index_payload or {}},
+            {
+                "history": theme_history_payload,
+                "index": market_index_payload or {},
+                "ticker_close": ticker_close_payload,
+            },
             ensure_ascii=False, separators=(",", ":"),
         ),
         encoding="utf-8",
