@@ -185,6 +185,23 @@ def extract_relevant_para(content: str, ticker: str, name: str, max_chars: int =
 
 # ── Unified stock pill (全站統一顯示模組) ─────────────────────────────────────
 
+def _flag_chips(info: dict) -> str:
+    """共用 chip 渲染:依 extra flag 顯小 tag。pill / rankings table 都用。
+    ingest 5a172be 起 trading_rankings.extra 寫入這些 flag。"""
+    chips: list[str] = []
+    if info.get("is_punish"):
+        ptype = info.get("punish_type")
+        if ptype == "strict":
+            chips.append('<span class="sp-tag tag-strict" title="嚴格處置">嚴處</span>')
+        else:
+            chips.append('<span class="sp-tag tag-punish" title="處置股">處</span>')
+    if info.get("limit_up"):
+        chips.append('<span class="sp-tag tag-limit-up" title="漲停">漲</span>')
+    if info.get("is_limit_down"):
+        chips.append('<span class="sp-tag tag-limit-down" title="跌停">跌</span>')
+    return "".join(chips)
+
+
 def _stk_pill(ticker: str, stocks_info: dict, clickable: bool = True, extra_attrs: str = "") -> str:
     """Unified stock chip: ticker + market badge + name + "price(chg%)" 報價。
 
@@ -208,19 +225,13 @@ def _stk_pill(ticker: str, stocks_info: dict, clickable: bool = True, extra_attr
     click = f" onclick='showArtModal({json.dumps(ticker)},{json.dumps(name[:12])})'" if clickable else ""
     extra = f" {extra_attrs}" if extra_attrs else ""
 
-    # 處置/漲跌停 flag tag(ingest 端 extra 帶進來,2026-05-18 起)。
-    # is_punish 包含 一般處置 + 嚴格處置(punish_type 可區分);is_limit_up
-    # 用收盤判定;is_special 表示「不在 top-50 但因 punish/limit 進來」。
-    tags: list[str] = []
-    if info.get("is_punish"):
-        ptype = info.get("punish_type")
-        title = "嚴格處置" if ptype == "strict" else "處置股"
-        tags.append(f'<span class="sp-tag tag-punish" title="{title}">處</span>')
-    if info.get("limit_up"):
-        tags.append('<span class="sp-tag tag-limit-up" title="漲停">漲停</span>')
-    if info.get("is_limit_down"):
-        tags.append('<span class="sp-tag tag-limit-down" title="跌停">跌停</span>')
-    tags_html = "".join(tags)
+    # 處置 / 漲跌停 flag tag(ingest 5a172be 起 extra 帶進來):
+    #   punish_type='strict'  → 「嚴處」紅底
+    #   punish_type='normal'  → 「處」橘底
+    #   is_limit_up           → 「漲」紅底
+    #   is_limit_down         → 「跌」綠底
+    # 全部 1-2 字小 chip,避免擠 pill。
+    tags_html = _flag_chips(info)
 
     return (
         f'<div class="stk-pill"{click}{extra}>'
@@ -642,15 +653,24 @@ def rank_rows_html(ranks, market: str) -> str:
         else:
             quote = pct_str
         board = ""
+        flag_chips = ""
         if market == "TW":
             extra = json.loads(r.get("extra") or "{}") if isinstance(r.get("extra"), str) else (r.get("extra") or {})
             b = extra.get("board", "TWSE")
             board = f'<span class="board-badge {b.lower()}">{b}</span>'
+            # 處置 / 漲跌停 chip(同 _stk_pill 規格)
+            flag_info = {
+                "is_punish": bool(extra.get("is_punish")),
+                "punish_type": extra.get("punish_type"),
+                "limit_up": bool(extra.get("is_limit_up") or r.get("is_limit_up_30m")),
+                "is_limit_down": bool(extra.get("is_limit_down")),
+            }
+            flag_chips = _flag_chips(flag_info)
         rank_disp = r["rank"] if r["rank"] is not None else "—"
         rows.append(
             f'<tr><td class="rank">{rank_disp}</td>'
             f'<td class="ticker">{html_lib.escape(r["ticker"])}</td>'
-            f'<td class="name">{html_lib.escape((r["name"] or "")[:10])}{board}</td>'
+            f'<td class="name">{html_lib.escape((r["name"] or "")[:10])}{board}{flag_chips}</td>'
             f'<td class="num {pct_cls}">{quote}</td>'
             f'<td class="num">{val}</td></tr>'
         )
@@ -1586,6 +1606,25 @@ async def generate():
                 LIMIT {RANKINGS_TOP_N}""",
             tw_rank_date,
         )]
+        # Q14:special rows(處置 / 漲跌停)not in top-50,合進來讓 cluster
+        # detection 看得到「未進 top-N 但是是同題材的特殊狀態股」(2026-05-18 起)
+        try:
+            _existing_tickers = {r["ticker"] for r in tw_ranks}
+            special_ranks = [dict(r) for r in await conn.fetch(
+                "SELECT ticker, name, trading_value, change_pct, close_price, "
+                "is_limit_up_30m, extra "
+                "FROM trading_rankings WHERE rank_date=$1 AND market='tw' "
+                "AND extra->>'is_special' = 'true' ORDER BY ticker",
+                tw_rank_date,
+            )]
+            for sr in special_ranks:
+                if sr["ticker"] in _existing_tickers:
+                    continue  # 已在 top-50 不重複(flag 從 top-50 row 帶)
+                sr["rank"] = None  # 不在 top-50,rank 顯「—」
+                tw_ranks.append(sr)
+            print(f"  tw_ranks: {RANKINGS_TOP_N} top + {len(tw_ranks) - RANKINGS_TOP_N} special = {len(tw_ranks)}")
+        except Exception as exc:
+            print(f"  ⚠ special rows query failed (Q14 not deployed yet?): {exc}")
 
     # PRIVATE data removed in repo-split Phase 3.6: articles.content,
     # articles.refined_content, and podcast refined_content are not read
@@ -1868,10 +1907,13 @@ async def generate():
                 breakdown = json.loads(breakdown)
             except Exception:
                 breakdown = {}
-        # Compact 5-tuple per ticker: [tv, chg, close, net_inst, shares_out]
-        # shares_out 用來算 cluster market-cap weighted index(F0)
+        # Compact 6-tuple per ticker: [tv, chg, close, net_inst, shares_out, volume]
+        # shares_out 用來算 cluster market-cap weighted index(F0);
+        # volume(2026-05-18 ingest 5a172be 起)目前未在前端使用,保留供未來
+        # 統計或顯示「當日成交股數」用
         stocks_compact = {
-            tk: [v.get("tv"), v.get("chg"), v.get("close"), v.get("net_inst"), v.get("shares_out")]
+            tk: [v.get("tv"), v.get("chg"), v.get("close"),
+                 v.get("net_inst"), v.get("shares_out"), v.get("volume")]
             for tk, v in breakdown.items()
             if isinstance(v, dict)
         }
@@ -2731,10 +2773,16 @@ dialog#art-modal::backdrop{{background:rgba(0,0,0,.65)}}
 .sp-ticker{{font-weight:800;font-size:.85rem}}
 .sp-name{{font-size:.72rem;color:var(--muted)}}
 .sp-quote{{font-weight:700;font-size:.78rem;font-variant-numeric:tabular-nums}}
-/* 處置 / 漲跌停 小 tag(2026-05-18 ingest 端開始寫 extra flag,公開站 pill 顯)
- * 處 = 橙黃(警示),漲停 = 紅(亞洲漲),跌停 = 綠(亞洲跌) */
+/* 處置 / 漲跌停 小 tag(ingest 5a172be 起 extra 帶 flag):
+ *   嚴處 = 紅底(嚴格處置;最嚴重)
+ *   處   = 橘底(一般處置;警示等級)
+ *   漲   = 紅底(亞洲漲)
+ *   跌   = 綠底(亞洲跌)
+ * pill / rankings table 都用同套 chip,_flag_chips() 共用渲染 */
 .sp-tag{{font-size:.58rem;font-weight:700;padding:.06rem .3rem;border-radius:3px;
          letter-spacing:.04em;line-height:1.3;flex-shrink:0;cursor:help}}
+.sp-tag.tag-strict{{background:rgba(220,38,38,.22);color:#fca5a5;
+                     border:1px solid rgba(220,38,38,.5)}}
 .sp-tag.tag-punish{{background:rgba(245,158,11,.18);color:#f59e0b;
                      border:1px solid rgba(245,158,11,.35)}}
 .sp-tag.tag-limit-up{{background:rgba(239,83,80,.18);color:#f47471;

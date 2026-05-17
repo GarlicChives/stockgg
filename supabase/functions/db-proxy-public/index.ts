@@ -80,6 +80,12 @@ const ALLOWED: Set<string> = new Set([
   // ticker;近一年焦點 main 整批沒進 top-50 的 ticker 用這張表才拿得到歷史)。
   // ingest 端 src/news/stock_meta.py + scripts/backfill_ticker_history.py 寫入。
   "select ticker, rank_date, close, shares_out from ticker_close_history where ticker = any($1::text[]) and rank_date >= current_date - interval '400 days' order by ticker, rank_date",
+
+  // Q14 — special rows(處置 / 漲跌停)not in top 50。ingest 5a172be 起把這些
+  // ticker 也寫進 trading_rankings(rank=NULL,extra.is_special='true');
+  // Q6 只回 LIMIT 50 by TV 漏掉它們,Q14 補抓讓 cluster detection 抓得到
+  // 被動元件 同題材的 3026 / 2492 等(沒進 top-50 但仍進 cluster)。
+  "select ticker, name, trading_value, change_pct, close_price, is_limit_up_30m, extra from trading_rankings where rank_date=$1 and market='tw' and extra->>'is_special' = 'true' order by ticker",
 ])
 
 function normalize(q: string): string {
