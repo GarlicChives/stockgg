@@ -1152,8 +1152,10 @@ def _industry_section_html(
   <div class="cluster-hdr">
     {name_html}
     {metric_html}
-    <span class="cluster-meta">{meta_text}</span>
-    {spark_html}
+    <div class="cluster-meta-group">
+      <span class="cluster-meta">{meta_text}</span>
+      {spark_html}
+    </div>
   </div>
   {subtitle}
   <div class="cluster-focal-stocks">{focal_pills}{sentinel_toggle}</div>
@@ -2495,7 +2497,14 @@ tr:last-child td{{border-bottom:none}}
                                             box-shadow:0 0 0 2px rgba(124,138,242,.18)}}
 .cluster-metric.metric-btn.is-active-sort[data-dir="desc"]::after{{content:" ↓";opacity:.85}}
 .cluster-metric.metric-btn.is-active-sort[data-dir="asc"]::after{{content:" ↑";opacity:.85}}
-.cluster-meta{{font-size:.72rem;color:var(--muted);margin-left:auto}}
+/* cluster-meta + sparkline 包成一個 group:
+ * 寬度夠 → 跟在 metric badge 後面同行(margin-left:auto 推到右側);
+ * 寬度不夠 → 整個 group 一起折到下一行(因 .cluster-hdr 是 flex-wrap),
+ *           而非 meta 跟 sparkline 各自獨立折行(視覺亂)
+ * 內部 nowrap 避免文字本身被切成多行 */
+.cluster-meta-group{{display:flex;align-items:center;gap:.6rem;
+                      margin-left:auto;flex-shrink:0;white-space:nowrap}}
+.cluster-meta{{font-size:.72rem;color:var(--muted);white-space:nowrap}}
 .cluster-meta .meta-label{{opacity:.75}}
 .cluster-meta .meta-val{{font-weight:700;margin-left:.15rem}}
 .cluster-subtitle{{font-size:.7rem;color:var(--muted);margin:.1rem 0 .35rem;letter-spacing:.02em}}
