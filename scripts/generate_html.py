@@ -864,12 +864,8 @@ def _industry_section_html(
             '數值越正越「過熱」、越負越「超賣」。資料源 yfinance,台股 only。</li>'
             '<li><b>PE</b>：焦點股 <b>PE (TTM)</b> 簡單平均;'
             'skip 虧損股(PE ≤ 0)避免拉低均值。資料源 yfinance,週日 04:00 更新。</li>'
-            '<li><b>殖利</b>：焦點股「現金股息殖利率%」簡單平均;'
-            '已對台股做 ×100 修正(yfinance 對台股回傳的是小數)。</li>'
-            '<li><b>β</b>：焦點股 <b>Beta(對大盤)</b> 簡單平均;β &gt; 1 表'
-            '波動大於大盤、&lt; 1 表波動小於大盤、&lt; 0 表反向。</li>'
             '</ul>'
-            '<p class="metric-note">⚠ 五項皆為<b>簡單算術平均</b>(每檔等權重),'
+            '<p class="metric-note">⚠ 三項皆為<b>簡單算術平均</b>(每檔等權重),'
             '與點開 chart modal 內的「焦點股加權指數」(用市值 × shares 加權) <b>不同</b>。'
             '小型股對 cluster header 的影響與大型股相同。</p>'
             '</div>'
@@ -885,8 +881,6 @@ def _industry_section_html(
             f'<button class="sort-chip"        data-sort="chg"   data-level="{level}" type="button" onclick="setClusterSort(\'chg\',\'{level}\')">平均漲跌</button>'
             f'<button class="sort-chip"        data-sort="bias"  data-level="{level}" type="button" onclick="setClusterSort(\'bias\',\'{level}\')">平均乖離</button>'
             f'<button class="sort-chip"        data-sort="pe"    data-level="{level}" type="button" onclick="setClusterSort(\'pe\',\'{level}\')">平均 PE</button>'
-            f'<button class="sort-chip"        data-sort="yield" data-level="{level}" type="button" onclick="setClusterSort(\'yield\',\'{level}\')">平均殖利率</button>'
-            f'<button class="sort-chip"        data-sort="beta"  data-level="{level}" type="button" onclick="setClusterSort(\'beta\',\'{level}\')">平均 β</button>'
             '</div>'
             + explainer_html
             + '</div>'
@@ -941,14 +935,12 @@ def _industry_section_html(
         ma20s = [all_stocks.get(s.ticker, {}).get("ma20_bias") for s in c.focal]
         ma20s = [m for m in ma20s if m is not None]
         avg_ma20 = sum(ma20s) / len(ma20s) if ma20s else None
-        # F2: cluster stock_meta 平均 — PE / 殖利率 / Beta(simple mean,skip None)
+        # F2: cluster stock_meta 平均 — PE 只(殖利/Beta 2026-05-18 起移除全站)
         def _mean(lst):
             xs = [x for x in lst if x is not None]
             return sum(xs) / len(xs) if xs else None
         avg_pe = _mean([all_stocks.get(s.ticker, {}).get("pe_ttm")
                         for s in c.focal if (all_stocks.get(s.ticker, {}).get("pe_ttm") or 0) > 0])
-        avg_yield = _mean([all_stocks.get(s.ticker, {}).get("dividend_yield") for s in c.focal])
-        avg_beta = _mean([all_stocks.get(s.ticker, {}).get("beta") for s in c.focal])
 
         def _plain_badge(label: str, value: float | None, title: str, sort_key: str,
                          card_id: str, fmt: str = "{:.2f}") -> str:
@@ -959,15 +951,13 @@ def _industry_section_html(
             val_str = "—" if value is None else fmt.format(value)
             return f'<span {common}>{label} {val_str}</span>'
 
-        # 順序:漲跌 / 乖離 / PE / 殖利 / β(用戶要求,預設按漲跌 desc 排)
+        # 順序:漲跌 / 乖離 / PE(2026-05-18 起殖利/β 全站移除)
         # 點 badge → setFocalSort(card_id, key):只動該題材內 focal pill 順序
         card_id = f"cc-{level}-{idx}"
         metric_html = (
             _metric_badge("漲跌", avg_chg, "點擊依此題材內個股漲跌幅排序", "chg", card_id, is_default_sort=True)
             + _metric_badge("乖離", avg_ma20, "點擊依此題材內個股 20MA 乖離率排序", "bias", card_id)
             + _plain_badge("PE", avg_pe, "點擊依此題材內個股 PE (TTM)排序", "pe", card_id, "{:.1f}")
-            + _plain_badge("殖利", avg_yield, "點擊依此題材內個股殖利率排序", "yield", card_id, "{:.2f}%")
-            + _plain_badge("β", avg_beta, "點擊依此題材內個股 Beta 排序", "beta", card_id, "{:.2f}")
         )
 
         member_keys = [f"{m}||{s}" for m, s in (c.members or [])]
@@ -982,11 +972,9 @@ def _industry_section_html(
                 "mkt":   mkt,
                 "tv":    s.trading_value,
                 "chg":   info.get("change_pct"),
-                "yld":   info.get("dividend_yield"),
                 "close": info.get("close_price"),
                 "bias":  info.get("ma20_bias"),
                 "pe":    info.get("pe_ttm"),
-                "beta":  info.get("beta"),
             }
         cluster_json.append({
             "cardId": card_id,
@@ -1152,10 +1140,8 @@ def _industry_section_html(
   <div class="cluster-hdr">
     {name_html}
     {metric_html}
-    <div class="cluster-meta-group">
-      <span class="cluster-meta">{meta_text}</span>
-      {spark_html}
-    </div>
+    <span class="cluster-meta">{meta_text}</span>
+    {spark_html}
   </div>
   {subtitle}
   <div class="cluster-focal-stocks">{focal_pills}{sentinel_toggle}</div>
@@ -1405,16 +1391,10 @@ def build_focus_ranking_html(
             "close": _f(stk.get("close_price")),
             "chg": _f(stk.get("change_pct")),
             "pe_ttm": _f(meta.get("pe_ttm")),
-            "dividend_yield": _f(meta.get("dividend_yield")),
             "market_cap": _f(meta.get("market_cap")),
             "sector": (meta.get("sector") or "")[:14],
         })
 
-    by_yield = sorted(
-        [c for c in candidates
-         if c["dividend_yield"] is not None and c["dividend_yield"] > 0],
-        key=lambda c: -c["dividend_yield"],
-    )[:top_n]
     by_pe = sorted(
         [c for c in candidates
          if c["pe_ttm"] is not None and c["pe_ttm"] > 0],
@@ -1461,22 +1441,10 @@ def build_focus_ranking_html(
                 f'onclick="downloadRankCSV(\'{tid}\',\'{fname}\')" '
                 f'title="下載 CSV">⬇ CSV</button>')
 
+    # 2026-05-18 起殖利率全站移除 → 高殖利率 Top 15 table 拿掉,
+    # 焦點排行只剩「估值偏低 PE TTM」一張表。
     return (
-        '<div class="ranks">'
-        '<div class="card">'
-        '<div class="sec sec-row">'
-        '<span>💰 高殖利率焦點 Top 15</span>'
-        + _dl('rank-yield', 'stockgg-high-yield') +
-        '</div>'
-        '<table id="rank-yield">'
-        '<thead><tr><th>#</th><th>代號</th><th>名稱</th>'
-        '<th style="text-align:right">股價(漲跌)</th>'
-        '<th style="text-align:right">殖利率</th>'
-        '<th style="text-align:right">市值</th>'
-        '<th class="col-sector">產業</th></tr></thead>'
-        f'<tbody>{_rows(by_yield, "dividend_yield", "{:.2f}%")}</tbody>'
-        '</table>'
-        '</div>'
+        '<div class="ranks ranks-single">'
         '<div class="card">'
         '<div class="sec sec-row">'
         '<span>📉 估值偏低焦點 Top 15(PE TTM)</span>'
@@ -2064,7 +2032,7 @@ async def generate():
         for k, v in modal_data.items()
     )
 
-    # ── Radar chart metrics(modal 內 5 維雷達圖)──────────────────────────────
+    # ── Radar chart metrics(modal 內 3 維雷達圖;殖利率/β 2026-05-18 移除)──
     # 涵蓋所有焦點股 + ranking + market_notes 提到的 ticker。
     # 缺維度的留 None,前端 normalize 函數視為 0(該軸點落中心)。
     def _f(v):
@@ -2084,14 +2052,12 @@ async def generate():
         radar_metrics[tk] = {
             "chg":  _f(info.get("change_pct")),
             "pe":   _f(meta.get("pe_ttm")),
-            "yld":  _f(meta.get("dividend_yield")),
             "w52":  w52pos,
-            "beta": _f(meta.get("beta")),
         }
     def _mavg(key):
         xs = [m[key] for m in radar_metrics.values() if m.get(key) is not None]
         return round(sum(xs) / len(xs), 4) if xs else None
-    radar_market_avg = {k: _mavg(k) for k in ("chg", "pe", "yld", "w52", "beta")}
+    radar_market_avg = {k: _mavg(k) for k in ("chg", "pe", "w52")}
     radar_payload_json = json.dumps(
         {"stocks": radar_metrics, "market": radar_market_avg},
         ensure_ascii=False, separators=(",", ":"),
@@ -2497,14 +2463,7 @@ tr:last-child td{{border-bottom:none}}
                                             box-shadow:0 0 0 2px rgba(124,138,242,.18)}}
 .cluster-metric.metric-btn.is-active-sort[data-dir="desc"]::after{{content:" ↓";opacity:.85}}
 .cluster-metric.metric-btn.is-active-sort[data-dir="asc"]::after{{content:" ↑";opacity:.85}}
-/* cluster-meta + sparkline 包成一個 group:
- * 寬度夠 → 跟在 metric badge 後面同行(margin-left:auto 推到右側);
- * 寬度不夠 → 整個 group 一起折到下一行(因 .cluster-hdr 是 flex-wrap),
- *           而非 meta 跟 sparkline 各自獨立折行(視覺亂)
- * 內部 nowrap 避免文字本身被切成多行 */
-.cluster-meta-group{{display:flex;align-items:center;gap:.6rem;
-                      margin-left:auto;flex-shrink:0;white-space:nowrap}}
-.cluster-meta{{font-size:.72rem;color:var(--muted);white-space:nowrap}}
+.cluster-meta{{font-size:.72rem;color:var(--muted);margin-left:auto}}
 .cluster-meta .meta-label{{opacity:.75}}
 .cluster-meta .meta-val{{font-weight:700;margin-left:.15rem}}
 .cluster-subtitle{{font-size:.7rem;color:var(--muted);margin:.1rem 0 .35rem;letter-spacing:.02em}}
@@ -3002,7 +2961,7 @@ function showSubTab(name) {{
     p.classList.toggle('active', p.id === 'stab-' + name));
 }}
 
-/* 個股 5 維雷達:漲跌 / PE / 殖利率 / 52w% / β,normalize 到 0~1 後畫
+/* 個股 3 維雷達:漲跌 / PE / 52w%(殖利率 + β 2026-05-18 全站移除),normalize 到 0~1 後畫
  * polygon。同時疊一條 dashed 全焦點股平均對比。SVG concat 不用 template
  * literal 是為了避開 Python fstring `{{}}` escape 噪音。 */
 function _radarSvg(ticker) {{
@@ -3011,21 +2970,18 @@ function _radarSvg(ticker) {{
   if (!m) return '';
   const avg = data.market || {{}};
   // 維度 normalize:統一 0~1 範圍。PE 越低越好(反向),其他越高越好。
+  // (2026-05-18:殖利率 + β 全站移除,從 5 維變 3 維三角形)
   const N = {{
     chg:  v => v == null ? 0 : Math.max(0, Math.min(1, (v + 8) / 16)),
     pe:   v => v == null ? 0 : Math.max(0, Math.min(1, 1 - v / 40)),
-    yld:  v => v == null ? 0 : Math.max(0, Math.min(1, v / 8)),
     w52:  v => v == null ? 0 : Math.max(0, Math.min(1, v)),
-    beta: v => v == null ? 0 : Math.max(0, Math.min(1, v / 2)),
   }};
   const dims = [
     {{ key:'chg',  label:'漲跌',  raw:m.chg,  fmt:v => v==null?'—':(v>=0?'+':'')+v.toFixed(2)+'%' }},
     {{ key:'pe',   label:'PE',    raw:m.pe,   fmt:v => v==null?'—':v.toFixed(1) }},
-    {{ key:'yld',  label:'殖利',  raw:m.yld,  fmt:v => v==null?'—':v.toFixed(2)+'%' }},
     {{ key:'w52',  label:'52w%',  raw:m.w52,  fmt:v => v==null?'—':(v*100).toFixed(0)+'%' }},
-    {{ key:'beta', label:'β',     raw:m.beta, fmt:v => v==null?'—':v.toFixed(2) }},
   ];
-  // 若 5 維全 null,無資料就不畫
+  // 若全 null,無資料就不畫
   if (dims.every(d => d.raw == null)) return '';
   const cx = 80, cy = 80, r = 50;
   const ang = (i) => -Math.PI/2 + i * 2*Math.PI/dims.length;
@@ -3042,7 +2998,7 @@ function _radarSvg(ticker) {{
   const ringVals = (s) => dims.map(_ => s);
   const parts = [];
   parts.push('<div class="radar-card">');
-  parts.push('<div class="radar-title">五維雷達 vs 全焦點股平均</div>');
+  parts.push('<div class="radar-title">三維雷達 vs 全焦點股平均</div>');
   parts.push('<svg class="radar-svg" viewBox="0 0 160 165">');
   parts.push('<polygon class="radar-grid" points="' + pts(ringVals(1))    + '"/>');
   parts.push('<polygon class="radar-grid" points="' + pts(ringVals(0.66)) + '"/>');
@@ -3205,14 +3161,7 @@ function _focalQuoteByKey(f, key) {{
     const v = f.pe;
     return {{ str: closeStr + '(PE ' + (v == null || v <= 0 ? '—' : v.toFixed(1)) + ')', cls: 'neutral' }};
   }}
-  if (key === 'yield') {{
-    const v = f.yld;
-    return {{ str: closeStr + '(殖利 ' + (v == null ? '—' : v.toFixed(2) + '%') + ')', cls: 'neutral' }};
-  }}
-  if (key === 'beta') {{
-    const v = f.beta;
-    return {{ str: closeStr + '(β ' + (v == null ? '—' : v.toFixed(2)) + ')', cls: 'neutral' }};
-  }}
+  // 2026-05-18 起 yield/beta 全站移除,fallback 顯純 close
   return {{ str: closeStr, cls: 'neutral' }};
 }}
 
@@ -3327,16 +3276,13 @@ function _recalcClusters(level) {{
       activeTv: c.baseTv - disabledTv,
       visible: activeFocal.length > 0,
       avgChg:   _mean(activeFocal.map(f => f.chg)),
-      avgYield: _mean(activeFocal.map(f => f.yld)),
       avgBias:  _mean(activeFocal.map(f => f.bias)),
       avgPe:    _mean(activeFocal.map(f => (f.pe != null && f.pe > 0) ? f.pe : null)),
-      avgBeta:  _mean(activeFocal.map(f => f.beta)),
     }};
   }});
 
   // 3. 卡片顯示 / 隱藏 + meta 更新(meta 依 _clusterSort 顯不同維度)
-  // META_FMT 把 sort key → (label, formatter, css class)。tv 額外帶單位「億」。
-  // chg / bias 用 fmt(漲紅跌綠);pe/yield/beta 無顏色。
+  // (2026-05-18 起殖利率/β 全站移除,META_FMT 只剩 tv / chg / bias / pe)
   const _fmtPct2 = (v) => v == null ? '—' : (v > 0 ? '+' : '') + v.toFixed(2) + '%';
   const _pctCls = (v) => v == null ? 'neutral' : (v > 0 ? 'up' : v < 0 ? 'down' : 'flat');
   const META_FMT = {{
@@ -3344,8 +3290,6 @@ function _recalcClusters(level) {{
     chg:   {{ label: '平均漲跌', val: (s) => _fmtPct2(s.avgChg),                          cls: (s) => _pctCls(s.avgChg) }},
     bias:  {{ label: '平均乖離', val: (s) => _fmtPct2(s.avgBias),                         cls: (s) => _pctCls(s.avgBias) }},
     pe:    {{ label: '平均 PE',  val: (s) => s.avgPe == null ? '—' : s.avgPe.toFixed(1),  cls: (s) => 'neutral' }},
-    yield: {{ label: '平均殖利', val: (s) => s.avgYield == null ? '—' : s.avgYield.toFixed(2) + '%', cls: (s) => 'neutral' }},
-    beta:  {{ label: '平均 β',   val: (s) => s.avgBeta == null ? '—' : s.avgBeta.toFixed(2), cls: (s) => 'neutral' }},
   }};
   const _sortKey = _getSortKey(level);
   const _sortDir = _getSortDir(level);
@@ -3368,10 +3312,8 @@ function _recalcClusters(level) {{
   // 4. 依 per-level _clusterSort 重排 DOM(None 排到最後,不受方向影響)
   const _key = (s) => {{
     if (_sortKey === 'chg')   return s.avgChg;
-    if (_sortKey === 'yield') return s.avgYield;
     if (_sortKey === 'bias')  return s.avgBias;
     if (_sortKey === 'pe')    return s.avgPe;
-    if (_sortKey === 'beta')  return s.avgBeta;
     return s.activeTv;  // 'tv' default
   }};
   const _dirMul = _sortDir === 'asc' ? -1 : 1;
