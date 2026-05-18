@@ -1614,7 +1614,7 @@ async def generate():
             special_ranks = [dict(r) for r in await conn.fetch(
                 "SELECT ticker, name, trading_value, change_pct, close_price, "
                 "is_limit_up_30m, extra "
-                "FROM trading_rankings WHERE rank_date=$1 AND market='tw' "
+                "FROM trading_rankings WHERE rank_date=$1 AND market='TW' "
                 "AND extra->>'is_special' = 'true' ORDER BY ticker",
                 tw_rank_date,
             )]
@@ -1638,7 +1638,7 @@ async def generate():
             focus_member_ranks = [dict(r) for r in await conn.fetch(
                 "SELECT ticker, name, trading_value, change_pct, close_price, "
                 "is_limit_up_30m, extra "
-                "FROM trading_rankings WHERE rank_date=$1 AND market='tw' "
+                "FROM trading_rankings WHERE rank_date=$1 AND market='TW' "
                 "AND extra->>'is_focus_member' = 'true' ORDER BY ticker",
                 tw_rank_date,
             )]
@@ -1658,7 +1658,7 @@ async def generate():
         try:
             focus_seed_rows = await conn.fetch(
                 "SELECT ticker FROM trading_rankings WHERE rank_date=$1 "
-                "AND market='tw' AND extra->>'is_focus_seed' = 'true' ORDER BY ticker",
+                "AND market='TW' AND extra->>'is_focus_seed' = 'true' ORDER BY ticker",
                 tw_rank_date,
             )
             focus_seed_tickers = [r["ticker"] for r in focus_seed_rows]
