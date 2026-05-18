@@ -1014,6 +1014,22 @@ def _industry_section_html(
                         f'<span class="spark-label">{len(spark_values)}d</span>'
                         f'</button>'
                     )
+            # hl_sub fallback:focal ticker 在 theme_history.focal_breakdown
+            # 缺席(沒進過任何 top-50 → 反向索引拿不到 net_inst)時,sparkline
+            # 自然空。但 chart modal 仍可走 ticker_close (Q13) 畫焦點股加權
+            # 指數,所以 render 一個純 chart 入口按鈕保留入口。
+            # 對應 ingest v2 規格副作用(2026-05-19):focus_member 可能含
+            # rank > 50 從未進 top-50 的 ticker,純 chart 入口才能開 modal。
+            if not spark_html and level == "hl_sub" and any(
+                s.ticker for s in c.focal
+            ):
+                spark_html = (
+                    f'<button class="spark-btn spark-btn-icon" type="button" '
+                    f"onclick=\"openThemeChart('{card_id}')\" "
+                    f'title="點擊看焦點股近一年加權指數">'
+                    f'📈'
+                    f'</button>'
+                )
         # focal pills 預設依該股當日漲跌 desc 排(對齊 cluster header 預設 active 的 漲跌 badge);
         # None 排尾段。JS setFocalSort 點擊後會 re-order DOM。
         def _focal_chg_key(s):
