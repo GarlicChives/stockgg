@@ -2527,7 +2527,7 @@ dialog#theme-chart-dialog[open]::backdrop{{animation:tcBackdropFade .26s ease-ou
                        border-bottom:1px solid var(--border)}}
 .tc-ticker-chips{{display:flex;flex-direction:column;gap:.32rem;flex:1;min-height:0;
                    overflow-y:auto;padding-right:.1rem;
-                   scrollbar-width:none}}
+                   scrollbar-width:none;overscroll-behavior:contain}}
 .tc-ticker-chips::-webkit-scrollbar{{display:none}}
 .tc-ticker-chips .modal-tk-pill{{align-self:stretch}}
 /* 右欄:charts 容器,垂直堆兩張 chart,各 flex:1 撐滿空高 */
@@ -3824,6 +3824,13 @@ function openThemeChart(cardId) {{
       dlg.close();
     }}
   }});
+  // 防止 wheel 滾動穿透到外層頁面:只有 target 在左欄 ticker 列表內才放行
+  // (chart 自有 wheel zoom 處理,padding/標題等空白處則 preventDefault)
+  dlg.addEventListener('wheel', (e) => {{
+    if (!e.target.closest('.tc-ticker-chips')) {{
+      e.preventDefault();
+    }}
+  }}, {{passive: false}});
 }})();
 
 function toggleEl(id) {{
