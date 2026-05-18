@@ -1,9 +1,6 @@
 # Project: stockgg (public daily-briefing site)
 
-> **新 session 開頭做 2 件事**:
-> 1. 讀 `~/Desktop/StockGG-ingest/SYSTEM.md` — 兩個 repo 的全景(資料流、排程、職責、踩坑)
-> 2. 讀 `~/Desktop/.iia-coord/INBOX.md`「待 stockgg 處理」section — 跨 repo 任務佇列
->
+> **新 session 開頭**:讀 `~/Desktop/StockGG-ingest/SYSTEM.md` — 兩個 repo 的全景(資料流、排程、職責、踩坑)。
 > SYSTEM.md 實體放在私有的 StockGG-ingest repo(因含爬蟲 / 訂閱站營運細節),
 > 本檔只覆蓋 stockgg 自己的 do/don't。
 
@@ -88,8 +85,8 @@ bash scripts/deploy_db_proxy_public.sh      # Edge Function redeploy
 
 - [ ] 改動的檔案在 SYSTEM.md「異動觸發表」內嗎?是 → 同 commit 更新本 repo 的
   `.claude/CLAUDE.md` / `README.md`(pre-commit hook 只認這兩個)。若該改動也需更新
-  SYSTEM.md 的 section → SYSTEM.md 在 `StockGG-ingest` repo,**另開一次該 repo
-  的 commit + push**(或寫進 `~/Desktop/.iia-coord/INBOX.md` 待 ingest session 處理)
+  SYSTEM.md 的 section → SYSTEM.md 在 `StockGG-ingest` repo,依下方「跨 repo 溝通機制」
+  產生 copy-paste prompt 給 user,由 user 貼到 ingest session 處理
 - [ ] 改了 `generate_html.py` 的 `conn.fetch/fetchrow/fetchval`?是 → 同步擴
   `supabase/functions/db-proxy-public/index.ts` 的 `ALLOWED`,並 redeploy
 - [ ] 改了 CSS 或 HTML 結構?是 → 本機 `uv run python scripts/generate_html.py`
@@ -102,23 +99,39 @@ bash scripts/deploy_db_proxy_public.sh      # Edge Function redeploy
 - [ ] CSS 寫 `display:flex/inline-block/...` 時,如果該 element 預期用 `hidden` 屬性控顯隱,要加一條 `.foo[hidden]{display:none}` 對齊特異性(預設 UA `[hidden]` 規則會被 class CSS 蓋掉)
 - [ ] hot-fix push 完後 → `gh workflow run "Publish daily site"` 觸發 deploy(push 不會自動觸發)
 
-## 跨 repo INBOX 協作(2026-05-18 起)
+## 跨 repo 溝通機制(2026-05-18 改版,廢棄 INBOX)
 
-兩個 repo 的 Claude session 透過 `~/Desktop/.iia-coord/INBOX.md` 交換任務,
-不需 user 手動 copy-paste prompt。詳細機制見 `~/Desktop/.iia-coord/README.md`。
+> **背景**:原本透過 `~/Desktop/.iia-coord/INBOX.md` 同步,但該檔在兩 repo cwd 之外,
+> Claude Code 對越界寫入有獨立沙箱確認,無法被 `allow Write(*)` 吸收 → 寫 INBOX
+> 會陷入「越界提示 → 失敗 → retry」迴圈,卡住 session。改為 prompt 傳遞。
 
-**本 session 開頭應做**:
-1. 讀 `INBOX.md`「📬 待 stockgg 處理」section
-2. 若有未 check 的 `[ ]` 項目 → 主動告知 user 有 pending 任務(列項目摘要 + 觸發 commit hash),問是否要處理。**不要 auto-execute** — 讓 user 決定優先順序
-3. 對話中若推進了 inbox 任務,記得在該 entry 標 `[x]` + 填本 repo 完成 commit hash
+**規則**:當本 session 完成任務後發現「另一 repo 也需要動」,做兩件事:
+1. **本 repo 該做的**先做完(commit + push)
+2. **另一 repo 該做的**:不要自己跨 repo 寫檔。產生一段給 user 的 copy-paste prompt,內含:
+   - 觸發來源(本 repo commit hash)
+   - 任務描述(直接可執行的步驟)
+   - 涉及檔案(完整絕對路徑)
+   - 期望結果(commit + push,並回報 hash 給本 session)
 
-**需要 ingest 配合時做**:
-1. 在 `INBOX.md`「📬 待 StockGG-ingest 處理」section 加 entry,內含:
-   - 觸發來源:`from stockgg commit XXXXX`(讓對方知道前因)
-   - 任務描述:**直接可執行的指令**(對方不需再問我背景)
-   - 期望回報:「commit hash」/「驗證 XXX」等
-2. user 自然會跳到對面 session 處理 inbox,完成後 entry 會被 `[x]` + ingest commit 回填
-3. 下次本 session 開時看到完成回報,可繼續後續工作
+**prompt 格式範本**:
+
+```
+[從 stockgg session 轉達]
+
+觸發來源: stockgg commit <hash>
+背景: <一句話說明>
+
+請在 ingest repo (~/Desktop/StockGG-ingest) 執行:
+1. 開檔 <絕對路徑>
+2. <具體修改描述,連可貼的 diff 或新內容都附上>
+3. commit + push (commit message 建議: "...")
+4. 回報 commit hash
+
+完成後我會在 stockgg 這邊繼續 <後續工作>。
+```
+
+**為何不再用檔案佇列**:越界寫入沙箱問題、無法保證寫得進去、user 體驗差(被反覆問權限)。
+Prompt 傳遞由 user 主動切換 session 觸發,雖多一步 copy-paste,但 100% 可靠。
 
 ## 待辦
 
