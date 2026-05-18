@@ -1068,12 +1068,12 @@ def _industry_section_html(
                         f'{pe_html}'
                         f'</div>'
                     )
-                # 依 PE 升序排(便宜先),None 排尾
+                # 依 PE 降序排(貴的先),None 排尾
                 items = sorted(
                     sentinel_pool.items(),
                     key=lambda x: (
                         1 if stock_meta.get(x[0], {}).get("pe_ttm") in (None, 0) else 0,
-                        float(stock_meta.get(x[0], {}).get("pe_ttm") or 9e9),
+                        -float(stock_meta.get(x[0], {}).get("pe_ttm") or 0),
                     ),
                 )
                 snt_html = "".join(_snt_pill(tk, nm) for tk, nm in items)
