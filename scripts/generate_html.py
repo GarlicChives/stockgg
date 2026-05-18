@@ -1967,12 +1967,11 @@ async def generate():
 
     # Build IIA_HISTORY payload: {"main||sub": [{d, s:{ticker:[tv,chg]}}, ...]}
     # Compact array form (tv, chg) to keep bundle size manageable。
-    # 同時建一個 per-ticker net_inst 反向索引,給 hl_sub cluster 用(它的
-    # member_keys (近一年焦點||...) 沒 theme_history row,但其 focal ticker
-    # 在「其他 main」(半導體等)的 row 內出現過,net_inst 是 ticker-level
-    # transaction,跨 (m,s) 值一樣,所以可以共用)。
+    # ticker_net_inst per-ticker net_inst 反向索引 2026-05-19 起改走 Q17
+    # (ticker_net_inst_history,ingest commit ed3b2e9)— 不再從 focal_breakdown
+    # 推。原因:對「純近一年焦點」ticker(從沒進 universe)focal_breakdown
+    # 永遠缺,反向索引拿不到 → 該 cluster sparkline / modal histogram 全空。
     theme_history_payload: dict[str, list] = {}
-    ticker_net_inst: dict[str, dict[str, float]] = {}  # ticker -> {date_str: net_inst (shares)}
     for r in theme_history_rows:
         key = f"{r['main_industry']}||{r['sub_industry']}"
         d = r["rank_date"]
@@ -1994,15 +1993,6 @@ async def generate():
             if isinstance(v, dict)
         }
         theme_history_payload.setdefault(key, []).append({"d": date_str, "s": stocks_compact})
-        # 反向索引 ticker → date → net_inst(同 ticker 同日跨 (m,s) 值一樣,
-        # setdefault 第一次寫入,後續同日寫入會 dedup 為同值)
-        for tk, v in breakdown.items():
-            if not isinstance(v, dict):
-                continue
-            ni = v.get("net_inst")
-            if ni is None:
-                continue
-            ticker_net_inst.setdefault(tk, {})[date_str] = ni
 
     # ticker_close_history (Q13) — per-ticker × per-date close + shares_out,
     # 400 天歷史。用來:
@@ -2036,6 +2026,35 @@ async def generate():
                   f"{len(ticker_close_payload)}/{len(_hist_tickers)} tickers")
         except Exception as exc:
             print(f"  ⚠ ticker_close_history query failed: {exc}")
+
+    # Q17 — ticker_net_inst_history per-ticker × per-date 攤平歷史 net_inst
+    # (NTD,T86/3insti × close)。取代 2026-05-18 從 theme_history.focal_breakdown
+    # 反向索引建 ticker_net_inst 的舊 path(對「純近一年焦點」ticker — 從沒
+    # 進過 universe — focal_breakdown 永遠缺,反向索引拿不到 → sparkline /
+    # modal histogram 空)。Ingest commit ed3b2e9 起對「近一年焦點」字典
+    # ~322 ticker × 400 day 寫滿;此處對 _hist_tickers(focal_tw ∪ highlight)
+    # 範圍 fetch,pan_sub focal 若不在字典內 Q17 回 0 row 無影響。
+    ticker_net_inst: dict[str, dict[str, float]] = {}  # ticker -> {date_str: net_inst (NTD)}
+    if _hist_tickers:
+        try:
+            tni_rows = await conn.fetch(
+                "SELECT ticker, rank_date, net_inst FROM ticker_net_inst_history "
+                "WHERE ticker = ANY($1::text[]) "
+                "AND rank_date >= current_date - INTERVAL '400 days' "
+                "ORDER BY ticker, rank_date",
+                _hist_tickers,
+            )
+            for r in tni_rows:
+                _d = r["rank_date"]
+                d_str = _d.strftime("%Y-%m-%d") if hasattr(_d, "strftime") else str(_d)[:10]
+                ni = r["net_inst"]
+                if ni is None:
+                    continue
+                ticker_net_inst.setdefault(r["ticker"], {})[d_str] = float(ni)
+            print(f"  ticker_net_inst_history: {len(tni_rows)} rows for "
+                  f"{len(ticker_net_inst)}/{len(_hist_tickers)} tickers")
+        except Exception as exc:
+            print(f"  ⚠ ticker_net_inst_history query failed (Q17 not deployed?): {exc}")
 
     # 大盤(^TWII)+ 櫃買(^TWO)指數歷史,供 chart 第二張三線 overlay 對比
     # 焦點股 line vs 大盤 vs 櫃買(都 rebase to 100,看相對強弱)。

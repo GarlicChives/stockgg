@@ -103,6 +103,13 @@ const ALLOWED: Set<string> = new Set([
   // step 1 反查題材字典,累計 sub 種子計數 ≥ 2 才算熱門題材。只需 ticker
   // (其他欄位走 Q15 拿)。注意:seed 不一定是 focus_member(條件不同)。
   "select ticker from trading_rankings where rank_date=$1 and market='tw' and extra->>'is_focus_seed' = 'true' order by ticker",
+
+  // Q17 — ticker_net_inst_history 攤平歷史 net_inst (NTD,T86/3insti × close)。
+  // 取代 stockgg 端從 theme_history.focal_breakdown 反向索引拿 ticker_net_inst
+  // 的舊 path。解「純近一年焦點 ticker(從沒進 universe)歷史 net_inst 永遠空」
+  // (見 ingest SYSTEM.md Gotcha #19)。Ingest commit ed3b2e9 起寫入,
+  // 對「近一年焦點」字典 ~322 ticker × 400 day 寫滿。
+  "select ticker, rank_date, net_inst from ticker_net_inst_history where ticker = any($1::text[]) and rank_date >= current_date - interval '400 days' order by ticker, rank_date",
 ])
 
 function normalize(q: string): string {
