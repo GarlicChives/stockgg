@@ -24,15 +24,18 @@ Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
 ## 關鍵檔案
 
 - `scripts/generate_html.py` — 單檔 HTML 渲染(~3900 行,所有頁面邏輯 + 內嵌 CSS/JS)
-- `src/analysis/focus_themes.py` — 題材叢集(純 Python);輸入 = `stocks_info` filter market='TW';自動 dedupe 同 focal set 為 merged cluster(`A & B & C`)
+- `src/analysis/focus_themes.py` — 題材叢集(純 Python);兩個函式:
+  - `detect_industry_clusters(tw_top_volume)` — 普適 TV 累加(pan_sub 用);輸入 = `stocks_info` filter market='TW';自動 dedupe 同 focal set 為 merged cluster(`A & B & C`)
+  - `detect_focus_clusters(tw_universe)` — 種子驅動(hl_sub 用,2026-05-18 加,對齊 ingest `bd85f1d`);種子 = is_hot_seed(rank≤15 上漲)∪ is_limit_hot_seed(rank≤50 漲停),反推所屬「近一年焦點」sub,題材內 universe(top-50 ∪ special ∪ volume_universe)上漲 → `focal`、下跌 → `sentinel`;族群性條件:至少 1 檔上漲
 - `src/utils/db.py` — async DB client(用 `SUPABASE_ANON_KEY` + `db-proxy-public`)
 - `data/theme_dictionary.json` — statementdog 主產業 / 子產業階層字典(2026-05 改 schema:ticker-centric `stocks` 物件,純台股;由 ingest 端 `scrape_statementdog_industries.py` 產生再 sync 到本 repo)。**main='近一年焦點'** 是 ingest 端人工編彙的長線觀察題材(62 sub / 230 ticker;sub 名稱「前綴·後綴」可用 「·」 split 群組),公開站「熱門題材」頁有獨立 sub-tab「🌟 焦點」,跟「📊 泛分類」(原 statementdog 47 main) 並陳
-- `supabase/functions/db-proxy-public/index.ts` — Edge Function 含 SQL allowlist(目前 **14 條**):
+- `supabase/functions/db-proxy-public/index.ts` — Edge Function 含 SQL allowlist(目前 **15 條**):
   - Q1-Q9 日報基本資料、Q10 market_notes
   - Q11 theme_history 180→**400 days** retention
   - Q12 stock_meta(公司基本面快照)
   - Q13 ticker_close_history 400 天讀取(讓近一年焦點 cluster chart modal 能畫加權指數,因 theme_history 沒此 main 的 row)
   - Q14 special rows(處置 / 漲跌停 not in top-50)WHERE `extra->>'is_special'='true'`
+  - **Q15** volume_universe rows(成交值 ≥ 大盤/1000 但非 top-50 / 非 special,ingest `bd85f1d` 起;給焦點 tab 種子驅動 cluster detection 讀題材內成交大成分股)WHERE `extra->>'is_volume_universe'='true'`
 - `.github/workflows/market_briefing.yml` — render + deploy(07:30 / 18:15 / 23:15 TW cron + repository_dispatch)。**push 不會觸發**,hot-fix 後要 `gh workflow run "Publish daily site"` 手動跑。`concurrency: publish-daily-site` 同 workflow 排隊不互相取消;commit-and-push step 含 `-X ours` rebase retry x3,避免本地 dev push 與 bot 撞 race
 - `docs/index.html` — 渲染輸出(generate_html.py 寫入,bot CI push)
 - `docs/history.json` — chart modal 用的歷史 payload,~5MB,含:
@@ -67,7 +70,7 @@ Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
   - `.sp-tag.tag-limit-down` 跌 綠底
   - 共用 `_flag_chips(info)` helper,_stk_pill + rank_rows_html 都用
 - **rank=NULL handling**:special row(rank=NULL,extra.is_special=true)在 ranking table 顯「—」+ chip
-- **前哨 section**(hl_sub cluster 才有):theme_dictionary 內該 sub 的完整 ticker list 扣掉 focal,inline toggle button 在 focal pills 末段,點開後 panel max-height + opacity 動畫展開(`.cluster-sentinel-stocks[hidden]` 配 `toggleSentinelInline()`)
+- **前哨 section**(hl_sub cluster 才有,2026-05-18 改為種子驅動版):由 `detect_focus_clusters` 提供 `cluster.sentinel`(題材內 universe 上漲 = focal、下跌 = sentinel);chip 用 `_stk_pill` 顯漲跌%(跟 focal pill 同樣式,加 `data-sentinel="1"` 區隔)。inline toggle button 在 focal pills 末段,點開後 panel max-height + opacity 動畫展開(`.cluster-sentinel-stocks[hidden]` 配 `toggleSentinelInline()`)。**舊版**(theme_dictionary 內該 sub 的完整 ticker list 扣 focal、顯 PE)保留為其他 level 的 fallback path(目前無實際使用,純粹兼容)
 
 ## 本地操作
 

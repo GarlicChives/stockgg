@@ -27,7 +27,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.analysis.focus_themes import detect_industry_clusters, IndustryCluster
+from src.analysis.focus_themes import (
+    detect_industry_clusters,
+    detect_focus_clusters,
+    IndustryCluster,
+)
 from src.utils.config import RANKINGS_TOP_N
 
 OUT_FILE = Path(__file__).resolve().parents[1] / "docs" / "index.html"
@@ -1035,16 +1039,46 @@ def _industry_section_html(
             if is_sub_level and level != "hl_sub" else ""
         )
 
-        # 前哨 section(只在 highlight_subs 有提供時):從該 cluster 的 members
-        # 找 main=HIGHLIGHT_MAIN 的 sub,取 theme_dictionary 完整 ticker list
-        # 扣掉 focal 就是「該題材還在但今日沒進 top-50」的標的。
+        # 前哨 section:
+        # - hl_sub (2026-05-18 起):由 detect_focus_clusters 提供 cluster.sentinel
+        #   (題材內、universe 內、下跌的標的);chip 顯漲跌%
+        # - 其他 level + 有 highlight_subs 傳入(舊兼容路徑):從 theme_dictionary
+        #   完整 ticker list 扣 focal,顯 PE
         # toggle 按鈕直接 append 到 focal_pills 末段,panel 在下方獨立 block,
         # JS toggleSentinelInline 透過 data-target 找 panel 動畫展開/收合。
         sentinel_toggle = ""  # inline button(append to focal_pills)
         sentinel_panel = ""   # panel block(在 focal-stocks div 下方)
-        if highlight_subs:
+
+        new_sentinel = list(getattr(c, "sentinel", None) or [])
+        if level == "hl_sub" and new_sentinel:
+            # 新版:cluster.sentinel 已是 FocalStock list(題材內下跌標的)
+            # 重用 _stk_pill 顯漲跌(跟 focal pill 樣式統一),加 data 屬性區隔
+            snt_html = "".join(
+                _stk_pill(
+                    s.ticker, all_stocks,
+                    extra_attrs=f'data-cluster-ticker="{html_lib.escape(s.ticker)}" '
+                                f'data-tv="{int(s.trading_value)}" data-sentinel="1"',
+                )
+                for s in new_sentinel
+            )
+            panel_id = f"{card_id}-sntl"
+            sentinel_toggle = (
+                f'<button class="sntl-toggle-inline" type="button" '
+                f'data-target="{panel_id}" '
+                f'onclick="toggleSentinelInline(this)" '
+                f'title="展開 {len(new_sentinel)} 檔同題材下跌前哨">'
+                f'<span class="sntl-arrow">▾</span>'
+                f'<span class="sntl-count">前哨 {len(new_sentinel)}</span>'
+                f'</button>'
+            )
+            sentinel_panel = (
+                f'<div class="cluster-sentinel-stocks anim-panel" '
+                f'id="{panel_id}" hidden>{snt_html}</div>'
+            )
+        elif level != "hl_sub" and highlight_subs:
+            # 舊版(其他 level 兼容):從 theme_dictionary 全 ticker 扣 focal
             focal_tk_set = {s.ticker for s in c.focal}
-            sentinel_pool: dict[str, str] = {}  # ticker -> name(去重)
+            sentinel_pool: dict[str, str] = {}
             for m, s in (c.members or []):
                 if m != HIGHLIGHT_MAIN:
                     continue
@@ -1068,7 +1102,6 @@ def _industry_section_html(
                         f'{pe_html}'
                         f'</div>'
                     )
-                # 依 PE 降序排(貴的先),None 排尾
                 items = sorted(
                     sentinel_pool.items(),
                     key=lambda x: (
@@ -1078,7 +1111,6 @@ def _industry_section_html(
                 )
                 snt_html = "".join(_snt_pill(tk, nm) for tk, nm in items)
                 panel_id = f"{card_id}-sntl"
-                # inline toggle:append 到 focal_pills,跟焦點 chip 同行末段
                 sentinel_toggle = (
                     f'<button class="sntl-toggle-inline" type="button" '
                     f'data-target="{panel_id}" '
@@ -1088,7 +1120,6 @@ def _industry_section_html(
                     f'<span class="sntl-count">前哨 {len(items)}</span>'
                     f'</button>'
                 )
-                # panel block:預設 hidden,JS 切 max-height + opacity 動畫
                 sentinel_panel = (
                     f'<div class="cluster-sentinel-stocks anim-panel" '
                     f'id="{panel_id}" hidden>{snt_html}</div>'
@@ -1253,6 +1284,7 @@ def build_focus_html(
     stock_meta: dict | None = None,
     highlight_subs: dict[str, list[tuple[str, str]]] | None = None,
     ticker_net_inst: dict[str, dict[str, float]] | None = None,
+    focus_hl_clusters: list | None = None,
 ) -> tuple[str, dict]:
     """Build the 熱門題材 tab — 只渲染子產業 ranked list。
 
@@ -1304,17 +1336,26 @@ def build_focus_html(
         return '<p class="muted-note">今日尚無熱門產業</p>', {}
 
     # 拆兩半:main='近一年焦點' 走「近一年焦點」tab(顯前哨);其他走「泛分類」tab
+    # 2026-05-18 起:hl_clusters 改吃 detect_focus_clusters 輸出(種子驅動);
+    # pan_clusters 仍由 detect_industry_clusters 結果過濾(排除近一年焦點 main,
+    # 避免與新 hl 邏輯重複)。
     def _is_highlight_cluster(c) -> bool:
         if c.main == HIGHLIGHT_MAIN:
             return True
         return any(m == HIGHLIGHT_MAIN for m, _s in (c.members or []))
-    hl_clusters = [c for c in sub_clusters if _is_highlight_cluster(c)]
+    hl_clusters = list(focus_hl_clusters or [])
     pan_clusters = [c for c in sub_clusters if not _is_highlight_cluster(c)]
 
     # Modal data placeholders — analyst consensus filled downstream;兩 tab 共用
+    # 同時含 hl_clusters 與 pan_clusters 的 focal + sentinel (hl 的 sentinel
+    # 也可開 modal 看近一年趨勢)
     modal_data: dict[str, str] = {}
-    for ticker in {s.ticker for c in (sub_clusters or []) for s in c.focal}:
-        modal_data[ticker] = ""
+    _all_modal_src: list = list(hl_clusters) + list(pan_clusters)
+    for c in _all_modal_src:
+        for s in c.focal:
+            modal_data[s.ticker] = ""
+        for s in getattr(c, "sentinel", []) or []:
+            modal_data[s.ticker] = ""
 
     # 兩 tab 共用 cluster card 排行版型,level 拿來區分 IIA_CLUSTERS namespace
     # + sort chip data-level + container id;近一年焦點 tab 在 cluster card 內
@@ -1581,9 +1622,33 @@ async def generate():
                     continue  # 已在 top-50 不重複(flag 從 top-50 row 帶)
                 sr["rank"] = None  # 不在 top-50,rank 顯「—」
                 tw_ranks.append(sr)
-            print(f"  tw_ranks: {RANKINGS_TOP_N} top + {len(tw_ranks) - RANKINGS_TOP_N} special = {len(tw_ranks)}")
+            _n_special = len(tw_ranks) - RANKINGS_TOP_N
         except Exception as exc:
+            _n_special = 0
             print(f"  ⚠ special rows query failed (Q14 not deployed yet?): {exc}")
+
+        # Q15:volume_universe rows(成交值 ≥ 大盤/1000 但非 top-50 / 非 special,
+        # ingest bd85f1d 起寫入)。給「焦點」tab 新 cluster detection 用作
+        # 題材內成交大成分股的 universe;不顯示於 rankings table(rank=NULL,
+        # 在 ranking UI 出現為 chip — 同 special 處理路徑)。
+        try:
+            _existing_tickers = {r["ticker"] for r in tw_ranks}
+            vol_ranks = [dict(r) for r in await conn.fetch(
+                "SELECT ticker, name, trading_value, change_pct, close_price, "
+                "is_limit_up_30m, extra "
+                "FROM trading_rankings WHERE rank_date=$1 AND market='tw' "
+                "AND extra->>'is_volume_universe' = 'true' ORDER BY ticker",
+                tw_rank_date,
+            )]
+            for vr in vol_ranks:
+                if vr["ticker"] in _existing_tickers:
+                    continue
+                vr["rank"] = None
+                tw_ranks.append(vr)
+            _n_vol = len(tw_ranks) - RANKINGS_TOP_N - _n_special
+            print(f"  tw_ranks: {RANKINGS_TOP_N} top + {_n_special} special + {_n_vol} vol = {len(tw_ranks)}")
+        except Exception as exc:
+            print(f"  ⚠ volume_universe rows query failed (Q15 not deployed yet?): {exc}")
 
     # PRIVATE data removed in repo-split Phase 3.6: articles.content,
     # articles.refined_content, and podcast refined_content are not read
@@ -1623,6 +1688,9 @@ async def generate():
             "is_punish": bool(extra.get("is_punish")),
             "punish_type": extra.get("punish_type"),  # 'normal' | 'strict' | None
             "is_special": bool(extra.get("is_special")),  # 非 top-50 但因 punish/limit 加入
+            "is_volume_universe": bool(extra.get("is_volume_universe")),  # ingest bd85f1d 起
+            "is_hot_seed": bool(extra.get("is_hot_seed")),  # rank≤15 且上漲
+            "is_limit_hot_seed": bool(extra.get("is_limit_hot_seed")),  # rank≤50 且漲停
         }
     stocks_info = {k: v for k, v in stocks_info.items() if not _is_etf(k, v.get("name", ""))}
 
@@ -1631,6 +1699,14 @@ async def generate():
     # 兩份 ranked list。
     tw_top_volume = {t: info for t, info in stocks_info.items() if info.get("market") == "TW"}
     _main_clusters, sub_clusters = detect_industry_clusters(tw_top_volume)
+
+    # 焦點 cluster detection(2026-05-18 起):種子驅動 + 題材內族群性判定。
+    # 取代既有「detect_industry_clusters 跑出 main='近一年焦點' 的 cluster」當
+    # hl_sub 來源(舊邏輯只看 top-50 累加,漏掉題材內小成交但上漲的標的);
+    # 新邏輯吃 is_hot_seed / is_limit_hot_seed flag 反推題材,題材內 universe
+    # 上漲 → focal、下跌 → sentinel。pan_sub 維持原 detect_industry_clusters。
+    focus_hl_clusters = detect_focus_clusters(tw_top_volume)
+    print(f"  focus_hl_clusters: {len(focus_hl_clusters)} (種子驅動)")
     # main_clusters 仍計算(供未來/ ingest backport 用),但公開站 2026-05-16 起
     # 不在 UI 顯示;前哨觀察(watch)同步從卡片移除 → 不再需要查 watch change_pct
     # 也不再 yfinance 補 watch close,純粹靠 stocks_info(top-N from SQL)。
@@ -1640,7 +1716,17 @@ async def generate():
     # bias%,patch 回 stocks_info(_industry_section_html 從那邊讀)。
     # **重要**:必須帶 board 進去(TWSE→.TW、TPEX→.TWO),否則上櫃股
     # 拿不到資料。stocks_info 的 board 來自 trading_rankings.extra.board。
-    _focal_tw = list({s.ticker for c in sub_clusters for s in c.focal})
+    # _focal_tw 涵蓋:
+    #   - sub_clusters 的 focal(pan_sub + 舊 hl 路徑)
+    #   - focus_hl_clusters 的 focal + sentinel(2026-05-18 加,新 hl 路徑;
+    #     sentinel 也要 MA20/PE 給 pill 顯)
+    _focal_tw_set: set[str] = {s.ticker for c in sub_clusters for s in c.focal}
+    for c in focus_hl_clusters:
+        for s in c.focal:
+            _focal_tw_set.add(s.ticker)
+        for s in (c.sentinel or []):
+            _focal_tw_set.add(s.ticker)
+    _focal_tw = list(_focal_tw_set)
     _focal_board_map = {
         t: stocks_info.get(t, {}).get("board", "TWSE")
         for t in _focal_tw
@@ -1783,6 +1869,13 @@ async def generate():
         for s in c.focal
         if (c.main == HIGHLIGHT_MAIN or any(m == HIGHLIGHT_MAIN for m, _ in (c.members or [])))
     }
+    # 新 hl 路徑(focus_hl_clusters):focal + sentinel 都要列入,讓 chart modal
+    # 加權指數 + sparkline 拿得到歷史 net_inst / close。
+    for c in focus_hl_clusters:
+        for s in c.focal:
+            _hl_focal_tickers.add(s.ticker)
+        for s in (c.sentinel or []):
+            _hl_focal_tickers.add(s.ticker)
     if _hl_focal_tickers:
         _theme_dict = json.loads(_THEME_DICT_PATH.read_text(encoding="utf-8")) if _THEME_DICT_PATH.exists() else {}
         for tk in _hl_focal_tickers:
@@ -1929,6 +2022,7 @@ async def generate():
         market_index_payload, stock_meta,
         highlight_subs=highlight_subs,
         ticker_net_inst=ticker_net_inst,
+        focus_hl_clusters=focus_hl_clusters,
     )
     notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)
     ranking_html = build_focus_ranking_html(_focal_tw, stocks_info, stock_meta)

@@ -1,5 +1,9 @@
 """Industry clustering — 熱門題材.
 
+2026-05-18 加 `detect_focus_clusters`(種子驅動的「焦點 tab」cluster detection)。
+跟 `detect_industry_clusters`(TV 累加,普適)用途不同;hl_sub 走前者,pan_sub
+走後者。
+
 2026-05 改版:從「主題 keyword 字典(themes 陣列)」改為「statementdog
 階層產業字典(stocks 物件,ticker-centric)」。台股 only(美股題材路徑
 2026-05 移除,因為新 source 只覆蓋 TWSE/TPEX)。
@@ -31,6 +35,7 @@ from pathlib import Path
 
 DICT_FILE = Path(__file__).resolve().parents[2] / "data" / "theme_dictionary.json"
 MIN_VOLUME = 2  # minimum top-N members for a cluster to qualify (保留舊門檻)
+HIGHLIGHT_MAIN = "近一年焦點"  # 焦點 cluster detection 限定 main
 
 _ETF_TW_RE = re.compile(r"^00\d")
 
@@ -61,7 +66,7 @@ class WatchStock:
 @dataclass
 class IndustryCluster:
     cluster_id: str        # "main::PCB" or "sub::PCB|硬板..."
-    level: str             # "main" | "sub"
+    level: str             # "main" | "sub" | "hl_sub" | "pan_sub"
     name: str              # main name (level=main) or sub name (level=sub)
     main: str              # parent main industry (==name for level=main)
     focal: list[FocalStock]
@@ -72,6 +77,10 @@ class IndustryCluster:
     # - 合併後 sub cluster:多個 [(m1, s1), (m2, s2), ...] 對應每個成員
     # - main cluster:空 list(主產業層級不查 theme_history)
     members: list[tuple[str, str]] = field(default_factory=list)
+    # 前哨標的(2026-05-18 焦點 cluster 用):題材內 universe 內、下跌的標的。
+    # 只有 `detect_focus_clusters`(種子驅動)輸出會填這個欄。
+    # 既有 `detect_industry_clusters` 輸出 sentinel=[](所有 pan_sub cluster)。
+    sentinel: list[FocalStock] = field(default_factory=list)
 
 
 def _load_dict() -> dict:
@@ -256,6 +265,17 @@ def _merge_identical_focal(clusters: list[IndustryCluster]) -> list[IndustryClus
         merged_members: list[tuple[str, str]] = []
         for m in members:
             merged_members.extend(m.members)
+        # sentinel 合併:union 各 member 的 sentinel(focal set 同表示題材重複,
+        # 但 sentinel 是「題材內下跌標的」可能各 sub 不同),依 ticker 去重保留
+        # 第一次出現順序
+        seen_snt: set[str] = set()
+        merged_sentinel: list[FocalStock] = []
+        for m in members:
+            for s in m.sentinel:
+                if s.ticker in seen_snt:
+                    continue
+                seen_snt.add(s.ticker)
+                merged_sentinel.append(s)
         merged.append(IndustryCluster(
             cluster_id=f"merged::{joined_id}",
             level=first.level,
@@ -265,5 +285,125 @@ def _merge_identical_focal(clusters: list[IndustryCluster]) -> list[IndustryClus
             watch=[],  # 合併後 watch 不再有意義(可能各 sub 不同),且公開頁面已不顯示
             trading_value=first.trading_value,
             members=merged_members,
+            sentinel=merged_sentinel,
         ))
     return merged
+
+
+# ── 焦點 cluster detection(2026-05-18 加,種子驅動) ──────────────────────────
+#
+# 跟 detect_industry_clusters(普適 TV 累加)不同:此函式只處理 main='近一年焦點',
+# 從 ingest 端 pre-compute 的 hot_seed flag(成交值前 15 上漲 或 前 50 漲停)
+# 反推所屬 sub,題材內 universe(top-50 ∪ special ∪ volume_universe)有上漲標的
+# 即族群成立,上漲入 focal、下跌入 sentinel。
+#
+# Universe filter「成交金額 ≥ 大盤總TV / 1000」由 ingest 端 store_tw_rankings
+# 寫入時就 filter 好(is_volume_universe 只標符合的);stockgg 端讀 trading_rankings
+# 取 row 即自然符合,不用再算動態門檻。
+#
+# 對應 ingest commit: bd85f1d
+
+
+def detect_focus_clusters(
+    tw_universe: dict[str, dict],
+) -> list[IndustryCluster]:
+    """從 hot-seed flag 反推「近一年焦點」sub clusters。
+
+    Args:
+        tw_universe: ticker -> {name, change_pct, trading_value, rank,
+                                limit_up, is_hot_seed, is_limit_hot_seed,
+                                is_volume_universe, is_special}
+                     必須涵蓋 top-50 ∪ special ∪ volume_universe(stockgg 端
+                     從 Q6 ∪ Q14 ∪ Q15 合併;ETF 已 filter)。
+
+    Returns:
+        list[IndustryCluster] (level='hl_sub')。dedup 過(同 focal set 合併),
+        按 trading_value desc 排序。空列表代表今天沒有任何符合的 seed。
+    """
+    data = _load_dict()
+    all_stocks = data.get("stocks", {})
+    if not all_stocks:
+        return []
+
+    seeds = {
+        t for t, info in tw_universe.items()
+        if (info.get("is_hot_seed") or info.get("is_limit_hot_seed"))
+        and not _is_etf(t, info.get("name", ""))
+    }
+    if not seeds:
+        return []
+
+    # 1) seeds → 候選 sub(只看 main='近一年焦點' 的 entries)
+    candidate_subs: set[str] = set()
+    for seed in seeds:
+        info = all_stocks.get(seed)
+        if not info:
+            continue
+        for entry in info.get("industries", []):
+            if entry.get("disabled"):
+                continue
+            if (entry.get("main") or "").strip() != HIGHLIGHT_MAIN:
+                continue
+            for sub in entry.get("subs", []) or []:
+                sub = (sub or "").strip()
+                if sub:
+                    candidate_subs.add(sub)
+
+    if not candidate_subs:
+        return []
+
+    # 2) 對每候選 sub,從 theme_dictionary 取題材內全 ticker;與 tw_universe 取交集
+    #    上漲 → focal,下跌 → sentinel。族群性條件:至少 1 檔上漲。
+    clusters: list[IndustryCluster] = []
+    for sub in candidate_subs:
+        members: list[str] = []
+        for ticker, info in all_stocks.items():
+            if _is_etf(ticker, info.get("name", "")):
+                continue
+            for entry in info.get("industries", []):
+                if entry.get("disabled"):
+                    continue
+                if (entry.get("main") or "").strip() != HIGHLIGHT_MAIN:
+                    continue
+                if sub in (entry.get("subs", []) or []):
+                    members.append(ticker)
+                    break  # 單檔在同 (main, sub) 只算一次
+
+        focal_stocks: list[FocalStock] = []
+        sentinel_stocks: list[FocalStock] = []
+        for tk in members:
+            row = tw_universe.get(tk)
+            if not row:
+                continue
+            chg = row.get("change_pct")
+            if chg is None:
+                continue  # 缺漲跌資料 ignore(極少見;avoid mis-bucket)
+            stk = _focal_from(tk, row)
+            if chg > 0:
+                focal_stocks.append(stk)
+            elif chg < 0:
+                sentinel_stocks.append(stk)
+            # chg == 0 平盤:不入 focal 也不入 sentinel(語意上「題材內無動向」)
+
+        if not focal_stocks:
+            continue  # 族群性不成立
+
+        focal_stocks.sort(key=lambda s: -s.trading_value)
+        sentinel_stocks.sort(key=lambda s: -s.trading_value)
+        total_tv = sum(s.trading_value for s in focal_stocks)
+
+        clusters.append(IndustryCluster(
+            cluster_id=f"hl::{sub}",
+            level="hl_sub",
+            name=sub,
+            main=HIGHLIGHT_MAIN,
+            focal=focal_stocks,
+            watch=[],
+            trading_value=total_tv,
+            members=[(HIGHLIGHT_MAIN, sub)],
+            sentinel=sentinel_stocks,
+        ))
+
+    clusters.sort(key=lambda c: -c.trading_value)
+    clusters = _dedup_by_name(clusters)
+    return _merge_identical_focal(clusters)

@@ -86,6 +86,12 @@ const ALLOWED: Set<string> = new Set([
   // Q6 只回 LIMIT 50 by TV 漏掉它們,Q14 補抓讓 cluster detection 抓得到
   // 被動元件 同題材的 3026 / 2492 等(沒進 top-50 但仍進 cluster)。
   "select ticker, name, trading_value, change_pct, close_price, is_limit_up_30m, extra from trading_rankings where rank_date=$1 and market='tw' and extra->>'is_special' = 'true' order by ticker",
+
+  // Q15 — volume_universe rows (ingest bd85f1d 起):不在 top-50 / 非 special,
+  // 但成交值 ≥ 大盤總TV / HOT_TV_DIVISOR(預設 1000) 的 ticker,rank=NULL,
+  // extra.is_volume_universe='true'。給「焦點」tab 新 cluster detection 用
+  // (種子驅動 → 反推題材 → 題材內成交大成分股做族群性判定)。
+  "select ticker, name, trading_value, change_pct, close_price, is_limit_up_30m, extra from trading_rankings where rank_date=$1 and market='tw' and extra->>'is_volume_universe' = 'true' order by ticker",
 ])
 
 function normalize(q: string): string {
