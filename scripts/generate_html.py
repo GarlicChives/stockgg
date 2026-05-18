@@ -1094,29 +1094,13 @@ def _industry_section_html(
                     f'id="{panel_id}" hidden>{snt_html}</div>'
                 )
 
-        # Cluster name:
-        # - 長度 > 30 字 → 預設 collapsed(顯前 30 字 + …),點按鈕展開全名
-        # - 30 字內、有 " & " → 沿用 cn-merged(mobile media query 收合)
-        # - 30 字內、純單 sub → 純文字
-        CLUSTER_NAME_TRUNCATE = 30
-        if len(c.name) > CLUSTER_NAME_TRUNCATE:
-            # 切點優先找最近的 " & " 邊界(避免切在 sub 名中間)
-            cut = CLUSTER_NAME_TRUNCATE
-            sep_idx = c.name.rfind(" & ", 0, CLUSTER_NAME_TRUNCATE + 6)
-            if sep_idx > 8:  # 至少留 8 字才用 & 邊界
-                cut = sep_idx
-            short = c.name[:cut]
-            name_html = (
-                f'<span class="cluster-name cn-collapsible" data-collapsed="1">'
-                f'{icon} '
-                f'<span class="cn-short-text">{html_lib.escape(short)}…</span>'
-                f'<span class="cn-full-text">{html_lib.escape(c.name)}</span>'
-                f'<button class="cn-toggle-btn" type="button" '
-                f'onclick="toggleClusterNameCollapsed(this)" '
-                f'title="展開完整題材名稱">展開</button>'
-                f'</span>'
-            )
-        elif " & " in c.name:
+        # Cluster name:用 CSS 寬度判斷自動 ellipsis(改自之前 30 字硬閾值)。
+        # 標題永遠完整 render,cluster-hdr 是 nowrap → 標題用 flex-grow + overflow
+        # ellipsis 自動吃可用空間,當其他 chip / sparkline 擠不下就把標題截尾段。
+        # 點標題切 .expanded → 解掉 nowrap 允許多行展開(配 cursor:pointer 暗示)。
+        # cn-merged(focal 完全相同的合併 cluster)仍保留 +▾ button mobile 收合機制。
+        title_attr = f' title="{html_lib.escape(c.name)}(點擊展開全名)"'
+        if " & " in c.name:
             parts = c.name.split(" & ")
             parts_html_pieces = []
             for i, p in enumerate(parts):
@@ -1126,14 +1110,19 @@ def _industry_section_html(
                     f'<span class="cn-part">{html_lib.escape(p)}</span>'
                 )
             name_html = (
-                f'<span class="cluster-name cn-merged" data-parts="{len(parts)}">'
+                f'<span class="cluster-name cn-merged" data-parts="{len(parts)}"'
+                f' onclick="toggleNameExpand(this)"{title_attr}>'
                 f'{icon} {"".join(parts_html_pieces)}'
                 f'<button class="cn-toggle" type="button" '
-                f'onclick="toggleClusterName(this)">+ ▾</button>'
+                f'onclick="event.stopPropagation();toggleClusterName(this)">+ ▾</button>'
                 f'</span>'
             )
         else:
-            name_html = f'<span class="cluster-name">{icon} {html_lib.escape(c.name)}</span>'
+            name_html = (
+                f'<span class="cluster-name"'
+                f' onclick="toggleNameExpand(this)"{title_attr}>'
+                f'{icon} {html_lib.escape(c.name)}</span>'
+            )
 
         cards.append(f"""
 <div class="cluster-card" id="{card_id}">
@@ -2403,22 +2392,24 @@ tr:last-child td{{border-bottom:none}}
 .focus-clusters{{display:flex;flex-direction:column;gap:.85rem;margin-bottom:1.5rem}}
 .cluster-card{{background:#12151f;border-radius:10px;padding:1rem 1.1rem;
                border-left:3px solid var(--accent);will-change:transform}}
-.cluster-hdr{{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;margin-bottom:.7rem}}
-.cluster-name{{font-size:.95rem;font-weight:700}}
+/* cluster-hdr: nowrap 強制單行,標題用 flex-grow + ellipsis 自動吃可用空間,
+ * 不會把 sparkline / meta 擠到下一行(寬度判斷由瀏覽器 layout 處理,
+ * 不再用 30 字硬閾值)。標題太長被截 ellipsis 時 hover 顯 title attr 全名,
+ * 點擊切 .expanded 解掉 nowrap 允許多行顯示。 */
+.cluster-hdr{{display:flex;align-items:center;gap:.55rem;flex-wrap:nowrap;
+              margin-bottom:.7rem;min-width:0}}
+.cluster-name{{font-size:.95rem;font-weight:700;
+                flex:1 1 auto;min-width:5rem;
+                overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+                cursor:pointer;transition:white-space .2s}}
+.cluster-name.expanded{{white-space:normal;overflow:visible}}
+.cluster-metric,.cluster-meta,.spark-btn,.metric-explainer{{flex-shrink:0}}
 
-/* Merged cluster name (focal 完全相同的子產業聚合) — mobile/tablet 收合 */
-/* cluster name 過長(>30 字)收合機制:預設顯短版 + …,點按鈕展開全名。
- * 用 data-collapsed attribute 控制顯隱(不用 hidden 屬性 — 之前撞 CSS
- * `display:inline` override 導致兩 span 同時顯,標題重複) */
-.cn-collapsible{{display:inline-flex;align-items:baseline;gap:.3rem;flex-wrap:wrap}}
-.cn-collapsible[data-collapsed="1"] .cn-full-text{{display:none}}
-.cn-collapsible[data-collapsed="0"] .cn-short-text{{display:none}}
-.cn-toggle-btn{{font-size:.65rem;font-weight:600;padding:.1rem .45rem;
-                border:1px solid var(--border);border-radius:4px;
-                background:rgba(124,138,242,.08);color:var(--accent);
-                cursor:pointer;font-family:inherit;line-height:1.3;letter-spacing:.02em}}
-.cn-toggle-btn:hover{{background:rgba(124,138,242,.18);border-color:rgba(124,138,242,.5)}}
-.cn-merged{{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:.1rem .25rem}}
+/* Merged cluster name (focal 完全相同的子產業聚合) — mobile/tablet 收合。
+ * flex-wrap:nowrap 讓 cn-merged 內部不要自己 wrap,搭配 .cluster-name 的
+ * ellipsis truncate 邏輯,讓長 merged name 也走「自動截尾 + 點擊展開」。 */
+.cn-merged{{display:inline-flex;flex-wrap:nowrap;align-items:baseline;gap:.1rem .25rem}}
+.cn-merged > *{{flex-shrink:0}}
 .cn-part{{display:inline}}
 .cn-sep{{display:inline;color:var(--muted);font-weight:500}}
 .cn-toggle{{display:none;font-size:.7rem;font-weight:700;
@@ -3068,16 +3059,13 @@ function toggleClusterName(btn) {{
   _refreshClusterToggle(el);
 }}
 
-/* 30 字以上 cluster name 收合/展開:CSS 走 data-collapsed attribute
- * 控制兩個 span 顯隱(不用 hidden 屬性,因 .cn-collapsible 容器 CSS 設了
- * display:inline-flex 會覆蓋掉子 span 的 hidden),JS 只負責 toggle data 跟
- * 按鈕文字。 */
-function toggleClusterNameCollapsed(btn) {{
-  const el = btn.closest('.cn-collapsible');
-  if (!el) return;
-  const wasCollapsed = el.dataset.collapsed === '1';
-  el.dataset.collapsed = wasCollapsed ? '0' : '1';
-  btn.textContent = wasCollapsed ? '收合' : '展開';
+/* cluster-name 點擊展開/收合:用 CSS .expanded 切 white-space:nowrap → normal
+ * 取代之前的 30 字硬閾值。寬度由瀏覽器 layout 自動判斷(cluster-hdr nowrap
+ * + cluster-name flex:1 + ellipsis),空間不夠就 ellipsis 自動截尾,
+ * 不會把 sparkline 擠到下一行;hover 顯 title attr 全名,點擊解 nowrap
+ * 多行展開。 */
+function toggleNameExpand(el) {{
+  el.classList.toggle('expanded');
 }}
 
 function _initMergedNames() {{
