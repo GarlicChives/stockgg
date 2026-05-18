@@ -1585,6 +1585,7 @@ async def generate():
         "SELECT MAX(rank_date) FROM trading_rankings WHERE market='TW'"
     )
     us_ranks, tw_ranks = [], []
+    focus_seed_tickers: list[str] = []  # Q16, v2 detect_focus_clusters 用
     if us_rank_date:
         us_ranks = [dict(r) for r in await conn.fetch(
             f"""SELECT ROW_NUMBER() OVER (ORDER BY trading_value DESC NULLS LAST)::int AS rank,
@@ -1627,28 +1628,43 @@ async def generate():
             _n_special = 0
             print(f"  ⚠ special rows query failed (Q14 not deployed yet?): {exc}")
 
-        # Q15:volume_universe rows(成交值 ≥ 大盤/1000 但非 top-50 / 非 special,
-        # ingest bd85f1d 起寫入)。給「焦點」tab 新 cluster detection 用作
-        # 題材內成交大成分股的 universe;不顯示於 rankings table(rank=NULL,
-        # 在 ranking UI 出現為 chip — 同 special 處理路徑)。
+        # Q15 v2(ingest 8f27ede / 2026-05-19 起):focus_member rows
+        # (ticker 屬「近一年焦點」題材字典任一 sub 且 today 有交易,涵蓋
+        # top-N ∪ special ∪ focus_extra 三 bucket 的並集)。給「焦點」tab
+        # 新 detection v2 用 — sub 字典成員 today 有交易者切 focal / sentinel。
+        # 廢 v1 is_volume_universe(commit bd85f1d → 8f27ede 撤,extra 不再寫)。
         try:
             _existing_tickers = {r["ticker"] for r in tw_ranks}
-            vol_ranks = [dict(r) for r in await conn.fetch(
+            focus_member_ranks = [dict(r) for r in await conn.fetch(
                 "SELECT ticker, name, trading_value, change_pct, close_price, "
                 "is_limit_up_30m, extra "
                 "FROM trading_rankings WHERE rank_date=$1 AND market='tw' "
-                "AND extra->>'is_volume_universe' = 'true' ORDER BY ticker",
+                "AND extra->>'is_focus_member' = 'true' ORDER BY ticker",
                 tw_rank_date,
             )]
-            for vr in vol_ranks:
-                if vr["ticker"] in _existing_tickers:
+            for fr in focus_member_ranks:
+                if fr["ticker"] in _existing_tickers:
                     continue
-                vr["rank"] = None
-                tw_ranks.append(vr)
-            _n_vol = len(tw_ranks) - RANKINGS_TOP_N - _n_special
-            print(f"  tw_ranks: {RANKINGS_TOP_N} top + {_n_special} special + {_n_vol} vol = {len(tw_ranks)}")
+                fr["rank"] = None  # focus_extra bucket 沒有 rank
+                tw_ranks.append(fr)
+            _n_focus = len(tw_ranks) - RANKINGS_TOP_N - _n_special
+            print(f"  tw_ranks: {RANKINGS_TOP_N} top + {_n_special} special + {_n_focus} focus_member = {len(tw_ranks)}")
         except Exception as exc:
-            print(f"  ⚠ volume_universe rows query failed (Q15 not deployed yet?): {exc}")
+            print(f"  ⚠ focus_member rows query failed (Q15 v2 not deployed?): {exc}")
+
+        # Q16 v2:focus_seed ticker list(rank ≤ 300 AND chg > 4.5%, ingest
+        # 預計算)。給 detect_focus_clusters v2 反查題材字典累計 sub 種子計數。
+        # 只需 ticker(其他資訊走 Q6 / Q15 抓)。
+        try:
+            focus_seed_rows = await conn.fetch(
+                "SELECT ticker FROM trading_rankings WHERE rank_date=$1 "
+                "AND market='tw' AND extra->>'is_focus_seed' = 'true' ORDER BY ticker",
+                tw_rank_date,
+            )
+            focus_seed_tickers = [r["ticker"] for r in focus_seed_rows]
+            print(f"  focus_seed_tickers: {len(focus_seed_tickers)}")
+        except Exception as exc:
+            print(f"  ⚠ focus_seed query failed (Q16 not deployed?): {exc}")
 
     # PRIVATE data removed in repo-split Phase 3.6: articles.content,
     # articles.refined_content, and podcast refined_content are not read
@@ -1688,9 +1704,7 @@ async def generate():
             "is_punish": bool(extra.get("is_punish")),
             "punish_type": extra.get("punish_type"),  # 'normal' | 'strict' | None
             "is_special": bool(extra.get("is_special")),  # 非 top-50 但因 punish/limit 加入
-            "is_volume_universe": bool(extra.get("is_volume_universe")),  # ingest bd85f1d 起
-            "is_hot_seed": bool(extra.get("is_hot_seed")),  # rank≤15 且上漲
-            "is_limit_hot_seed": bool(extra.get("is_limit_hot_seed")),  # rank≤50 且漲停
+            "is_focus_member": bool(extra.get("is_focus_member")),  # ingest 8f27ede 起,題材字典成員
         }
     stocks_info = {k: v for k, v in stocks_info.items() if not _is_etf(k, v.get("name", ""))}
 
@@ -1700,13 +1714,16 @@ async def generate():
     tw_top_volume = {t: info for t, info in stocks_info.items() if info.get("market") == "TW"}
     _main_clusters, sub_clusters = detect_industry_clusters(tw_top_volume)
 
-    # 焦點 cluster detection(2026-05-18 起):種子驅動 + 題材內族群性判定。
-    # 取代既有「detect_industry_clusters 跑出 main='近一年焦點' 的 cluster」當
-    # hl_sub 來源(舊邏輯只看 top-50 累加,漏掉題材內小成交但上漲的標的);
-    # 新邏輯吃 is_hot_seed / is_limit_hot_seed flag 反推題材,題材內 universe
-    # 上漲 → focal、下跌 → sentinel。pan_sub 維持原 detect_industry_clusters。
-    focus_hl_clusters = detect_focus_clusters(tw_top_volume)
-    print(f"  focus_hl_clusters: {len(focus_hl_clusters)} (種子驅動)")
+    # 焦點 cluster detection v2(2026-05-19 起,對應 ingest 8f27ede):
+    # seeds = is_focus_seed (rank≤300 + chg>4.5%, ingest 預計算 Q16)
+    # focus_members = is_focus_member rows (Q15) ∩ stocks_info (filter ETF)
+    # 算法:同 sub 種子數 ≥ 2 才算熱門;sub 字典成員 today 有交易者
+    #   chg > -3 入 focal、chg < -3 入 sentinel。pan_sub 維持原 detect_industry_clusters。
+    focus_members_info = {
+        t: info for t, info in tw_top_volume.items() if info.get("is_focus_member")
+    }
+    focus_hl_clusters = detect_focus_clusters(focus_seed_tickers, focus_members_info)
+    print(f"  focus_hl_clusters: {len(focus_hl_clusters)} (v2: seeds={len(focus_seed_tickers)}, members={len(focus_members_info)})")
     # main_clusters 仍計算(供未來/ ingest backport 用),但公開站 2026-05-16 起
     # 不在 UI 顯示;前哨觀察(watch)同步從卡片移除 → 不再需要查 watch change_pct
     # 也不再 yfinance 補 watch close,純粹靠 stocks_info(top-N from SQL)。

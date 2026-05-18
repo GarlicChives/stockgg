@@ -1,6 +1,13 @@
 """Industry clustering — 熱門題材.
 
-2026-05-18 加 `detect_focus_clusters`(種子驅動的「焦點 tab」cluster detection)。
+2026-05-19 v2:`detect_focus_clusters` 重寫
+  - 種子 = is_focus_seed (rank≤300 AND chg>4.5%, ingest 預計算 flag)
+  - 族群性 = 同 sub 種子數 ≥ 2 才算熱門題材
+  - focal = sub 字典成員 today 有交易 AND chg > -3
+  - sentinel = sub 字典成員 today 有交易 AND chg < -3
+  廢 v1 機制(hot_seed / limit_hot_seed / volume_universe / 上漲≥1)。
+  對應 ingest commit: 8f27ede
+
 跟 `detect_industry_clusters`(TV 累加,普適)用途不同;hl_sub 走前者,pan_sub
 走後者。
 
@@ -36,6 +43,8 @@ from pathlib import Path
 DICT_FILE = Path(__file__).resolve().parents[2] / "data" / "theme_dictionary.json"
 MIN_VOLUME = 2  # minimum top-N members for a cluster to qualify (保留舊門檻)
 HIGHLIGHT_MAIN = "近一年焦點"  # 焦點 cluster detection 限定 main
+FOCUS_MIN_SEEDS = 2  # v2:同 sub 種子數 ≥ FOCUS_MIN_SEEDS 才算熱門題材
+FOCUS_SENTINEL_THRESHOLD = -3.0  # v2:chg > threshold → focal、chg < threshold → sentinel
 
 _ETF_TW_RE = re.compile(r"^00\d")
 
@@ -290,55 +299,53 @@ def _merge_identical_focal(clusters: list[IndustryCluster]) -> list[IndustryClus
     return merged
 
 
-# ── 焦點 cluster detection(2026-05-18 加,種子驅動) ──────────────────────────
+# ── 焦點 cluster detection(2026-05-19 v2,種子計數驅動) ──────────────────────
 #
-# 跟 detect_industry_clusters(普適 TV 累加)不同:此函式只處理 main='近一年焦點',
-# 從 ingest 端 pre-compute 的 hot_seed flag(成交值前 15 上漲 或 前 50 漲停)
-# 反推所屬 sub,題材內 universe(top-50 ∪ special ∪ volume_universe)有上漲標的
-# 即族群成立,上漲入 focal、下跌入 sentinel。
+# v2 規格(對應 ingest commit 8f27ede):
+#   step 1: seeds = ingest 預計算 is_focus_seed (rank ≤ 300 AND chg > 4.5%)
+#   step 2: 對每 seed 從題材字典反查 main='近一年焦點' 下所屬 sub list
+#   step 3: 累計 sub 種子計數,≥ FOCUS_MIN_SEEDS (2) 才算熱門題材
+#   step 4: 對每熱門 sub,撈字典內全成員(任 ticker 在 main='近一年焦點' 且
+#           sub match 的)today 有交易(focus_members 內)→
+#           chg > FOCUS_SENTINEL_THRESHOLD (-3) 入 focal,< 入 sentinel
 #
-# Universe filter「成交金額 ≥ 大盤總TV / 1000」由 ingest 端 store_tw_rankings
-# 寫入時就 filter 好(is_volume_universe 只標符合的);stockgg 端讀 trading_rankings
-# 取 row 即自然符合,不用再算動態門檻。
-#
-# 對應 ingest commit: bd85f1d
+# v1 機制(2026-05-18 commit bd85f1d, 次日撤)廢:hot_seed / limit_hot_seed /
+# volume_universe / 上漲≥1 族群條件 / >0 切分 — 全部移除。
 
 
 def detect_focus_clusters(
-    tw_universe: dict[str, dict],
+    seeds: list[str] | set[str],
+    focus_members: dict[str, dict],
 ) -> list[IndustryCluster]:
-    """從 hot-seed flag 反推「近一年焦點」sub clusters。
+    """v2:從 is_focus_seed 反查題材,sub 種子計數 ≥ 2 → 熱門題材。
 
     Args:
-        tw_universe: ticker -> {name, change_pct, trading_value, rank,
-                                limit_up, is_hot_seed, is_limit_hot_seed,
-                                is_volume_universe, is_special}
-                     必須涵蓋 top-50 ∪ special ∪ volume_universe(stockgg 端
-                     從 Q6 ∪ Q14 ∪ Q15 合併;ETF 已 filter)。
+        seeds: 今日 is_focus_seed='true' 的 ticker(來自 Q16);順序無關。
+        focus_members: ticker -> {name, change_pct, trading_value, rank,
+                                  limit_up, is_special, ...} — 今日所有
+                      is_focus_member='true' 的 row(來自 Q15)。stockgg
+                      generate_html.py 已合進 stocks_info 並濾掉 ETF。
 
     Returns:
-        list[IndustryCluster] (level='hl_sub')。dedup 過(同 focal set 合併),
-        按 trading_value desc 排序。空列表代表今天沒有任何符合的 seed。
+        list[IndustryCluster] (level='hl_sub')。dedup + merge 過,按
+        focal trading_value sum desc 排序。空列表代表今天沒符合的種子。
     """
     data = _load_dict()
     all_stocks = data.get("stocks", {})
     if not all_stocks:
         return []
 
-    seeds = {
-        t for t, info in tw_universe.items()
-        if (info.get("is_hot_seed") or info.get("is_limit_hot_seed"))
-        and not _is_etf(t, info.get("name", ""))
-    }
-    if not seeds:
+    seed_set = {t for t in seeds if not _is_etf(t, (all_stocks.get(t) or {}).get("name", ""))}
+    if not seed_set:
         return []
 
-    # 1) seeds → 候選 sub(只看 main='近一年焦點' 的 entries)
-    candidate_subs: set[str] = set()
-    for seed in seeds:
+    # 1) seeds → 累計 sub 種子計數(只看 main='近一年焦點' 的 entries)
+    sub_seed_count: dict[str, int] = defaultdict(int)
+    for seed in seed_set:
         info = all_stocks.get(seed)
         if not info:
             continue
+        seen_in_seed: set[str] = set()  # 同 seed 同 sub 只計 1 次(字典若有重複 entry)
         for entry in info.get("industries", []):
             if entry.get("disabled"):
                 continue
@@ -346,16 +353,17 @@ def detect_focus_clusters(
                 continue
             for sub in entry.get("subs", []) or []:
                 sub = (sub or "").strip()
-                if sub:
-                    candidate_subs.add(sub)
+                if sub and sub not in seen_in_seed:
+                    sub_seed_count[sub] += 1
+                    seen_in_seed.add(sub)
 
-    if not candidate_subs:
+    hot_subs = [s for s, c in sub_seed_count.items() if c >= FOCUS_MIN_SEEDS]
+    if not hot_subs:
         return []
 
-    # 2) 對每候選 sub,從 theme_dictionary 取題材內全 ticker;與 tw_universe 取交集
-    #    上漲 → focal,下跌 → sentinel。族群性條件:至少 1 檔上漲。
+    # 2) 對每熱門 sub:字典成員 ∩ focus_members → focal (chg > -3) / sentinel (chg < -3)
     clusters: list[IndustryCluster] = []
-    for sub in candidate_subs:
+    for sub in hot_subs:
         members: list[str] = []
         for ticker, info in all_stocks.items():
             if _is_etf(ticker, info.get("name", "")):
@@ -372,21 +380,21 @@ def detect_focus_clusters(
         focal_stocks: list[FocalStock] = []
         sentinel_stocks: list[FocalStock] = []
         for tk in members:
-            row = tw_universe.get(tk)
+            row = focus_members.get(tk)
             if not row:
-                continue
+                continue  # 今日無交易(不在 focus_members)
             chg = row.get("change_pct")
             if chg is None:
-                continue  # 缺漲跌資料 ignore(極少見;avoid mis-bucket)
+                continue
             stk = _focal_from(tk, row)
-            if chg > 0:
+            if chg > FOCUS_SENTINEL_THRESHOLD:
                 focal_stocks.append(stk)
-            elif chg < 0:
+            else:
                 sentinel_stocks.append(stk)
-            # chg == 0 平盤:不入 focal 也不入 sentinel(語意上「題材內無動向」)
 
         if not focal_stocks:
-            continue  # 族群性不成立
+            # 理論不會發生(種子必 chg>4.5%>-3,且必在 focus_members),保險判斷
+            continue
 
         focal_stocks.sort(key=lambda s: -s.trading_value)
         sentinel_stocks.sort(key=lambda s: -s.trading_value)

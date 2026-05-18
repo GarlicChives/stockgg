@@ -87,11 +87,22 @@ const ALLOWED: Set<string> = new Set([
   // 被動元件 同題材的 3026 / 2492 等(沒進 top-50 但仍進 cluster)。
   "select ticker, name, trading_value, change_pct, close_price, is_limit_up_30m, extra from trading_rankings where rank_date=$1 and market='tw' and extra->>'is_special' = 'true' order by ticker",
 
-  // Q15 — volume_universe rows (ingest bd85f1d 起):不在 top-50 / 非 special,
-  // 但成交值 ≥ 大盤總TV / HOT_TV_DIVISOR(預設 1000) 的 ticker,rank=NULL,
-  // extra.is_volume_universe='true'。給「焦點」tab 新 cluster detection 用
-  // (種子驅動 → 反推題材 → 題材內成交大成分股做族群性判定)。
-  "select ticker, name, trading_value, change_pct, close_price, is_limit_up_30m, extra from trading_rankings where rank_date=$1 and market='tw' and extra->>'is_volume_universe' = 'true' order by ticker",
+  // Q15 — focus_member rows (ingest 8f27ede / v2 規格 2026-05-19 起):
+  // ticker 屬「近一年焦點」main 任一 sub。涵蓋三個 bucket 的並集:
+  //   - top-N (rank 1..300, rank IS NOT NULL)
+  //   - special (rank=NULL, is_special=true)
+  //   - focus_extra (rank=NULL,題材成員今日有交易但不在 top-N / special)
+  // ingest 寫入時對 focus 字典內 ticker 都標 is_focus_member=true。
+  // 公開站「焦點」tab 用這個 query 拿題材成員 today 交易資料,分 focal
+  // (chg > -3%) / sentinel (chg < -3%) 顯示。
+  // 廢:v1 is_volume_universe(2026-05-18 commit bd85f1d, 隔天 8f27ede 撤)。
+  "select ticker, name, trading_value, change_pct, close_price, is_limit_up_30m, extra from trading_rankings where rank_date=$1 and market='tw' and extra->>'is_focus_member' = 'true' order by ticker",
+
+  // Q16 — focus_seed ticker list (ingest 8f27ede / v2 規格 2026-05-19 起):
+  // rank ≤ 300 AND change_pct > 4.5% 預計算種子。供「焦點」tab detection
+  // step 1 反查題材字典,累計 sub 種子計數 ≥ 2 才算熱門題材。只需 ticker
+  // (其他欄位走 Q15 拿)。注意:seed 不一定是 focus_member(條件不同)。
+  "select ticker from trading_rankings where rank_date=$1 and market='tw' and extra->>'is_focus_seed' = 'true' order by ticker",
 ])
 
 function normalize(q: string): string {
