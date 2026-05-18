@@ -1014,22 +1014,13 @@ def _industry_section_html(
                         f'<span class="spark-label">{len(spark_values)}d</span>'
                         f'</button>'
                     )
-            # hl_sub fallback:focal ticker 在 theme_history.focal_breakdown
-            # 缺席(沒進過任何 top-50 → 反向索引拿不到 net_inst)時,sparkline
-            # 自然空。但 chart modal 仍可走 ticker_close (Q13) 畫焦點股加權
-            # 指數,所以 render 一個純 chart 入口按鈕保留入口。
-            # 對應 ingest v2 規格副作用(2026-05-19):focus_member 可能含
-            # rank > 50 從未進 top-50 的 ticker,純 chart 入口才能開 modal。
-            if not spark_html and level == "hl_sub" and any(
-                s.ticker for s in c.focal
-            ):
-                spark_html = (
-                    f'<button class="spark-btn spark-btn-icon" type="button" '
-                    f"onclick=\"openThemeChart('{card_id}')\" "
-                    f'title="點擊看焦點股近一年加權指數">'
-                    f'📈'
-                    f'</button>'
-                )
+            # NOTE: 不對 spark_html 空時補 fallback chart icon —
+            # net_inst 缺資料是 ingest 端應補的 root cause(對「純近一年焦點」
+            # ticker:從未進 top-50 → theme_history.focal_breakdown 永遠缺席
+            # → 反向索引 ticker_net_inst 拿不到)。stockgg 端維持單一 sparkline
+            # path,缺就缺(該 cluster 暫無 chart 入口),強迫 ingest 補資料
+            # 才會恢復。歷史踩雷:2026-05-19 曾加 📈 icon fallback 被 user 否決,
+            # 因為「icon 與其他 cluster 不一致」+「掩蓋上游 bug」。
         # focal pills 預設依該股當日漲跌 desc 排(對齊 cluster header 預設 active 的 漲跌 badge);
         # None 排尾段。JS setFocalSort 點擊後會 re-order DOM。
         def _focal_chg_key(s):
