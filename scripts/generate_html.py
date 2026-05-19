@@ -1880,9 +1880,10 @@ async def generate():
     try:
         catalyst_events = [dict(r) for r in await conn.fetch(
             """SELECT id, event_date, event_type, ticker, market, title, importance,
-                      preview_text
+                      preview_text, visible
                FROM catalyst_events
-               WHERE event_date >= CURRENT_DATE - INTERVAL '14 days'
+               WHERE visible = TRUE
+                 AND event_date >= CURRENT_DATE - INTERVAL '14 days'
                  AND event_date <= CURRENT_DATE + INTERVAL '21 days'
                ORDER BY event_date, importance DESC, ticker"""
         )]

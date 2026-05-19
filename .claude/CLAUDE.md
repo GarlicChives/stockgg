@@ -30,7 +30,7 @@ Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
 - `src/utils/db.py` — async DB client(用 `SUPABASE_ANON_KEY` + `db-proxy-public`)
 - `data/theme_dictionary.json` — statementdog 主產業 / 子產業階層字典(2026-05 改 schema:ticker-centric `stocks` 物件,純台股;由 ingest 端 `scrape_statementdog_industries.py` 產生再 sync 到本 repo)。**main='近一年焦點'** 是 ingest 端人工編彙的長線觀察題材(62 sub / 230 ticker;sub 名稱「前綴·後綴」可用 「·」 split 群組),公開站「熱門題材」頁有獨立 sub-tab「🌟 焦點」,跟「📊 泛分類」(原 statementdog 47 main) 並陳
 - `supabase/functions/db-proxy-public/index.ts` — Edge Function 含 SQL allowlist(目前 **17 條**):
-  - Q1-Q9 日報基本資料、Q10 market_notes
+  - Q1-Q8 日報基本資料、**Q9 v2** catalyst_events ±14/21d + `visible = TRUE` filter(ingest `4d5e7cc` 起;遠期 events visible=false 不出,daily cron 隨日期 flip true)、Q10 market_notes
   - Q11 theme_history 180→**400 days** retention
   - Q12 stock_meta(公司基本面快照)
   - Q13 ticker_close_history 400 天讀取(讓近一年焦點 cluster chart modal 能畫加權指數,因 theme_history 沒此 main 的 row)

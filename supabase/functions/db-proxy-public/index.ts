@@ -55,8 +55,11 @@ const ALLOWED: Set<string> = new Set([
   // Q8 — name + change% + market for market_notes tickers not in top-30
   "select distinct on (ticker) ticker, name, change_pct, close_price, market from trading_rankings where ticker = any($1::text[]) order by ticker, rank_date desc",
 
-  // Q9 — catalyst events window: past 14 days through next 21 days
-  "select id, event_date, event_type, ticker, market, title, importance, preview_text from catalyst_events where event_date >= current_date - interval '14 days' and event_date <= current_date + interval '21 days' order by event_date, importance desc, ticker",
+  // Q9 — catalyst events window: past 14 days through next 21 days,
+  // 加 visible filter (ingest commit 4d5e7cc 起):遠期 events 在
+  // visibility 範圍外時 visible=false 不出公開站,日期接近時 daily cron
+  // 自動 flip true。SELECT 也含 visible 以保持兩端 SELECT 列一致。
+  "select id, event_date, event_type, ticker, market, title, importance, preview_text, visible from catalyst_events where visible = true and event_date >= current_date - interval '14 days' and event_date <= current_date + interval '21 days' order by event_date, importance desc, ticker",
 
   // Q10 — most recent market_notes_json (decoupled from Q1: raw_response and
   // market_notes_json live in the same row but are written ~10h apart, so the
