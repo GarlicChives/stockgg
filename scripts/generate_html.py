@@ -910,8 +910,8 @@ def _industry_section_html(
             '<div class="sort-explainer-row">'
             '<div class="sort-row">'
             '<span class="sort-label">排序：</span>'
-            f'<button class="sort-chip active" data-sort="tv"    data-level="{level}" data-dir="desc" type="button" onclick="setClusterSort(\'tv\',\'{level}\')">成交金額</button>'
-            f'<button class="sort-chip"        data-sort="chg"   data-level="{level}" type="button" onclick="setClusterSort(\'chg\',\'{level}\')">平均漲跌</button>'
+            f'<button class="sort-chip"        data-sort="tv"    data-level="{level}" type="button" onclick="setClusterSort(\'tv\',\'{level}\')">成交金額</button>'
+            f'<button class="sort-chip active" data-sort="chg"   data-level="{level}" data-dir="desc" type="button" onclick="setClusterSort(\'chg\',\'{level}\')">平均漲跌</button>'
             f'<button class="sort-chip"        data-sort="bias"  data-level="{level}" type="button" onclick="setClusterSort(\'bias\',\'{level}\')">平均乖離</button>'
             f'<button class="sort-chip"        data-sort="pe"    data-level="{level}" type="button" onclick="setClusterSort(\'pe\',\'{level}\')">平均 PE</button>'
             '</div>'
@@ -949,10 +949,13 @@ def _industry_section_html(
         pct_str, cls = fmt_pct(value)
         return f'<span {common.format(cls=cls)}>{label} {pct_str}</span>'
 
-    # 預設依「成交金額」desc 排序(cluster.trading_value):跟 JS
-    # _getSortKey 預設 'tv' 一致,首次 _recalcClusters 不會觸發 FLIP
-    # 動畫(dy≈0)→ 無視覺跳動。
-    clusters = sorted(clusters, key=lambda c: -(c.trading_value or 0))
+    # 2026-05-19 起預設依「平均漲跌」desc 排序(改前是 tv desc):跟 JS
+    # _getSortKey 預設 'chg' 一致,首次 _recalcClusters 不觸發 FLIP 動畫
+    # (dy≈0)→ 無視覺跳動。None 排尾段(用 -inf 讓 desc 把 None 推後)。
+    def _cluster_avg_chg(c):
+        chgs = [s.change_pct for s in c.focal if s.change_pct is not None]
+        return sum(chgs) / len(chgs) if chgs else float("-inf")
+    clusters = sorted(clusters, key=lambda c: -_cluster_avg_chg(c))
 
     # sub-level 判斷:hl_sub / pan_sub 都視同 sub(顯 sparkline / subtitle 等),
     # 提到 for-loop 外避免每 iter 重算 + 解決前向使用 UnboundLocalError
@@ -984,13 +987,16 @@ def _industry_section_html(
             val_str = "—" if value is None else fmt.format(value)
             return f'<span {common}>{label} {val_str}</span>'
 
-        # 順序:漲跌 / 乖離 / PE(2026-05-18 起殖利/β 全站移除)
+        # 順序:漲跌 / 乖離 / PE / 成交(2026-05-19 起把「N 檔焦點·694億」拿掉,
+        # 成交額改為 sortable badge,跟漲跌/乖離/PE 同層)
         # 點 badge → setFocalSort(card_id, key):只動該題材內 focal pill 順序
         card_id = f"cc-{level}-{idx}"
+        _tv_billion = (c.trading_value or 0) / 1e8
         metric_html = (
             _metric_badge("漲跌", avg_chg, "點擊依此題材內個股漲跌幅排序", "chg", card_id, is_default_sort=True)
             + _metric_badge("乖離", avg_ma20, "點擊依此題材內個股 20MA 乖離率排序", "bias", card_id)
             + _plain_badge("PE", avg_pe, "點擊依此題材內個股 PE (TTM)排序", "pe", card_id, "{:.1f}")
+            + _plain_badge("成交", _tv_billion, "點擊依此題材內個股成交金額排序", "tv", card_id, "{:.0f}億")
         )
 
         member_keys = [f"{m}||{s}" for m, s in (c.members or [])]
@@ -1064,8 +1070,10 @@ def _industry_section_html(
             for s in focal_sorted
         )
 
-        tv_str = f"{c.trading_value/1e8:.0f}億" if c.trading_value > 0 else ""
-        meta_text = f"{n_focal} 檔焦點" + (f" · {tv_str}" if tv_str else "")
+        # cluster-meta 文字 2026-05-19 起拿掉(「N 檔焦點 · 694億」多餘 —
+        # focal 數一目了然、TV 已變成 metric badge)。span 保留為 spacer 給
+        # cluster-hdr flex 的 margin-left:auto hook 把 spark-btn 推到最右。
+        meta_text = ""
 
         icon = "🔷" if level == "main" else "🔸"
         # 近一年焦點 sub-tab 內所有 cluster 的 main 都是「近一年焦點」,顯
@@ -2919,21 +2927,8 @@ footer .disclaimer{{max-width:760px;margin:0 auto .8rem;text-align:left}}
 footer .disclaimer h3{{color:#a0b0cc;font-size:.78rem;font-weight:600;
                        margin:0 0 .35rem;letter-spacing:.04em}}
 footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--border)}}
-.share-row{{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;
-            gap:.4rem;max-width:760px;margin:0 auto 1rem;padding-bottom:.8rem;
-            border-bottom:1px dashed var(--border)}}
-.share-label{{color:var(--muted);font-size:.72rem;margin-right:.25rem}}
-.share-btn{{font-family:inherit;font-size:.72rem;font-weight:600;
-            padding:.32rem .7rem;border-radius:6px;cursor:pointer;
-            background:rgba(255,255,255,.04);color:var(--text);
-            border:1px solid var(--border);transition:.15s}}
-.share-btn:hover{{background:rgba(124,138,242,.12);
-                   border-color:rgba(124,138,242,.4);color:var(--accent)}}
-@media(max-width:480px){{
-  .share-row{{gap:.3rem}}
-  .share-btn{{padding:.28rem .55rem;font-size:.68rem}}
-  .share-label{{flex-basis:100%;text-align:center;margin:0 0 .35rem}}
-}}
+/* 2026-05-19 share-row / share-btn / share-label / shareReport JS 全移除
+   — 公開站不再提供分享按鈕,user 自行用瀏覽器分享。 */
 </style>
 </head>
 <body>
@@ -3071,14 +3066,6 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
 </dialog>
 
 <footer>
-  <div class="share-row">
-    <span class="share-label">分享今日報告：</span>
-    <button class="share-btn share-native" type="button" onclick="shareReport('native')" hidden>原生分享</button>
-    <button class="share-btn" type="button" onclick="shareReport('line')">Line</button>
-    <button class="share-btn" type="button" onclick="shareReport('x')">X</button>
-    <button class="share-btn" type="button" onclick="shareReport('fb')">Facebook</button>
-    <button class="share-btn" type="button" onclick="shareReport('copy')">複製連結</button>
-  </div>
   <div class="disclaimer">
     <h3>⚠ 投資免責聲明</h3>
     <p>本網站內容由自動化系統匯整公開市場資料、研究文章與 AI 分析模型產出，
@@ -3269,7 +3256,7 @@ const _univDis = new Set();
  * 兩 tab 各管自己的 state,sort chip 用 data-level 鎖定該 tab。 */
 const _clusterSort = {{}};      // level -> 'chg' / 'bias' / ...
 const _clusterSortDir = {{}};   // level -> 'desc' / 'asc'
-function _getSortKey(level)  {{ return _clusterSort[level] || 'tv'; }}
+function _getSortKey(level)  {{ return _clusterSort[level] || 'chg'; }}
 function _getSortDir(level)  {{ return _clusterSortDir[level] || 'desc'; }}
 /* 只刷該 level 的 sort-chip(只影響該 sub-tab),不會誤動別 tab */
 function _refreshSortUi(level) {{
@@ -3460,14 +3447,10 @@ function _recalcClusters(level) {{
     if (!el) return;
     if (!s.visible) {{ el.style.display = 'none'; return; }}
     el.style.display = '';
-    const meta = el.querySelector('.cluster-meta');
-    if (meta) {{
-      const valStr = fmt.val(s);
-      const showLabel = _sortKey !== 'tv';
-      meta.innerHTML = s.activeFocal.length + ' 檔焦點 · '
-        + (showLabel ? '<span class="meta-label">' + fmt.label + '</span> ' : '')
-        + '<span class="meta-val ' + fmt.cls(s) + '">' + valStr + '</span>';
-    }}
+    // 2026-05-19 起 cluster-meta 文字 (「N 檔焦點 · X」) 移除 — focal 數一目了然,
+    // metric 已變 sortable badges(漲跌 / 乖離 / PE / 成交)。.cluster-meta
+    // span 仍存在僅作 cluster-hdr flex spacer(margin-left:auto)hook 把
+    // spark-btn 推到最右。
   }});
 
   // 4. 依 per-level _clusterSort 重排 DOM(None 排到最後,不受方向影響)
@@ -4022,54 +4005,8 @@ document.getElementById('art-modal').addEventListener('click', function(e) {{
 /* ── 分享報告 ─────────────────────────────────────────────────────────────── */
 /* 桌機 → 對應社群 share URL 開新視窗;手機(支援 navigator.share)→ 原生 sheet。
  * 標題 + 描述從 <meta> 取,免再 hard-code。 */
-function shareReport(target) {{
-  const url = (document.querySelector('link[rel="canonical"]')?.href) || location.href;
-  const title = (document.querySelector('meta[property="og:title"]')?.content) || document.title;
-  const desc = (document.querySelector('meta[name="description"]')?.content) || '';
-  const text = title + ' — ' + desc;
-  const u = encodeURIComponent(url);
-  const t = encodeURIComponent(text);
-  if (target === 'native' && navigator.share) {{
-    navigator.share({{ title, text: desc, url }}).catch(() => {{}});
-    return;
-  }}
-  if (target === 'copy') {{
-    if (navigator.clipboard) {{
-      navigator.clipboard.writeText(url).then(() => _shareToast('已複製連結 ✓'),
-                                              () => _shareToast('複製失敗,請手動複製'));
-    }} else {{
-      _shareToast(url);
-    }}
-    return;
-  }}
-  const links = {{
-    line: 'https://social-plugins.line.me/lineit/share?url=' + u,
-    x:    'https://twitter.com/intent/tweet?url=' + u + '&text=' + t,
-    fb:   'https://www.facebook.com/sharer/sharer.php?u=' + u,
-  }};
-  if (links[target]) window.open(links[target], '_blank', 'noopener,width=600,height=540');
-}}
-
-function _shareToast(msg) {{
-  let el = document.getElementById('share-toast');
-  if (!el) {{
-    el = document.createElement('div');
-    el.id = 'share-toast';
-    el.style.cssText = 'position:fixed;left:50%;bottom:1.5rem;transform:translateX(-50%);' +
-      'background:rgba(15,17,23,.95);border:1px solid var(--accent);color:var(--text);' +
-      'padding:.6rem 1.1rem;border-radius:8px;font-size:.78rem;font-weight:600;' +
-      'z-index:9999;box-shadow:0 4px 18px rgba(0,0,0,.6);transition:opacity .25s';
-    document.body.appendChild(el);
-  }}
-  el.textContent = msg;
-  el.style.opacity = '1';
-  setTimeout(() => {{ el.style.opacity = '0'; }}, 1800);
-}}
-
-// mobile: 顯示原生分享按鈕(opt-in 給支援 navigator.share 的環境)
-if (navigator.share) {{
-  document.querySelector('.share-native')?.removeAttribute('hidden');
-}}
+// 2026-05-19 分享按鈕(shareReport / _shareToast / navigator.share opt-in)
+// 全移除,公開站頁尾不再有分享區塊。
 
 /* ── 站內搜尋 ─────────────────────────────────────────────────────────────── */
 /* 從 IIA_CLUSTERS 全部 sub-tab(hl_sub / pan_sub / sub legacy)建反向索引
