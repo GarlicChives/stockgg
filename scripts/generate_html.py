@@ -2072,6 +2072,12 @@ async def generate():
     # 焦點股 line vs 大盤 vs 櫃買(都 rebase to 100,看相對強弱)。
     market_index_payload = await asyncio.to_thread(_yf_market_index_history, "6mo")
 
+    # 「市場行情」ranking table 只顯前 N (RANKINGS_TOP_N=50),過濾 Q14 special
+    # 與 Q15 focus_member 的 rank=NULL row(它們是 cluster detection universe,
+    # 不該出現在 ranking 表)。cluster detection / stocks_info path 仍走完整
+    # tw_ranks(含 special + focus_member)。
+    _tw_rank_table_rows = [r for r in tw_ranks if r.get("rank") is not None][:RANKINGS_TOP_N]
+
     focus_html, modal_data = build_focus_html(
         tw_ranks, sub_clusters, stocks_info, theme_history_payload,
         market_index_payload, stock_meta,
@@ -2980,7 +2986,7 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
           <thead><tr><th>#</th><th>代號</th><th>名稱</th>
             <th style="text-align:right">股價(漲跌%)</th>
             <th style="text-align:right">成交值</th></tr></thead>
-          <tbody>{rank_rows_html(tw_ranks, 'TW')}</tbody>
+          <tbody>{rank_rows_html(_tw_rank_table_rows, 'TW')}</tbody>
         </table>
       </div>
     </div>
