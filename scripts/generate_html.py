@@ -2911,8 +2911,8 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
   <button class="brand" onclick="showTab('focus');window.scrollTo(0,0);" title="回首頁">IIA 投資情報</button>
   <nav class="tabs">
     <button class="tab-btn active" data-tab="focus"   onclick="showTab('focus')">熱門題材</button>
-    <button class="tab-btn"        data-tab="notes"   onclick="showTab('notes')">股市筆記</button>
-    <button class="tab-btn"        data-tab="market"  onclick="showTab('market')">市場行情</button>
+    <button class="tab-btn"        data-tab="notes"   onclick="showTab('notes')">市場話題</button>
+    <button class="tab-btn"        data-tab="market"  onclick="showTab('market')">國際金融</button>
   </nav>
   <div class="search-box">
     <input type="search" id="site-search" placeholder="搜尋 ticker / 公司"
@@ -2925,7 +2925,7 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
 </header>
 
 <div class="wrap">
-  <!-- Tab 1: 市場行情 -->
+  <!-- Tab 1: 國際金融(原「市場行情」) -->
   <div id="tab-market" class="tab-pane">
     <div class="card">
       <div class="sec">每日分析報告（{report_date}）</div>
@@ -2964,7 +2964,7 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
 
   <!-- 焦點排行 tab 2026-05-19 移除 -->
 
-  <!-- Tab 4: 股市筆記 -->
+  <!-- Tab 4: 市場話題(原「股市筆記」) -->
   <div id="tab-notes" class="tab-pane">
     {notes_html}
   </div>
