@@ -1345,7 +1345,14 @@ def _aetf_action_chip(action: str | None) -> str:
     return f'<span class="aetf-chip {cls}">{label}</span>'
 
 
-def _aetf_lots_chg_html(lots_chg: float | int | None) -> str:
+def _aetf_lots_chg_html(lots_chg: float | int | None, has_baseline: bool = True) -> str:
+    """渲染張數變化:
+    - has_baseline=False(該 ETF DB 只有 1 day holdings) → 顯「—」灰字
+    - lots_chg=0 / None 且 has baseline → 顯空字串
+    - +N / -N 紅綠
+    """
+    if not has_baseline:
+        return '<span class="aetf-chg-na">—</span>'
     if not lots_chg:
         return ""
     if lots_chg > 0:
@@ -1385,7 +1392,11 @@ def _aetf_render_modal_body(etf_rows: list, stock_meta_entry: dict | None) -> st
         return (lots * 1000.0) / shares_out * 100
 
     body_rows = []
+    all_no_baseline = True
     for r in etf_rows:
+        row_baseline = bool(r.get("has_baseline"))
+        if row_baseline:
+            all_no_baseline = False
         etf_label = r.get("short_name") or r["etf_code"]
         issuer = r.get("issuer") or ""
         lots = int(r.get("lots") or 0)
@@ -1393,8 +1404,8 @@ def _aetf_render_modal_body(etf_rows: list, stock_meta_entry: dict | None) -> st
         pct = _pct_for_row(r)
         pct_str = f"{pct:.3f}%" if pct is not None else "—"
         mv_str = f"{mv/1e8:.2f} 億" if mv else "—"
-        chg_html = _aetf_lots_chg_html(r.get("lots_chg"))
-        chip = _aetf_action_chip(r.get("action"))
+        chg_html = _aetf_lots_chg_html(r.get("lots_chg"), has_baseline=row_baseline)
+        chip = _aetf_action_chip(r.get("action")) if row_baseline else ""
         body_rows.append(
             "<tr>"
             f'<td class="aetf-etf-cell"><span class="aetf-etf-code">{html_lib.escape(str(etf_label))}</span>'
@@ -1405,9 +1416,17 @@ def _aetf_render_modal_body(etf_rows: list, stock_meta_entry: dict | None) -> st
             "</tr>"
         )
 
+    # 若全部 row 都沒 baseline,modal 頂部加警示
+    baseline_warn = (
+        '<p class="aetf-no-baseline-note">⚠ 各 ETF 目前只有 1 天 holdings,'
+        '無前一交易日 baseline 可比較動作。等下次 cron 跑後才會顯示。</p>'
+        if all_no_baseline else ""
+    )
+
     return (
         '<div class="aetf-section">'
         '<h3 class="aetf-modal-hdr">持股主動式 ETF</h3>'
+        + baseline_warn +
         '<div class="aetf-stats">'
         f'<div><span class="muted">總檔數</span> <b>{total_count}</b> 檔</div>'
         f'<div><span class="muted">總持股市值</span> <b>{total_mv/1e8:.2f}</b> 億</div>'
@@ -1458,6 +1477,8 @@ def build_active_etf_page(etf_list: list, holdings_by_etf: dict[str, list]) -> s
             for k in ("lots", "prev_lots", "lots_chg", "weight_pct", "market_value_ntd"):
                 if k in h:
                     h[k] = _aetf_f(h[k])
+        # has_baseline:Q19 v2 每 row 同值,任取 first;空 holdings 視為無 baseline
+        etf_has_baseline = bool(holdings and holdings[0].get("has_baseline"))
         # Today 仍持有(lots > 0);其他 action=exit 走異動 row
         today_holds = [h for h in holdings if (h.get("lots") or 0) > 0]
         today_holds.sort(key=lambda h: -(h.get("weight_pct") or 0))
@@ -1507,23 +1528,31 @@ def build_active_etf_page(etf_list: list, holdings_by_etf: dict[str, list]) -> s
                 '</div>'
             )
 
-        chg_inner = (
-            _chg_row("🔼 加碼", adds, "add")
-            + _chg_row("🔽 減碼", reduces, "reduce")
-            + _chg_row("🆕 新增", news, "new")
-            + _chg_row("🚪 清倉", exits, "exit")
-        )
-        chg_html = (
-            f'<div class="aetf-changes">{chg_inner}</div>'
-            if chg_inner else '<p class="muted-note">今日無持股異動</p>'
-        )
+        if etf_has_baseline:
+            chg_inner = (
+                _chg_row("🔼 加碼", adds, "add")
+                + _chg_row("🔽 減碼", reduces, "reduce")
+                + _chg_row("🆕 新增", news, "new")
+                + _chg_row("🚪 清倉", exits, "exit")
+            )
+            chg_html = (
+                f'<div class="aetf-changes">{chg_inner}</div>'
+                if chg_inner else '<p class="muted-note">最近一個交易日無持股異動</p>'
+            )
+        else:
+            # 無 baseline:DB 內該 ETF 只有 1 day holdings(首次 cron 寫入),
+            # 沒前一天可比較動作 → 4 異動分區跳過 + tab 頂部警示。
+            chg_html = (
+                '<p class="aetf-no-baseline-note">⚠ 該 ETF 只有 1 天持股 snapshot,'
+                '無前一交易日 baseline 可比較動作。等下次 cron 跑後才會顯示加碼/減碼/新增/清倉。</p>'
+            )
 
-        # 全持股 table
+        # 全持股 table — 無 baseline 時 chip 不渲、lots_chg 跳過
         hold_rows = []
         for h in today_holds:
             tk = h.get("ticker") or ""
             nm = (h.get("name") or "")[:12]
-            chip = _aetf_action_chip(h.get("action"))
+            chip = _aetf_action_chip(h.get("action")) if etf_has_baseline else ""
             lots = int(h.get("lots") or 0)
             weight = float(h.get("weight_pct") or 0)
             # 外層 attribute 用 ' 包,內層 json.dumps 用 " 避免雙引號嵌套
@@ -2320,13 +2349,19 @@ async def generate():
                 rows = await conn.fetch(
                     "WITH last_two AS (SELECT DISTINCT holding_date FROM active_etf_holdings "
                     "WHERE etf_code = $1 ORDER BY holding_date DESC LIMIT 2), "
+                    "has_baseline AS (SELECT COUNT(*) >= 2 AS yes FROM last_two), "
                     "latest AS (SELECT MAX(holding_date) AS d FROM last_two), "
-                    "prev AS (SELECT MIN(holding_date) AS d FROM last_two) "
+                    "prev AS (SELECT MIN(holding_date) AS d FROM last_two "
+                    "WHERE holding_date < (SELECT d FROM latest)) "
                     "SELECT COALESCE(t.ticker, y.ticker) AS ticker, "
                     "COALESCE(t.name, y.name) AS name, t.lots, t.weight_pct, "
                     "t.market_value_ntd, t.market, t.is_cash, y.lots AS prev_lots, "
-                    "COALESCE(t.lots, 0) - COALESCE(y.lots, 0) AS lots_chg, "
-                    "CASE WHEN t.lots IS NULL OR t.lots = 0 THEN 'exit' "
+                    "CASE WHEN (SELECT yes FROM has_baseline) "
+                    "THEN COALESCE(t.lots, 0) - COALESCE(y.lots, 0) "
+                    "ELSE NULL END AS lots_chg, "
+                    "(SELECT yes FROM has_baseline) AS has_baseline, "
+                    "CASE WHEN NOT (SELECT yes FROM has_baseline) THEN NULL "
+                    "WHEN t.lots IS NULL OR t.lots = 0 THEN 'exit' "
                     "WHEN y.lots IS NULL OR y.lots = 0 THEN 'new' "
                     "WHEN t.lots > y.lots THEN 'add' "
                     "WHEN t.lots < y.lots THEN 'reduce' "
@@ -3210,6 +3245,12 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
 .aetf-cp-nm{{opacity:.85}}
 .aetf-chg-up{{color:#b91c1c;font-weight:700;font-size:.7rem;margin-left:.2rem}}
 .aetf-chg-down{{color:#047857;font-weight:700;font-size:.7rem;margin-left:.2rem}}
+.aetf-chg-na{{color:var(--muted);font-size:.7rem;margin-left:.2rem}}
+/* baseline 警示(該 ETF DB 只有 1 day holdings,無前日 baseline 比較) */
+.aetf-no-baseline-note{{background:rgba(245,158,11,.08);
+                          border:1px solid rgba(245,158,11,.3);border-radius:6px;
+                          padding:.55rem .8rem;margin:.4rem 0 .8rem;
+                          font-size:.78rem;color:#d97706;line-height:1.5}}
 
 .aetf-table{{width:100%;border-collapse:collapse;
               background:#12151f;border:1px solid var(--border);
