@@ -1466,9 +1466,8 @@ def build_active_etf_page(etf_list: list, holdings_by_etf: dict[str, list]) -> s
         label = etf.get("short_name") or code
         aum_b = float(etf.get("aum_ntd") or 0) / 1e8
         selected = " selected" if i == 0 else ""
-        opt_text = f"{label} · AUM {aum_b:.0f} 億"
         nav_opts.append(
-            f'<option value="{code}"{selected}>{html_lib.escape(opt_text)}</option>'
+            f'<option value="{code}"{selected}>{html_lib.escape(str(label))}</option>'
         )
 
         holdings = holdings_by_etf.get(code, [])
