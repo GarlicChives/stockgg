@@ -844,6 +844,7 @@ def _industry_section_html(
     highlight_subs: dict[str, list[tuple[str, str]]] | None = None,
     stock_meta: dict | None = None,
     ticker_net_inst: dict[str, dict[str, float]] | None = None,
+    topics_by_ticker: dict[str, str] | None = None,
 ) -> str:
     """Render industry cluster cards. level = "main" | "sub" | "hl_sub" | "pan_sub"。
     前哨觀察(watch)已從顯示移除(2026-05-16),只保留今日焦點。
@@ -881,14 +882,13 @@ def _industry_section_html(
     # sort chip row(sub level only):換維度看 cluster 排序。預設 TV desc。
     sort_html = ""
     if level in ("sub", "hl_sub", "pan_sub"):
-        # 指標說明 panel(預設收合,點 ⓘ 展開)。文案要跟 _yf_ma20_bias_batch
-        # / 770~787 的 simple-mean 邏輯對齊;改公式必須同步改這段。
-        # 指標說明:summary 固定位置,展開時 panel 以 absolute 浮層動畫滑下;
-        # 動畫由 anim-details JS 處理(攔截 summary click,max-height transition)
+        # 指標說明 tooltip(2026-05-19 從 details 改 hover tooltip)。
+        # 文案要跟 _yf_ma20_bias_batch / 770~787 的 simple-mean 邏輯對齊;
+        # 改公式必須同步改這段。
         explainer_html = (
-            '<details class="metric-explainer anim-details">'
-            '<summary>ⓘ 指標計算說明</summary>'
-            '<div class="anim-panel metric-panel">'
+            '<span class="metric-tooltip" tabindex="0">'
+            '<span class="mt-trigger">ⓘ 指標計算說明</span>'
+            '<span class="mt-body">'
             '<ul>'
             '<li><b>漲跌</b>：cluster 焦點股「當日收盤漲跌%」的<b>簡單算術平均</b>'
             '(skip 缺值)。例：3 檔焦點 +2% / -1% / +5% → 平均 +2.00%。</li>'
@@ -901,8 +901,8 @@ def _industry_section_html(
             '<p class="metric-note">⚠ 三項皆為<b>簡單算術平均</b>(每檔等權重),'
             '與點開 chart modal 內的「焦點股加權指數」(用市值 × shares 加權) <b>不同</b>。'
             '小型股對 cluster header 的影響與大型股相同。</p>'
-            '</div>'
-            '</details>'
+            '</span>'
+            '</span>'
         )
         # data-level 讓 _refreshSortUi / setClusterSort 知道這個 chip 屬於哪個 sub-tab,
         # state per level(_clusterSort[level] / _clusterSortDir[level]),兩 tab 各管自己。
@@ -960,6 +960,8 @@ def _industry_section_html(
     # sub-level 判斷:hl_sub / pan_sub 都視同 sub(顯 sparkline / subtitle 等),
     # 提到 for-loop 外避免每 iter 重算 + 解決前向使用 UnboundLocalError
     is_sub_level = level in ("sub", "hl_sub", "pan_sub")
+    _topics_by_ticker = topics_by_ticker or {}
+    cluster_topic_payload: dict[str, str] = {}  # card_id -> rendered topic_card HTML(s)
     cards = []
     cluster_json: list[dict] = []
     for idx, c in enumerate(clusters):
@@ -1199,10 +1201,26 @@ def _industry_section_html(
                 f'{icon} {html_lib.escape(c.name)}</span>'
             )
 
+        # Cluster info ⓘ button:該 cluster 成交額最高 focal(c.focal 已 sort
+        # by trading_value desc on line ~1054 sort_by_chg 之前)反查 topics_by_ticker。
+        # 若有 match → render ⓘ button(onclick → showClusterTopicModal)+
+        # 把 topic HTML 加進 cluster_topic_payload[card_id]。沒 match → 不渲。
+        info_btn_html = ""
+        if c.focal:
+            _primary_tk = max(c.focal, key=lambda s: s.trading_value).ticker
+            _topics_html = _topics_by_ticker.get(_primary_tk)
+            if _topics_html:
+                cluster_topic_payload[card_id] = _topics_html
+                info_btn_html = (
+                    f'<button class="cluster-info-btn" type="button" '
+                    f"onclick=\"showClusterTopicModal('{card_id}')\" "
+                    f'title="點擊查看此題材關聯議題">ⓘ</button>'
+                )
+
         cards.append(f"""
 <div class="cluster-card" id="{card_id}">
   <div class="cluster-hdr">
-    {name_html}
+    {name_html}{info_btn_html}
     {metric_html}
     <span class="cluster-meta">{meta_text}</span>
     {spark_html}
@@ -1213,6 +1231,10 @@ def _industry_section_html(
 </div>""")
 
     cluster_json_str = json.dumps(cluster_json, ensure_ascii=False, separators=(",", ":"))
+    # cluster topic payload — keyed by card_id,跨 sub-tab merge 進
+    # window.IIA_CLUSTER_TOPICS(每個 _industry_section_html call 共用此 obj,
+    # Object.assign 累積)
+    topics_json_str = json.dumps(cluster_topic_payload, ensure_ascii=False, separators=(",", ":"))
     return (
         sort_html
         + univ_html
@@ -1220,7 +1242,9 @@ def _industry_section_html(
         + "".join(cards)
         + "</div>"
         + f"<script>if(!window.IIA_CLUSTERS)window.IIA_CLUSTERS={{}};"
-          f"window.IIA_CLUSTERS.{level}={cluster_json_str};</script>"
+          f"window.IIA_CLUSTERS.{level}={cluster_json_str};"
+          f"if(!window.IIA_CLUSTER_TOPICS)window.IIA_CLUSTER_TOPICS={{}};"
+          f"Object.assign(window.IIA_CLUSTER_TOPICS,{topics_json_str});</script>"
     )
 
 
@@ -1311,6 +1335,7 @@ def build_focus_html(
     highlight_subs: dict[str, list[tuple[str, str]]] | None = None,
     ticker_net_inst: dict[str, dict[str, float]] | None = None,
     focus_hl_clusters: list | None = None,
+    market_notes: dict | None = None,
 ) -> tuple[str, dict]:
     """Build the 熱門題材 tab — 只渲染子產業 ranked list。
 
@@ -1383,6 +1408,23 @@ def build_focus_html(
         for s in getattr(c, "sentinel", []) or []:
             modal_data[s.ticker] = ""
 
+    # Cluster info modal(ⓘ button)資料源:以「該 cluster 成交額最高 focal
+    # ticker」反查 market_notes.topics 內 tickers 包含該 ticker 的 topic,
+    # 收集 _render_topic_card HTML。同 ticker 可能對應多 topic 也都列出。
+    # 對應 cluster.focal[0] (focal 已 sort by trading_value desc on _industry_section_html 內)。
+    # 此處先以 ticker 為 key 預先 cache,_industry_section_html 內再 keyed by card_id。
+    topics_by_ticker: dict[str, str] = {}
+    if market_notes and market_notes.get("topics"):
+        from collections import defaultdict
+        _tk_topics = defaultdict(list)
+        for topic in market_notes["topics"]:
+            for tk in topic.get("tickers", []) or []:
+                _tk_topics[tk].append(topic)
+        topics_by_ticker = {
+            tk: ''.join(_render_topic_card(t, stocks_info) for t in topics)
+            for tk, topics in _tk_topics.items()
+        }
+
     # 兩 tab 共用 cluster card 排行版型,level 拿來區分 IIA_CLUSTERS namespace
     # + sort chip data-level + container id;近一年焦點 tab 在 cluster card 內
     # 多渲一個前哨 section(同題材但今日沒進 top-50 的標的)
@@ -1390,9 +1432,11 @@ def build_focus_html(
         hl_clusters, all_stocks, "hl_sub", theme_history_payload,
         highlight_subs=highlight_subs, stock_meta=stock_meta,
         ticker_net_inst=ticker_net_inst,
+        topics_by_ticker=topics_by_ticker,
     ) if hl_clusters else '<p class="muted-note">今日「近一年焦點」題材無焦點股入榜</p>'
     pan_html = _industry_section_html(
         pan_clusters, all_stocks, "pan_sub", theme_history_payload,
+        topics_by_ticker=topics_by_ticker,
     ) if pan_clusters else '<p class="muted-note">今日無泛分類熱門題材</p>'
 
     # sub-tabs:🌟 近一年焦點 / 📊 泛分類(同 cluster card 排行版型)
@@ -1409,124 +1453,43 @@ def build_focus_html(
     return nav_html + panes_html, modal_data
 
 
-# ── 焦點排行 tab (Sprint 3) ───────────────────────────────────────────────────
-
-def build_focus_ranking_html(
-    focal_tickers: list[str],
-    all_stocks: dict,
-    stock_meta: dict,
-    top_n: int = 15,
-) -> str:
-    """焦點排行 tab:對「目前所有 displayed cluster 的 union focal 股」
-    按殖利率 desc 與 PE asc 各排一張 Top N table。row 點開 modal。
-
-    濾除規則:
-    - 高殖利率:dividend_yield is not None AND > 0
-    - 估值偏低:pe_ttm is not None AND > 0(濾掉虧損股,負 PE 沒參考意義)
-    """
-    if not stock_meta or not focal_tickers:
-        return ('<p class="muted-note">尚無 stock_meta 資料'
-                '(等 ingest weekly cron 跑完即會自動填入)</p>')
-
-    def _f(v):
-        """DB NUMERIC 經 JSON 可能是 str/Decimal,統一轉 float / None。"""
-        if v is None:
-            return None
-        try:
-            return float(v)
-        except (TypeError, ValueError):
-            return None
-
-    candidates: list[dict] = []
-    for tk in set(focal_tickers):
-        meta = stock_meta.get(tk) or {}
-        stk = all_stocks.get(tk) or {}
-        candidates.append({
-            "ticker": tk,
-            "name": (meta.get("name_zh") or stk.get("name") or tk)[:10],
-            "close": _f(stk.get("close_price")),
-            "chg": _f(stk.get("change_pct")),
-            "pe_ttm": _f(meta.get("pe_ttm")),
-            "market_cap": _f(meta.get("market_cap")),
-            "sector": (meta.get("sector") or "")[:14],
-        })
-
-    by_pe = sorted(
-        [c for c in candidates
-         if c["pe_ttm"] is not None and c["pe_ttm"] > 0],
-        key=lambda c: c["pe_ttm"],
-    )[:top_n]
-
-    def _mcap_str(v: float | None) -> str:
-        if v is None or v <= 0:
-            return "—"
-        if v >= 1e12:
-            return f"{v/1e12:.2f} 兆"
-        return f"{v/1e8:.0f} 億"
-
-    def _rows(items: list[dict], key: str, fmt: str) -> str:
-        if not items:
-            return '<tr><td colspan="7" style="text-align:center;color:var(--muted)">無符合資料</td></tr>'
-        out = []
-        for i, c in enumerate(items, 1):
-            chg = c["chg"]
-            pct_str, pct_cls = fmt_pct(chg)
-            if c["close"] is not None:
-                quote = f"{c['close']:.2f}" + (f" ({pct_str})" if chg is not None else "")
-            else:
-                quote = pct_str
-            value = fmt.format(c[key])
-            mcap = _mcap_str(c["market_cap"])
-            sector = html_lib.escape(c["sector"]) if c["sector"] else "—"
-            click = f"showArtModal({json.dumps(c['ticker'])},{json.dumps(c['name'][:12])})"
-            out.append(
-                f"<tr class=\"rank-row\" onclick='{click}'>"
-                f'<td class="rank">{i}</td>'
-                f'<td class="ticker">{html_lib.escape(c["ticker"])}</td>'
-                f'<td class="name">{html_lib.escape(c["name"])}</td>'
-                f'<td class="num {pct_cls}">{quote}</td>'
-                f'<td class="num"><strong>{value}</strong></td>'
-                f'<td class="num">{mcap}</td>'
-                f'<td class="col-sector">{sector}</td>'
-                f'</tr>'
-            )
-        return "".join(out)
-
-    def _dl(tid: str, fname: str) -> str:
-        return (f'<button class="rank-dl" type="button" '
-                f'onclick="downloadRankCSV(\'{tid}\',\'{fname}\')" '
-                f'title="下載 CSV">⬇ CSV</button>')
-
-    # 2026-05-18 起殖利率全站移除 → 高殖利率 Top 15 table 拿掉,
-    # 焦點排行只剩「估值偏低 PE TTM」一張表。
-    return (
-        '<div class="ranks ranks-single">'
-        '<div class="card">'
-        '<div class="sec sec-row">'
-        '<span>📉 估值偏低焦點 Top 15(PE TTM)</span>'
-        + _dl('rank-pe', 'stockgg-low-pe') +
-        '</div>'
-        '<table id="rank-pe">'
-        '<thead><tr><th>#</th><th>代號</th><th>名稱</th>'
-        '<th style="text-align:right">股價(漲跌)</th>'
-        '<th style="text-align:right">PE</th>'
-        '<th style="text-align:right">市值</th>'
-        '<th class="col-sector">產業</th></tr></thead>'
-        f'<tbody>{_rows(by_pe, "pe_ttm", "{:.1f}")}</tbody>'
-        '</table>'
-        '</div>'
-        '</div>'
-    )
-
+# 焦點排行 tab (build_focus_ranking_html) 2026-05-19 移除。
+# 相關 CSS 「Sprint 3: 焦點排行 row clickable」section 一併清掉。
 
 # ── 股市筆記 tab ──────────────────────────────────────────────────────────────
+
+def _render_topic_card(topic: dict, stocks_info: dict | None = None) -> str:
+    """Render single market_notes topic 為 .topic-card HTML。
+    build_notes_html(股市筆記 tab)與 cluster info modal(熱門題材 tab ⓘ)
+    共用此 helper,確保兩處 CSS 樣式完全一致。
+    """
+    t_name = html_lib.escape(topic.get("topic", ""))
+    sentiment = topic.get("sentiment", "中立")
+    sent_cls = "sent-bull" if "偏多" in sentiment else ("sent-bear" if "偏空" in sentiment else "sent-neu")
+    summary = html_lib.escape(topic.get("summary", ""))
+    key_points = topic.get("key_points", [])
+    kp_html = "".join(f'<li>{html_lib.escape(p)}</li>' for p in key_points[:5])
+    tickers = topic.get("tickers", [])
+    _si = stocks_info or {}
+    tk_html = "".join(_stk_pill(t, _si) for t in tickers)
+    return (
+        '<div class="topic-card">'
+        '<div class="topic-head">'
+        f'<span class="topic-name">{t_name}</span>'
+        f'<span class="sent-badge {sent_cls}">{html_lib.escape(sentiment)}</span>'
+        '</div>'
+        + (f'<p class="topic-sum">{summary}</p>' if summary else '')
+        + (f'<ul class="kp-list">{kp_html}</ul>' if kp_html else '')
+        + (f'<div class="tk-row">{tk_html}</div>' if tk_html else '')
+        + '</div>'
+    )
+
 
 def build_notes_html(market_notes: dict | None, podcast_rows: list,
                      stocks_info: dict | None = None) -> str:
     parts = []
 
     if market_notes and market_notes.get("topics"):
-        topic_cards = []
         # Sort by latest contributing-article date. The underlying `articles`
         # / `sources` arrays drive ordering only — they are intentionally NOT
         # rendered on this public site (article titles + subscription source
@@ -1535,26 +1498,10 @@ def build_notes_html(market_notes: dict | None, podcast_rows: list,
         def _topic_latest_date(t):
             dates = [a.get("date", "") for a in t.get("articles", []) if a.get("date")]
             return max(dates) if dates else "1900-01-01"
-        for topic in sorted(market_notes["topics"], key=_topic_latest_date, reverse=True):
-            t_name = html_lib.escape(topic.get("topic", ""))
-            sentiment = topic.get("sentiment", "中立")
-            sent_cls = "sent-bull" if "偏多" in sentiment else ("sent-bear" if "偏空" in sentiment else "sent-neu")
-            summary = html_lib.escape(topic.get("summary", ""))
-            key_points = topic.get("key_points", [])
-            kp_html = "".join(f'<li>{html_lib.escape(p)}</li>' for p in key_points[:5])
-            tickers = topic.get("tickers", [])
-            _si = stocks_info or {}
-            tk_html = "".join(_stk_pill(t, _si) for t in tickers)
-            topic_cards.append(f"""
-<div class="topic-card">
-  <div class="topic-head">
-    <span class="topic-name">{t_name}</span>
-    <span class="sent-badge {sent_cls}">{html_lib.escape(sentiment)}</span>
-  </div>
-  {f'<p class="topic-sum">{summary}</p>' if summary else ''}
-  {f'<ul class="kp-list">{kp_html}</ul>' if kp_html else ''}
-  {f'<div class="tk-row">{tk_html}</div>' if tk_html else ''}
-</div>""")
+        topic_cards = [
+            _render_topic_card(topic, stocks_info)
+            for topic in sorted(market_notes["topics"], key=_topic_latest_date, reverse=True)
+        ]
         parts.append(
             '<div class="section-hdr">🔀 跨來源共同議題（近7日）</div>'
             '<div class="topics-grid">' + ''.join(topic_cards) + '</div>'
@@ -2107,9 +2054,9 @@ async def generate():
         highlight_subs=highlight_subs,
         ticker_net_inst=ticker_net_inst,
         focus_hl_clusters=focus_hl_clusters,
+        market_notes=market_notes,
     )
     notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)
-    ranking_html = build_focus_ranking_html(_focal_tw, stocks_info, stock_meta)
     catalyst_html = build_catalyst_html(catalyst_events, stocks_info)
 
     # ── Analyst target prices: batch-fetch then inject into every modal ────────
@@ -2366,12 +2313,7 @@ header{{background:var(--card);border-bottom:1px solid var(--border);
 .sec{{font-size:1rem;font-weight:700;color:var(--accent);letter-spacing:.04em;
       margin-bottom:.85rem}}
 .sec-row{{display:flex;align-items:center;justify-content:space-between;gap:.6rem}}
-.rank-dl{{font-family:inherit;font-size:.66rem;font-weight:600;
-          padding:.22rem .55rem;border-radius:5px;cursor:pointer;
-          background:rgba(124,138,242,.08);color:var(--accent);
-          border:1px solid rgba(124,138,242,.3);transition:.15s;
-          letter-spacing:.04em;flex-shrink:0}}
-.rank-dl:hover{{background:rgba(124,138,242,.18);border-color:var(--accent)}}
+/* .rank-dl 隨焦點排行 tab 2026-05-19 移除(CSV 下載已無 entry point) */
 .section-hdr{{font-size:.88rem;font-weight:700;color:var(--accent);letter-spacing:.04em;
               margin:1rem 0 .65rem}}
 
@@ -2419,13 +2361,8 @@ td.rank{{color:var(--muted);width:1.6rem}}
 td.ticker{{font-weight:600}}
 td.name{{white-space:nowrap}}     /* 防 mobile 窄欄把名稱斷成單字直排 */
 td.num{{text-align:right;white-space:nowrap}}
-/* Sprint 3: 焦點排行 row clickable */
-tr.rank-row{{cursor:pointer;transition:background .12s}}
-tr.rank-row:hover td{{background:rgba(16,185,129,.08)}}
-/* 產業欄文字較長,mobile 隱藏空出空間給其他欄 */
-@media(max-width:600px){{
-  .col-sector{{display:none}}
-}}
+/* tr.rank-row / .col-sector / .rank-dl 等焦點排行專屬 CSS 2026-05-19
+   隨焦點排行 tab 移除 */
 tr:last-child td{{border-bottom:none}}
 .board-badge{{font-size:.55rem;font-weight:600;padding:.1rem .3rem;
               border-radius:3px;margin-left:.3rem;vertical-align:middle}}
@@ -2468,37 +2405,41 @@ tr:last-child td{{border-bottom:none}}
 .univ-chip.disabled{{background:#1e1215;color:#6a5060;border-color:#2e2025;text-decoration:line-through}}
 
 /* ── Cluster sort chips ── */
-/* sort chip 與 ⓘ 指標說明合併一列(左:排序,右:ⓘ 說明)。
- * 容器 position:relative,讓展開的 panel 可以 absolute 浮層,
- * summary 位置完全不動;close 動畫由 anim-details JS 跑 max-height transition */
+/* sort chip 與 ⓘ 指標說明合併一列(左:排序,右:ⓘ tooltip 觸發點)。
+ * 2026-05-19 從 details 展開改 hover tooltip,容器仍 position:relative
+ * 讓 tooltip body absolute 浮在 trigger 下方。 */
 .sort-explainer-row{{position:relative;display:flex;align-items:center;
                       flex-wrap:wrap;gap:.5rem 1rem;margin-bottom:.7rem}}
 .sort-explainer-row .sort-row{{margin-bottom:0;flex:0 1 auto}}
-.sort-explainer-row .metric-explainer{{margin-bottom:0;margin-left:auto;flex:0 1 auto}}
-.metric-explainer{{padding:.2rem 0;font-size:.72rem;color:var(--muted);line-height:1.55}}
-.metric-explainer summary{{cursor:pointer;color:var(--accent);font-weight:600;
-                            font-size:.73rem;letter-spacing:.02em;user-select:none;
-                            list-style:none;padding:.18rem .55rem;border-radius:5px;
-                            transition:background .15s}}
-.metric-explainer summary:hover{{background:rgba(124,138,242,.08)}}
-.metric-explainer summary::-webkit-details-marker{{display:none}}
-/* 展開的 panel = absolute 浮層,寬度跟著 sort-explainer-row,
- * 顯示在 row 下方;max-height + opacity 雙重 transition 跑動畫 */
-.metric-explainer .metric-panel{{position:absolute;top:calc(100% + .35rem);
-                                  left:0;right:0;z-index:25;
-                                  background:rgba(20,24,36,.96);
-                                  border:1px solid var(--border);border-radius:8px;
-                                  box-shadow:0 8px 24px rgba(0,0,0,.45);
-                                  padding:.7rem 1rem;
-                                  max-height:0;overflow:hidden;opacity:0;
-                                  transition:max-height .28s ease,opacity .22s ease,padding .15s}}
-.metric-explainer[open] .metric-panel{{padding:.7rem 1rem;opacity:1}}
-.metric-explainer ul{{padding-left:1.1rem;margin:0;list-style:disc}}
-.metric-explainer li{{margin-bottom:.3rem}}
-.metric-explainer li b{{color:var(--text);font-weight:700}}
-.metric-explainer .metric-note{{margin-top:.5rem;padding-top:.35rem;
-                                  border-top:1px dashed var(--border);
-                                  font-size:.7rem;color:var(--muted)}}
+.sort-explainer-row .metric-tooltip{{margin-left:auto;flex:0 1 auto}}
+.metric-tooltip{{position:relative;display:inline-block;cursor:help}}
+.metric-tooltip .mt-trigger{{color:var(--accent);font-weight:600;font-size:.73rem;
+                              letter-spacing:.02em;padding:.18rem .55rem;border-radius:5px;
+                              transition:background .15s;display:inline-block}}
+.metric-tooltip:hover .mt-trigger,
+.metric-tooltip:focus .mt-trigger{{background:rgba(124,138,242,.08)}}
+/* tooltip body 預設隱藏,hover/focus 浮現;絕對定位於 trigger 下方右側 */
+.metric-tooltip .mt-body{{position:absolute;top:calc(100% + .35rem);right:0;
+                           z-index:30;min-width:320px;max-width:min(420px,90vw);
+                           background:rgba(20,24,36,.98);
+                           border:1px solid var(--border);border-radius:8px;
+                           box-shadow:0 8px 24px rgba(0,0,0,.45);
+                           padding:.7rem 1rem;font-size:.72rem;color:var(--muted);
+                           line-height:1.55;opacity:0;visibility:hidden;
+                           transform:translateY(-4px);
+                           transition:opacity .18s ease,visibility .18s,transform .18s}}
+.metric-tooltip:hover .mt-body,
+.metric-tooltip:focus .mt-body,
+.metric-tooltip:focus-within .mt-body{{opacity:1;visibility:visible;transform:translateY(0)}}
+.metric-tooltip ul{{padding-left:1.1rem;margin:0;list-style:disc}}
+.metric-tooltip li{{margin-bottom:.3rem}}
+.metric-tooltip li b{{color:var(--text);font-weight:700}}
+.metric-tooltip .metric-note{{margin-top:.5rem;padding-top:.35rem;
+                                border-top:1px dashed var(--border);
+                                font-size:.7rem;color:var(--muted)}}
+@media(max-width:680px){{
+  .metric-tooltip .mt-body{{left:0;right:auto;min-width:260px;max-width:90vw}}
+}}
 .sort-row{{display:flex;align-items:center;flex-wrap:wrap;gap:.4rem;
            margin-bottom:.7rem;padding:.1rem .15rem}}
 .sort-label{{font-size:.7rem;color:var(--muted);font-weight:600}}
@@ -2588,7 +2529,13 @@ tr:last-child td{{border-bottom:none}}
                 overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
                 cursor:pointer;transition:white-space .2s}}
 .cluster-name.expanded{{white-space:normal;overflow:visible}}
-.cluster-metric,.cluster-meta,.spark-btn,.metric-explainer{{flex-shrink:0}}
+.cluster-metric,.cluster-meta,.spark-btn,.metric-tooltip{{flex-shrink:0}}
+/* Cluster info button (ⓘ):放 cluster-name 右側,點擊開關聯議題 modal */
+.cluster-info-btn{{flex-shrink:0;background:transparent;border:none;cursor:pointer;
+                    color:var(--accent);font-size:.95rem;line-height:1;
+                    padding:0 .35rem;margin-left:.15rem;border-radius:4px;
+                    transition:background .15s;opacity:.7}}
+.cluster-info-btn:hover{{background:rgba(124,138,242,.12);opacity:1}}
 
 /* Merged cluster name (focal 完全相同的子產業聚合) — mobile/tablet 收合。
  * flex-wrap:nowrap 讓 cn-merged 內部不要自己 wrap,搭配 .cluster-name 的
@@ -2956,7 +2903,6 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
   <nav class="tabs">
     <button class="tab-btn active" data-tab="market"  onclick="showTab('market')">市場行情</button>
     <button class="tab-btn"        data-tab="focus"   onclick="showTab('focus')">熱門題材</button>
-    <button class="tab-btn"        data-tab="ranking" onclick="showTab('ranking')">焦點排行</button>
     <button class="tab-btn"        data-tab="notes"   onclick="showTab('notes')">股市筆記</button>
   </nav>
   <div class="search-box">
@@ -3007,10 +2953,7 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
     {focus_html}
   </div>
 
-  <!-- Tab 3: 焦點排行 (Sprint 3) -->
-  <div id="tab-ranking" class="tab-pane">
-    {ranking_html}
-  </div>
+  <!-- 焦點排行 tab 2026-05-19 移除 -->
 
   <!-- Tab 4: 股市筆記 -->
   <div id="tab-notes" class="tab-pane">
@@ -3110,6 +3053,18 @@ function showCatalystModal(eventId) {{
   const title = catalystModalTitles[eventId] || '事件';
   document.getElementById('modal-title').textContent = '📝 ' + title;
   document.getElementById('modal-body').innerHTML = md;
+  document.getElementById('art-modal').showModal();
+}}
+
+// Cluster ⓘ info button → art-modal 顯該題材關聯議題(從 market_notes.topics)
+function showClusterTopicModal(cardId) {{
+  const html = (window.IIA_CLUSTER_TOPICS || {{}})[cardId];
+  if (!html) return;
+  const card = document.getElementById(cardId);
+  const name = card?.querySelector('.cluster-name')?.textContent?.trim() || '題材';
+  document.getElementById('modal-title').textContent = '📌 ' + name + ' — 關聯議題';
+  document.getElementById('modal-body').innerHTML =
+    '<div class="topics-grid">' + html + '</div>';
   document.getElementById('art-modal').showModal();
 }}
 
@@ -4220,31 +4175,7 @@ function toggleSentinelInline(btn) {{
   }}
 }}
 
-/* ── 焦點排行 → CSV 下載 ──────────────────────────────────────────────────── */
-/* 從現有 <table> DOM 萃取(避免重複資料);UTF-8 BOM 讓 Excel 開檔不亂碼。
- * 註:Python fstring 會 escape \\n / \\r,寫進 JS 必須雙反斜線。 */
-function downloadRankCSV(tableId, baseName) {{
-  const tbl = document.getElementById(tableId);
-  if (!tbl) return;
-  const esc = (s) => {{
-    s = (s || '').replace(/\\s+/g, ' ').trim();
-    return /[",\\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-  }};
-  const rowsToCsv = (sel) => [...tbl.querySelectorAll(sel)].map(tr =>
-    [...tr.children].map(td => esc(td.textContent)).join(',')
-  );
-  const lines = [...rowsToCsv('thead tr'), ...rowsToCsv('tbody tr')].filter(Boolean);
-  if (!lines.length) return;
-  const csv = '\\ufeff' + lines.join('\\r\\n');  // BOM for Excel
-  const blob = new Blob([csv], {{ type: 'text/csv;charset=utf-8' }});
-  const today = new Date().toISOString().slice(0, 10);
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = baseName + '-' + today + '.csv';
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => {{ URL.revokeObjectURL(a.href); a.remove(); }}, 100);
-}}
+/* downloadRankCSV 隨焦點排行 tab 2026-05-19 移除 */
 </script>
 </body>
 </html>"""
