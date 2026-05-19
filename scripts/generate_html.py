@@ -1220,7 +1220,7 @@ def _industry_section_html(
         cards.append(f"""
 <div class="cluster-card" id="{card_id}">
   <div class="cluster-hdr">
-    {name_html}{info_btn_html}
+    <span class="cluster-name-wrap">{name_html}{info_btn_html}</span>
     {metric_html}
     <span class="cluster-meta">{meta_text}</span>
     {spark_html}
@@ -2524,16 +2524,20 @@ tr:last-child td{{border-bottom:none}}
  * 點擊切 .expanded 解掉 nowrap 允許多行顯示。 */
 .cluster-hdr{{display:flex;align-items:center;gap:.55rem;flex-wrap:nowrap;
               margin-bottom:.7rem;min-width:0}}
+/* cluster-name-wrap = cluster-name + info-btn 鎖在一起的 wrapper,
+   讓 ⓘ 緊貼標題不被 flex 推開到 metric 區。 */
+.cluster-name-wrap{{display:flex;align-items:center;gap:.15rem;
+                    flex:1 1 auto;min-width:0;overflow:hidden}}
 .cluster-name{{font-size:.95rem;font-weight:700;
-                flex:1 1 auto;min-width:5rem;
+                flex:0 1 auto;min-width:0;
                 overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
                 cursor:pointer;transition:white-space .2s}}
 .cluster-name.expanded{{white-space:normal;overflow:visible}}
 .cluster-metric,.cluster-meta,.spark-btn,.metric-tooltip{{flex-shrink:0}}
-/* Cluster info button (ⓘ):放 cluster-name 右側,點擊開關聯議題 modal */
+/* Cluster info button (ⓘ):緊貼 cluster-name 右側 */
 .cluster-info-btn{{flex-shrink:0;background:transparent;border:none;cursor:pointer;
                     color:var(--accent);font-size:.95rem;line-height:1;
-                    padding:0 .35rem;margin-left:.15rem;border-radius:4px;
+                    padding:0 .35rem;border-radius:4px;
                     transition:background .15s;opacity:.7}}
 .cluster-info-btn:hover{{background:rgba(124,138,242,.12);opacity:1}}
 
