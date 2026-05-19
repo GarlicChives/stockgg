@@ -987,16 +987,16 @@ def _industry_section_html(
             val_str = "—" if value is None else fmt.format(value)
             return f'<span {common}>{label} {val_str}</span>'
 
-        # 順序:漲跌 / 乖離 / PE / 成交(2026-05-19 起把「N 檔焦點·694億」拿掉,
-        # 成交額改為 sortable badge,跟漲跌/乖離/PE 同層)
+        # 順序:成交 / 漲跌 / 乖離 / PE(2026-05-19 對齊外層 cluster sort chip
+        # 順序「成交金額、平均漲跌、平均乖離、平均 PE」)。
         # 點 badge → setFocalSort(card_id, key):只動該題材內 focal pill 順序
         card_id = f"cc-{level}-{idx}"
         _tv_billion = (c.trading_value or 0) / 1e8
         metric_html = (
-            _metric_badge("漲跌", avg_chg, "點擊依此題材內個股漲跌幅排序", "chg", card_id, is_default_sort=True)
+            _plain_badge("成交", _tv_billion, "點擊依此題材內個股成交金額排序", "tv", card_id, "{:.0f}億")
+            + _metric_badge("漲跌", avg_chg, "點擊依此題材內個股漲跌幅排序", "chg", card_id, is_default_sort=True)
             + _metric_badge("乖離", avg_ma20, "點擊依此題材內個股 20MA 乖離率排序", "bias", card_id)
             + _plain_badge("PE", avg_pe, "點擊依此題材內個股 PE (TTM)排序", "pe", card_id, "{:.1f}")
-            + _plain_badge("成交", _tv_billion, "點擊依此題材內個股成交金額排序", "tv", card_id, "{:.0f}億")
         )
 
         member_keys = [f"{m}||{s}" for m, s in (c.members or [])]
