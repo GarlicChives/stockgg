@@ -894,9 +894,9 @@ def _industry_section_html(
             '(skip 缺值)。例：3 檔焦點 +2% / -1% / +5% → 平均 +2.00%。</li>'
             '<li><b>乖離</b>：焦點股「20MA 乖離率%」的簡單平均;'
             '每檔乖離 = (今日收盤 − 過去 20 日收盤均線)÷ 20MA × 100;'
-            '數值越正越「過熱」、越負越「超賣」。資料源 yfinance,台股 only。</li>'
+            '數值越正越「過熱」、越負越「超賣」。</li>'
             '<li><b>PE</b>：焦點股 <b>PE (TTM)</b> 簡單平均;'
-            'skip 虧損股(PE ≤ 0)避免拉低均值。資料源 yfinance,週日 04:00 更新。</li>'
+            'skip 虧損股(PE ≤ 0)避免拉低均值。</li>'
             '</ul>'
             '<p class="metric-note">⚠ 三項皆為<b>簡單算術平均</b>(每檔等權重),'
             '與點開 chart modal 內的「焦點股加權指數」(用市值 × shares 加權) <b>不同</b>。'
@@ -2779,8 +2779,13 @@ dialog#art-modal{{background:var(--card);border:1px solid var(--border);
                   width:min(680px,96vw);max-height:80vh;overflow:hidden;
                   position:fixed;top:50%;left:50%;
                   transform:translate(-50%,-50%);margin:0}}
-dialog#art-modal[open]{{display:flex;flex-direction:column}}
+/* 開啟動畫對齊 theme-chart-dialog 的 tcDialogOpen / tcBackdropFade keyframes
+   (見 line 2625-2629 定義);所有點開 art-modal 的 entry point
+   (showArtModal / showCatalystModal / showClusterTopicModal)共享 */
+dialog#art-modal[open]{{display:flex;flex-direction:column;
+                          animation:tcDialogOpen .26s cubic-bezier(.2,.7,.25,1)}}
 dialog#art-modal::backdrop{{background:rgba(0,0,0,.65)}}
+dialog#art-modal[open]::backdrop{{animation:tcBackdropFade .26s ease-out}}
 .modal-hdr{{display:flex;align-items:center;gap:.6rem;
             padding:.85rem 1.1rem;border-bottom:1px solid var(--border);
             flex-shrink:0}}
@@ -3001,7 +3006,7 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
       <div class="tc-chart-label">
         焦點股加權指數 vs 大盤
         <span class="tc-info" tabindex="0"
-              title="加權指數計算法&#10;1. 每檔焦點股當日市值 = 收盤價 × 流通在外股數(shares_outstanding)&#10;2. cluster daily mcap = Σ 全部焦點股當日市值;某檔某日缺資料時用該檔最後一次有資料的 close × shares 延續(per-ticker forward-fill,標準加權指數做法)&#10;3. 三條線(cluster / TWII / TPEX)同時 rebase 到 100(取三條共同起點當基準),純看相對強弱不看絕對水位&#10;4. shares_outstanding 來自 stock_meta(每週日 04:00 由 ingest 端 yfinance Ticker.info 拉),新熱門股當日由 18:30 cron 即時補&#10;5. cluster 線會依「焦點 chip 列表」即時重算">ⓘ</span>
+              title="加權指數計算法&#10;1. 每檔焦點股當日市值 = 收盤價 × 流通在外股數&#10;2. cluster daily mcap = Σ 全部焦點股當日市值;某檔某日缺資料時用該檔最後一次有資料的 close × shares 延續(per-ticker forward-fill,標準加權指數做法)&#10;3. 三條線(cluster / TWII / TPEX)同時 rebase 到 100(取三條共同起點當基準),純看相對強弱不看絕對水位&#10;4. cluster 線會依「焦點 chip 列表」即時重算">ⓘ</span>
         <span class="tc-legend">
           <button class="tc-leg-chip leg-cluster active" type="button" onclick="toggleIndexLine('cluster')"><span class="leg-sw"></span>焦點股</button>
           <button class="tc-leg-chip leg-twii active" type="button" onclick="toggleIndexLine('twii')"><span class="leg-sw"></span>大盤(TWII)</button>
@@ -3014,7 +3019,7 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
       <div class="tc-chart-label">
         三大法人資金淨流入流出(億 TWD)
         <span class="tc-info" tabindex="0"
-              title="資料來源:TWSE T86(集中市場)+ TPEX 3insti(店頭)三大法人(外資 + 投信 + 自營商)當日合計買賣超「金額」(NTD)。&#10;cluster 當日淨流入 = Σ 全部焦點股淨買賣金額(單位轉億 TWD);某檔某日缺資料當 0(不 forward-fill,因為法人買賣超是日結 transaction)。&#10;紅柱 = 法人淨買、綠柱 = 法人淨賣。&#10;切換「累計」會把當日數值改成從圖表起點開始的滾動累加,看資金長期流向。">ⓘ</span>
+              title="三大法人(外資 + 投信 + 自營商)當日合計買賣超「金額」(NTD)。&#10;cluster 當日淨流入 = Σ 全部焦點股淨買賣金額(單位轉億 TWD);某檔某日缺資料當 0(不 forward-fill,因為法人買賣超是日結 transaction)。&#10;紅柱 = 法人淨買、綠柱 = 法人淨賣。&#10;切換「累計」會把當日數值改成從圖表起點開始的滾動累加,看資金長期流向。">ⓘ</span>
         <span class="tc-net-mode">
           <button class="tc-mode-chip active" data-mode="daily" type="button" onclick="setNetMode('daily')">當日</button>
           <button class="tc-mode-chip" data-mode="cum" type="button" onclick="setNetMode('cum')">累計</button>
@@ -3022,7 +3027,7 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
       </div>
       <div class="tc-chart" id="tc-chart-net"></div>
 
-      <div class="tc-empty" id="tc-empty" style="display:none">尚無歷史資料(資料每日 18:30 由 ingest 端產生)</div>
+      <div class="tc-empty" id="tc-empty" style="display:none">尚無歷史資料</div>
     </div>
   </div>
 </dialog>
