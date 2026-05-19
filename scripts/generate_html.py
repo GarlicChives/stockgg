@@ -3337,10 +3337,15 @@ function _renderFocalSort(cardId) {{
   container.querySelectorAll('.stk-pill[data-cluster-ticker]').forEach(p => {{
     pillMap[p.dataset.clusterTicker] = p;
   }});
+  // 前哨 toggle button 永遠保持在 container 最末段 — 用 insertBefore
+  // 把 pill 塞在 toggle 之前,避免單純 appendChild 把 pill 推到 toggle 之後
+  // (那會反過來把 toggle 擠到 pill 之前,結果前哨變成最前)。
+  const sntlToggleEl = container.querySelector('.sntl-toggle-inline');
   sorted.forEach(f => {{
     const p = pillMap[f.ticker];
     if (!p) return;
-    container.appendChild(p);
+    if (sntlToggleEl) container.insertBefore(p, sntlToggleEl);
+    else container.appendChild(p);
     const q = p.querySelector('.sp-quote');
     if (q) {{
       const r = _focalQuoteByKey(f, state.key);
