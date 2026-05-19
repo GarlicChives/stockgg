@@ -1325,6 +1325,244 @@ def build_catalyst_html(events: list[dict], stocks_info: dict | None = None) -> 
     return '<div class="cal-list">' + "".join(day_html) + "</div>"
 
 
+# ── 主動式 ETF tab(2026-05-20 對應 ingest f5faa21) ──────────────────────────
+
+_AETF_ACTION_MAP = {
+    "add":    ("加碼", "aetf-chip-add"),
+    "reduce": ("減碼", "aetf-chip-reduce"),
+    "new":    ("新增", "aetf-chip-new"),
+    "exit":   ("清倉", "aetf-chip-exit"),
+}
+
+
+def _aetf_action_chip(action: str | None) -> str:
+    if not action:
+        return ""
+    cfg = _AETF_ACTION_MAP.get(action)
+    if not cfg:
+        return ""
+    label, cls = cfg
+    return f'<span class="aetf-chip {cls}">{label}</span>'
+
+
+def _aetf_lots_chg_html(lots_chg: float | int | None) -> str:
+    if not lots_chg:
+        return ""
+    if lots_chg > 0:
+        return f'<span class="aetf-chg-up">+{int(lots_chg):,} 張</span>'
+    return f'<span class="aetf-chg-down">{int(lots_chg):,} 張</span>'
+
+
+def _aetf_render_modal_body(etf_rows: list, stock_meta_entry: dict | None) -> str:
+    """個股 modal body:持股主動式 ETF 表(2026-05-20 取代既有 intro + analyst)。
+    etf_rows: 已過濾的 list[dict],含 etf_code/short_name/issuer/aum_ntd/lots/lots_chg/
+              market_value_ntd/action(從 reverse-index of Q19 而來)
+    stock_meta_entry: stock_meta[ticker] 或 None,用來算 pct_of_float
+    """
+    if not etf_rows:
+        return '<p class="muted-note">本檔目前無主動 ETF 持有</p>'
+
+    shares_out = None
+    if stock_meta_entry and stock_meta_entry.get("shares_outstanding"):
+        try:
+            shares_out = float(stock_meta_entry["shares_outstanding"])
+        except (TypeError, ValueError):
+            shares_out = None
+
+    # 統計 bar
+    total_count = len(etf_rows)
+    total_mv = sum(float(r.get("market_value_ntd") or 0) for r in etf_rows)
+    sum_pct = 0.0
+    for r in etf_rows:
+        lots = r.get("lots") or 0
+        if shares_out and lots:
+            sum_pct += (lots * 1000.0) / shares_out * 100
+
+    def _pct_for_row(r):
+        lots = r.get("lots") or 0
+        if not shares_out or not lots:
+            return None
+        return (lots * 1000.0) / shares_out * 100
+
+    body_rows = []
+    for r in etf_rows:
+        etf_label = r.get("short_name") or r["etf_code"]
+        issuer = r.get("issuer") or ""
+        lots = int(r.get("lots") or 0)
+        mv = float(r.get("market_value_ntd") or 0)
+        pct = _pct_for_row(r)
+        pct_str = f"{pct:.3f}%" if pct is not None else "—"
+        mv_str = f"{mv/1e8:.2f} 億" if mv else "—"
+        chg_html = _aetf_lots_chg_html(r.get("lots_chg"))
+        chip = _aetf_action_chip(r.get("action"))
+        body_rows.append(
+            "<tr>"
+            f'<td class="aetf-etf-cell"><span class="aetf-etf-code">{html_lib.escape(str(etf_label))}</span>'
+            f' <span class="aetf-etf-issuer">{html_lib.escape(issuer)}</span></td>'
+            f'<td class="r">{mv_str} <span class="aetf-lots-sub">({lots:,} 張)</span> {chg_html}</td>'
+            f'<td class="r">{pct_str}</td>'
+            f'<td class="c">{chip}</td>'
+            "</tr>"
+        )
+
+    return (
+        '<div class="aetf-section">'
+        '<h3 class="aetf-modal-hdr">持股主動式 ETF</h3>'
+        '<div class="aetf-stats">'
+        f'<div><span class="muted">總檔數</span> <b>{total_count}</b> 檔</div>'
+        f'<div><span class="muted">總持股市值</span> <b>{total_mv/1e8:.2f}</b> 億</div>'
+        f'<div><span class="muted">佔個股流通</span> <b>{sum_pct:.3f}</b>%</div>'
+        '</div>'
+        '<table class="aetf-table">'
+        '<thead><tr><th>ETF</th><th class="r">持股市值(張數變化)</th>'
+        '<th class="r">佔流通</th><th class="c">動作</th></tr></thead>'
+        f"<tbody>{''.join(body_rows)}</tbody>"
+        '</table>'
+        '</div>'
+    )
+
+
+def _aetf_f(v):
+    """DB NUMERIC 經 db-proxy JSON 反序列化可能是 str / Decimal,統一轉 float / None。"""
+    if v is None:
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def build_active_etf_page(etf_list: list, holdings_by_etf: dict[str, list]) -> str:
+    """主動式 ETF 頁:tab nav(按 AUM desc 一檔一 tab)+ 各 tab content:
+    頂部 ETF 資訊 bar / 今日異動 4 區 / 全持股 list(weight_pct desc)。
+    """
+    if not etf_list:
+        return '<p class="muted-note">尚無主動式 ETF 資料</p>'
+
+    nav_btns = []
+    panes = []
+    for i, etf in enumerate(etf_list):
+        code = etf["etf_code"]
+        active = " active" if i == 0 else ""
+        label = etf.get("short_name") or code
+        aum_b = float(etf.get("aum_ntd") or 0) / 1e8
+        nav_btns.append(
+            f'<button class="aetf-tab-btn{active}" data-aetf="{code}" type="button" '
+            f'onclick="showAetfTab(\'{code}\')">'
+            f'<span class="aetf-tab-code">{html_lib.escape(str(label))}</span>'
+            f'<span class="aetf-tab-aum">{aum_b:.0f} 億</span>'
+            f'</button>'
+        )
+
+        holdings = holdings_by_etf.get(code, [])
+        # Normalize Decimal/str → float once (DB NUMERIC 經 JSON 變 str)
+        for h in holdings:
+            for k in ("lots", "prev_lots", "lots_chg", "weight_pct", "market_value_ntd"):
+                if k in h:
+                    h[k] = _aetf_f(h[k])
+        # Today 仍持有(lots > 0);其他 action=exit 走異動 row
+        today_holds = [h for h in holdings if (h.get("lots") or 0) > 0]
+        today_holds.sort(key=lambda h: -(h.get("weight_pct") or 0))
+        adds    = [h for h in holdings if h.get("action") == "add"]
+        reduces = [h for h in holdings if h.get("action") == "reduce"]
+        news    = [h for h in holdings if h.get("action") == "new"]
+        exits   = [h for h in holdings if h.get("action") == "exit"]
+
+        # 頂部 bar
+        nav_per = etf.get("nav_per_unit")
+        listing = etf.get("listing_date")
+        if listing and hasattr(listing, "isoformat"):
+            listing = listing.isoformat()
+        bar_html = (
+            '<div class="aetf-info">'
+            f'<span class="aetf-name">{html_lib.escape(etf.get("etf_name") or code)}</span>'
+            f'<span class="aetf-meta"><span class="muted">AUM</span> <b>{aum_b:.0f} 億</b></span>'
+            + (f'<span class="aetf-meta"><span class="muted">NAV</span> <b>{float(nav_per):.2f}</b></span>' if nav_per else '')
+            + (f'<span class="aetf-meta"><span class="muted">上市</span> {listing}</span>' if listing else '')
+            + '</div>'
+        )
+
+        # 異動 4 區
+        def _chg_chip(h, css):
+            tk = h.get("ticker") or ""
+            nm = (h.get("name") or "")[:10]
+            chg = _aetf_lots_chg_html(h.get("lots_chg"))
+            # 外層 attribute 用 ' 包,內層 json.dumps 用 " 避免引號嵌套撞 SyntaxError
+            return (
+                f'<span class="aetf-chg-pill {css}" '
+                f"onclick='showArtModal({json.dumps(tk)},{json.dumps(nm)})' "
+                f'role="button" tabindex="0">'
+                f'<span class="aetf-cp-tk">{html_lib.escape(tk)}</span>'
+                f'<span class="aetf-cp-nm">{html_lib.escape(nm)}</span>'
+                f'{chg}'
+                f'</span>'
+            )
+
+        def _chg_row(title, items, css):
+            if not items:
+                return ""
+            chips = "".join(_chg_chip(h, css) for h in items[:30])
+            return (
+                '<div class="aetf-chg-row">'
+                f'<span class="aetf-chg-label">{title} ({len(items)})</span>'
+                f'{chips}'
+                '</div>'
+            )
+
+        chg_inner = (
+            _chg_row("🔼 加碼", adds, "add")
+            + _chg_row("🔽 減碼", reduces, "reduce")
+            + _chg_row("🆕 新增", news, "new")
+            + _chg_row("🚪 清倉", exits, "exit")
+        )
+        chg_html = (
+            f'<div class="aetf-changes">{chg_inner}</div>'
+            if chg_inner else '<p class="muted-note">今日無持股異動</p>'
+        )
+
+        # 全持股 table
+        hold_rows = []
+        for h in today_holds:
+            tk = h.get("ticker") or ""
+            nm = (h.get("name") or "")[:12]
+            chip = _aetf_action_chip(h.get("action"))
+            lots = int(h.get("lots") or 0)
+            weight = float(h.get("weight_pct") or 0)
+            # 外層 attribute 用 ' 包,內層 json.dumps 用 " 避免雙引號嵌套
+            click = f"showArtModal({json.dumps(tk)},{json.dumps(nm)})"
+            hold_rows.append(
+                f"<tr class=\"aetf-hold-row\" onclick='{click}'>"
+                f'<td><span class="aetf-h-tk">{html_lib.escape(tk)}</span> '
+                f'<span class="aetf-h-nm">{html_lib.escape(nm)}</span></td>'
+                f'<td class="r">{lots:,} 張</td>'
+                f'<td class="r">{weight:.2f}%</td>'
+                f'<td class="c">{chip}</td>'
+                f'</tr>'
+            )
+        hold_table = (
+            '<table class="aetf-table aetf-hold-table">'
+            '<thead><tr><th>持股</th><th class="r">張數</th>'
+            '<th class="r">權重</th><th class="c">動作</th></tr></thead>'
+            f'<tbody>{"".join(hold_rows) or "<tr><td colspan=4 class=\"muted-note\">尚無持股資料</td></tr>"}</tbody>'
+            '</table>'
+        )
+
+        panes.append(
+            f'<div class="aetf-pane{active}" data-aetf-pane="{code}">'
+            + bar_html
+            + '<div class="aetf-section-hdr">今日異動</div>'
+            + chg_html
+            + '<div class="aetf-section-hdr">全持股</div>'
+            + hold_table
+            + '</div>'
+        )
+
+    return (
+        f'<div class="aetf-tabs">{"".join(nav_btns)}</div>'
+        f'{"".join(panes)}'
+    )
+
+
 def build_focus_html(
     tw_ranks: list,
     sub_clusters: list,
@@ -2059,33 +2297,82 @@ async def generate():
     notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)
     catalyst_html = build_catalyst_html(catalyst_events, stocks_info)
 
-    # ── Analyst target prices: batch-fetch then inject into every modal ────────
+    # ── 主動式 ETF(2026-05-20 對應 ingest f5faa21)──
+    # Q18 拿全 23 檔 ETF master(按 AUM desc);Q19 對每 ETF 抓 latest holdings + diff;
+    # Python 端 reverse-index 為 ticker → [etf-holding rows] 供個股 modal 用,
+    # 同時餵 build_active_etf_page 渲 ETF tab UI。
+    aetf_list: list[dict] = []
+    aetf_holdings_by_etf: dict[str, list[dict]] = {}
+    aetf_holdings_by_ticker: dict[str, list[dict]] = {}
+    try:
+        aetf_list = [dict(r) for r in await conn.fetch(
+            "SELECT etf_code, etf_name, short_name, issuer, aum_ntd, "
+            "nav_per_unit, units_outstanding, listing_date, expense_ratio, "
+            "fund_url FROM active_etf_meta "
+            "ORDER BY aum_ntd DESC NULLS LAST, etf_code"
+        )]
+        print(f"  active_etf_meta: {len(aetf_list)} ETFs")
+        for etf in aetf_list:
+            try:
+                rows = await conn.fetch(
+                    "WITH last_two AS (SELECT DISTINCT holding_date FROM active_etf_holdings "
+                    "WHERE etf_code = $1 ORDER BY holding_date DESC LIMIT 2), "
+                    "latest AS (SELECT MAX(holding_date) AS d FROM last_two), "
+                    "prev AS (SELECT MIN(holding_date) AS d FROM last_two) "
+                    "SELECT COALESCE(t.ticker, y.ticker) AS ticker, "
+                    "COALESCE(t.name, y.name) AS name, t.lots, t.weight_pct, "
+                    "t.market_value_ntd, t.market, t.is_cash, y.lots AS prev_lots, "
+                    "COALESCE(t.lots, 0) - COALESCE(y.lots, 0) AS lots_chg, "
+                    "CASE WHEN t.lots IS NULL OR t.lots = 0 THEN 'exit' "
+                    "WHEN y.lots IS NULL OR y.lots = 0 THEN 'new' "
+                    "WHEN t.lots > y.lots THEN 'add' "
+                    "WHEN t.lots < y.lots THEN 'reduce' "
+                    "ELSE 'hold' END AS action "
+                    "FROM (SELECT * FROM active_etf_holdings WHERE etf_code = $1 "
+                    "AND holding_date = (SELECT d FROM latest)) t "
+                    "FULL OUTER JOIN (SELECT * FROM active_etf_holdings WHERE etf_code = $1 "
+                    "AND holding_date = (SELECT d FROM prev)) y ON t.ticker = y.ticker "
+                    "ORDER BY t.weight_pct DESC NULLS LAST",
+                    etf["etf_code"],
+                )
+                holdings = [dict(r) for r in rows]
+                aetf_holdings_by_etf[etf["etf_code"]] = holdings
+                # Reverse index for modal:per ticker
+                for h in holdings:
+                    tk = h.get("ticker")
+                    if not tk:
+                        continue
+                    aetf_holdings_by_ticker.setdefault(tk, []).append({
+                        **h,
+                        "etf_code": etf["etf_code"],
+                        "short_name": etf.get("short_name"),
+                        "issuer": etf.get("issuer"),
+                        "aum_ntd": etf.get("aum_ntd"),
+                    })
+            except Exception as exc:
+                print(f"  ⚠ active_etf_holdings Q19({etf['etf_code']}) failed: {exc}")
+    except Exception as exc:
+        print(f"  ⚠ active_etf_meta Q18 failed: {exc}")
+
+    # 對每個 ticker 內 ETF 列表按 AUM desc 排序(Q19 個別 fetch 沒帶 ETF aum,
+    # 反向 index 時各 ETF 順序不一定)
+    for tk, lst in aetf_holdings_by_ticker.items():
+        lst.sort(key=lambda h: -(float(h.get("aum_ntd") or 0)))
+
+    aetf_html = build_active_etf_page(aetf_list, aetf_holdings_by_etf)
+
+    # ── 個股 modal data:2026-05-20 取代「intro + analyst」為「持股主動式 ETF」表 ──
+    # _yf_analyst_batch + _build_company_intro_html + _build_analyst_html + radar
+    # SVG 全廢除(IIA_RADAR / _radarSvg 一併移除)。
     _all_modal_tickers: set[str] = set(modal_data.keys())
     if market_notes and market_notes.get("topics"):
         for _topic in market_notes["topics"]:
             _all_modal_tickers.update(_topic.get("tickers", []))
-    if _all_modal_tickers:
-        print(f"  Fetching analyst data for {len(_all_modal_tickers)} tickers…")
-        # 帶 board 給 _yf_analyst_batch,讓 TPEX 股(如 5347)能正確抓到 .TWO
-        _modal_tk_boards: dict[str, str | None] = {
-            t: stocks_info.get(t, {}).get("board") for t in _all_modal_tickers
-        }
-        _analyst = await asyncio.to_thread(_yf_analyst_batch, _modal_tk_boards)
-    else:
-        _analyst = {}
-
-    # Modal: 公司介紹(F1)+ analyst consensus。intro 在前,有 stock_meta
-    # 才出;analyst 用 yfinance 既有 batch 結果。
-    for _tk in list(modal_data.keys()):
-        intro = _build_company_intro_html(stock_meta.get(_tk))
-        modal_data[_tk] = intro + _build_analyst_html(_analyst.get(_tk, {}))
-    for _tk in _all_modal_tickers:
-        if _tk not in modal_data:
-            intro = _build_company_intro_html(stock_meta.get(_tk))
-            _a_html = _build_analyst_html(_analyst.get(_tk, {}))
-            combined = intro + _a_html
-            if combined:
-                modal_data[_tk] = combined
+    for _tk in _all_modal_tickers | set(modal_data.keys()):
+        modal_data[_tk] = _aetf_render_modal_body(
+            aetf_holdings_by_ticker.get(_tk, []),
+            stock_meta.get(_tk),
+        )
 
     # ── Indicator helpers ─────────────────────────────────────────────────────
     def ind(sym):
@@ -2146,36 +2433,9 @@ async def generate():
         for k, v in modal_data.items()
     )
 
-    # ── Radar chart metrics(modal 內 3 維雷達圖;殖利率/β 2026-05-18 移除)──
-    # 涵蓋所有焦點股 + ranking + market_notes 提到的 ticker。
-    # 缺維度的留 None,前端 normalize 函數視為 0(該軸點落中心)。
-    def _f(v):
-        try:
-            return float(v) if v is not None else None
-        except (TypeError, ValueError):
-            return None
-    radar_metrics: dict[str, dict] = {}
-    for tk in set(list(stocks_info.keys()) + list((stock_meta or {}).keys())):
-        info = stocks_info.get(tk, {})
-        meta = (stock_meta or {}).get(tk, {})
-        close = _f(info.get("close_price"))
-        w52h, w52l = _f(meta.get("week52_high")), _f(meta.get("week52_low"))
-        w52pos = None
-        if close is not None and w52h and w52l and w52h > w52l:
-            w52pos = max(0.0, min(1.0, (close - w52l) / (w52h - w52l)))
-        radar_metrics[tk] = {
-            "chg":  _f(info.get("change_pct")),
-            "pe":   _f(meta.get("pe_ttm")),
-            "w52":  w52pos,
-        }
-    def _mavg(key):
-        xs = [m[key] for m in radar_metrics.values() if m.get(key) is not None]
-        return round(sum(xs) / len(xs), 4) if xs else None
-    radar_market_avg = {k: _mavg(k) for k in ("chg", "pe", "w52")}
-    radar_payload_json = json.dumps(
-        {"stocks": radar_metrics, "market": radar_market_avg},
-        ensure_ascii=False, separators=(",", ":"),
-    )
+    # Radar chart metrics 計算 + IIA_RADAR JSON payload 2026-05-20 全廢
+    # (個股 modal body 改為「持股主動式 ETF」表,server-side render 進
+    # artModalData,前端不再需要客戶端雷達 SVG)。
 
     # Catalyst preview modal payload(2026-05-19 改 chip inline expandable →
     # showCatalystModal 彈窗,複用 art-modal dialog)
@@ -2900,6 +3160,83 @@ footer .disclaimer h3{{color:#a0b0cc;font-size:.78rem;font-weight:600;
 footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--border)}}
 /* 2026-05-19 share-row / share-btn / share-label / shareReport JS 全移除
    — 公開站不再提供分享按鈕,user 自行用瀏覽器分享。 */
+
+/* ── 主動式 ETF 頁(2026-05-20)+ 個股 modal 內 ETF 表 ────────────── */
+.aetf-tabs{{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:1rem}}
+.aetf-tab-btn{{display:flex;flex-direction:column;align-items:flex-start;
+                background:var(--card);color:var(--muted);
+                border:1px solid var(--border);border-radius:8px;
+                padding:.45rem .8rem;cursor:pointer;font-family:inherit;
+                line-height:1.25;transition:.15s;min-width:5.5rem}}
+.aetf-tab-btn:hover{{background:rgba(124,138,242,.08);color:var(--text);
+                       border-color:rgba(124,138,242,.3)}}
+.aetf-tab-btn.active{{background:var(--accent);color:#fff;border-color:var(--accent)}}
+.aetf-tab-code{{font-size:.85rem;font-weight:700}}
+.aetf-tab-aum{{font-size:.7rem;opacity:.78;margin-top:.1rem}}
+.aetf-pane{{display:none}}
+.aetf-pane.active{{display:block}}
+
+.aetf-info{{display:flex;flex-wrap:wrap;align-items:baseline;gap:.4rem 1.2rem;
+            padding:.7rem 1rem;background:#12151f;border-radius:8px;
+            border:1px solid var(--border);margin-bottom:1rem}}
+.aetf-name{{font-size:1rem;font-weight:700;color:var(--text)}}
+.aetf-meta{{font-size:.78rem;color:var(--text)}}
+.aetf-meta .muted{{color:var(--muted);margin-right:.15rem}}
+
+.aetf-section-hdr{{font-size:.88rem;font-weight:700;color:var(--accent);
+                     letter-spacing:.04em;margin:1rem 0 .6rem}}
+.aetf-changes{{display:flex;flex-direction:column;gap:.6rem;
+                background:#12151f;border-radius:8px;border:1px solid var(--border);
+                padding:.6rem .8rem;margin-bottom:1rem}}
+.aetf-chg-row{{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem}}
+.aetf-chg-label{{font-size:.78rem;font-weight:700;color:var(--muted);
+                  margin-right:.3rem;min-width:5rem}}
+.aetf-chg-pill{{display:inline-flex;align-items:center;gap:.25rem;
+                  padding:.2rem .55rem;border-radius:5px;font-size:.72rem;
+                  cursor:pointer;transition:.12s;border:1px solid transparent}}
+.aetf-chg-pill:hover{{transform:translateY(-1px);filter:brightness(1.1)}}
+.aetf-chg-pill.add{{background:#fee2e2;color:#b91c1c}}
+.aetf-chg-pill.reduce{{background:#d1fae5;color:#047857}}
+.aetf-chg-pill.new{{background:#fef3c7;color:#b45309}}
+.aetf-chg-pill.exit{{background:#e5e7eb;color:#4b5563}}
+.aetf-cp-tk{{font-weight:700}}
+.aetf-cp-nm{{opacity:.85}}
+.aetf-chg-up{{color:#b91c1c;font-weight:700;font-size:.7rem;margin-left:.2rem}}
+.aetf-chg-down{{color:#047857;font-weight:700;font-size:.7rem;margin-left:.2rem}}
+
+.aetf-table{{width:100%;border-collapse:collapse;
+              background:#12151f;border:1px solid var(--border);
+              border-radius:8px;overflow:hidden}}
+.aetf-table th{{font-size:.72rem;color:var(--muted);font-weight:600;
+                 text-align:left;padding:.5rem .7rem;
+                 border-bottom:1px solid var(--border);background:rgba(255,255,255,.02)}}
+.aetf-table td{{padding:.45rem .7rem;font-size:.82rem;
+                 border-bottom:1px solid rgba(42,46,64,.4)}}
+.aetf-table tr:last-child td{{border-bottom:none}}
+.aetf-table th.r,.aetf-table td.r{{text-align:right}}
+.aetf-table th.c,.aetf-table td.c{{text-align:center}}
+.aetf-table tr.aetf-hold-row{{cursor:pointer;transition:background .12s}}
+.aetf-table tr.aetf-hold-row:hover td{{background:rgba(124,138,242,.06)}}
+.aetf-h-tk{{font-weight:700;color:var(--text)}}
+.aetf-h-nm{{color:var(--muted);margin-left:.25rem}}
+
+.aetf-chip{{display:inline-block;font-size:.66rem;font-weight:700;
+              padding:.18rem .5rem;border-radius:4px;letter-spacing:.04em}}
+.aetf-chip-add{{background:#fee2e2;color:#b91c1c}}
+.aetf-chip-reduce{{background:#d1fae5;color:#047857}}
+.aetf-chip-new{{background:#fef3c7;color:#b45309}}
+.aetf-chip-exit{{background:#e5e7eb;color:#4b5563}}
+
+/* 個股 modal 內 ETF 表 — reuse 上述 .aetf-table 樣式 */
+.aetf-modal-hdr{{font-size:.95rem;font-weight:700;color:var(--accent);
+                 letter-spacing:.04em;margin:0 0 .55rem}}
+.aetf-stats{{display:flex;flex-wrap:wrap;gap:.4rem 1.5rem;margin-bottom:.7rem;
+              font-size:.78rem}}
+.aetf-stats .muted{{color:var(--muted);margin-right:.15rem}}
+.aetf-etf-cell{{min-width:6rem}}
+.aetf-etf-code{{font-weight:700;color:var(--text)}}
+.aetf-etf-issuer{{font-size:.7rem;color:var(--muted);margin-left:.2rem}}
+.aetf-lots-sub{{color:var(--muted);font-size:.72rem;margin-left:.25rem}}
 </style>
 </head>
 <body>
@@ -2911,6 +3248,7 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
   <button class="brand" onclick="showTab('focus');window.scrollTo(0,0);" title="回首頁">IIA 投資情報</button>
   <nav class="tabs">
     <button class="tab-btn active" data-tab="focus"   onclick="showTab('focus')">熱門題材</button>
+    <button class="tab-btn"        data-tab="aetf"    onclick="showTab('aetf')">主動式 ETF</button>
     <button class="tab-btn"        data-tab="notes"   onclick="showTab('notes')">市場話題</button>
     <button class="tab-btn"        data-tab="market"  onclick="showTab('market')">國際金融</button>
   </nav>
@@ -2963,6 +3301,11 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
   </div>
 
   <!-- 焦點排行 tab 2026-05-19 移除 -->
+
+  <!-- Tab: 主動式 ETF -->
+  <div id="tab-aetf" class="tab-pane">
+    {aetf_html}
+  </div>
 
   <!-- Tab 4: 市場話題(原「股市筆記」) -->
   <div id="tab-notes" class="tab-pane">
@@ -3052,7 +3395,6 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
 const artModalData = {{
 {modal_js_entries}
 }};
-window.IIA_RADAR = {radar_payload_json};
 const catalystModalData = {catalyst_modal_data_json};
 const catalystModalTitles = {catalyst_modal_titles_json};
 
@@ -3091,80 +3433,23 @@ function showSubTab(name) {{
     p.classList.toggle('active', p.id === 'stab-' + name));
 }}
 
-/* 個股 3 維雷達:漲跌 / PE / 52w%(殖利率 + β 2026-05-18 全站移除),normalize 到 0~1 後畫
- * polygon。同時疊一條 dashed 全焦點股平均對比。SVG concat 不用 template
- * literal 是為了避開 Python fstring `{{}}` escape 噪音。 */
-function _radarSvg(ticker) {{
-  const data = (window.IIA_RADAR || {{}});
-  const m = (data.stocks || {{}})[ticker];
-  if (!m) return '';
-  const avg = data.market || {{}};
-  // 維度 normalize:統一 0~1 範圍。PE 越低越好(反向),其他越高越好。
-  // (2026-05-18:殖利率 + β 全站移除,從 5 維變 3 維三角形)
-  const N = {{
-    chg:  v => v == null ? 0 : Math.max(0, Math.min(1, (v + 8) / 16)),
-    pe:   v => v == null ? 0 : Math.max(0, Math.min(1, 1 - v / 40)),
-    w52:  v => v == null ? 0 : Math.max(0, Math.min(1, v)),
-  }};
-  const dims = [
-    {{ key:'chg',  label:'漲跌',  raw:m.chg,  fmt:v => v==null?'—':(v>=0?'+':'')+v.toFixed(2)+'%' }},
-    {{ key:'pe',   label:'PE',    raw:m.pe,   fmt:v => v==null?'—':v.toFixed(1) }},
-    {{ key:'w52',  label:'52w%',  raw:m.w52,  fmt:v => v==null?'—':(v*100).toFixed(0)+'%' }},
-  ];
-  // 若全 null,無資料就不畫
-  if (dims.every(d => d.raw == null)) return '';
-  const cx = 80, cy = 80, r = 50;
-  const ang = (i) => -Math.PI/2 + i * 2*Math.PI/dims.length;
-  const pt = (i, v) => {{
-    const a = ang(i);
-    return [cx + Math.cos(a)*r*v, cy + Math.sin(a)*r*v];
-  }};
-  const pts = (vals) => vals.map((v, i) => {{
-    const [x, y] = pt(i, v);
-    return x.toFixed(1)+','+y.toFixed(1);
-  }}).join(' ');
-  const stockVals = dims.map(d => N[d.key](d.raw));
-  const avgVals = dims.map(d => N[d.key](avg[d.key]));
-  const ringVals = (s) => dims.map(_ => s);
-  const parts = [];
-  parts.push('<div class="radar-card">');
-  parts.push('<div class="radar-title">三維雷達 vs 全焦點股平均</div>');
-  parts.push('<svg class="radar-svg" viewBox="0 0 160 165">');
-  parts.push('<polygon class="radar-grid" points="' + pts(ringVals(1))    + '"/>');
-  parts.push('<polygon class="radar-grid" points="' + pts(ringVals(0.66)) + '"/>');
-  parts.push('<polygon class="radar-grid" points="' + pts(ringVals(0.33)) + '"/>');
-  dims.forEach((_, i) => {{
-    const [x, y] = pt(i, 1);
-    parts.push('<line class="radar-spoke" x1="' + cx + '" y1="' + cy +
-               '" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '"/>');
-  }});
-  parts.push('<polygon class="radar-avg"   points="' + pts(avgVals)   + '"/>');
-  parts.push('<polygon class="radar-stock" points="' + pts(stockVals) + '"/>');
-  dims.forEach((d, i) => {{
-    const [lx, ly] = pt(i, 1.32);
-    const ca = Math.cos(ang(i));
-    const anchor = ca > 0.2 ? 'start' : (ca < -0.2 ? 'end' : 'middle');
-    parts.push('<text class="radar-label" x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) +
-               '" text-anchor="' + anchor + '">' + d.label + '</text>');
-    parts.push('<text class="radar-val" x="' + lx.toFixed(1) + '" y="' + (ly+7).toFixed(1) +
-               '" text-anchor="' + anchor + '">' + d.fmt(d.raw) + '</text>');
-  }});
-  parts.push('</svg>');
-  parts.push('<div class="radar-legend">');
-  parts.push('<span class="rl-stock">▬ ' + ticker + '</span>');
-  parts.push('<span class="rl-avg">▬ 焦點股平均</span>');
-  parts.push('</div>');
-  parts.push('</div>');
-  return parts.join('');
-}}
+/* _radarSvg / IIA_RADAR / 個股雷達 2026-05-20 全廢:個股 modal body
+   改為「持股主動式 ETF」表(server-side render 進 artModalData),前端不再
+   需要客戶端雷達 SVG。 */
 
 function showArtModal(ticker, name) {{
-  const modal = document.getElementById('art-modal');
-  document.getElementById('modal-title').textContent = ticker + ' ' + name;
-  const radar = _radarSvg(ticker);
-  const body = artModalData[ticker] || '<p style="color:#7a8ba0">尚無分析師或文章資料</p>';
-  document.getElementById('modal-body').innerHTML = radar + body;
-  modal.showModal();
+  document.getElementById('modal-title').textContent = ticker + ' ' + (name || '');
+  document.getElementById('modal-body').innerHTML =
+    artModalData[ticker] || '<p style="color:#7a8ba0">本檔目前無主動 ETF 持有</p>';
+  document.getElementById('art-modal').showModal();
+}}
+
+/* showAetfTab: 主動式 ETF 頁 tab 切換(per-ETF) */
+function showAetfTab(code) {{
+  document.querySelectorAll('.aetf-tab-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.aetf === code));
+  document.querySelectorAll('.aetf-pane').forEach(p =>
+    p.classList.toggle('active', p.dataset.aetfPane === code));
 }}
 
 /* Merged cluster name — 計算螢幕對應 visible 閾值並產出 "+N ▾" / "收合 ▴" */
