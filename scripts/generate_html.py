@@ -2903,11 +2903,11 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
 <div class="tape">{tape_html}</div>
 
 <header>
-  <button class="brand" onclick="showTab('market');window.scrollTo(0,0);" title="回首頁">IIA 投資情報</button>
+  <button class="brand" onclick="showTab('focus');window.scrollTo(0,0);" title="回首頁">IIA 投資情報</button>
   <nav class="tabs">
-    <button class="tab-btn active" data-tab="market"  onclick="showTab('market')">市場行情</button>
-    <button class="tab-btn"        data-tab="focus"   onclick="showTab('focus')">熱門題材</button>
+    <button class="tab-btn active" data-tab="focus"   onclick="showTab('focus')">熱門題材</button>
     <button class="tab-btn"        data-tab="notes"   onclick="showTab('notes')">股市筆記</button>
+    <button class="tab-btn"        data-tab="market"  onclick="showTab('market')">市場行情</button>
   </nav>
   <div class="search-box">
     <input type="search" id="site-search" placeholder="搜尋 ticker / 公司"
@@ -2921,7 +2921,7 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
 
 <div class="wrap">
   <!-- Tab 1: 市場行情 -->
-  <div id="tab-market" class="tab-pane active">
+  <div id="tab-market" class="tab-pane">
     <div class="card">
       <div class="sec">每日分析報告（{report_date}）</div>
       <div class="report">{report_html or '<p style="color:var(--muted)">今日報告尚未生成</p>'}</div>
@@ -2952,8 +2952,8 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
     </div>
   </div>
 
-  <!-- Tab 2: 熱門題材 -->
-  <div id="tab-focus" class="tab-pane">
+  <!-- Tab 2: 熱門題材(預設首頁) -->
+  <div id="tab-focus" class="tab-pane active">
     {focus_html}
   </div>
 
