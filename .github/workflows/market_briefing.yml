@@ -81,4 +81,6 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: "4"
+          # Pin 具體版本 — `wranglerVersion: "4"` 浮動取最新會撈到 4.86.0
+          # 撞 npx interactive prompt 卡住 (2026-05-19 踩到);pin 已測過的版本。
+          wranglerVersion: "4.20.0"
