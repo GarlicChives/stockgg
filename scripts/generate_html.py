@@ -136,6 +136,35 @@ def md_to_html(text: str) -> str:
     return '\n'.join(result)
 
 
+def md_to_html_simple(text: str) -> str:
+    """Catalyst preview 用簡版 markdown → HTML。
+    與 md_to_html 不同:不做 strip_preamble、不移除特定 section
+    (那些針對日報設計的邏輯會誤殺 catalyst preview 的開頭段)。
+    處理:### / ## heading、**bold**、* / - bullets、段落 wrap。
+    """
+    if not text:
+        return ""
+    text = html_lib.escape(text)
+    text = re.sub(r'^### (.+)$', r'<h3>\1</h3>', text, flags=re.MULTILINE)
+    text = re.sub(r'^## (.+)$', r'<h2>\1</h2>', text, flags=re.MULTILINE)
+    text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+    def wrap_list(m):
+        items = re.sub(r'^[\*\-]\s+(.+)$', r'<li>\1</li>', m.group(0), flags=re.MULTILINE)
+        return f'<ul>{items}</ul>'
+    text = re.sub(r'(?m)(^[\*\-] .+\n?)+', wrap_list, text)
+    blocks = re.split(r'\n{2,}', text)
+    result = []
+    for block in blocks:
+        block = block.strip()
+        if not block:
+            continue
+        if re.match(r'^<(h[1-3]|ul)', block):
+            result.append(block)
+        else:
+            result.append(f'<p>{block.replace(chr(10), "<br>")}</p>')
+    return '\n'.join(result)
+
+
 def podcast_content_to_html(content: str, is_refined: bool = False) -> str:
     if not content:
         return '<p style="color:var(--muted)">（無內容）</p>'
@@ -1246,38 +1275,20 @@ def build_catalyst_html(events: list[dict], stocks_info: dict | None = None) -> 
             data_attr = f' data-ticker="{html_lib.escape(tk)}"' if tk else ""
             if has_preview:
                 cls += " has-preview"
-                pid = f"prev-{ev['id']}"
                 chips.append(
                     f'<span class="{cls}"{data_attr} '
-                    f"onclick=\"document.getElementById('{pid}').classList.toggle('open')\">"
-                    f"{html_lib.escape(label)} 📝</span>"
+                    f'onclick="showCatalystModal({int(ev["id"])})">'
+                    f'{html_lib.escape(label)} 📝</span>'
                 )
             else:
                 chips.append(f'<span class="{cls}"{data_attr}>{html_lib.escape(label)}</span>')
 
-        # Render previews (now for any event type that has preview_text — not
-        # just earnings; past events use the same mechanism to surface the
-        # preview written before the event date).
-        preview_blocks = []
-        for ev in evs:
-            txt = (ev.get("preview_text") or "").strip()
-            if not txt:
-                continue
-            pid = f"prev-{ev['id']}"
-            head_tk = (ev.get("ticker") or "").strip()
-            head_title = (ev.get("title") or "").strip()
-            head_label = (f"{head_tk} 法說 preview" if ev["event_type"] == "earnings" and head_tk
-                          else head_title or "事件 preview")
-            preview_blocks.append(
-                f'<div id="{pid}" class="cal-preview">'
-                f'<div class="cal-preview-head">📝 {html_lib.escape(head_label)}</div>'
-                f'<pre class="cal-preview-body">{html_lib.escape(txt)}</pre>'
-                f'</div>'
-            )
+        # preview_text 從 inline 展開改為 art-modal 彈窗(2026-05-19):
+        # 點 chip → showCatalystModal(id) → 拿 catalystModalData[id]/Titles[id] 渲染。
+        # inline expandable div 已廢,留 has-preview class 給 chip 視覺提示(📝)。
         day_html.append(
             f'<div class="{day_cls}"><div class="cal-date">{date_label}</div>'
             f'<div class="cal-events">{"".join(chips)}</div></div>'
-            + "".join(preview_blocks)
         )
     return '<div class="cal-list">' + "".join(day_html) + "</div>"
 
@@ -2188,6 +2199,18 @@ async def generate():
         {"stocks": radar_metrics, "market": radar_market_avg},
         ensure_ascii=False, separators=(",", ":"),
     )
+
+    # Catalyst preview modal payload(2026-05-19 改 chip inline expandable →
+    # showCatalystModal 彈窗,複用 art-modal dialog)
+    _has_pv = [ev for ev in catalyst_events if (ev.get("preview_text") or "").strip()]
+    catalyst_modal_data_json = json.dumps(
+        {int(ev["id"]): md_to_html_simple(ev["preview_text"]) for ev in _has_pv},
+        ensure_ascii=False, separators=(",", ":"),
+    )
+    catalyst_modal_titles_json = json.dumps(
+        {int(ev["id"]): ev["title"] for ev in _has_pv},
+        ensure_ascii=False, separators=(",", ":"),
+    )
     # ── Page HTML ─────────────────────────────────────────────────────────────
     page = f"""<!DOCTYPE html>
 <html lang="zh-TW">
@@ -2352,13 +2375,8 @@ header{{background:var(--card);border-bottom:1px solid var(--border);
 .cal-ev.cal-policy{{background:rgba(200,160,255,.15);color:#c8b0e8}}
 .cal-ev.has-preview{{cursor:pointer;text-decoration:underline dotted rgba(255,255,255,.3)}}
 .cal-ev.has-preview:hover{{filter:brightness(1.15)}}
-.cal-preview{{grid-column:1 / -1;display:none;margin:.4rem 0 .2rem 90px;
-              padding:.55rem .75rem;background:rgba(255,255,255,.04);
-              border-left:2px solid var(--accent);border-radius:4px}}
-.cal-preview.open{{display:block}}
-.cal-preview-head{{font-size:.78rem;color:var(--accent);font-weight:600;margin-bottom:.35rem}}
-.cal-preview-body{{font-size:.82rem;color:#c0cad8;white-space:pre-wrap;
-                   font-family:inherit;line-height:1.5;margin:0}}
+/* 2026-05-19 起 .cal-preview inline expandable 改 showCatalystModal 彈窗,
+   .cal-preview / .cal-preview-head / .cal-preview-body CSS 已移除。 */
 
 /* ── Rankings ── */
 .ranks{{display:grid;grid-template-columns:1fr 1fr;gap:1.1rem}}
@@ -3074,6 +3092,17 @@ const artModalData = {{
 {modal_js_entries}
 }};
 window.IIA_RADAR = {radar_payload_json};
+const catalystModalData = {catalyst_modal_data_json};
+const catalystModalTitles = {catalyst_modal_titles_json};
+
+function showCatalystModal(eventId) {{
+  const md = catalystModalData[eventId];
+  if (!md) return;  // 沒 preview 不彈
+  const title = catalystModalTitles[eventId] || '事件';
+  document.getElementById('modal-title').textContent = '📝 ' + title;
+  document.getElementById('modal-body').innerHTML = md;
+  document.getElementById('art-modal').showModal();
+}}
 
 function showTab(name) {{
   document.querySelectorAll('.tab-btn').forEach(b =>
