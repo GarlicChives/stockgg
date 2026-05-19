@@ -2080,6 +2080,21 @@ async def generate():
     # 焦點股 line vs 大盤 vs 櫃買(都 rebase to 100,看相對強弱)。
     market_index_payload = await asyncio.to_thread(_yf_market_index_history, "6mo")
 
+    # 補丁:yfinance 對 ^TWOII(櫃買 TPEx)今日 close 常延遲(盤後 1-2h 才 sync),
+    # 結果 chart 三線中櫃買線截止「昨天」。如 ingest 端 market_snapshots 已寫
+    # 對應 symbol 今日 close,從 snaps fallback 補一個 today 點。
+    # ^TWII 一樣對待(yfinance 偶爾也 flaky)。snaps 沒寫對應 symbol 則跳過。
+    for _key, _snap_sym in (("TWII", "^TWII"), ("TPEX", "^TWOII")):
+        _series = market_index_payload.get(_key, [])
+        _snap = snaps.get(_snap_sym)
+        _snap_dt = snap_dates.get(_snap_sym)
+        if not _series or not _snap or _snap_dt is None:
+            continue
+        _snap_d = _snap_dt.date().isoformat() if hasattr(_snap_dt, "date") else str(_snap_dt)[:10]
+        if _snap_d > _series[-1]["d"] and _snap.get("close") is not None:
+            _series.append({"d": _snap_d, "close": round(float(_snap["close"]), 2)})
+            print(f"  market_index {_key}: 補今日 close 從 snaps ({_snap_d}={_snap['close']})")
+
     # 「市場行情」ranking table 只顯前 N (RANKINGS_TOP_N=50),過濾 Q14 special
     # 與 Q15 focus_member 的 rank=NULL row(它們是 cluster detection universe,
     # 不該出現在 ranking 表)。cluster detection / stocks_info path 仍走完整
