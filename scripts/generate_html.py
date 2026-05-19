@@ -1439,19 +1439,17 @@ def build_active_etf_page(etf_list: list, holdings_by_etf: dict[str, list]) -> s
     if not etf_list:
         return '<p class="muted-note">尚無主動式 ETF 資料</p>'
 
-    nav_btns = []
+    nav_opts = []
     panes = []
     for i, etf in enumerate(etf_list):
         code = etf["etf_code"]
         active = " active" if i == 0 else ""
         label = etf.get("short_name") or code
         aum_b = float(etf.get("aum_ntd") or 0) / 1e8
-        nav_btns.append(
-            f'<button class="aetf-tab-btn{active}" data-aetf="{code}" type="button" '
-            f'onclick="showAetfTab(\'{code}\')">'
-            f'<span class="aetf-tab-code">{html_lib.escape(str(label))}</span>'
-            f'<span class="aetf-tab-aum">{aum_b:.0f} 億</span>'
-            f'</button>'
+        selected = " selected" if i == 0 else ""
+        opt_text = f"{label} · AUM {aum_b:.0f} 億"
+        nav_opts.append(
+            f'<option value="{code}"{selected}>{html_lib.escape(opt_text)}</option>'
         )
 
         holdings = holdings_by_etf.get(code, [])
@@ -1558,8 +1556,13 @@ def build_active_etf_page(etf_list: list, holdings_by_etf: dict[str, list]) -> s
         )
 
     return (
-        f'<div class="aetf-tabs">{"".join(nav_btns)}</div>'
-        f'{"".join(panes)}'
+        '<div class="aetf-select-row">'
+        '<label class="aetf-select-label" for="aetf-select">選 ETF</label>'
+        '<select id="aetf-select" class="aetf-select" onchange="showAetfTab(this.value)">'
+        + "".join(nav_opts)
+        + '</select>'
+        '</div>'
+        + "".join(panes)
     )
 
 
@@ -3162,17 +3165,21 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
    — 公開站不再提供分享按鈕,user 自行用瀏覽器分享。 */
 
 /* ── 主動式 ETF 頁(2026-05-20)+ 個股 modal 內 ETF 表 ────────────── */
-.aetf-tabs{{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:1rem}}
-.aetf-tab-btn{{display:flex;flex-direction:column;align-items:flex-start;
-                background:var(--card);color:var(--muted);
+/* ETF 切換從 23 個 tab button 改為下拉 select(2026-05-20,排序 AUM desc) */
+.aetf-select-row{{display:flex;align-items:center;gap:.55rem;margin-bottom:1rem;
+                   flex-wrap:wrap}}
+.aetf-select-label{{font-size:.78rem;color:var(--muted);font-weight:600;
+                     letter-spacing:.04em}}
+.aetf-select{{font-family:inherit;font-size:.85rem;font-weight:600;
+                background:var(--card);color:var(--text);
                 border:1px solid var(--border);border-radius:8px;
-                padding:.45rem .8rem;cursor:pointer;font-family:inherit;
-                line-height:1.25;transition:.15s;min-width:5.5rem}}
-.aetf-tab-btn:hover{{background:rgba(124,138,242,.08);color:var(--text);
-                       border-color:rgba(124,138,242,.3)}}
-.aetf-tab-btn.active{{background:var(--accent);color:#fff;border-color:var(--accent)}}
-.aetf-tab-code{{font-size:.85rem;font-weight:700}}
-.aetf-tab-aum{{font-size:.7rem;opacity:.78;margin-top:.1rem}}
+                padding:.5rem .8rem;cursor:pointer;
+                min-width:18rem;max-width:100%;
+                transition:.15s}}
+.aetf-select:hover,.aetf-select:focus{{border-color:rgba(124,138,242,.5);
+                                         background:rgba(124,138,242,.05);outline:none}}
+.aetf-select option{{background:var(--card);color:var(--text);
+                       font-family:inherit;padding:.4rem}}
 .aetf-pane{{display:none}}
 .aetf-pane.active{{display:block}}
 
