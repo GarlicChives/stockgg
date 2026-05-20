@@ -3724,7 +3724,7 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
   <button class="brand" onclick="showTab('focus');window.scrollTo(0,0);" title="回首頁">IIA 投資情報</button>
   <nav class="tabs">
     <button class="tab-btn active" data-tab="focus"    onclick="showTab('focus')">熱門題材</button>
-    <button class="tab-btn"        data-tab="fstock"   onclick="showTab('fstock')">焦點股</button>
+    <button class="tab-btn"        data-tab="fstock"   onclick="showTab('fstock')">選股雷達</button>
     <button class="tab-btn"        data-tab="aetf"     onclick="showTab('aetf')">主動式 ETF</button>
     <button class="tab-btn"        data-tab="notes"    onclick="showTab('notes')">市場話題</button>
     <button class="tab-btn"        data-tab="market"   onclick="showTab('market')">國際金融</button>
@@ -3779,7 +3779,7 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
 
   <!-- 焦點排行 tab 2026-05-19 移除 -->
 
-  <!-- Tab: 焦點股(出量股 / 潛力股) -->
+  <!-- Tab: 選股雷達(原「焦點股」;出量股 / 潛力股 / 交集股 / 新高股 / 成長股) -->
   <div id="tab-fstock" class="tab-pane">
     {focus_stock_html}
   </div>
