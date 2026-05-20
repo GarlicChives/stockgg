@@ -51,7 +51,7 @@ Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
 ## 前端架構速覽
 
 - **單頁 SPA + main tab + sub tab**:
-  - main tab(top nav):市場行情 / 熱門題材 / 焦點排行 / 股市筆記
+  - main tab(top nav):熱門題材(首頁)/ 焦點股 / 主動式 ETF / 市場話題 / 國際金融
   - 熱門題材內 sub-tab:🌟 焦點(`hl_sub` level,展示 main='近一年焦點' cluster + 前哨 section)/ 📊 泛分類(`pan_sub` level,原 statementdog 47 main)
   - 兩 sub-tab 共用 cluster card 排行版型,各自獨立 sort state(`_clusterSort[level]`)
 - **inline payload**(HTML script tag 內):

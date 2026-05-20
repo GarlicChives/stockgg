@@ -1598,6 +1598,179 @@ def build_active_etf_page(etf_list: list, holdings_by_etf: dict[str, list]) -> s
     )
 
 
+# ── 焦點股 tab(2026-05-20)— 出量股 / 潛力股 ──────────────────────────────────
+
+def _focus_stock_etf_cell(etf_rows: list) -> str:
+    """個股的主動 ETF 動作 cell:持有檔數 + 加碼/減碼/清倉 count chip。"""
+    held = [r for r in etf_rows if (r.get("lots") or 0) > 0]
+    if not held and not etf_rows:
+        return '<span class="muted">—</span>'
+    n = len(held)
+    adds    = sum(1 for r in etf_rows if r.get("action") == "add")
+    reduces = sum(1 for r in etf_rows if r.get("action") == "reduce")
+    exits   = sum(1 for r in etf_rows if r.get("action") == "exit")
+    parts = [f'<span class="fs-etf-held">{n} 檔持有</span>']
+    if adds:
+        parts.append(f'<span class="aetf-chip aetf-chip-add">加碼 {adds}</span>')
+    if reduces:
+        parts.append(f'<span class="aetf-chip aetf-chip-reduce">減碼 {reduces}</span>')
+    if exits:
+        parts.append(f'<span class="aetf-chip aetf-chip-exit">清倉 {exits}</span>')
+    return " ".join(parts)
+
+
+def build_focus_stock_page(
+    focus_hl_clusters: list,
+    stocks_info: dict,
+    ticker_close_full: dict[str, list[dict]],
+    stock_meta: dict,
+    aetf_holdings_by_ticker: dict[str, list],
+    today_str: str,
+) -> str:
+    """焦點股 tab:來源 = 熱門題材「焦點」(hl_sub)的 focal union。
+    - 出量股:今日成交金額 > 前 5 交易日均(不含今日)× 2,出量倍數 desc
+    - 潛力股:MA10 > MA20 且 close > MA10 且 close ≤ MA10×1.2,月線乖離 desc
+    欄位:成交金額 / 月線乖離 / PE / 隸屬題材 / 主動式 ETF 動作。
+    """
+    # 1. union focal ticker → 所屬 cluster name list
+    focal_to_clusters: dict[str, list[str]] = {}
+    for c in (focus_hl_clusters or []):
+        for s in c.focal:
+            focal_to_clusters.setdefault(s.ticker, []).append(c.name)
+
+    def _f(v):
+        if v is None:
+            return None
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
+    # 2. per-ticker 計算
+    cands: list[dict] = []
+    for tk, clusters in focal_to_clusters.items():
+        info = stocks_info.get(tk, {})
+        today_close = _f(info.get("close_price"))
+        today_tv = _f(info.get("trading_value"))
+        hist = ticker_close_full.get(tk, [])  # date asc
+        # 前 5 交易日(排除今日)的 close × volume 均
+        prev = [h for h in hist
+                if h.get("d") != today_str and h.get("c") and h.get("v")]
+        prev5 = prev[-5:]
+        avg5_tv = (sum(h["c"] * h["v"] for h in prev5) / 5) if len(prev5) == 5 else None
+        # MA10 / MA20(含今日 close)
+        closes = [h["c"] for h in hist if h.get("c") is not None]
+        ma10 = sum(closes[-10:]) / 10 if len(closes) >= 10 else None
+        ma20 = sum(closes[-20:]) / 20 if len(closes) >= 20 else None
+        ma20_bias = ((today_close - ma20) / ma20 * 100) if (today_close and ma20) else None
+        vol_mult = (today_tv / avg5_tv) if (today_tv and avg5_tv) else None
+        cands.append({
+            "ticker": tk,
+            "name": (info.get("name") or "")[:12],
+            "today_tv": today_tv,
+            "today_close": today_close,
+            "vol_mult": vol_mult,
+            "ma10": ma10, "ma20": ma20, "ma20_bias": ma20_bias,
+            "pe": _f(stock_meta.get(tk, {}).get("pe_ttm")),
+            "clusters": clusters,
+            "etf_rows": aetf_holdings_by_ticker.get(tk, []),
+        })
+
+    # 3. 出量股 / 潛力股 篩選 + 排序
+    volume_stocks = sorted(
+        [c for c in cands if c["vol_mult"] and c["vol_mult"] > 2],
+        key=lambda c: -c["vol_mult"],
+    )
+    potential_stocks = sorted(
+        [c for c in cands
+         if c["ma10"] and c["ma20"] and c["today_close"]
+         and c["ma10"] > c["ma20"]
+         and c["today_close"] > c["ma10"]
+         and c["today_close"] <= c["ma10"] * 1.2],
+        key=lambda c: -(c["ma20_bias"] if c["ma20_bias"] is not None else float("-inf")),
+    )
+
+    def _bias_cell(v):
+        if v is None:
+            return '<span class="muted">—</span>'
+        cls = "up" if v > 0 else ("down" if v < 0 else "flat")
+        sign = "+" if v > 0 else ""
+        return f'<span class="{cls}">{sign}{v:.2f}%</span>'
+
+    def _tv_cell(v):
+        return f"{v/1e8:.0f} 億" if v else "—"
+
+    def _cluster_cell(names):
+        return "".join(
+            f'<span class="fs-theme-chip">{html_lib.escape(n)}</span>' for n in names
+        ) or '<span class="muted">—</span>'
+
+    def _row(c, *, with_volmult: bool) -> str:
+        tk, nm = c["ticker"], c["name"]
+        click = f"showArtModal({json.dumps(tk)},{json.dumps(nm)})"
+        pe = c["pe"]
+        pe_str = f"{pe:.1f}" if (pe and pe > 0) else "—"
+        volmult_td = (
+            f'<td class="r"><b>{c["vol_mult"]:.2f}×</b></td>'
+            if with_volmult else ""
+        )
+        return (
+            f"<tr class=\"fs-row\" onclick='{click}'>"
+            f'<td><span class="fs-tk">{html_lib.escape(tk)}</span> '
+            f'<span class="fs-nm">{html_lib.escape(nm)}</span></td>'
+            f'<td class="r">{_tv_cell(c["today_tv"])}</td>'
+            f'{volmult_td}'
+            f'<td class="r">{_bias_cell(c["ma20_bias"])}</td>'
+            f'<td class="r">{pe_str}</td>'
+            f'<td>{_cluster_cell(c["clusters"])}</td>'
+            f'<td>{_focus_stock_etf_cell(c["etf_rows"])}</td>'
+            f'</tr>'
+        )
+
+    def _table(rows: list[dict], *, with_volmult: bool, empty_msg: str) -> str:
+        if not rows:
+            return f'<p class="muted-note">{empty_msg}</p>'
+        volmult_th = '<th class="r">出量倍數</th>' if with_volmult else ""
+        body = "".join(_row(c, with_volmult=with_volmult) for c in rows)
+        return (
+            '<table class="fs-table">'
+            '<thead><tr><th>標的</th><th class="r">成交金額</th>'
+            f'{volmult_th}'
+            '<th class="r">月線乖離</th><th class="r">PE</th>'
+            '<th>隸屬題材</th><th>主動式 ETF</th></tr></thead>'
+            f'<tbody>{body}</tbody>'
+            '</table>'
+        )
+
+    vol_html = _table(
+        volume_stocks, with_volmult=True,
+        empty_msg="今日無焦點股出量(成交金額 > 前 5 日均 × 2)",
+    )
+    pot_html = _table(
+        potential_stocks, with_volmult=False,
+        empty_msg="今日無焦點股符合潛力條件(MA10 > MA20 且股價站上 MA10 未過熱)",
+    )
+
+    nav_html = (
+        '<div class="sub-tabs">'
+        '<button class="sub-tab-btn active" data-fstab="vol" type="button" '
+        'onclick="showFocusStockTab(\'vol\')">📊 出量股</button>'
+        '<button class="sub-tab-btn" data-fstab="pot" type="button" '
+        'onclick="showFocusStockTab(\'pot\')">🚀 潛力股</button>'
+        '</div>'
+    )
+    panes_html = (
+        f'<div class="fs-tab-pane active" id="fstab-vol">'
+        '<p class="fs-hint">今日成交金額 &gt; 前 5 交易日均(不含今日)× 2,依出量倍數排序。</p>'
+        f'{vol_html}</div>'
+        f'<div class="fs-tab-pane" id="fstab-pot">'
+        '<p class="fs-hint">十日均價 &gt; 月均價、股價站上十日均價且未超過 1.2 倍,'
+        '依月線乖離率排序。</p>'
+        f'{pot_html}</div>'
+    )
+    return nav_html + panes_html
+
+
 def build_focus_html(
     tw_ranks: list,
     sub_clusters: list,
@@ -2241,11 +2414,15 @@ async def generate():
     # (2) hl_sub cluster sparkline 也走這(close-based 趨勢)
     # 對 pan_sub 仍可用,但目前還靠 focal_breakdown(後續可漸進切過去)
     ticker_close_payload: dict[str, list[dict]] = {}
+    # ticker_close_full:含 volume 的完整 per-ticker close history,server-side
+    # 給「焦點股」頁算 5 日均成交金額 / MA10 / MA20 用(history.json 的
+    # ticker_close_payload 不含 volume,維持 modal chart payload 精簡)。
+    ticker_close_full: dict[str, list[dict]] = {}
     _hist_tickers = list(set(_focal_tw) | set(highlight_tickers))
     if _hist_tickers:
         try:
             tch_rows = await conn.fetch(
-                "SELECT ticker, rank_date, close, shares_out FROM ticker_close_history "
+                "SELECT ticker, rank_date, close, shares_out, volume FROM ticker_close_history "
                 "WHERE ticker = ANY($1::text[]) "
                 "AND rank_date >= current_date - INTERVAL '400 days' "
                 "ORDER BY ticker, rank_date",
@@ -2257,10 +2434,14 @@ async def generate():
                 # _computeClusterSeries 的 dateSet union 才會 match
                 _d = r["rank_date"]
                 d_str = _d.strftime("%Y-%m-%d") if hasattr(_d, "strftime") else str(_d)[:10]
+                _close = float(r["close"]) if r["close"] is not None else None
+                _shares = float(r["shares_out"]) if r["shares_out"] is not None else None
+                _vol = float(r["volume"]) if r["volume"] is not None else None
                 ticker_close_payload.setdefault(r["ticker"], []).append({
-                    "d": d_str,
-                    "c": float(r["close"]) if r["close"] is not None else None,
-                    "s": float(r["shares_out"]) if r["shares_out"] is not None else None,
+                    "d": d_str, "c": _close, "s": _shares,
+                })
+                ticker_close_full.setdefault(r["ticker"], []).append({
+                    "d": d_str, "c": _close, "s": _shares, "v": _vol,
                 })
             print(f"  ticker_close_history: {len(tch_rows)} rows for "
                   f"{len(ticker_close_payload)}/{len(_hist_tickers)} tickers")
@@ -2401,6 +2582,13 @@ async def generate():
         lst.sort(key=lambda h: -(float(h.get("aum_ntd") or 0)))
 
     aetf_html = build_active_etf_page(aetf_list, aetf_holdings_by_etf)
+
+    # ── 焦點股 tab(2026-05-20):出量股 / 潛力股,來源 = hl_sub focal union ──
+    _today_str = tw_rank_date.strftime("%Y-%m-%d") if tw_rank_date else ""
+    focus_stock_html = build_focus_stock_page(
+        focus_hl_clusters, stocks_info, ticker_close_full,
+        stock_meta, aetf_holdings_by_ticker, _today_str,
+    )
 
     # ── 個股 modal data:2026-05-20 取代「intro + analyst」為「持股主動式 ETF」表 ──
     # _yf_analyst_batch + _build_company_intro_html + _build_analyst_html + radar
@@ -3310,6 +3498,30 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
 .aetf-etf-code{{font-weight:700;color:var(--text)}}
 .aetf-etf-issuer{{font-size:.7rem;color:var(--muted);margin-left:.2rem}}
 .aetf-lots-sub{{color:var(--muted);font-size:.72rem;margin-left:.25rem}}
+
+/* ── 焦點股頁(2026-05-20)出量股 / 潛力股 ────────────────────────────── */
+.fs-tab-pane{{display:none}}
+.fs-tab-pane.active{{display:block}}
+.fs-hint{{font-size:.76rem;color:var(--muted);margin:.2rem 0 .8rem;line-height:1.5}}
+.fs-table{{width:100%;border-collapse:collapse;
+            background:#12151f;border:1px solid var(--border);
+            border-radius:8px;overflow:hidden}}
+.fs-table th{{font-size:.72rem;color:var(--muted);font-weight:600;
+               text-align:left;padding:.5rem .7rem;
+               border-bottom:1px solid var(--border);background:rgba(255,255,255,.02)}}
+.fs-table td{{padding:.5rem .7rem;font-size:.82rem;
+               border-bottom:1px solid rgba(42,46,64,.4);vertical-align:middle}}
+.fs-table tr:last-child td{{border-bottom:none}}
+.fs-table th.r,.fs-table td.r{{text-align:right}}
+.fs-table tr.fs-row{{cursor:pointer;transition:background .12s}}
+.fs-table tr.fs-row:hover td{{background:rgba(124,138,242,.06)}}
+.fs-tk{{font-weight:700;color:var(--text)}}
+.fs-nm{{color:var(--muted);margin-left:.25rem}}
+.fs-theme-chip{{display:inline-block;font-size:.68rem;
+                 background:rgba(124,138,242,.1);color:var(--accent);
+                 border:1px solid rgba(124,138,242,.25);border-radius:4px;
+                 padding:.1rem .4rem;margin:.1rem .15rem .1rem 0}}
+.fs-etf-held{{font-size:.74rem;color:var(--text);font-weight:600}}
 </style>
 </head>
 <body>
@@ -3320,10 +3532,11 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
 <header>
   <button class="brand" onclick="showTab('focus');window.scrollTo(0,0);" title="回首頁">IIA 投資情報</button>
   <nav class="tabs">
-    <button class="tab-btn active" data-tab="focus"   onclick="showTab('focus')">熱門題材</button>
-    <button class="tab-btn"        data-tab="aetf"    onclick="showTab('aetf')">主動式 ETF</button>
-    <button class="tab-btn"        data-tab="notes"   onclick="showTab('notes')">市場話題</button>
-    <button class="tab-btn"        data-tab="market"  onclick="showTab('market')">國際金融</button>
+    <button class="tab-btn active" data-tab="focus"    onclick="showTab('focus')">熱門題材</button>
+    <button class="tab-btn"        data-tab="fstock"   onclick="showTab('fstock')">焦點股</button>
+    <button class="tab-btn"        data-tab="aetf"     onclick="showTab('aetf')">主動式 ETF</button>
+    <button class="tab-btn"        data-tab="notes"    onclick="showTab('notes')">市場話題</button>
+    <button class="tab-btn"        data-tab="market"   onclick="showTab('market')">國際金融</button>
   </nav>
   <div class="search-box">
     <input type="search" id="site-search" placeholder="搜尋 ticker / 公司"
@@ -3374,6 +3587,11 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
   </div>
 
   <!-- 焦點排行 tab 2026-05-19 移除 -->
+
+  <!-- Tab: 焦點股(出量股 / 潛力股) -->
+  <div id="tab-fstock" class="tab-pane">
+    {focus_stock_html}
+  </div>
 
   <!-- Tab: 主動式 ETF -->
   <div id="tab-aetf" class="tab-pane">
@@ -3527,6 +3745,14 @@ function showAetfTab(code) {{
     b.classList.toggle('active', b.dataset.aetf === code));
   document.querySelectorAll('.aetf-pane').forEach(p =>
     p.classList.toggle('active', p.dataset.aetfPane === code));
+}}
+
+/* showFocusStockTab: 焦點股頁 sub-tab 切換(出量股 vol / 潛力股 pot) */
+function showFocusStockTab(name) {{
+  document.querySelectorAll('.sub-tab-btn[data-fstab]').forEach(b =>
+    b.classList.toggle('active', b.dataset.fstab === name));
+  document.querySelectorAll('.fs-tab-pane').forEach(p =>
+    p.classList.toggle('active', p.id === 'fstab-' + name));
 }}
 
 /* Merged cluster name — 計算螢幕對應 visible 閾值並產出 "+N ▾" / "收合 ▴" */

@@ -82,7 +82,7 @@ const ALLOWED: Set<string> = new Set([
   // 5-tuple 內的 close/shares,因為 focal_breakdown 只有當日進 top-50 的
   // ticker;近一年焦點 main 整批沒進 top-50 的 ticker 用這張表才拿得到歷史)。
   // ingest 端 src/news/stock_meta.py + scripts/backfill_ticker_history.py 寫入。
-  "select ticker, rank_date, close, shares_out from ticker_close_history where ticker = any($1::text[]) and rank_date >= current_date - interval '400 days' order by ticker, rank_date",
+  "select ticker, rank_date, close, shares_out, volume from ticker_close_history where ticker = any($1::text[]) and rank_date >= current_date - interval '400 days' order by ticker, rank_date",
 
   // Q14 — special rows(處置 / 漲跌停)not in top 50。ingest 5a172be 起把這些
   // ticker 也寫進 trading_rankings(rank=NULL,extra.is_special='true');
