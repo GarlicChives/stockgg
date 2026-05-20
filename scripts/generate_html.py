@@ -1712,8 +1712,12 @@ def build_focus_stock_page(
         return f'<span class="{cls}">{sign}{v:.2f}%</span>'
 
     def _cluster_cell(names):
+        # 點 chip → openThemeByName 開熱門題材 cluster chart modal;
+        # stopPropagation 避免 bubble 到 row 的 showArtModal(個股 modal)
         return "".join(
-            f'<span class="fs-theme-chip">{html_lib.escape(n)}</span>' for n in names
+            f'<span class="fs-theme-chip" '
+            f"onclick='event.stopPropagation();openThemeByName({json.dumps(n)})'>"
+            f'{html_lib.escape(n)}</span>' for n in names
         ) or '<span class="muted">—</span>'
 
     _MATCH_CHIP_CLS = {"出量": "fs-mc-vol", "潛力": "fs-mc-pot"}
@@ -1760,8 +1764,9 @@ def build_focus_stock_page(
             f'data-match="{len(c["matched"])}"'
         )
         tds = [
-            f'<td><span class="fs-tk">{html_lib.escape(tk)}</span> '
-            f'<span class="fs-nm">{html_lib.escape(nm)}</span></td>',
+            # 標的 cell:用 _stk_pill(同熱門題材樣式,代號+名稱+股價(漲跌));
+            # clickable=False — row 本身 onclick showArtModal 已 handle
+            f'<td>{_stk_pill(tk, stocks_info, clickable=False)}</td>',
             f'<td class="r">{f"{tv/1e8:.0f} 億" if tv else "—"}</td>',
         ]
         if mode == "volume":
@@ -1807,8 +1812,6 @@ def build_focus_stock_page(
         '<button class="sub-tab-btn" data-fstab="pot" type="button" '
         'onclick="showFocusStockTab(\'pot\')">🚀 潛力股</button>'
         '</div>'
-        '<p class="fs-global-note">⚑ 所有 sub-tab 僅列<b>股價站上季線(60 日均)</b>'
-        '的標的 — 季線以下不做多。</p>'
     )
     panes_html = (
         f'<div class="fs-tab-pane active" id="fstab-int">'
@@ -3556,11 +3559,6 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
 .fs-tab-pane{{display:none}}
 .fs-tab-pane.active{{display:block}}
 .fs-hint{{font-size:.76rem;color:var(--muted);margin:.2rem 0 .8rem;line-height:1.5}}
-.fs-global-note{{font-size:.74rem;color:#d97706;margin:.1rem 0 .9rem;
-                  line-height:1.5;background:rgba(245,158,11,.07);
-                  border:1px solid rgba(245,158,11,.25);border-radius:6px;
-                  padding:.4rem .7rem}}
-.fs-global-note b{{color:#e0922e}}
 .fs-table{{width:100%;border-collapse:collapse;
             background:#12151f;border:1px solid var(--border);
             border-radius:8px;overflow:hidden}}
@@ -3590,7 +3588,9 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
 .fs-theme-chip{{display:inline-block;font-size:.68rem;
                  background:rgba(124,138,242,.1);color:var(--accent);
                  border:1px solid rgba(124,138,242,.25);border-radius:4px;
-                 padding:.1rem .4rem;margin:.1rem .15rem .1rem 0}}
+                 padding:.1rem .4rem;margin:.1rem .15rem .1rem 0;
+                 cursor:pointer;transition:background .12s}}
+.fs-theme-chip:hover{{background:rgba(124,138,242,.25)}}
 .fs-etf-held{{font-size:.74rem;color:var(--text);font-weight:600}}
 </style>
 </head>
@@ -4686,6 +4686,14 @@ function toggleIndexLine(key) {{
   }}
   const btn = document.querySelector('.tc-leg-chip.leg-' + key);
   if (btn) btn.classList.toggle('active', _lineVis[key]);
+}}
+
+/* openThemeByName: 焦點股頁「隸屬題材」chip 點擊 → 用 cluster name 反查
+ * IIA_CLUSTERS.hl_sub 拿 cardId → 開熱門題材 cluster chart modal */
+function openThemeByName(name) {{
+  const C = window.IIA_CLUSTERS || {{}};
+  const cluster = (C.hl_sub || []).find(c => c.name === name);
+  if (cluster && cluster.cardId) openThemeChart(cluster.cardId);
 }}
 
 function openThemeChart(cardId) {{
