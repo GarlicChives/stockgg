@@ -2587,6 +2587,26 @@ header{{background:var(--card);border-bottom:1px solid var(--border);
   0%, 30% {{ box-shadow: 0 0 0 2px var(--accent), 0 0 24px rgba(124,138,242,.5); }}
   100% {{ box-shadow: none; }}
 }}
+/* 搜尋導向後,被搜尋的那檔 stk-pill 外框亮色閃爍 3 秒(0.6s × 5 cycle) */
+.stk-pill.pill-flash{{animation:pillFlash .6s ease-in-out 5}}
+@keyframes pillFlash {{
+  0%, 100% {{ box-shadow: 0 0 0 0 rgba(124,138,242,0); }}
+  50%      {{ box-shadow: 0 0 0 3px rgba(124,138,242,.85), 0 0 12px rgba(124,138,242,.6); }}
+}}
+
+/* 右下角回到頂端 button — scroll > 300px 才淡入 */
+.scroll-top-btn{{position:fixed;right:1.2rem;bottom:1.5rem;z-index:60;
+                  width:2.7rem;height:2.7rem;border-radius:50%;
+                  background:var(--accent);color:#fff;border:none;cursor:pointer;
+                  font-size:1.2rem;font-weight:700;line-height:1;
+                  box-shadow:0 4px 14px rgba(0,0,0,.45);
+                  opacity:0;visibility:hidden;
+                  transition:opacity .25s ease,visibility .25s,transform .15s}}
+.scroll-top-btn.show{{opacity:.9;visibility:visible}}
+.scroll-top-btn:hover{{opacity:1;transform:translateY(-2px)}}
+@media(max-width:680px){{
+  .scroll-top-btn{{right:.9rem;bottom:1rem;width:2.4rem;height:2.4rem;font-size:1.05rem}}
+}}
 @media(max-width:680px){{
   .search-box{{flex-basis:100%;margin:.4rem 0 0}}
   .search-box input{{width:100%}}
@@ -3421,6 +3441,10 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
     </div>
   </div>
 </dialog>
+
+<button id="scroll-top-btn" class="scroll-top-btn" type="button"
+        title="回到頂端" aria-label="回到頁面頂端"
+        onclick="window.scrollTo({{top:0,behavior:'smooth'}})">↑</button>
 
 <footer>
   <div class="disclaimer">
@@ -4399,6 +4423,7 @@ function onSearchKey(e) {{
 
 function onSearchPick(el) {{
   const cardId = el.dataset.card;
+  const ticker = el.dataset.ticker;
   showTab('focus');
   // 切到 cluster 所在的 sub-tab(看 cardId 開頭判 hl_sub / pan_sub)
   const card = document.getElementById(cardId);
@@ -4413,6 +4438,17 @@ function onSearchPick(el) {{
       card.classList.remove('search-hi');
       void card.offsetWidth;  // restart animation
       card.classList.add('search-hi');
+      // 被搜尋的那檔 stk-pill 外框閃爍 3 秒
+      if (ticker) {{
+        const pill = card.querySelector(
+          '.stk-pill[data-cluster-ticker="' + (window.CSS && CSS.escape ? CSS.escape(ticker) : ticker) + '"]');
+        if (pill) {{
+          pill.classList.remove('pill-flash');
+          void pill.offsetWidth;
+          pill.classList.add('pill-flash');
+          setTimeout(() => pill.classList.remove('pill-flash'), 3000);
+        }}
+      }}
     }}, 80);
   }}
   document.getElementById('search-dropdown').hidden = true;
@@ -4426,6 +4462,12 @@ document.addEventListener('click', e => {{
     if (dd) dd.hidden = true;
   }}
 }});
+
+/* 回到頂端 button — scroll > 300px 才顯示 */
+window.addEventListener('scroll', () => {{
+  const btn = document.getElementById('scroll-top-btn');
+  if (btn) btn.classList.toggle('show', window.scrollY > 300);
+}}, {{ passive: true }});
 
 /* ── 動畫 <details> ─────────────────────────────────────────────────────────
  * 攔截 .anim-details summary click,跑 max-height + opacity transition。
