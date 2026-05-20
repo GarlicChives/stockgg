@@ -1734,7 +1734,11 @@ def build_focus_stock_page(
         })
 
     _by_bias = lambda c: -(c["ma20_bias"] if c["ma20_bias"] is not None else float("-inf"))
-    intersect_stocks = sorted([c for c in cands if len(c["matched"]) >= 2], key=_by_bias)
+    # 交集股預設依「符合條件數」desc(多→少),同數量再依月線乖離 desc
+    intersect_stocks = sorted(
+        [c for c in cands if len(c["matched"]) >= 2],
+        key=lambda c: (-len(c["matched"]), _by_bias(c)),
+    )
     volume_stocks    = sorted([c for c in cands if c["is_volume"]],
                               key=lambda c: -c["vol_mult"])
     potential_stocks = sorted([c for c in cands if c["is_potential"]], key=_by_bias)
@@ -2956,7 +2960,7 @@ header{{background:var(--card);border-bottom:1px solid var(--border);
   .search-box input{{width:100%}}
 }}
 
-.wrap{{max-width:1120px;margin:0 auto;padding:1.25rem 1.1rem}}
+.wrap{{width:90%;max-width:90%;margin:0 auto;padding:1.25rem 1.1rem}}
 
 /* ── Sub-tabs (焦點股) ── */
 .sub-tabs{{display:flex;gap:.35rem;margin-bottom:.9rem}}
