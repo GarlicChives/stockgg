@@ -1628,11 +1628,12 @@ def build_focus_stock_page(
     today_str: str,
 ) -> str:
     """焦點股 tab:來源 = 熱門題材「焦點」(hl_sub)的 focal union。
-    - 出量股:今日成交金額 > 前 5 交易日均(不含今日)× 2,出量倍數 desc
-    - 潛力股:MA10 > MA20 且 close > MA10 且 close ≤ MA10×1.2,月線乖離 desc
-    欄位:成交金額 / 月線乖離 / PE / 隸屬題材 / 主動式 ETF 動作。
+    3 sub-tab(順序:交集股 / 出量股 / 潛力股):
+    - 交集股:同時符合 2 項(含)以上條件,依月線乖離 desc;多「符合條件」欄
+    - 出量股:今日成交金額 > 前 5 交易日均(不含今日)× 2,依出量倍數 desc
+    - 潛力股:MA10 > MA20 且 股價 < MA20×1.2,依月線乖離 desc
+    全欄位 client-side 可點擊排序(ASC/DESC toggle)。
     """
-    # 1. union focal ticker → 所屬 cluster name list
     focal_to_clusters: dict[str, list[str]] = {}
     for c in (focus_hl_clusters or []):
         for s in c.focal:
@@ -1646,24 +1647,36 @@ def build_focus_stock_page(
         except (TypeError, ValueError):
             return None
 
-    # 2. per-ticker 計算
+    # per-ticker 計算 + condition 判定
     cands: list[dict] = []
     for tk, clusters in focal_to_clusters.items():
         info = stocks_info.get(tk, {})
         today_close = _f(info.get("close_price"))
         today_tv = _f(info.get("trading_value"))
         hist = ticker_close_full.get(tk, [])  # date asc
-        # 前 5 交易日(排除今日)的 close × volume 均
         prev = [h for h in hist
                 if h.get("d") != today_str and h.get("c") and h.get("v")]
         prev5 = prev[-5:]
         avg5_tv = (sum(h["c"] * h["v"] for h in prev5) / 5) if len(prev5) == 5 else None
-        # MA10 / MA20(含今日 close)
         closes = [h["c"] for h in hist if h.get("c") is not None]
         ma10 = sum(closes[-10:]) / 10 if len(closes) >= 10 else None
         ma20 = sum(closes[-20:]) / 20 if len(closes) >= 20 else None
         ma20_bias = ((today_close - ma20) / ma20 * 100) if (today_close and ma20) else None
         vol_mult = (today_tv / avg5_tv) if (today_tv and avg5_tv) else None
+
+        # 條件判定(未來新增條件 → 加 is_xxx + matched.append)
+        is_volume = bool(vol_mult and vol_mult > 2)
+        is_potential = bool(
+            ma10 and ma20 and today_close
+            and ma10 > ma20
+            and today_close < ma20 * 1.2
+        )
+        matched: list[str] = []
+        if is_volume:
+            matched.append("出量")
+        if is_potential:
+            matched.append("潛力")
+
         cands.append({
             "ticker": tk,
             "name": (info.get("name") or "")[:12],
@@ -1674,21 +1687,15 @@ def build_focus_stock_page(
             "pe": _f(stock_meta.get(tk, {}).get("pe_ttm")),
             "clusters": clusters,
             "etf_rows": aetf_holdings_by_ticker.get(tk, []),
+            "is_volume": is_volume, "is_potential": is_potential,
+            "matched": matched,
         })
 
-    # 3. 出量股 / 潛力股 篩選 + 排序
-    volume_stocks = sorted(
-        [c for c in cands if c["vol_mult"] and c["vol_mult"] > 2],
-        key=lambda c: -c["vol_mult"],
-    )
-    potential_stocks = sorted(
-        [c for c in cands
-         if c["ma10"] and c["ma20"] and c["today_close"]
-         and c["ma10"] > c["ma20"]
-         and c["today_close"] > c["ma10"]
-         and c["today_close"] <= c["ma10"] * 1.2],
-        key=lambda c: -(c["ma20_bias"] if c["ma20_bias"] is not None else float("-inf")),
-    )
+    _by_bias = lambda c: -(c["ma20_bias"] if c["ma20_bias"] is not None else float("-inf"))
+    intersect_stocks = sorted([c for c in cands if len(c["matched"]) >= 2], key=_by_bias)
+    volume_stocks    = sorted([c for c in cands if c["is_volume"]],
+                              key=lambda c: -c["vol_mult"])
+    potential_stocks = sorted([c for c in cands if c["is_potential"]], key=_by_bias)
 
     def _bias_cell(v):
         if v is None:
@@ -1697,75 +1704,112 @@ def build_focus_stock_page(
         sign = "+" if v > 0 else ""
         return f'<span class="{cls}">{sign}{v:.2f}%</span>'
 
-    def _tv_cell(v):
-        return f"{v/1e8:.0f} 億" if v else "—"
-
     def _cluster_cell(names):
         return "".join(
             f'<span class="fs-theme-chip">{html_lib.escape(n)}</span>' for n in names
         ) or '<span class="muted">—</span>'
 
-    def _row(c, *, with_volmult: bool) -> str:
+    _MATCH_CHIP_CLS = {"出量": "fs-mc-vol", "潛力": "fs-mc-pot"}
+
+    def _match_cell(matched):
+        return "".join(
+            f'<span class="fs-match-chip {_MATCH_CHIP_CLS.get(m, "")}">{m}</span>'
+            for m in matched
+        ) or '<span class="muted">—</span>'
+
+    def _etf_held_count(etf_rows):
+        return len([r for r in etf_rows if (r.get("lots") or 0) > 0])
+
+    # column 配置:(label, sort-key, is-numeric, td-class)。
+    # mode='volume' 插「出量倍數」、mode='intersect' 加「符合條件」。
+    def _columns(mode):
+        cols = [("標的", "tk", 0, ""), ("成交金額", "tv", 1, "r")]
+        if mode == "volume":
+            cols.append(("出量倍數", "volmult", 1, "r"))
+        cols += [("月線乖離", "bias", 1, "r"), ("PE", "pe", 1, "r"),
+                 ("隸屬題材", "theme", 1, ""), ("主動式 ETF", "etf", 1, "")]
+        if mode == "intersect":
+            cols.append(("符合條件", "match", 1, ""))
+        return cols
+
+    def _row(c, mode):
         tk, nm = c["ticker"], c["name"]
         click = f"showArtModal({json.dumps(tk)},{json.dumps(nm)})"
         pe = c["pe"]
         pe_str = f"{pe:.1f}" if (pe and pe > 0) else "—"
-        volmult_td = (
-            f'<td class="r"><b>{c["vol_mult"]:.2f}×</b></td>'
-            if with_volmult else ""
+        tv = c["today_tv"] or 0
+        bias = c["ma20_bias"]
+        etf_n = _etf_held_count(c["etf_rows"])
+        vm = c["vol_mult"]
+        # data-* 給 client-side sortFsTable 用(數值欄缺值留空 → JS 排尾)
+        attrs = (
+            f'data-tk="{html_lib.escape(tk)}" '
+            f'data-tv="{tv:.0f}" '
+            f'data-bias="{f"{bias:.4f}" if bias is not None else ""}" '
+            f'data-pe="{f"{pe:.4f}" if (pe and pe > 0) else ""}" '
+            f'data-theme="{len(c["clusters"])}" '
+            f'data-etf="{etf_n}" '
+            f'data-volmult="{f"{vm:.4f}" if vm else ""}" '
+            f'data-match="{len(c["matched"])}"'
         )
-        return (
-            f"<tr class=\"fs-row\" onclick='{click}'>"
+        tds = [
             f'<td><span class="fs-tk">{html_lib.escape(tk)}</span> '
-            f'<span class="fs-nm">{html_lib.escape(nm)}</span></td>'
-            f'<td class="r">{_tv_cell(c["today_tv"])}</td>'
-            f'{volmult_td}'
-            f'<td class="r">{_bias_cell(c["ma20_bias"])}</td>'
-            f'<td class="r">{pe_str}</td>'
-            f'<td>{_cluster_cell(c["clusters"])}</td>'
-            f'<td>{_focus_stock_etf_cell(c["etf_rows"])}</td>'
-            f'</tr>'
-        )
+            f'<span class="fs-nm">{html_lib.escape(nm)}</span></td>',
+            f'<td class="r">{f"{tv/1e8:.0f} 億" if tv else "—"}</td>',
+        ]
+        if mode == "volume":
+            tds.append(f'<td class="r"><b>{vm:.2f}×</b></td>' if vm else '<td class="r">—</td>')
+        tds += [
+            f'<td class="r">{_bias_cell(bias)}</td>',
+            f'<td class="r">{pe_str}</td>',
+            f'<td>{_cluster_cell(c["clusters"])}</td>',
+            f'<td>{_focus_stock_etf_cell(c["etf_rows"])}</td>',
+        ]
+        if mode == "intersect":
+            tds.append(f'<td>{_match_cell(c["matched"])}</td>')
+        return f"<tr class=\"fs-row\" {attrs} onclick='{click}'>{''.join(tds)}</tr>"
 
-    def _table(rows: list[dict], *, with_volmult: bool, empty_msg: str) -> str:
+    def _table(rows, mode, empty_msg):
         if not rows:
             return f'<p class="muted-note">{empty_msg}</p>'
-        volmult_th = '<th class="r">出量倍數</th>' if with_volmult else ""
-        body = "".join(_row(c, with_volmult=with_volmult) for c in rows)
+        ths = "".join(
+            f'<th class="fs-th{(" " + cls) if cls else ""}" data-skey="{sk}" '
+            f'data-snum="{num}" onclick="sortFsTable(this)">{label}'
+            f'<span class="fs-sort-ind"></span></th>'
+            for label, sk, num, cls in _columns(mode)
+        )
+        body = "".join(_row(c, mode) for c in rows)
         return (
-            '<table class="fs-table">'
-            '<thead><tr><th>標的</th><th class="r">成交金額</th>'
-            f'{volmult_th}'
-            '<th class="r">月線乖離</th><th class="r">PE</th>'
-            '<th>隸屬題材</th><th>主動式 ETF</th></tr></thead>'
-            f'<tbody>{body}</tbody>'
-            '</table>'
+            f'<table class="fs-table"><thead><tr>{ths}</tr></thead>'
+            f'<tbody>{body}</tbody></table>'
         )
 
-    vol_html = _table(
-        volume_stocks, with_volmult=True,
-        empty_msg="今日無焦點股出量(成交金額 > 前 5 日均 × 2)",
-    )
-    pot_html = _table(
-        potential_stocks, with_volmult=False,
-        empty_msg="今日無焦點股符合潛力條件(MA10 > MA20 且股價站上 MA10 未過熱)",
-    )
+    int_html = _table(intersect_stocks, "intersect",
+                      "今日無焦點股同時符合 2 項以上條件")
+    vol_html = _table(volume_stocks, "volume",
+                      "今日無焦點股出量(成交金額 > 前 5 日均 × 2)")
+    pot_html = _table(potential_stocks, "potential",
+                      "今日無焦點股符合潛力條件(MA10 > MA20 且股價 < MA20×1.2)")
 
     nav_html = (
         '<div class="sub-tabs">'
-        '<button class="sub-tab-btn active" data-fstab="vol" type="button" '
+        '<button class="sub-tab-btn active" data-fstab="int" type="button" '
+        'onclick="showFocusStockTab(\'int\')">🎯 交集股</button>'
+        '<button class="sub-tab-btn" data-fstab="vol" type="button" '
         'onclick="showFocusStockTab(\'vol\')">📊 出量股</button>'
         '<button class="sub-tab-btn" data-fstab="pot" type="button" '
         'onclick="showFocusStockTab(\'pot\')">🚀 潛力股</button>'
         '</div>'
     )
     panes_html = (
-        f'<div class="fs-tab-pane active" id="fstab-vol">'
+        f'<div class="fs-tab-pane active" id="fstab-int">'
+        '<p class="fs-hint">同時符合 2 項(含)以上條件的焦點股,依月線乖離率排序。</p>'
+        f'{int_html}</div>'
+        f'<div class="fs-tab-pane" id="fstab-vol">'
         '<p class="fs-hint">今日成交金額 &gt; 前 5 交易日均(不含今日)× 2,依出量倍數排序。</p>'
         f'{vol_html}</div>'
         f'<div class="fs-tab-pane" id="fstab-pot">'
-        '<p class="fs-hint">十日均價 &gt; 月均價、股價站上十日均價且未超過 1.2 倍,'
-        '依月線乖離率排序。</p>'
+        '<p class="fs-hint">十日均價 &gt; 月均價、股價低於月均價 1.2 倍,依月線乖離率排序。</p>'
         f'{pot_html}</div>'
     )
     return nav_html + panes_html
@@ -3509,6 +3553,18 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
 .fs-table th{{font-size:.72rem;color:var(--muted);font-weight:600;
                text-align:left;padding:.5rem .7rem;
                border-bottom:1px solid var(--border);background:rgba(255,255,255,.02)}}
+/* 可點擊排序的 th */
+.fs-th{{cursor:pointer;user-select:none;white-space:nowrap;transition:color .12s}}
+.fs-th:hover{{color:var(--accent)}}
+.fs-sort-ind{{display:inline-block;width:.85em;font-size:.85em;opacity:.5}}
+.fs-th.fs-sorted-asc .fs-sort-ind::after{{content:"▲";opacity:1}}
+.fs-th.fs-sorted-desc .fs-sort-ind::after{{content:"▼";opacity:1}}
+.fs-th.fs-sorted-asc,.fs-th.fs-sorted-desc{{color:var(--accent)}}
+/* 交集股「符合條件」chip */
+.fs-match-chip{{display:inline-block;font-size:.66rem;font-weight:700;
+                 padding:.1rem .4rem;border-radius:4px;margin:.1rem .12rem .1rem 0}}
+.fs-match-chip.fs-mc-vol{{background:rgba(124,138,242,.16);color:#9aa8f5}}
+.fs-match-chip.fs-mc-pot{{background:rgba(38,166,154,.16);color:#5dc4b9}}
 .fs-table td{{padding:.5rem .7rem;font-size:.82rem;
                border-bottom:1px solid rgba(42,46,64,.4);vertical-align:middle}}
 .fs-table tr:last-child td{{border-bottom:none}}
@@ -3747,12 +3803,45 @@ function showAetfTab(code) {{
     p.classList.toggle('active', p.dataset.aetfPane === code));
 }}
 
-/* showFocusStockTab: 焦點股頁 sub-tab 切換(出量股 vol / 潛力股 pot) */
+/* showFocusStockTab: 焦點股頁 sub-tab 切換(交集股 int / 出量股 vol / 潛力股 pot) */
 function showFocusStockTab(name) {{
   document.querySelectorAll('.sub-tab-btn[data-fstab]').forEach(b =>
     b.classList.toggle('active', b.dataset.fstab === name));
   document.querySelectorAll('.fs-tab-pane').forEach(p =>
     p.classList.toggle('active', p.id === 'fstab-' + name));
+}}
+
+/* sortFsTable: 焦點股 table 欄位點擊排序。每 row 帶 data-(skey),th 帶
+ * data-skey + data-snum(1=數值)。點擊 toggle desc↔asc;數值缺值排尾。 */
+function sortFsTable(th) {{
+  const table = th.closest('table');
+  const tbody = table && table.querySelector('tbody');
+  if (!tbody) return;
+  const skey = th.dataset.skey;
+  const numeric = th.dataset.snum === '1';
+  const dir = th.dataset.dir === 'desc' ? 'asc' : 'desc';
+  table.querySelectorAll('th[data-skey]').forEach(h => {{
+    const on = (h === th);
+    h.dataset.dir = on ? dir : '';
+    h.classList.toggle('fs-sorted-asc', on && dir === 'asc');
+    h.classList.toggle('fs-sorted-desc', on && dir === 'desc');
+  }});
+  const mul = dir === 'desc' ? -1 : 1;
+  const rows = [...tbody.querySelectorAll('tr.fs-row')];
+  rows.sort((a, b) => {{
+    let va = a.dataset[skey], vb = b.dataset[skey];
+    if (numeric) {{
+      va = (va === '' || va == null) ? NaN : parseFloat(va);
+      vb = (vb === '' || vb == null) ? NaN : parseFloat(vb);
+      const an = isNaN(va), bn = isNaN(vb);
+      if (an && bn) return 0;
+      if (an) return 1;   // 缺值永遠排尾(不受方向影響)
+      if (bn) return -1;
+      return (va - vb) * mul;
+    }}
+    return String(va || '').localeCompare(String(vb || '')) * mul;
+  }});
+  rows.forEach(r => tbody.appendChild(r));
 }}
 
 /* Merged cluster name — 計算螢幕對應 visible 閾值並產出 "+N ▾" / "收合 ▴" */
