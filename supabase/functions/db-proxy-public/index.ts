@@ -75,7 +75,7 @@ const ALLOWED: Set<string> = new Set([
   // Q12 — stock_meta 公司基本面快照(由 ingest 端 src/news/stock_meta.py
   // 週更新寫入)。一次查多檔焦點股的完整 metadata 供:加權指數計算、
   // cluster PE/yield/beta 平均、pill 52w 位置%、modal 公司介紹 section
-  "select ticker, name_zh, name_en, sector, industry, description, website, employees, shares_outstanding, float_shares, market_cap, pe_ttm, pe_forward, pb, eps_ttm, eps_forward, book_value, dividend_yield, last_dividend, ex_dividend_date, week52_high, week52_low, beta, gross_margin, operating_margin, net_margin, margin_year_quarter, gross_margin_yoy_dir, operating_margin_yoy_dir, net_margin_yoy_dir, revenue_mom, revenue_yoy, revenue_month from stock_meta where ticker = any($1::text[])",
+  "select ticker, name_zh, name_en, sector, industry, description, website, employees, shares_outstanding, float_shares, market_cap, pe_ttm, pe_forward, pb, eps_ttm, eps_forward, book_value, dividend_yield, last_dividend, ex_dividend_date, week52_high, week52_low, beta, gross_margin, operating_margin, net_margin, margin_year_quarter, gross_margin_yoy_dir, operating_margin_yoy_dir, net_margin_yoy_dir, revenue_mom, revenue_yoy, revenue_month, revenue_yoy_3m_all_positive, gross_profit_yoy, operating_income_yoy, pretax_income_yoy, net_income_yoy from stock_meta where ticker = any($1::text[])",
 
   // Q13 — ticker_close_history 過去 400 天 daily close + shares_outstanding。
   // 公開站 cluster chart modal 加權指數計算的「真資料源」(替代 focal_breakdown

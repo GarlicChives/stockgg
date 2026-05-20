@@ -1684,6 +1684,21 @@ def build_focus_stock_page(
                             if h.get("d") != today_str and h.get("c") is not None]
         _past52 = _hist_excl_today[-252:]
         is_new_high = bool(today_close and _past52 and today_close >= max(_past52))
+        meta = stock_meta.get(tk, {})
+        # 成長股:月營收連 3 月 YoY>0 + 近一季 4 損益科目金額 YoY 皆 >0
+        # (NULL 視為不符合 — 缺資料不誤判)。注意用金額年增率欄
+        # gross_profit_yoy 等,不是 margin 比率的 *_yoy_dir。
+        _gp_yoy = _f(meta.get("gross_profit_yoy"))
+        _oi_yoy = _f(meta.get("operating_income_yoy"))
+        _pt_yoy = _f(meta.get("pretax_income_yoy"))
+        _ni_yoy = _f(meta.get("net_income_yoy"))
+        is_growth = bool(
+            meta.get("revenue_yoy_3m_all_positive") is True
+            and _gp_yoy is not None and _gp_yoy > 0
+            and _oi_yoy is not None and _oi_yoy > 0
+            and _pt_yoy is not None and _pt_yoy > 0
+            and _ni_yoy is not None and _ni_yoy > 0
+        )
         matched: list[str] = []
         if is_volume:
             matched.append("出量")
@@ -1691,8 +1706,8 @@ def build_focus_stock_page(
             matched.append("潛力")
         if is_new_high:
             matched.append("新高")
-
-        meta = stock_meta.get(tk, {})
+        if is_growth:
+            matched.append("成長")
         cands.append({
             "ticker": tk,
             "name": (info.get("name") or "")[:12],
@@ -1714,7 +1729,7 @@ def build_focus_stock_page(
             "clusters": clusters,
             "etf_rows": aetf_holdings_by_ticker.get(tk, []),
             "is_volume": is_volume, "is_potential": is_potential,
-            "is_new_high": is_new_high,
+            "is_new_high": is_new_high, "is_growth": is_growth,
             "matched": matched,
         })
 
@@ -1724,6 +1739,7 @@ def build_focus_stock_page(
                               key=lambda c: -c["vol_mult"])
     potential_stocks = sorted([c for c in cands if c["is_potential"]], key=_by_bias)
     new_high_stocks  = sorted([c for c in cands if c["is_new_high"]], key=_by_bias)
+    growth_stocks    = sorted([c for c in cands if c["is_growth"]], key=_by_bias)
 
     def _bias_cell(v):
         if v is None:
@@ -1764,7 +1780,8 @@ def build_focus_stock_page(
         arrow = " ▲" if val > 0 else (" ▼" if val < 0 else "")
         return f'<span class="{cls}">{sign}{val:.2f}%{arrow}</span>'
 
-    _MATCH_CHIP_CLS = {"出量": "fs-mc-vol", "潛力": "fs-mc-pot", "新高": "fs-mc-nh"}
+    _MATCH_CHIP_CLS = {"出量": "fs-mc-vol", "潛力": "fs-mc-pot",
+                       "新高": "fs-mc-nh", "成長": "fs-mc-gr"}
 
     def _match_cell(matched):
         return "".join(
@@ -1863,6 +1880,8 @@ def build_focus_stock_page(
                       "今日無焦點股符合潛力條件(MA10 > MA20 且股價 < MA20×1.2)")
     nh_html  = _table(new_high_stocks, "newhigh",
                       "今日無焦點股創 52 週新高")
+    gr_html  = _table(growth_stocks, "growth",
+                      "今日無焦點股符合成長條件(月營收連 3 月 + 4 損益科目金額 YoY 皆正)")
 
     nav_html = (
         '<div class="sub-tabs">'
@@ -1874,6 +1893,8 @@ def build_focus_stock_page(
         'onclick="showFocusStockTab(\'pot\')">🚀 潛力股</button>'
         '<button class="sub-tab-btn" data-fstab="nh" type="button" '
         'onclick="showFocusStockTab(\'nh\')">⛰ 新高股</button>'
+        '<button class="sub-tab-btn" data-fstab="gr" type="button" '
+        'onclick="showFocusStockTab(\'gr\')">🌱 成長股</button>'
         '</div>'
     )
     panes_html = (
@@ -1889,6 +1910,10 @@ def build_focus_stock_page(
         f'<div class="fs-tab-pane" id="fstab-nh">'
         '<p class="fs-hint">今日股價創 52 週新高的焦點股,依月線乖離率排序。</p>'
         f'{nh_html}</div>'
+        f'<div class="fs-tab-pane" id="fstab-gr">'
+        '<p class="fs-hint">月營收連 3 月 YoY &gt; 0,且近一季毛利 / 營業利益 / 稅前淨利 / '
+        '稅後淨利金額年增率皆 &gt; 0,依月線乖離率排序。</p>'
+        f'{gr_html}</div>'
     )
     return nav_html + panes_html
 
@@ -2317,7 +2342,9 @@ async def generate():
                 "       week52_high, week52_low, beta, gross_margin, operating_margin, "
                 "       net_margin, margin_year_quarter, gross_margin_yoy_dir, "
                 "       operating_margin_yoy_dir, net_margin_yoy_dir, revenue_mom, "
-                "       revenue_yoy, revenue_month "
+                "       revenue_yoy, revenue_month, revenue_yoy_3m_all_positive, "
+                "       gross_profit_yoy, operating_income_yoy, pretax_income_yoy, "
+                "       net_income_yoy "
                 "FROM stock_meta WHERE ticker = ANY($1::text[])",
                 _all_meta_tickers,
             )
@@ -3647,6 +3674,7 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
 .fs-match-chip.fs-mc-vol{{background:rgba(124,138,242,.16);color:#9aa8f5}}
 .fs-match-chip.fs-mc-pot{{background:rgba(38,166,154,.16);color:#5dc4b9}}
 .fs-match-chip.fs-mc-nh{{background:rgba(239,83,80,.16);color:#f47471}}
+.fs-match-chip.fs-mc-gr{{background:rgba(245,158,11,.16);color:#e0922e}}
 .fs-table td{{padding:.5rem .7rem;font-size:.82rem;
                border-bottom:1px solid rgba(42,46,64,.4);vertical-align:middle}}
 .fs-table tr:last-child td{{border-bottom:none}}
