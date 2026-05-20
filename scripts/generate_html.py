@@ -1661,8 +1661,15 @@ def build_focus_stock_page(
         closes = [h["c"] for h in hist if h.get("c") is not None]
         ma10 = sum(closes[-10:]) / 10 if len(closes) >= 10 else None
         ma20 = sum(closes[-20:]) / 20 if len(closes) >= 20 else None
+        ma60 = sum(closes[-60:]) / 60 if len(closes) >= 60 else None
         ma20_bias = ((today_close - ma20) / ma20 * 100) if (today_close and ma20) else None
         vol_mult = (today_tv / avg5_tv) if (today_tv and avg5_tv) else None
+
+        # 全域過濾:季線以下不做多 — 股價必須站上 60 日均(季線)才列入
+        # 焦點股頁任一 sub-tab。MA60 算不出來(close 不足 60 筆)視為未確認
+        # 站上季線,一併排除。
+        if not (today_close and ma60 and today_close > ma60):
+            continue
 
         # 條件判定(未來新增條件 → 加 is_xxx + matched.append)
         is_volume = bool(vol_mult and vol_mult > 2)
@@ -1800,6 +1807,8 @@ def build_focus_stock_page(
         '<button class="sub-tab-btn" data-fstab="pot" type="button" '
         'onclick="showFocusStockTab(\'pot\')">🚀 潛力股</button>'
         '</div>'
+        '<p class="fs-global-note">⚑ 所有 sub-tab 僅列<b>股價站上季線(60 日均)</b>'
+        '的標的 — 季線以下不做多。</p>'
     )
     panes_html = (
         f'<div class="fs-tab-pane active" id="fstab-int">'
@@ -3547,6 +3556,11 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
 .fs-tab-pane{{display:none}}
 .fs-tab-pane.active{{display:block}}
 .fs-hint{{font-size:.76rem;color:var(--muted);margin:.2rem 0 .8rem;line-height:1.5}}
+.fs-global-note{{font-size:.74rem;color:#d97706;margin:.1rem 0 .9rem;
+                  line-height:1.5;background:rgba(245,158,11,.07);
+                  border:1px solid rgba(245,158,11,.25);border-radius:6px;
+                  padding:.4rem .7rem}}
+.fs-global-note b{{color:#e0922e}}
 .fs-table{{width:100%;border-collapse:collapse;
             background:#12151f;border:1px solid var(--border);
             border-radius:8px;overflow:hidden}}
