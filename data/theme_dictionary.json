@@ -51941,21 +51941,6 @@
         }
       ]
     },
-    "2452": {
-      "name": "2452",
-      "industries": [
-        {
-          "main": "近一年焦點",
-          "subs": [
-            "被動元件·MLCC/電阻電容/通路"
-          ],
-          "disabled": false,
-          "locked": false,
-          "created_at": "2026-05-17T22:17:50+08:00",
-          "updated_at": "2026-05-17T22:17:50+08:00"
-        }
-      ]
-    },
     "3708": {
       "name": "3708",
       "industries": [
@@ -51983,21 +51968,6 @@
           "locked": false,
           "created_at": "2026-05-17T22:17:52+08:00",
           "updated_at": "2026-05-17T22:17:52+08:00"
-        }
-      ]
-    },
-    "2531": {
-      "name": "2531",
-      "industries": [
-        {
-          "main": "近一年焦點",
-          "subs": [
-            "建材營建·水泥/營建"
-          ],
-          "disabled": false,
-          "locked": false,
-          "created_at": "2026-05-17T22:17:53+08:00",
-          "updated_at": "2026-05-17T22:17:53+08:00"
         }
       ]
     },
