@@ -3644,6 +3644,11 @@ function _focalQuoteByKey(f, key) {{
     const v = f.pe;
     return {{ str: closeStr + '(PE ' + (v == null || v <= 0 ? '—' : v.toFixed(1)) + ')', cls: 'neutral' }};
   }}
+  if (key === 'tv') {{
+    const v = f.tv;
+    if (v == null || v <= 0) return {{ str: closeStr + '(成交 —)', cls: 'neutral' }};
+    return {{ str: closeStr + '(成交 ' + (v / 1e8).toFixed(0) + '億)', cls: 'neutral' }};
+  }}
   // 2026-05-18 起 yield/beta 全站移除,fallback 顯純 close
   return {{ str: closeStr, cls: 'neutral' }};
 }}
