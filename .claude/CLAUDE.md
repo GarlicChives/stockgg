@@ -32,7 +32,7 @@ Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
 - `supabase/functions/db-proxy-public/index.ts` — Edge Function 含 SQL allowlist(目前 **20 條**):
   - Q1-Q8 日報基本資料、**Q9 v2** catalyst_events ±14/21d + `visible = TRUE` filter(ingest `4d5e7cc` 起;遠期 events visible=false 不出,daily cron 隨日期 flip true)、Q10 market_notes
   - Q11 theme_history 180→**400 days** retention
-  - Q12 stock_meta(公司基本面快照)
+  - Q12 stock_meta(公司基本面快照;2026-05-20 起含三率 gross/operating/net_margin + *_yoy_dir + 營收 revenue_mom/yoy,焦點股頁 5 欄用,ingest `57c7e8b`)
   - Q13 ticker_close_history 400 天讀取(讓近一年焦點 cluster chart modal 能畫加權指數,因 theme_history 沒此 main 的 row)
   - Q14 special rows(處置 / 漲跌停 not in top-50)WHERE `extra->>'is_special'='true'`
   - **Q15 v2** focus_member rows(ticker 屬「近一年焦點」字典任一 sub 且 today 有交易,ingest `8f27ede` 起;v1 是 `is_volume_universe`,次日撤)WHERE `extra->>'is_focus_member'='true'`

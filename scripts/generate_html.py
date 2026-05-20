@@ -1692,6 +1692,7 @@ def build_focus_stock_page(
         if is_new_high:
             matched.append("新高")
 
+        meta = stock_meta.get(tk, {})
         cands.append({
             "ticker": tk,
             "name": (info.get("name") or "")[:12],
@@ -1699,7 +1700,17 @@ def build_focus_stock_page(
             "today_close": today_close,
             "vol_mult": vol_mult,
             "ma10": ma10, "ma20": ma20, "ma20_bias": ma20_bias,
-            "pe": _f(stock_meta.get(tk, {}).get("pe_ttm")),
+            "pe": _f(meta.get("pe_ttm")),
+            # 三率 + YoY 方向(ingest 57c7e8b 起寫 stock_meta;dir 可能 NULL)
+            "gross_margin": _f(meta.get("gross_margin")),
+            "operating_margin": _f(meta.get("operating_margin")),
+            "net_margin": _f(meta.get("net_margin")),
+            "gm_dir": meta.get("gross_margin_yoy_dir"),
+            "om_dir": meta.get("operating_margin_yoy_dir"),
+            "nm_dir": meta.get("net_margin_yoy_dir"),
+            # 營收增率(本身帶正負 → 正升負降)
+            "revenue_mom": _f(meta.get("revenue_mom")),
+            "revenue_yoy": _f(meta.get("revenue_yoy")),
             "clusters": clusters,
             "etf_rows": aetf_holdings_by_ticker.get(tk, []),
             "is_volume": is_volume, "is_potential": is_potential,
@@ -1730,6 +1741,29 @@ def build_focus_stock_page(
             f'{html_lib.escape(n)}</span>' for n in names
         ) or '<span class="muted">—</span>'
 
+    # 三率 cell:數值 % + YoY 方向箭頭(up ▲紅 / down ▼綠 / flat — / NULL 無箭頭)
+    def _margin_cell(val, yoy_dir):
+        if val is None:
+            return '<span class="muted">—</span>'
+        if yoy_dir == "up":
+            arrow = ' <span class="up">▲</span>'
+        elif yoy_dir == "down":
+            arrow = ' <span class="down">▼</span>'
+        elif yoy_dir == "flat":
+            arrow = ' <span class="flat">—</span>'
+        else:  # NULL — yfinance 無季報,只顯數值
+            arrow = ""
+        return f"{val:.2f}%{arrow}"
+
+    # 營收增率 cell:本身帶正負(正升 ▲紅 / 負降 ▼綠)
+    def _rev_cell(val):
+        if val is None:
+            return '<span class="muted">—</span>'
+        cls = "up" if val > 0 else ("down" if val < 0 else "flat")
+        sign = "+" if val > 0 else ""
+        arrow = " ▲" if val > 0 else (" ▼" if val < 0 else "")
+        return f'<span class="{cls}">{sign}{val:.2f}%{arrow}</span>'
+
     _MATCH_CHIP_CLS = {"出量": "fs-mc-vol", "潛力": "fs-mc-pot", "新高": "fs-mc-nh"}
 
     def _match_cell(matched):
@@ -1748,6 +1782,9 @@ def build_focus_stock_page(
         if mode == "volume":
             cols.append(("出量倍數", "volmult", 1, "r"))
         cols += [("月線乖離", "bias", 1, "r"), ("PE", "pe", 1, "r"),
+                 ("毛利率", "gm", 1, "r"), ("營益率", "om", 1, "r"),
+                 ("淨利率", "nm", 1, "r"),
+                 ("營收月增", "rmom", 1, "r"), ("營收年增", "ryoy", 1, "r"),
                  ("隸屬題材", "theme", 1, ""), ("主動式 ETF", "etf", 1, "")]
         if mode == "intersect":
             cols.append(("符合條件", "match", 1, ""))
@@ -1762,12 +1799,19 @@ def build_focus_stock_page(
         bias = c["ma20_bias"]
         etf_n = _etf_held_count(c["etf_rows"])
         vm = c["vol_mult"]
+        gm, om, nm = c["gross_margin"], c["operating_margin"], c["net_margin"]
+        rmom, ryoy = c["revenue_mom"], c["revenue_yoy"]
         # data-* 給 client-side sortFsTable 用(數值欄缺值留空 → JS 排尾)
         attrs = (
             f'data-tk="{html_lib.escape(tk)}" '
             f'data-tv="{tv:.0f}" '
             f'data-bias="{f"{bias:.4f}" if bias is not None else ""}" '
             f'data-pe="{f"{pe:.4f}" if (pe and pe > 0) else ""}" '
+            f'data-gm="{f"{gm:.4f}" if gm is not None else ""}" '
+            f'data-om="{f"{om:.4f}" if om is not None else ""}" '
+            f'data-nm="{f"{nm:.4f}" if nm is not None else ""}" '
+            f'data-rmom="{f"{rmom:.4f}" if rmom is not None else ""}" '
+            f'data-ryoy="{f"{ryoy:.4f}" if ryoy is not None else ""}" '
             f'data-theme="{len(c["clusters"])}" '
             f'data-etf="{etf_n}" '
             f'data-volmult="{f"{vm:.4f}" if vm else ""}" '
@@ -1784,6 +1828,11 @@ def build_focus_stock_page(
         tds += [
             f'<td class="r">{_bias_cell(bias)}</td>',
             f'<td class="r">{pe_str}</td>',
+            f'<td class="r">{_margin_cell(gm, c["gm_dir"])}</td>',
+            f'<td class="r">{_margin_cell(om, c["om_dir"])}</td>',
+            f'<td class="r">{_margin_cell(nm, c["nm_dir"])}</td>',
+            f'<td class="r">{_rev_cell(rmom)}</td>',
+            f'<td class="r">{_rev_cell(ryoy)}</td>',
             f'<td>{_cluster_cell(c["clusters"])}</td>',
             f'<td>{_focus_stock_etf_cell(c["etf_rows"])}</td>',
         ]
@@ -2265,7 +2314,10 @@ async def generate():
                 "       website, employees, shares_outstanding, float_shares, "
                 "       market_cap, pe_ttm, pe_forward, pb, eps_ttm, eps_forward, "
                 "       book_value, dividend_yield, last_dividend, ex_dividend_date, "
-                "       week52_high, week52_low, beta "
+                "       week52_high, week52_low, beta, gross_margin, operating_margin, "
+                "       net_margin, margin_year_quarter, gross_margin_yoy_dir, "
+                "       operating_margin_yoy_dir, net_margin_yoy_dir, revenue_mom, "
+                "       revenue_yoy, revenue_month "
                 "FROM stock_meta WHERE ticker = ANY($1::text[])",
                 _all_meta_tickers,
             )
