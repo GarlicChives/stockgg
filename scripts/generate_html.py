@@ -3555,6 +3555,9 @@ dialog#art-modal[open]::backdrop{{animation:tcBackdropFade .26s ease-out}}
 .stk-pill.pill-disabled{{opacity:.32;filter:grayscale(.75);transition:opacity .18s,filter .18s}}
 .cluster-card{{transition:transform .38s cubic-bezier(.25,.46,.45,.94)}}
 .stk-pill[onclick=""],.stk-pill:not([onclick]){{cursor:default}}
+/* 選股雷達 table:標的 pill 用 clickable=False(改由整列 tr onclick 處理),
+   但整列可點 → pill 仍須顯 pointer,蓋掉上面的 cursor:default */
+.fs-table tr.fs-row .stk-pill{{cursor:pointer}}
 .sp-ticker{{font-weight:800;font-size:.85rem}}
 .sp-name{{font-size:.72rem;color:var(--muted)}}
 .sp-quote{{font-weight:700;font-size:.78rem;font-variant-numeric:tabular-nums}}
