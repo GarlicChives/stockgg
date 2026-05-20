@@ -235,6 +235,20 @@ def _flag_chips(info: dict) -> str:
     return "".join(chips)
 
 
+def _disp_ticker(ticker: str) -> str:
+    """顯示用 ticker:台股拿掉 .TW / .TWO 後綴。
+
+    市場別已由 mkt-badge / board badge 標示,代號旁再掛「.TW」純屬冗餘。
+    僅用於畫面顯示文字 —— ticker 原值仍須保留供 showArtModal / DB 查詢 /
+    history.json series key 比對(那些都吃帶後綴的完整 symbol)。
+    """
+    up = (ticker or "").upper()
+    for suf in (".TWO", ".TW"):
+        if up.endswith(suf):
+            return ticker[: -len(suf)]
+    return ticker
+
+
 def _stk_pill(ticker: str, stocks_info: dict, clickable: bool = True, extra_attrs: str = "") -> str:
     """Unified stock chip: ticker + market badge + name + "price(chg%)" 報價。
 
@@ -244,10 +258,13 @@ def _stk_pill(ticker: str, stocks_info: dict, clickable: bool = True, extra_attr
     info = stocks_info.get(ticker, {})
     _core = ticker.split(".")[0]
     market = info.get("market") or ("TW" if _core.isdigit() else "US")
+    disp_ticker = _disp_ticker(ticker)
     name = info.get("name", "")
     chg = info.get("change_pct")
     close = info.get("close_price")
     mkt_cls = "mkt-tw" if market == "TW" else "mkt-us"
+    # 市場別 badge:台股全站皆 TW,標一次「TW」純屬冗餘 noise → 只對美股(US)顯示
+    mkt_badge_html = "" if market == "TW" else f'<span class="mkt-badge {mkt_cls}">{market}</span>'
     pct_str, pct_cls = fmt_pct(chg)
     if close is not None:
         price_str = f"{close:.2f}"
@@ -268,8 +285,8 @@ def _stk_pill(ticker: str, stocks_info: dict, clickable: bool = True, extra_attr
 
     return (
         f'<div class="stk-pill"{click}{extra}>'
-        f'<span class="sp-ticker">{html_lib.escape(ticker)}</span>'
-        f'<span class="mkt-badge {mkt_cls}">{market}</span>'
+        f'<span class="sp-ticker">{html_lib.escape(disp_ticker)}</span>'
+        f'{mkt_badge_html}'
         f'{name_span}'
         f'<span class="sp-quote {pct_cls}">{quote}</span>'
         f'{tags_html}'
@@ -733,7 +750,8 @@ def _build_stock_cards(ticker_list: list[tuple[str, dict]],
     for ticker, info in ticker_list:
         chg = info["change_pct"]
         pct_str, pct_cls = fmt_pct(chg)
-        mkt_badge = f'<span class="mkt-badge mkt-{market.lower()}">{market}</span>'
+        # 台股不顯 TW badge(全站皆台股,冗餘);美股保留
+        mkt_badge = "" if market == "TW" else f'<span class="mkt-badge mkt-{market.lower()}">{market}</span>'
         vol_html = _vol_label(info["rank"])
 
         if market == "US":
@@ -751,7 +769,7 @@ def _build_stock_cards(ticker_list: list[tuple[str, dict]],
         cards.append(f"""
 <div class="stock-card" onclick="showArtModal('{html_lib.escape(ticker)}','{html_lib.escape(info['name'][:12])}')">
   <div class="sc-head">
-    <span class="sc-ticker">{html_lib.escape(ticker)}</span>
+    <span class="sc-ticker">{html_lib.escape(_disp_ticker(ticker))}</span>
     {mkt_badge}{board_badge}{limit_badge}
     <span class="sc-name">{html_lib.escape(info['name'][:12])}</span>
   </div>
@@ -1147,7 +1165,7 @@ def _industry_section_html(
                     return (
                         f'<div class="snt-pill" data-ticker="{html_lib.escape(tk)}" '
                         f'title="今日未進 top-50;PE 來自 stock_meta">'
-                        f'<span class="sp-ticker">{html_lib.escape(tk)}</span>'
+                        f'<span class="sp-ticker">{html_lib.escape(_disp_ticker(tk))}</span>'
                         f'<span class="sp-name">{html_lib.escape((nm or tk)[:10])}</span>'
                         f'{pe_html}'
                         f'</div>'
@@ -1514,7 +1532,7 @@ def build_active_etf_page(etf_list: list, holdings_by_etf: dict[str, list]) -> s
                 f'<span class="aetf-chg-pill {css}" '
                 f"onclick='showArtModal({json.dumps(tk)},{json.dumps(nm)})' "
                 f'role="button" tabindex="0">'
-                f'<span class="aetf-cp-tk">{html_lib.escape(tk)}</span>'
+                f'<span class="aetf-cp-tk">{html_lib.escape(_disp_ticker(tk))}</span>'
                 f'<span class="aetf-cp-nm">{html_lib.escape(nm)}</span>'
                 f'{chg}'
                 f'</span>'
@@ -1562,7 +1580,7 @@ def build_active_etf_page(etf_list: list, holdings_by_etf: dict[str, list]) -> s
             click = f"showArtModal({json.dumps(tk)},{json.dumps(nm)})"
             hold_rows.append(
                 f"<tr class=\"aetf-hold-row\" onclick='{click}'>"
-                f'<td><span class="aetf-h-tk">{html_lib.escape(tk)}</span> '
+                f'<td><span class="aetf-h-tk">{html_lib.escape(_disp_ticker(tk))}</span> '
                 f'<span class="aetf-h-nm">{html_lib.escape(nm)}</span></td>'
                 f'<td class="r">{lots:,} 張</td>'
                 f'<td class="r">{weight:.2f}%</td>'
@@ -1629,7 +1647,7 @@ def build_focus_stock_page(
 ) -> str:
     """焦點股 tab:來源 = 熱門題材「焦點」(hl_sub)的 focal union。
     3 sub-tab(順序:交集股 / 出量股 / 潛力股):
-    - 交集股:同時符合 2 項(含)以上條件,依月線乖離 desc;多「符合條件」欄
+    - 交集股:同時符合 2 項(含)以上條件,依符合條件數 desc(同數量再月線乖離 desc);多「符合條件」欄
     - 出量股:今日成交金額 > 前 5 交易日均(不含今日)× 2,依出量倍數 desc
     - 潛力股:MA10 > MA20 且 股價 < MA20×1.2,依月線乖離 desc
     全欄位 client-side 可點擊排序(ASC/DESC toggle)。
@@ -1903,7 +1921,7 @@ def build_focus_stock_page(
     )
     panes_html = (
         f'<div class="fs-tab-pane active" id="fstab-int">'
-        '<p class="fs-hint">同時符合 2 項(含)以上條件的焦點股,依月線乖離率排序。</p>'
+        '<p class="fs-hint">同時符合 2 項(含)以上條件的焦點股,依符合條件數由多至少排序。</p>'
         f'{int_html}</div>'
         f'<div class="fs-tab-pane" id="fstab-vol">'
         '<p class="fs-hint">今日成交金額 &gt; 前 5 交易日均(不含今日)× 3,依出量倍數排序。</p>'
@@ -3682,7 +3700,8 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
 .fs-table td{{padding:.5rem .7rem;font-size:.82rem;
                border-bottom:1px solid rgba(42,46,64,.4);vertical-align:middle}}
 .fs-table tr:last-child td{{border-bottom:none}}
-.fs-table th.r,.fs-table td.r{{text-align:right}}
+/* 數值欄不換行 — 3率/營收增率的升降箭頭必須緊貼數字,不可掉到下一行 */
+.fs-table th.r,.fs-table td.r{{text-align:right;white-space:nowrap}}
 .fs-table tr.fs-row{{cursor:pointer;transition:background .12s}}
 .fs-table tr.fs-row:hover td{{background:rgba(124,138,242,.06)}}
 .fs-tk{{font-weight:700;color:var(--text)}}
@@ -3905,7 +3924,7 @@ function showSubTab(name) {{
    需要客戶端雷達 SVG。 */
 
 function showArtModal(ticker, name) {{
-  document.getElementById('modal-title').textContent = ticker + ' ' + (name || '');
+  document.getElementById('modal-title').textContent = _dispTk(ticker) + ' ' + (name || '');
   document.getElementById('modal-body').innerHTML =
     artModalData[ticker] || '<p style="color:#7a8ba0">本檔目前無主動 ETF 持有</p>';
   document.getElementById('art-modal').showModal();
@@ -4590,6 +4609,12 @@ function _escHtml(s) {{
           .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }}
 
+/* 顯示用 ticker:台股拿掉 .TW / .TWO 後綴。僅供畫面文字 ——
+ * data-ticker / onclick 參數仍須用原值(history.json series key 比對吃完整 symbol) */
+function _dispTk(t) {{
+  return String(t == null ? '' : t).replace(/\\.TWO?$/i, '');
+}}
+
 /* Modal 的 ticker chip 列表渲染。狀態 = _modalTickerDis ∪ _univDis(外層已 disable 的不顯示)。
  * 點擊 toggle modal-only disable,然後 re-render(setData 路徑,不 dispose)。
  * Chip 結構複用 .stk-pill 全站樣式(sp-ticker / mkt-badge / sp-name / sp-quote),
@@ -4616,7 +4641,7 @@ function _renderTickerChips(cluster) {{
     return '<div class="stk-pill modal-tk-pill' + dis + '" '
       + 'data-ticker="' + tk + '" '
       + 'onclick="toggleModalTicker(\\'' + tk + '\\')">'
-      + '<span class="sp-ticker">' + tk + '</span>'
+      + '<span class="sp-ticker">' + _escHtml(_dispTk(f.ticker)) + '</span>'
       + nameHtml
       + '<span class="sp-quote ' + pct.cls + '">' + _escHtml(quote) + '</span>'
       + '</div>';
