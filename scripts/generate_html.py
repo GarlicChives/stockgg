@@ -1672,17 +1672,25 @@ def build_focus_stock_page(
             continue
 
         # 條件判定(未來新增條件 → 加 is_xxx + matched.append)
-        is_volume = bool(vol_mult and vol_mult > 2)
+        is_volume = bool(vol_mult and vol_mult > 3)
         is_potential = bool(
             ma10 and ma20 and today_close
             and ma10 > ma20
             and today_close < ma20 * 1.2
         )
+        # 新高股:今日股價創 52 週(~252 交易日)新高 — 今日 close ≥ 過去
+        # 52 週(不含今日)最高 close。歷史不足 252 筆則用掛牌以來最高。
+        _hist_excl_today = [h["c"] for h in hist
+                            if h.get("d") != today_str and h.get("c") is not None]
+        _past52 = _hist_excl_today[-252:]
+        is_new_high = bool(today_close and _past52 and today_close >= max(_past52))
         matched: list[str] = []
         if is_volume:
             matched.append("出量")
         if is_potential:
             matched.append("潛力")
+        if is_new_high:
+            matched.append("新高")
 
         cands.append({
             "ticker": tk,
@@ -1695,6 +1703,7 @@ def build_focus_stock_page(
             "clusters": clusters,
             "etf_rows": aetf_holdings_by_ticker.get(tk, []),
             "is_volume": is_volume, "is_potential": is_potential,
+            "is_new_high": is_new_high,
             "matched": matched,
         })
 
@@ -1703,6 +1712,7 @@ def build_focus_stock_page(
     volume_stocks    = sorted([c for c in cands if c["is_volume"]],
                               key=lambda c: -c["vol_mult"])
     potential_stocks = sorted([c for c in cands if c["is_potential"]], key=_by_bias)
+    new_high_stocks  = sorted([c for c in cands if c["is_new_high"]], key=_by_bias)
 
     def _bias_cell(v):
         if v is None:
@@ -1720,7 +1730,7 @@ def build_focus_stock_page(
             f'{html_lib.escape(n)}</span>' for n in names
         ) or '<span class="muted">—</span>'
 
-    _MATCH_CHIP_CLS = {"出量": "fs-mc-vol", "潛力": "fs-mc-pot"}
+    _MATCH_CHIP_CLS = {"出量": "fs-mc-vol", "潛力": "fs-mc-pot", "新高": "fs-mc-nh"}
 
     def _match_cell(matched):
         return "".join(
@@ -1799,9 +1809,11 @@ def build_focus_stock_page(
     int_html = _table(intersect_stocks, "intersect",
                       "今日無焦點股同時符合 2 項以上條件")
     vol_html = _table(volume_stocks, "volume",
-                      "今日無焦點股出量(成交金額 > 前 5 日均 × 2)")
+                      "今日無焦點股出量(成交金額 > 前 5 日均 × 3)")
     pot_html = _table(potential_stocks, "potential",
                       "今日無焦點股符合潛力條件(MA10 > MA20 且股價 < MA20×1.2)")
+    nh_html  = _table(new_high_stocks, "newhigh",
+                      "今日無焦點股創 52 週新高")
 
     nav_html = (
         '<div class="sub-tabs">'
@@ -1811,6 +1823,8 @@ def build_focus_stock_page(
         'onclick="showFocusStockTab(\'vol\')">📊 出量股</button>'
         '<button class="sub-tab-btn" data-fstab="pot" type="button" '
         'onclick="showFocusStockTab(\'pot\')">🚀 潛力股</button>'
+        '<button class="sub-tab-btn" data-fstab="nh" type="button" '
+        'onclick="showFocusStockTab(\'nh\')">⛰ 新高股</button>'
         '</div>'
     )
     panes_html = (
@@ -1818,11 +1832,14 @@ def build_focus_stock_page(
         '<p class="fs-hint">同時符合 2 項(含)以上條件的焦點股,依月線乖離率排序。</p>'
         f'{int_html}</div>'
         f'<div class="fs-tab-pane" id="fstab-vol">'
-        '<p class="fs-hint">今日成交金額 &gt; 前 5 交易日均(不含今日)× 2,依出量倍數排序。</p>'
+        '<p class="fs-hint">今日成交金額 &gt; 前 5 交易日均(不含今日)× 3,依出量倍數排序。</p>'
         f'{vol_html}</div>'
         f'<div class="fs-tab-pane" id="fstab-pot">'
         '<p class="fs-hint">十日均價 &gt; 月均價、股價低於月均價 1.2 倍,依月線乖離率排序。</p>'
         f'{pot_html}</div>'
+        f'<div class="fs-tab-pane" id="fstab-nh">'
+        '<p class="fs-hint">今日股價創 52 週新高的焦點股,依月線乖離率排序。</p>'
+        f'{nh_html}</div>'
     )
     return nav_html + panes_html
 
@@ -3577,6 +3594,7 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
                  padding:.1rem .4rem;border-radius:4px;margin:.1rem .12rem .1rem 0}}
 .fs-match-chip.fs-mc-vol{{background:rgba(124,138,242,.16);color:#9aa8f5}}
 .fs-match-chip.fs-mc-pot{{background:rgba(38,166,154,.16);color:#5dc4b9}}
+.fs-match-chip.fs-mc-nh{{background:rgba(239,83,80,.16);color:#f47471}}
 .fs-table td{{padding:.5rem .7rem;font-size:.82rem;
                border-bottom:1px solid rgba(42,46,64,.4);vertical-align:middle}}
 .fs-table tr:last-child td{{border-bottom:none}}
