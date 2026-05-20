@@ -2587,8 +2587,8 @@ header{{background:var(--card);border-bottom:1px solid var(--border);
   0%, 30% {{ box-shadow: 0 0 0 2px var(--accent), 0 0 24px rgba(124,138,242,.5); }}
   100% {{ box-shadow: none; }}
 }}
-/* 搜尋導向後,被搜尋的那檔 stk-pill 外框亮色閃爍 3 秒(0.6s × 5 cycle) */
-.stk-pill.pill-flash{{animation:pillFlash .6s ease-in-out 5}}
+/* 搜尋導向後,被搜尋的那檔 stk-pill 外框亮色閃爍 6 秒(0.6s × 10 cycle) */
+.stk-pill.pill-flash{{animation:pillFlash .6s ease-in-out 10}}
 @keyframes pillFlash {{
   0%, 100% {{ box-shadow: 0 0 0 0 rgba(124,138,242,0); }}
   50%      {{ box-shadow: 0 0 0 3px rgba(124,138,242,.85), 0 0 12px rgba(124,138,242,.6); }}
@@ -4446,7 +4446,7 @@ function onSearchPick(el) {{
           pill.classList.remove('pill-flash');
           void pill.offsetWidth;
           pill.classList.add('pill-flash');
-          setTimeout(() => pill.classList.remove('pill-flash'), 3000);
+          setTimeout(() => pill.classList.remove('pill-flash'), 6000);
         }}
       }}
     }}, 80);
