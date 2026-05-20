@@ -921,15 +921,19 @@ def _industry_section_html(
 
     univ_html = ""
     if universal:
+        # 「多題材股」chip:同 ticker 在 N 個 sub-cluster 出現。點 chip → 該
+        # sub-tab 內只留含此 ticker 的 cluster,其餘 collapse 動畫隱藏;再點
+        # 取消。single-select(state per level)。
         chips = "".join(
-            f'<button class="univ-chip" data-ticker="{html_lib.escape(t)}" type="button"'
-            f" onclick='toggleUniv({json.dumps(t)})'>"
+            f'<button class="univ-chip" data-ticker="{html_lib.escape(t)}" '
+            f'data-level="{level}" type="button"'
+            f" onclick='toggleMultiTheme({json.dumps(t)},{json.dumps(level)})'>"
             f"{html_lib.escape(t)}&nbsp;{html_lib.escape(n)}</button>"
             for t, n in universal.items()
         )
         univ_html = (
             '<div class="univ-panel">'
-            '<span class="univ-label">廣泛概念股(點擊濾除):</span>'
+            '<span class="univ-label">多題材股:</span>'
             f'{chips}'
             '</div>'
         )
@@ -2711,15 +2715,17 @@ tr:last-child td{{border-bottom:none}}
                    color:var(--accent)}}
 .theme-arts{{margin-top:.4rem}}
 
-/* ── Universal stock toggle panel ── */
+/* ── 多題材股 toggle panel ── */
 .univ-panel{{display:flex;align-items:center;flex-wrap:wrap;gap:.4rem .55rem;
              margin-bottom:.85rem;padding:.6rem .85rem;
              background:#0d1019;border-radius:8px;border:1px solid var(--border)}}
 .univ-label{{font-size:.7rem;color:var(--muted);font-weight:600;white-space:nowrap}}
 .univ-chip{{font-size:.75rem;font-weight:600;padding:.2rem .55rem;border-radius:20px;
-            background:#1a2030;color:var(--accent);border:1px solid #2a3a50;transition:.15s}}
+            background:#1a2030;color:var(--accent);border:1px solid #2a3a50;
+            cursor:pointer;transition:.15s}}
 .univ-chip:hover{{background:#1e2a40}}
-.univ-chip.disabled{{background:#1e1215;color:#6a5060;border-color:#2e2025;text-decoration:line-through}}
+/* 選中(single-select):該股的多題材被篩出,chip 高亮 */
+.univ-chip.mt-active{{background:var(--accent);color:#fff;border-color:var(--accent)}}
 
 /* ── Cluster sort chips ── */
 /* sort chip 與 ⓘ 指標說明合併一列(左:排序,右:ⓘ tooltip 觸發點)。
@@ -3726,6 +3732,76 @@ function toggleUniv(ticker) {{
   if (dlg && dlg.open && _openThemeCardId) {{
     _renderThemeChart(_openThemeCardId);
   }}
+}}
+
+/* ── 多題材股篩選(2026-05-20)──────────────────────────────────────────────
+ * 點 univ-chip → 該 sub-tab 內只留含此 ticker 的 cluster,其餘 collapse
+ * 動畫隱藏;再點同 chip → 全部 expand 恢復。single-select per level。 */
+const _multiThemeSel = {{}};  // level -> ticker | null
+
+function _collapseCard(el) {{
+  if (el.dataset.mtAnim === 'collapsing' || el.style.display === 'none') return;
+  el.dataset.mtAnim = 'collapsing';
+  el.style.maxHeight = el.scrollHeight + 'px';
+  el.style.overflow = 'hidden';
+  void el.offsetWidth;
+  el.style.transition = 'max-height .35s ease, opacity .28s ease, margin .35s ease';
+  el.style.maxHeight = '0';
+  el.style.opacity = '0';
+  el.style.marginTop = '0';
+  el.style.marginBottom = '0';
+  const te = (e) => {{
+    if (e.propertyName !== 'max-height') return;
+    el.style.display = 'none';
+    el.dataset.mtAnim = '';
+    el.removeEventListener('transitionend', te);
+  }};
+  el.addEventListener('transitionend', te);
+}}
+
+function _expandCard(el) {{
+  if (el.style.display !== 'none' && el.dataset.mtAnim !== 'collapsing') return;
+  el.dataset.mtAnim = 'expanding';
+  el.style.display = '';
+  el.style.transition = 'none';
+  el.style.maxHeight = '0';
+  el.style.opacity = '0';
+  el.style.overflow = 'hidden';
+  void el.offsetWidth;
+  el.style.transition = 'max-height .35s ease, opacity .28s ease, margin .35s ease';
+  el.style.maxHeight = el.scrollHeight + 'px';
+  el.style.opacity = '1';
+  el.style.marginTop = '';
+  el.style.marginBottom = '';
+  const te = (e) => {{
+    if (e.propertyName !== 'max-height') return;
+    // 還原 inline style,避免 max-height 卡住後續內容變動(tooltip / sentinel 展開)
+    el.style.maxHeight = '';
+    el.style.overflow = '';
+    el.style.transition = '';
+    el.style.opacity = '';
+    el.dataset.mtAnim = '';
+    el.removeEventListener('transitionend', te);
+  }};
+  el.addEventListener('transitionend', te);
+}}
+
+function toggleMultiTheme(ticker, level) {{
+  const next = (_multiThemeSel[level] === ticker) ? null : ticker;
+  _multiThemeSel[level] = next;
+  // chip 高亮:single-select,同 level 只 1 個 active
+  document.querySelectorAll('.univ-chip[data-level="' + level + '"]').forEach(b => {{
+    b.classList.toggle('mt-active', next !== null && b.dataset.ticker === next);
+  }});
+  const clusters = (window.IIA_CLUSTERS || {{}})[level] || [];
+  clusters.forEach(c => {{
+    const el = document.getElementById(c.cardId);
+    if (!el) return;
+    const shouldShow = (next == null) ||
+      (c.focal || []).some(f => f.ticker === next);
+    if (shouldShow) _expandCard(el);
+    else _collapseCard(el);
+  }});
 }}
 
 function _recalcClusters(level) {{
