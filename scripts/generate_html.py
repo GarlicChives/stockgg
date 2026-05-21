@@ -1773,8 +1773,10 @@ def build_focus_stock_page(
     def _cluster_cell(names):
         # 點 chip → openThemeByName 開熱門題材 cluster chart modal;
         # stopPropagation 避免 bubble 到 row 的 showArtModal(個股 modal)
+        # title 屬性 = hover 顯完整題材名(chip 本身 CSS 截斷顯 …)
         return "".join(
             f'<span class="fs-theme-chip" '
+            f'title="{html_lib.escape(n)}" '
             f"onclick='event.stopPropagation();openThemeByName({json.dumps(n)})'>"
             f'{html_lib.escape(n)}</span>' for n in names
         ) or '<span class="muted">—</span>'
@@ -3707,13 +3709,14 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
 .fs-table th.r,.fs-table td.r{{text-align:right;white-space:nowrap}}
 .fs-table tr.fs-row{{cursor:pointer;transition:background .12s}}
 .fs-table tr.fs-row:hover td{{background:rgba(124,138,242,.06)}}
-/* 較小螢幕(≤1280px):選股雷達 12 欄表格易擠壓(隸屬題材欄會逐字換行)。
-   (1) 縮小 th/td 左右格距;(2) 標的 pill 改 flex-wrap,股價 sp-quote
-   掉到第二行 → 標的欄變窄,騰出橫向空間給其他欄。 */
+/* 選股雷達 12 欄表格易擠壓。標的 pill 一律 flex-wrap:股價 sp-quote
+   固定掉到第二行(代號+名稱留第一行)→ 標的欄變窄,不分螢幕寬度都套用。 */
+.fs-table td .stk-pill{{flex-wrap:wrap;row-gap:.06rem}}
+.fs-table td .stk-pill .sp-quote{{flex-basis:100%}}
+/* 較小螢幕(≤1280px)再額外縮小 th/td 左右格距 + pill padding */
 @media(max-width:1280px){{
   .fs-table th,.fs-table td{{padding:.42rem .38rem}}
-  .fs-table td .stk-pill{{flex-wrap:wrap;row-gap:.06rem;padding:.26rem .42rem}}
-  .fs-table td .stk-pill .sp-quote{{flex-basis:100%}}
+  .fs-table td .stk-pill{{padding:.26rem .42rem}}
 }}
 .fs-tk{{font-weight:700;color:var(--text)}}
 .fs-nm{{color:var(--muted);margin-left:.25rem}}
@@ -3721,6 +3724,8 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
                  background:rgba(124,138,242,.1);color:var(--accent);
                  border:1px solid rgba(124,138,242,.25);border-radius:4px;
                  padding:.1rem .4rem;margin:.1rem .15rem .1rem 0;
+                 max-width:8.5rem;white-space:nowrap;overflow:hidden;
+                 text-overflow:ellipsis;vertical-align:middle;
                  cursor:pointer;transition:background .12s}}
 .fs-theme-chip:hover{{background:rgba(124,138,242,.25)}}
 .fs-etf-held{{font-size:.74rem;color:var(--text);font-weight:600}}
