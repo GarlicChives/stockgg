@@ -2595,8 +2595,8 @@ async def generate():
   </div>
   <div class="tc-shell-row">
   <div class="tc-nav tc-nav-left">
-    <button class="tc-nav-arrow" type="button" title="下一個題材" aria-label="下一個題材"
-            onclick="tcNavTheme('next')">←</button>
+    <button class="tc-nav-arrow" type="button" title="上一個題材" aria-label="上一個題材"
+            onclick="tcNavTheme('prev')">←</button>
   </div>
   <div class="tc-panel">
   <div class="tc-hdr">
@@ -2650,8 +2650,8 @@ async def generate():
   </div>
   </div>
   <div class="tc-nav tc-nav-right">
-    <button class="tc-nav-arrow" type="button" title="上一個題材" aria-label="上一個題材"
-            onclick="tcNavTheme('prev')">→</button>
+    <button class="tc-nav-arrow" type="button" title="下一個題材" aria-label="下一個題材"
+            onclick="tcNavTheme('next')">→</button>
   </div>
   </div>
   </div>

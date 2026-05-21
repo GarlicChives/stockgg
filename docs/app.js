@@ -542,6 +542,7 @@ function _loadHistory() {
 
 let _lwcLoadPromise = null;
 let _openThemeCardId = null;       // 目前打開的 cluster cardId(null = 關)
+let _tcSort = 'chg';               // chart modal 自己的排序 key(獨立於外層頁面)
 let _tcCharts = { net: null, price: null, netSeries: null,
                     clusterSeries: null, twiiSeries: null, tpexSeries: null };
 const _lineVis = { cluster: true, twii: true, tpex: true };
@@ -964,20 +965,24 @@ function openThemeByName(name) {
 
 function openThemeChart(cardId) {
   _openThemeCardId = cardId;
-  // 同步上方排序長條高亮 = 該 sub-tab 當前排序
-  const _navLvl = document.getElementById(cardId)?.closest('.focus-clusters');
-  if (_navLvl) _tcSyncSortBar(_navLvl.id.replace('cluster-container-', ''));
+  const dlg = document.getElementById('theme-chart-dialog');
+  if (!dlg) return;
+  // 首次開啟(dialog 尚未開)→ modal 排序預設 = 外層該 sub-tab 當前排序;
+  // 之後 tcNavTheme / tcSetSort 在已開狀態重呼,不重設(modal 排序獨立)。
+  // 已開啟時不可再 showModal(會丟 InvalidStateError)。
+  if (!dlg.open) {
+    const lvl = document.getElementById(cardId)?.closest('.focus-clusters')
+                  ?.id.replace('cluster-container-', '');
+    if (lvl && typeof _getSortKey === 'function') _tcSort = _getSortKey(lvl);
+    dlg.showModal();
+  }
+  _tcSyncSortBar();
   // Reset modal-only state(disable set + histogram mode 都不跨 cluster 持久化)
   _modalTickerDis = new Set();
   _netMode = 'daily';
   document.querySelectorAll('.tc-mode-chip').forEach(b => {
     b.classList.toggle('active', b.dataset.mode === 'daily');
   });
-  const dlg = document.getElementById('theme-chart-dialog');
-  if (!dlg) return;
-  // 已開啟時不可再 showModal(會丟 InvalidStateError);tcNavTheme 切換題材
-  // 會在 dialog 已開的狀態下重呼 openThemeChart,故守一層。
-  if (!dlg.open) dlg.showModal();
   // 顯示 loading hint(首次 fetch history.json 可能要 ~1 秒)
   const tcEmpty = document.getElementById('tc-empty');
   if (!window.IIA_HISTORY) {
@@ -993,20 +998,48 @@ function openThemeChart(cardId) {
     });
 }
 
-/* tcNavTheme: chart modal 切換上/下一個題材。左箭頭=next、右箭頭=prev。
- * 順序 = 外層該 sub-tab cluster 卡的 DOM 順序(即使用者當下選的排序);
+/* _tcSortedClusters: 回傳 IIA_CLUSTERS[level] 依 modal 排序 _tcSort「由高至低」
+ * 排序後的陣列。指標由 cluster.focal 聚合(tv 用 baseTv;chg/bias/pe 取焦點股
+ * 簡單平均,pe skip ≤0)。modal 左右導覽順序即用此 —— 與外層頁面排序無關。 */
+function _tcSortedClusters(level) {
+  const arr = ((window.IIA_CLUSTERS || {})[level] || []).slice();
+  const avg = (foc, sel) => {
+    const v = foc.map(sel).filter(x => x != null);
+    return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null;
+  };
+  const metric = (c) => {
+    const foc = c.focal || [];
+    if (!foc.length) return null;
+    if (_tcSort === 'chg')  return avg(foc, f => f.chg);
+    if (_tcSort === 'bias') return avg(foc, f => f.bias);
+    if (_tcSort === 'pe')   return avg(foc, f => (f.pe != null && f.pe > 0) ? f.pe : null);
+    return (c.baseTv != null) ? c.baseTv      // 'tv'
+      : foc.reduce((s, f) => s + (f.tv || 0), 0);
+  };
+  return arr.sort((a, b) => {
+    const va = metric(a), vb = metric(b);
+    if (va == null && vb == null) return 0;
+    if (va == null) return 1;    // 缺值排尾
+    if (vb == null) return -1;
+    return vb - va;              // 由高至低
+  });
+}
+
+/* tcNavTheme: chart modal 切換題材。dir='next'→排序中下一個(右箭頭 →)、
+ * 'prev'→上一個(左箭頭 ←)。順序 = modal 自己的排序 _tcSortedClusters,
  * 環狀循環。.tc-body 做水平滑動動畫,中途 openThemeChart 重渲染。 */
 function tcNavTheme(dir) {
   if (!_openThemeCardId) return;
-  const cur = document.getElementById(_openThemeCardId);
-  const container = cur && cur.closest('.focus-clusters');
+  const container = document.getElementById(_openThemeCardId)
+                      ?.closest('.focus-clusters');
   if (!container) return;
-  const cards = [...container.querySelectorAll('.cluster-card')];
-  const idx = cards.indexOf(cur);
-  if (idx < 0 || cards.length < 2) return;
-  const n = cards.length;
+  const level = container.id.replace('cluster-container-', '');
+  const sorted = _tcSortedClusters(level);
+  const idx = sorted.findIndex(c => c.cardId === _openThemeCardId);
+  if (idx < 0 || sorted.length < 2) return;
+  const n = sorted.length;
   const tIdx = dir === 'next' ? (idx + 1) % n : (idx - 1 + n) % n;
-  const targetId = cards[tIdx].id;
+  const targetId = sorted[tIdx].cardId;
   if (!targetId) return;
   const body = document.querySelector('#theme-chart-dialog .tc-body');
   if (!body) { openThemeChart(targetId); return; }
@@ -1025,25 +1058,25 @@ function tcNavTheme(dir) {
   };
 }
 
-/* tcSetSort: chart modal 上方排序長條。切換排序 → 重排外層 cluster 卡
- * (setClusterSort,含 FLIP 動畫),modal 跳到新排序的「第一個」題材。 */
+/* tcSetSort: chart modal 上方排序長條。只改 modal 自己的排序(_tcSort,
+ * 永遠由高至低)→ 決定左右導覽順序;不動外層頁面、不關 modal。
+ * 切換後 modal 跳到新排序的第一個(最高)題材。 */
 function tcSetSort(key) {
   if (!_openThemeCardId) return;
   const container = document.getElementById(_openThemeCardId)
                       ?.closest('.focus-clusters');
   if (!container) return;
   const level = container.id.replace('cluster-container-', '');
-  if (typeof setClusterSort === 'function') setClusterSort(key, level);
-  const first = container.querySelector('.cluster-card');
-  if (first && first.id) openThemeChart(first.id);  // openThemeChart 內會 syncSortBar
-  else _tcSyncSortBar(level);
+  _tcSort = key;
+  _tcSyncSortBar();
+  const sorted = _tcSortedClusters(level);
+  if (sorted.length && sorted[0].cardId) openThemeChart(sorted[0].cardId);
 }
 
-/* 排序長條高亮同步 = 該 level 當前排序 key */
-function _tcSyncSortBar(level) {
-  const key = (typeof _getSortKey === 'function') ? _getSortKey(level) : 'chg';
+/* 排序長條高亮同步 = modal 當前排序 _tcSort */
+function _tcSyncSortBar() {
   document.querySelectorAll('#theme-chart-dialog .tc-sort-chip').forEach(c =>
-    c.classList.toggle('active', c.dataset.sort === key));
+    c.classList.toggle('active', c.dataset.sort === _tcSort));
 }
 
 // 關 dialog 時清理
@@ -1054,12 +1087,10 @@ function _tcSyncSortBar(level) {
     _openThemeCardId = null;
     _disposeThemeCharts();
   });
-  // dim 區點擊關閉:dialog 已是滿版容器,只有點到 .tc-panel / .tc-nav 以外
-  // 的暗色區才關(點 panel 內容、點兩側導覽遮罩都不關)。
+  // dim 區點擊關閉:dialog 是滿版容器,.tc-shell 才是整個 modal 單元
+  // (排序長條 + 兩側導覽 + panel 都在其內)。點 .tc-shell 以外的暗色區才關。
   dlg.addEventListener('click', (e) => {
-    if (!e.target.closest('.tc-panel') && !e.target.closest('.tc-nav')) {
-      dlg.close();
-    }
+    if (!e.target.closest('.tc-shell')) dlg.close();
   });
   // 防止 wheel 滾動穿透到外層頁面:只有 target 在左欄 ticker 列表內才放行
   // (chart 自有 wheel zoom 處理,padding/標題等空白處則 preventDefault)
