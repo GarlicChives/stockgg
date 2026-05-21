@@ -303,6 +303,8 @@ tr:last-child td{border-bottom:none}
             margin-left:.3rem;letter-spacing:0}
 
 /* ── Theme clusters ── */
+.cluster-count{font-size:.78rem;color:var(--muted);margin:.1rem 0 .55rem}
+.cluster-count b{color:var(--text);font-size:.92rem;font-weight:700}
 .focus-clusters{display:flex;flex-direction:column;gap:.85rem;margin-bottom:1.5rem}
 .cluster-card{background:#12151f;border-radius:10px;padding:1rem 1.1rem;
                border-left:3px solid var(--accent);will-change:transform}
@@ -783,6 +785,9 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .fs-tab-pane{display:none}
 .fs-tab-pane.active{display:block}
 .fs-hint{font-size:.76rem;color:var(--muted);margin:.2rem 0 .8rem;line-height:1.5}
+/* 選股雷達 各 sub-tab 表格上方「共 N 檔」計數 */
+.fs-count{font-size:.74rem;color:var(--muted);margin:.1rem 0 .7rem}
+.fs-count b{color:var(--text);font-size:.84rem;font-weight:700}
 .fs-table{width:100%;border-collapse:collapse;
             background:#12151f;border:1px solid var(--border);
             border-radius:8px;overflow:hidden}

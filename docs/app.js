@@ -100,9 +100,21 @@ function toggleFsFilter(btn) {
   btn.classList.toggle('active');
   const active = [...document.querySelectorAll('#fstab-int .fs-filter-btn.active')]
     .map(b => b.dataset.cond);
+  let visible = 0;
   document.querySelectorAll('#fstab-int .fs-row').forEach(row => {
     const matched = (row.dataset.matched || '').split(',').filter(Boolean);
-    row.hidden = !active.every(c => matched.includes(c));
+    const show = active.every(c => matched.includes(c));
+    row.hidden = !show;
+    if (show) visible++;
+  });
+  // 計數即時更新(交集股「共 N 檔」)
+  const cnt = document.getElementById('fs-int-count');
+  if (cnt) cnt.textContent = visible;
+  // 動畫:篩選後可見列 fade-in-up
+  document.querySelectorAll('#fstab-int .fs-row:not([hidden])').forEach(row => {
+    row.animate(
+      [{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'none' }],
+      { duration: 200, easing: 'ease-out' });
   });
 }
 

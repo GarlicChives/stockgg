@@ -859,7 +859,8 @@ def _industry_section_html(
     # Object.assign 累積)
     topics_json_str = json.dumps(cluster_topic_payload, ensure_ascii=False, separators=(",", ":"))
     return (
-        sort_html
+        f'<div class="cluster-count">共 <b>{len(cards)}</b> 個題材</div>'
+        + sort_html
         + univ_html
         + f'<div id="cluster-container-{level}" class="focus-clusters">'
         + "".join(cards)
@@ -1537,23 +1538,36 @@ def build_focus_stock_page(
         )
         + '</div>'
     ) if intersect_stocks else '')
+
+    # 各 sub-tab 表格上方「共 N 檔」計數;交集股的 <b> 帶 id 供篩選時 JS 即時更新
+    def _fs_count(rows, is_int=False):
+        if not rows:
+            return ''
+        bid = ' id="fs-int-count"' if is_int else ''
+        return f'<div class="fs-count">共 <b{bid}>{len(rows)}</b> 檔</div>'
+
     panes_html = (
         f'<div class="fs-tab-pane active" id="fstab-int">'
         '<p class="fs-hint">同時符合 2 項(含)以上條件的焦點股,依符合條件數由多至少排序。</p>'
+        f'{_fs_count(intersect_stocks, True)}'
         f'{_int_filter_bar}'
         f'{int_html}</div>'
         f'<div class="fs-tab-pane" id="fstab-vol">'
         '<p class="fs-hint">今日成交金額 &gt; 前 5 交易日均(不含今日)× 3,依出量倍數排序。</p>'
+        f'{_fs_count(volume_stocks)}'
         f'{vol_html}</div>'
         f'<div class="fs-tab-pane" id="fstab-pot">'
         '<p class="fs-hint">十日均價 &gt; 月均價、股價低於月均價 1.2 倍,依月線乖離率排序。</p>'
+        f'{_fs_count(potential_stocks)}'
         f'{pot_html}</div>'
         f'<div class="fs-tab-pane" id="fstab-nh">'
         '<p class="fs-hint">今日股價創 52 週新高的焦點股,依月線乖離率排序。</p>'
+        f'{_fs_count(new_high_stocks)}'
         f'{nh_html}</div>'
         f'<div class="fs-tab-pane" id="fstab-gr">'
         '<p class="fs-hint">月營收連 3 月 YoY &gt; 0,且近一季毛利 / 營業利益 / 稅前淨利 / '
         '稅後淨利金額年增率皆 &gt; 0,依月線乖離率排序。</p>'
+        f'{_fs_count(growth_stocks)}'
         f'{gr_html}</div>'
     )
     return nav_html + panes_html
