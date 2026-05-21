@@ -964,6 +964,9 @@ function openThemeByName(name) {
 
 function openThemeChart(cardId) {
   _openThemeCardId = cardId;
+  // 同步上方排序長條高亮 = 該 sub-tab 當前排序
+  const _navLvl = document.getElementById(cardId)?.closest('.focus-clusters');
+  if (_navLvl) _tcSyncSortBar(_navLvl.id.replace('cluster-container-', ''));
   // Reset modal-only state(disable set + histogram mode 都不跨 cluster 持久化)
   _modalTickerDis = new Set();
   _netMode = 'daily';
@@ -1020,6 +1023,27 @@ function tcNavTheme(dir) {
        { opacity: 1, transform: 'translateX(0)' }],
       { duration: 190, easing: 'ease-out' });
   };
+}
+
+/* tcSetSort: chart modal 上方排序長條。切換排序 → 重排外層 cluster 卡
+ * (setClusterSort,含 FLIP 動畫),modal 跳到新排序的「第一個」題材。 */
+function tcSetSort(key) {
+  if (!_openThemeCardId) return;
+  const container = document.getElementById(_openThemeCardId)
+                      ?.closest('.focus-clusters');
+  if (!container) return;
+  const level = container.id.replace('cluster-container-', '');
+  if (typeof setClusterSort === 'function') setClusterSort(key, level);
+  const first = container.querySelector('.cluster-card');
+  if (first && first.id) openThemeChart(first.id);  // openThemeChart 內會 syncSortBar
+  else _tcSyncSortBar(level);
+}
+
+/* 排序長條高亮同步 = 該 level 當前排序 key */
+function _tcSyncSortBar(level) {
+  const key = (typeof _getSortKey === 'function') ? _getSortKey(level) : 'chg';
+  document.querySelectorAll('#theme-chart-dialog .tc-sort-chip').forEach(c =>
+    c.classList.toggle('active', c.dataset.sort === key));
 }
 
 // 關 dialog 時清理

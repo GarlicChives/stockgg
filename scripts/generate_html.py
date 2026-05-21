@@ -2586,9 +2586,15 @@ async def generate():
 
 <!-- Theme chart modal (子產業 6 個月 TV / 平均漲跌 趨勢) -->
 <dialog id="theme-chart-dialog">
+  <div class="tc-shell">
+  <div class="tc-topbar">
+    <button class="tc-sort-chip" data-sort="tv" type="button" onclick="tcSetSort('tv')">成交金額</button>
+    <button class="tc-sort-chip active" data-sort="chg" type="button" onclick="tcSetSort('chg')">平均漲跌</button>
+    <button class="tc-sort-chip" data-sort="bias" type="button" onclick="tcSetSort('bias')">平均乖離</button>
+    <button class="tc-sort-chip" data-sort="pe" type="button" onclick="tcSetSort('pe')">平均 PE</button>
+  </div>
+  <div class="tc-shell-row">
   <div class="tc-nav tc-nav-left">
-    <button class="tc-nav-x" type="button" title="關閉" aria-label="關閉"
-            onclick="document.getElementById('theme-chart-dialog').close()">✕</button>
     <button class="tc-nav-arrow" type="button" title="下一個題材" aria-label="下一個題材"
             onclick="tcNavTheme('next')">←</button>
   </div>
@@ -2644,10 +2650,10 @@ async def generate():
   </div>
   </div>
   <div class="tc-nav tc-nav-right">
-    <button class="tc-nav-x" type="button" title="關閉" aria-label="關閉"
-            onclick="document.getElementById('theme-chart-dialog').close()">✕</button>
     <button class="tc-nav-arrow" type="button" title="上一個題材" aria-label="上一個題材"
             onclick="tcNavTheme('prev')">→</button>
+  </div>
+  </div>
   </div>
 </dialog>
 
