@@ -1407,6 +1407,8 @@ def build_focus_stock_page(
 
     _MATCH_CHIP_CLS = {"出量": "fs-mc-vol", "潛力": "fs-mc-pot",
                        "新高": "fs-mc-nh", "成長": "fs-mc-gr"}
+    # 條件 → 短 key(交集股篩選列 data-cond / row data-matched 用)
+    _MATCH_KEY = {"出量": "vol", "潛力": "pot", "新高": "nh", "成長": "gr"}
 
     def _match_cell(matched):
         return "".join(
@@ -1457,7 +1459,8 @@ def build_focus_stock_page(
             f'data-theme="{len(c["clusters"])}" '
             f'data-etf="{etf_n}" '
             f'data-volmult="{f"{vm:.4f}" if vm else ""}" '
-            f'data-match="{len(c["matched"])}"'
+            f'data-match="{len(c["matched"])}" '
+            f'data-matched="{",".join(_MATCH_KEY.get(m, "") for m in c["matched"])}"'
         )
         tds = [
             # 標的 cell:用 _stk_pill(同熱門題材樣式,代號+名稱+股價(漲跌));
@@ -1522,9 +1525,22 @@ def build_focus_stock_page(
         'onclick="showFocusStockTab(\'gr\')">🌱 成長股</button>'
         '</div>'
     )
+    # 交集股條件篩選列(預設全 disabled;多選 AND;順序同 sub-tab;有交集股才顯示)
+    _filter_conds = [("vol", "出量"), ("pot", "潛力"), ("nh", "新高"), ("gr", "成長")]
+    _int_filter_bar = ((
+        '<div class="fs-filter-bar">'
+        '<span class="fs-filter-label">篩選符合條件</span>'
+        + "".join(
+            f'<button type="button" class="fs-filter-btn" data-cond="{k}" '
+            f'onclick="toggleFsFilter(this)">{lbl}</button>'
+            for k, lbl in _filter_conds
+        )
+        + '</div>'
+    ) if intersect_stocks else '')
     panes_html = (
         f'<div class="fs-tab-pane active" id="fstab-int">'
         '<p class="fs-hint">同時符合 2 項(含)以上條件的焦點股,依符合條件數由多至少排序。</p>'
+        f'{_int_filter_bar}'
         f'{int_html}</div>'
         f'<div class="fs-tab-pane" id="fstab-vol">'
         '<p class="fs-hint">今日成交金額 &gt; 前 5 交易日均(不含今日)× 3,依出量倍數排序。</p>'

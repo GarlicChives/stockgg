@@ -93,6 +93,19 @@ function sortFsTable(th) {
   rows.forEach(r => tbody.appendChild(r));
 }
 
+/* toggleFsFilter: 交集股「符合條件」篩選列。多選 AND —— row 的 data-matched
+ * 必須涵蓋所有 active 條件才顯示;再點 active 鈕即取消(toggle);
+ * 無任何 active = 全部顯示。 */
+function toggleFsFilter(btn) {
+  btn.classList.toggle('active');
+  const active = [...document.querySelectorAll('#fstab-int .fs-filter-btn.active')]
+    .map(b => b.dataset.cond);
+  document.querySelectorAll('#fstab-int .fs-row').forEach(row => {
+    const matched = (row.dataset.matched || '').split(',').filter(Boolean);
+    row.hidden = !active.every(c => matched.includes(c));
+  });
+}
+
 /* Merged cluster name — 計算螢幕對應 visible 閾值並產出 "+N ▾" / "收合 ▴" */
 function _mergedVisibleCount() {
   const w = window.innerWidth;

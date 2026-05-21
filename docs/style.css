@@ -803,6 +803,19 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .fs-match-chip.fs-mc-pot{background:rgba(38,166,154,.16);color:#5dc4b9}
 .fs-match-chip.fs-mc-nh{background:rgba(239,83,80,.16);color:#f47471}
 .fs-match-chip.fs-mc-gr{background:rgba(245,158,11,.16);color:#e0922e}
+/* 交集股條件篩選列(預設 disabled 灰底;active 用對應 fs-mc-* 配色) */
+.fs-filter-bar{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;
+               margin:.1rem 0 .8rem}
+.fs-filter-label{font-size:.72rem;color:var(--muted);margin-right:.1rem}
+.fs-filter-btn{font-size:.72rem;font-weight:600;padding:.22rem .62rem;
+               border-radius:5px;cursor:pointer;background:transparent;
+               color:var(--muted);border:1px solid var(--border);transition:.12s}
+.fs-filter-btn:hover{border-color:var(--accent);color:var(--text)}
+.fs-filter-btn.active[data-cond="vol"]{background:rgba(124,138,242,.16);color:#9aa8f5;border-color:rgba(124,138,242,.5)}
+.fs-filter-btn.active[data-cond="pot"]{background:rgba(38,166,154,.16);color:#5dc4b9;border-color:rgba(38,166,154,.5)}
+.fs-filter-btn.active[data-cond="nh"]{background:rgba(239,83,80,.16);color:#f47471;border-color:rgba(239,83,80,.5)}
+.fs-filter-btn.active[data-cond="gr"]{background:rgba(245,158,11,.16);color:#e0922e;border-color:rgba(245,158,11,.5)}
+.fs-table tr.fs-row[hidden]{display:none}
 .fs-table td{padding:.5rem .7rem;font-size:.82rem;
                border-bottom:1px solid rgba(42,46,64,.4);vertical-align:middle}
 .fs-table tr:last-child td{border-bottom:none}
