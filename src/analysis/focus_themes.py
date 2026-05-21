@@ -1,7 +1,7 @@
 """Industry clustering — 熱門題材.
 
 2026-05-19 v2:`detect_focus_clusters` 重寫
-  - 種子 = is_focus_seed (rank≤300 AND chg>4.5%, ingest 預計算 flag)
+  - 種子 = is_focus_seed ((rank≤300 OR 近漲停 chg≥9.5%) AND chg>4.5%, ingest 預計算 flag)
   - 族群性 = 同 sub 種子數 ≥ 2 才算熱門題材
   - focal = sub 字典成員 today 有交易 AND chg > -3
   - sentinel = sub 字典成員 today 有交易 AND chg < -3
@@ -302,7 +302,9 @@ def _merge_identical_focal(clusters: list[IndustryCluster]) -> list[IndustryClus
 # ── 焦點 cluster detection(2026-05-19 v2,種子計數驅動) ──────────────────────
 #
 # v2 規格(對應 ingest commit 8f27ede):
-#   step 1: seeds = ingest 預計算 is_focus_seed (rank ≤ 300 AND chg > 4.5%)
+#   step 1: seeds = ingest 預計算 is_focus_seed
+#           ((rank ≤ 300 OR 近漲停 chg ≥ 9.5%) AND chg > 4.5%;近漲停豁免見
+#            ingest a23e1cc — 漲停股成交值被鎖死壓抑、rank 會失真掉出 300)
 #   step 2: 對每 seed 從題材字典反查 main='近一年焦點' 下所屬 sub list
 #   step 3: 累計 sub 種子計數,≥ FOCUS_MIN_SEEDS (2) 才算熱門題材
 #   step 4: 對每熱門 sub,撈字典內全成員(任 ticker 在 main='近一年焦點' 且
