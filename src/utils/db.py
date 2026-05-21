@@ -1,10 +1,10 @@
 """Database adapter — asyncpg-compatible interface over Supabase Edge Function.
 
 This is the **public-renderer** variant: talks to db-proxy-public, which
-hard-allowlists 9 SELECT templates needed for HTML render and rejects
-anything else with HTTP 403. Even if the bearer key leaks, the only
-columns reachable are the public-safe ones tracked in
-migration/queries_inventory.md.
+hard-allowlists a fixed set of SELECT templates needed for HTML render and
+rejects anything else with HTTP 403. Even if the bearer key leaks, the only
+columns reachable are the public-safe ones defined in the ALLOWED set of
+supabase/functions/db-proxy-public/index.ts.
 
 API surface is identical to asyncpg (kept for drop-in compatibility):
   conn = await db.connect()

@@ -330,165 +330,6 @@ _REC_LABEL: dict[str, tuple[str, str]] = {
 }
 
 
-def _yf_resolve_sym(ticker: str, board: str | None) -> str:
-    """共用 helper:選對 yfinance suffix。
-    board ∈ {'TWSE', 'TPEX', 'US', None};None → 預設 TWSE(數字 ticker 加 .TW)。
-    上櫃股(TPEX)必須加 .TWO,不然 yfinance 回 "possibly delisted"。
-    """
-    up = ticker.upper()
-    if up.endswith(".TW") or up.endswith(".TWO"):
-        return ticker
-    if board == "TPEX":
-        return ticker + ".TWO"
-    core = ticker.split(".")[0]
-    if core.isdigit():  # TW numeric ticker,board 未知或 TWSE → 預設 .TW
-        return ticker + ".TW"
-    return ticker  # US
-
-
-def _yf_batch_fetch(entries: list[tuple[str, str, str | None]]) -> dict[str, dict]:
-    """Sync: batch-fetch close / change% / trading value via yfinance.
-    entries = [(ticker, market, board|None), ...]; board ∈ {'TWSE','TPEX',None}。
-    對 board=None 的 TW 數字 ticker 預設 .TW,空回時 fallback 試 .TWO。
-    Returns {ticker: {"close": float|None, "change_pct": float|None, "trading_value": float|None}}
-    """
-    try:
-        import yfinance as yf
-    except ImportError:
-        return {}
-
-    def _do_download(yf_map: dict[str, str]) -> dict[str, dict]:
-        """主 batch:download → 取每個 yf_sym 的 close/vol → entry dict"""
-        out: dict[str, dict] = {}
-        if not yf_map:
-            return out
-        try:
-            syms = list(yf_map)
-            raw = yf.download(syms, period="2d", progress=False, auto_adjust=True, group_by="ticker")
-            if raw.empty:
-                return out
-            for yf_sym, orig in yf_map.items():
-                try:
-                    close = (raw[yf_sym]["Close"] if len(syms) > 1 else raw["Close"]).dropna()
-                    vol   = (raw[yf_sym]["Volume"] if len(syms) > 1 else raw["Volume"]).dropna()
-                    if len(close) == 0:
-                        continue
-                    entry: dict = {"close": None, "change_pct": None, "trading_value": None}
-                    entry["close"] = float(close.iloc[-1])
-                    if len(close) >= 2:
-                        entry["change_pct"] = round(
-                            float((close.iloc[-1] - close.iloc[-2]) / close.iloc[-2] * 100), 2
-                        )
-                    if len(vol) >= 1:
-                        entry["trading_value"] = float(close.iloc[-1] * vol.iloc[-1])
-                    out[orig] = entry
-                except Exception:
-                    pass
-        except Exception:
-            pass
-        return out
-
-    # 第一輪:依 board 組正確 suffix
-    yf_map: dict[str, str] = {_yf_resolve_sym(orig, board): orig for orig, _mkt, board in entries}
-    result = _do_download(yf_map)
-
-    # 第二輪 fallback:對沒拿到資料的 TW 數字 ticker 且第一輪用了 .TW,改試 .TWO
-    missing_tw = [
-        orig for orig, _mkt, board in entries
-        if orig not in result
-        and orig.split(".")[0].isdigit()
-        and not orig.upper().endswith(".TWO")
-        and board != "TPEX"  # 已是 TPEX 就用過 .TWO 了,不必再試
-    ]
-    if missing_tw:
-        retry_map = {orig.split(".")[0] + ".TWO": orig for orig in missing_tw}
-        result.update(_do_download(retry_map))
-
-    return result
-
-
-def _yf_market_index_history(period: str = "6mo") -> dict[str, list[dict]]:
-    """抓大盤(^TWII)與櫃買(^TWO)指數歷史 close,供 chart 三線 overlay 對比。
-    Returns: {'TWII': [{d, close}, ...], 'TPEX': [{d, close}, ...]}
-    """
-    try:
-        import yfinance as yf
-    except ImportError:
-        return {}
-    result: dict[str, list[dict]] = {}
-    # ^TWO 在 yfinance 完全沒資料;^TWOII (TPEx Composite) 偶爾會 flaky
-    # 回空 → 對該 symbol 個別 retry 一次,避免 chart 整個沒線
-    import time as _time
-    syms_map = {"^TWII": "TWII", "^TWOII": "TPEX"}
-    for yf_sym, key in syms_map.items():
-        for attempt in range(2):
-            try:
-                df = yf.download(yf_sym, period=period, progress=False, auto_adjust=True)
-                if df.empty:
-                    if attempt == 0:
-                        _time.sleep(0.7)
-                        continue
-                    break
-                # yfinance 4.x 即使單 ticker 也回 MultiIndex columns:
-                # ('Close', '^TWII') 等。需 squeeze inner level 為 Series。
-                close = df["Close"]
-                if hasattr(close, "ndim") and close.ndim == 2:
-                    close = close.iloc[:, 0]
-                close = close.dropna()
-                series = []
-                for ts, v in close.items():
-                    d = ts.date().isoformat() if hasattr(ts, "date") else str(ts)[:10]
-                    val = v.item() if hasattr(v, "item") else float(v)
-                    series.append({"d": d, "close": round(float(val), 2)})
-                result[key] = series
-                break
-            except Exception:
-                if attempt == 0:
-                    _time.sleep(0.7)
-                else:
-                    break
-    return result
-
-
-def _yf_ma20_bias_batch(ticker_boards: dict[str, str]) -> dict[str, float]:
-    """Batch yfinance,回傳 {ticker: ma20_bias%}。
-    ma20_bias = (今日收盤 - 20MA) / 20MA * 100。台股 only(TW 焦點股用)。
-
-    ticker_boards: {ticker: board} 其中 board ∈ {"TWSE", "TPEX"}。
-    yfinance suffix 必須對:上市(TWSE)→ .TW、上櫃(TPEX)→ .TWO。
-    若一律加 .TW 會讓上櫃股(例:5347 世界先進)抓不到資料(yfinance 回
-    "possibly delisted")→ ma20_bias 永遠 null,排序時被當缺值排尾段。
-    """
-    if not ticker_boards:
-        return {}
-    try:
-        import yfinance as yf
-    except ImportError:
-        return {}
-    yf_map = {_yf_resolve_sym(t, b): t for t, b in ticker_boards.items()}
-    result: dict[str, float] = {}
-    try:
-        syms = list(yf_map)
-        raw = yf.download(syms, period="2mo", progress=False, auto_adjust=True, group_by="ticker")
-        if raw.empty:
-            return result
-        for yf_sym, orig in yf_map.items():
-            try:
-                close = (raw[yf_sym]["Close"] if len(syms) > 1 else raw["Close"]).dropna()
-                if len(close) < 20:
-                    continue
-                ma20 = float(close.iloc[-20:].mean())
-                if ma20 <= 0:
-                    continue
-                today = float(close.iloc[-1])
-                result[orig] = round((today - ma20) / ma20 * 100, 2)
-            except Exception:
-                pass
-    except Exception:
-        pass
-    return result
-
-
 # ── Ranking rows HTML ─────────────────────────────────────────────────────────
 
 def rank_rows_html(ranks, market: str) -> str:
@@ -660,7 +501,7 @@ def _industry_section_html(
     sort_html = ""
     if level in ("sub", "hl_sub", "pan_sub"):
         # 指標說明 tooltip(2026-05-19 從 details 改 hover tooltip)。
-        # 文案要跟 _yf_ma20_bias_batch / 770~787 的 simple-mean 邏輯對齊;
+        # 文案要跟 MA20 乖離率計算(Q13 close 歷史 simple-mean)邏輯對齊;
         # 改公式必須同步改這段。
         explainer_html = (
             '<span class="metric-tooltip" tabindex="0">'
@@ -750,7 +591,7 @@ def _industry_section_html(
         # 焦點股平均漲跌幅
         chgs = [s.change_pct for s in c.focal if s.change_pct is not None]
         avg_chg = sum(chgs) / len(chgs) if chgs else None
-        # 焦點股平均 20MA 乖離率(來自 all_stocks 由 yfinance 補進來的值)
+        # 焦點股平均 20MA 乖離率(ma20_bias 由 Q13 close 歷史算入 stocks_info)
         ma20s = [all_stocks.get(s.ticker, {}).get("ma20_bias") for s in c.focal]
         ma20s = [m for m in ma20s if m is not None]
         avg_ma20 = sum(ma20s) / len(ma20s) if ma20s else None
@@ -2077,15 +1918,12 @@ async def generate():
     # 不在 UI 顯示;前哨觀察(watch)同步從卡片移除 → 不再需要查 watch change_pct
     # 也不再 yfinance 補 watch close,純粹靠 stocks_info(top-N from SQL)。
 
-    # MA20 乖離率:給每個 sub-cluster 算「焦點股平均 20MA 乖離」用。
-    # yfinance 一次性 batch 抓所有焦點 ticker 的 2 個月收盤,算 MA20 +
-    # bias%,patch 回 stocks_info(_industry_section_html 從那邊讀)。
-    # **重要**:必須帶 board 進去(TWSE→.TW、TPEX→.TWO),否則上櫃股
-    # 拿不到資料。stocks_info 的 board 來自 trading_rankings.extra.board。
-    # _focal_tw 涵蓋:
+    # _focal_tw:所有焦點 ticker 集合,供 Q13 (ticker_close_history) 的 fetch
+    # 範圍。MA20 乖離率改由 Q13 close 歷史自算(見下方 Q13 fetch 之後的區塊),
+    # 不再 render-time 抓 yfinance。_focal_tw 涵蓋:
     #   - sub_clusters 的 focal(pan_sub + 舊 hl 路徑)
-    #   - focus_hl_clusters 的 focal + sentinel(2026-05-18 加,新 hl 路徑;
-    #     sentinel 也要 MA20/PE 給 pill 顯)
+    #   - focus_hl_clusters 的 focal + sentinel(新 hl 路徑;sentinel 也要
+    #     MA20/PE 給 pill 顯)
     _focal_tw_set: set[str] = {s.ticker for c in sub_clusters for s in c.focal}
     for c in focus_hl_clusters:
         for s in c.focal:
@@ -2093,15 +1931,6 @@ async def generate():
         for s in (c.sentinel or []):
             _focal_tw_set.add(s.ticker)
     _focal_tw = list(_focal_tw_set)
-    _focal_board_map = {
-        t: stocks_info.get(t, {}).get("board", "TWSE")
-        for t in _focal_tw
-    }
-    if _focal_board_map:
-        _ma20 = await asyncio.to_thread(_yf_ma20_bias_batch, _focal_board_map)
-        for t, bias in _ma20.items():
-            if t in stocks_info:
-                stocks_info[t]["ma20_bias"] = bias
 
     # 近一年焦點 highlight subs(從 theme_dictionary.json 讀,main='近一年焦點')。
     # 230 個 ticker 涵蓋 AI 伺服器 / 光通訊 / ASIC / 半導體 / 先進封裝 / PCB /
@@ -2154,35 +1983,14 @@ async def generate():
         mn_raw = mn_row["market_notes_json"] if mn_row else None
     if mn_raw:
         market_notes = mn_raw if isinstance(mn_raw, dict) else json.loads(mn_raw)
-    # Normalize Gemini-formatted tickers and extract embedded Chinese names
-    _gemini_name_lookup: dict[str, str] = {}
+    # 正規化 market_notes 各 topic 的 ticker(Gemini 格式 → 標準 ticker)。
+    # 舊的 _gemini_name_lookup / _theme_name_lookup 名稱 fallback 已隨
+    # render-time yfinance 補抓一起移除 —— market_notes ticker 的 name 現在
+    # 由下方 Q8(trading_rankings)直接回傳。
     if market_notes and market_notes.get("topics"):
         for _topic in market_notes["topics"]:
-            _normalized = []
-            for _raw in _topic.get("tickers", []):
-                _tick = _normalize_ticker(_raw)
-                _normalized.append(_tick)
-                _m = _TICKER_PAREN_RE.search(_raw.strip())
-                if _m:
-                    _inner = _m.group(1).strip()
-                    _outer = _raw.strip()[:_m.start()].strip()
-                    if (re.match(r'^[A-Z0-9]{2,8}$', _inner, re.IGNORECASE)
-                            and _outer and not _outer.isascii()):
-                        _gemini_name_lookup[_tick] = _outer
-            _topic["tickers"] = _normalized
-
-    # Build name fallback from theme_dictionary.json (2026-05 schema:
-    # ticker-centric `stocks` 物件,純台股)
-    _theme_name_lookup: dict[str, str] = {}
-    try:
-        _td_path = Path(__file__).resolve().parent.parent / "data" / "theme_dictionary.json"
-        _td = json.loads(_td_path.read_text(encoding="utf-8"))
-        for _ticker, _info in _td.get("stocks", {}).items():
-            _name = _info.get("name")
-            if _ticker and _name:
-                _theme_name_lookup[_ticker] = _name
-    except Exception:
-        pass
+            _topic["tickers"] = [_normalize_ticker(_raw)
+                                 for _raw in _topic.get("tickers", [])]
 
     # Extend stocks_info with close / change% for market notes tickers not in top-N
     if market_notes and market_notes.get("topics"):
@@ -2276,35 +2084,10 @@ async def generate():
 
     await conn.close()
 
-    # yfinance: 為「market_notes 提到但不在 top-N rankings 也不在 Q8 回傳」
-    # 的 ticker 補抓 close / change_pct,塞回 stocks_info(讓段末 pill 與
-    # topic-card pill 都能正確顯示 price(chg%)。watch 路徑已移除,因公開站
-    # 已不顯示前哨觀察。
-    _yf_needed: list[tuple[str, str]] = []
-    if market_notes and market_notes.get("topics"):
-        for topic in market_notes["topics"]:
-            for t in topic.get("tickers", []):
-                if t not in stocks_info:
-                    _core = t.split(".")[0]
-                    # board unknown(這些 ticker 不在 trading_rankings 內);
-                    # _yf_batch_fetch 對 board=None 會試 .TW 再 fallback .TWO
-                    _yf_needed.append((t, "TW" if _core.isdigit() else "US", None))
-    if _yf_needed:
-        _yf_needed = list({t[0]: t for t in _yf_needed}.values())  # dedup by ticker
-        yf_data = await asyncio.to_thread(_yf_batch_fetch, _yf_needed)
-        # Patch stocks_info for market_notes tickers not in any ranking
-        for ticker, market, _board in _yf_needed:
-            if ticker not in stocks_info:
-                d = yf_data.get(ticker, {})
-                stocks_info[ticker] = {
-                    "name": _gemini_name_lookup.get(ticker) or _theme_name_lookup.get(ticker) or ticker,
-                    "market": market,
-                    "change_pct": d.get("change_pct"),
-                    "close_price": d.get("close"),
-                    "trading_value": 0,
-                    "rank": 99,
-                    "limit_up": False,
-                }
+    # market_notes 提到、但不在 top-N rankings 的 ticker:ingest 自 commit
+    # 11a88d4 起把這些補進 trading_rankings(rank=NULL,extra.is_market_notes_ref),
+    # Q8 即撈得到 → 不再 render-time 用 yfinance 補。Q8 仍撈不到的極冷門股
+    # (yfinance 本身也無資料)無 stocks_info entry,pill 顯「—」。
 
     raw_report   = (report["raw_response"] or "") if report else ""
     report_date  = report["report_date"].strftime("%Y/%m/%d") if report else "—"
@@ -2383,6 +2166,25 @@ async def generate():
         except Exception as exc:
             print(f"  ⚠ ticker_close_history query failed: {exc}")
 
+    # MA20 乖離率(熱門題材 cluster 卡「平均乖離」metric 用)— 由 Q13 close
+    # 歷史自算,不再呼叫 yfinance。bias = (今日收盤 − 20 日均) / 20 日均 × 100;
+    # 今日收盤取 stocks_info(trading_rankings),20 日均取 ticker_close_history
+    # 最後 20 筆 close。算法與 build_focus_stock_page 內一致。
+    for _t in _focal_tw:
+        if _t not in stocks_info:
+            continue
+        _closes = [r["c"] for r in ticker_close_payload.get(_t, []) if r.get("c") is not None]
+        if len(_closes) < 20:
+            continue
+        _ma20 = sum(_closes[-20:]) / 20
+        try:
+            _tc = stocks_info[_t].get("close_price")
+            _tc = float(_tc) if _tc is not None else None
+        except (TypeError, ValueError):
+            _tc = None
+        if _tc and _ma20:
+            stocks_info[_t]["ma20_bias"] = (_tc - _ma20) / _ma20 * 100
+
     # Q17 — ticker_net_inst_history per-ticker × per-date 攤平歷史 net_inst
     # (NTD,T86/3insti × close)。取代 2026-05-18 從 theme_history.focal_breakdown
     # 反向索引建 ticker_net_inst 的舊 path(對「純近一年焦點」ticker — 從沒
@@ -2412,24 +2214,35 @@ async def generate():
         except Exception as exc:
             print(f"  ⚠ ticker_net_inst_history query failed (Q17 not deployed?): {exc}")
 
-    # 大盤(^TWII)+ 櫃買(^TWO)指數歷史,供 chart 第二張三線 overlay 對比
-    # 焦點股 line vs 大盤 vs 櫃買(都 rebase to 100,看相對強弱)。
-    market_index_payload = await asyncio.to_thread(_yf_market_index_history, "6mo")
-
-    # 補丁:yfinance 對 ^TWOII(櫃買 TPEx)今日 close 常延遲(盤後 1-2h 才 sync),
-    # 結果 chart 三線中櫃買線截止「昨天」。如 ingest 端 market_snapshots 已寫
-    # 對應 symbol 今日 close,從 snaps fallback 補一個 today 點。
-    # ^TWII 一樣對待(yfinance 偶爾也 flaky)。snaps 沒寫對應 symbol 則跳過。
-    for _key, _snap_sym in (("TWII", "^TWII"), ("TPEX", "^TWOII")):
-        _series = market_index_payload.get(_key, [])
-        _snap = snaps.get(_snap_sym)
-        _snap_dt = snap_dates.get(_snap_sym)
-        if not _series or not _snap or _snap_dt is None:
-            continue
-        _snap_d = _snap_dt.date().isoformat() if hasattr(_snap_dt, "date") else str(_snap_dt)[:10]
-        if _snap_d > _series[-1]["d"] and _snap.get("close") is not None:
-            _series.append({"d": _snap_d, "close": round(float(_snap["close"]), 2)})
-            print(f"  market_index {_key}: 補今日 close 從 snaps ({_snap_d}={_snap['close']})")
+    # 大盤(^TWII)+ 櫃買(^TWOII)指數 400 天 daily close — Q21,從 ingest
+    # 寫入的 market_snapshots 讀,供 chart 第二張三線 overlay(都 rebase to
+    # 100 看相對強弱)。2026-05 起資料收集移回 ingest,stockgg 不再 render-time
+    # 抓 yfinance;今日 close 由 ingest 每日 fetch_and_store 寫入,無需 patch。
+    market_index_payload: dict[str, list[dict]] = {"TWII": [], "TPEX": []}
+    _idx_sym_map = {"^TWII": "TWII", "^TWOII": "TPEX"}
+    try:
+        _idx_rows = await conn.fetch(
+            "SELECT snapshot_date, symbol, close_price, change_pct FROM market_snapshots "
+            "WHERE symbol = ANY($1::text[]) "
+            "AND snapshot_date >= current_date - INTERVAL '400 days' "
+            "ORDER BY symbol, snapshot_date",
+            ["^TWII", "^TWOII"],
+        )
+        for r in _idx_rows:
+            _k = _idx_sym_map.get(r["symbol"])
+            if not _k or r["close_price"] is None:
+                continue
+            # d 必須是 YYYY-MM-DD(對齊 ticker_close 日期 + lightweight-charts
+            # time 格式);db.py 會把 timestamp 欄 coerce 成 datetime,故用
+            # strftime 取日期,不可用 isoformat()(會帶 T00:00:00+00:00)。
+            _d = r["snapshot_date"]
+            _d = _d.strftime("%Y-%m-%d") if hasattr(_d, "strftime") else str(_d)[:10]
+            market_index_payload[_k].append(
+                {"d": _d, "close": round(float(r["close_price"]), 2)})
+        print(f"  market_index (Q21): TWII={len(market_index_payload['TWII'])}d "
+              f"TPEX={len(market_index_payload['TPEX'])}d")
+    except Exception as exc:
+        print(f"  ⚠ Q21 market index history failed: {exc}")
 
     # 「市場行情」ranking table 只顯前 N (RANKINGS_TOP_N=50),過濾 Q14 special
     # 與 Q15 focus_member 的 rank=NULL row(它們是 cluster detection universe,

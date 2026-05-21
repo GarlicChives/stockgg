@@ -5,7 +5,7 @@
 // function; the gate is the allowlist below).
 //
 // Differs from db-proxy:
-//   * Hard SQL allowlist — only the 9 query templates the public site needs.
+//   * Hard SQL allowlist — only the query templates the public site needs.
 //   * Anything else returns 403, even with a valid Supabase JWT.
 //
 // Caller auth: the gateway requires a valid Supabase JWT (anon or service).
@@ -13,8 +13,7 @@
 //
 // Adding a new permitted query: extend ALLOWED. Each entry is the
 // whitespace-normalized lowercase form of the exact SQL the public repo will
-// issue. See migration/queries_inventory.md in the StockGG repo for the
-// source of truth.
+// issue. The ALLOWED set below is itself the source of truth.
 
 import postgres from "npm:postgres"
 
@@ -127,6 +126,10 @@ const ALLOWED: Set<string> = new Set([
   // (對應 ingest edc8d49):若 DB 該 ETF 只有 1 day holdings → has_baseline=FALSE
   // 該 row 的 lots_chg / action = NULL,modal 端 chip 不渲染。
   "with last_two as (select etf_code, holding_date, row_number() over (partition by etf_code order by holding_date desc) as rn from active_etf_holdings where ticker = $1), baseline_per_etf as (select etf_code, max(rn) >= 2 as yes from last_two group by etf_code), latest_per as (select etf_code, holding_date from last_two where rn = 1), prev_per as (select etf_code, holding_date from last_two where rn = 2) select m.etf_code, m.etf_name, m.short_name, m.issuer, m.aum_ntd, t.holding_date, t.lots, t.weight_pct, t.market_value_ntd, y.lots as prev_lots, coalesce(bp.yes, false) as has_baseline, case when coalesce(bp.yes, false) then coalesce(t.lots, 0) - coalesce(y.lots, 0) else null end as lots_chg, round(t.lots * 1000.0 / nullif(sm.shares_outstanding, 0) * 100, 3) as pct_of_float, case when not coalesce(bp.yes, false) then null when t.lots is null or t.lots = 0 then 'exit' when y.lots is null or y.lots = 0 then 'new' when t.lots > y.lots then 'add' when t.lots < y.lots then 'reduce' else 'hold' end as action from active_etf_meta m left join baseline_per_etf bp on bp.etf_code = m.etf_code left join active_etf_holdings t on t.etf_code = m.etf_code and t.ticker = $1 and (t.etf_code, t.holding_date) in (select etf_code, holding_date from latest_per) left join active_etf_holdings y on y.etf_code = m.etf_code and y.ticker = $1 and (y.etf_code, y.holding_date) in (select etf_code, holding_date from prev_per) left join stock_meta sm on sm.ticker = $1 where t.lots is not null or y.lots is not null order by m.aum_ntd desc nulls last",
+
+  // Q21 — 大盤 / 櫃買指數過去 400 天 daily close,供 cluster chart modal
+  // 的大盤 / 櫃買 overlay 線。ingest 寫入 market_snapshots(指數快照)。
+  "select snapshot_date, symbol, close_price, change_pct from market_snapshots where symbol = any($1::text[]) and snapshot_date >= current_date - interval '400 days' order by symbol, snapshot_date",
 ])
 
 function normalize(q: string): string {

@@ -29,7 +29,7 @@ Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
   - `detect_focus_clusters(seeds, focus_members)` — **v2**(hl_sub 用,2026-05-19,對齊 ingest `8f27ede`);seeds = is_focus_seed(rank≤300 AND chg>4.5%, Q16),focus_members = is_focus_member rows(Q15)。算法:同 sub 種子數 ≥ `FOCUS_MIN_SEEDS`(2) 才算熱門題材,題材成員 today 有交易者 chg > `FOCUS_SENTINEL_THRESHOLD`(-3) 入 `focal`、< 入 `sentinel`。**v1 廢**(2026-05-18 `bd85f1d` → 次日 `8f27ede` 撤,hot_seed / limit_hot_seed / volume_universe 機制完全移除)
 - `src/utils/db.py` — async DB client(用 `SUPABASE_ANON_KEY` + `db-proxy-public`)
 - `data/theme_dictionary.json` — statementdog 主產業 / 子產業階層字典(2026-05 改 schema:ticker-centric `stocks` 物件,純台股;由 ingest 端 `scrape_statementdog_industries.py` 產生再 sync 到本 repo)。**main='近一年焦點'** 是 ingest 端人工編彙的長線觀察題材(62 sub / 230 ticker;sub 名稱「前綴·後綴」可用 「·」 split 群組),公開站「熱門題材」頁有獨立 sub-tab「🌟 焦點」,跟「📊 泛分類」(原 statementdog 47 main) 並陳
-- `supabase/functions/db-proxy-public/index.ts` — Edge Function 含 SQL allowlist(目前 **20 條**):
+- `supabase/functions/db-proxy-public/index.ts` — Edge Function 含 SQL allowlist(目前 **21 條**):
   - Q1-Q8 日報基本資料、**Q9 v2** catalyst_events ±14/21d + `visible = TRUE` filter(ingest `4d5e7cc` 起;遠期 events visible=false 不出,daily cron 隨日期 flip true)、Q10 market_notes
   - Q11 theme_history 180→**400 days** retention
   - Q12 stock_meta(公司基本面快照;2026-05-20 起含三率 gross/operating/net_margin + *_yoy_dir + 營收 revenue_mom/yoy,選股雷達頁(原「焦點股」)5 欄用,ingest `57c7e8b`;`8b155c1` 再加成長股欄 revenue_yoy_3m_all_positive + gross_profit/operating_income/pretax_income/net_income_yoy)
@@ -39,6 +39,7 @@ Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
   - **Q16** focus_seed ticker list(rank ≤ 300 AND chg > 4.5%, ingest `8f27ede` 預計算)WHERE `extra->>'is_focus_seed'='true'`
   - **Q17** ticker_net_inst_history 攤平歷史 net_inst (NTD = T86/3insti × close, ingest `ed3b2e9` 起;取代從 `theme_history.focal_breakdown` 反向索引建 ticker_net_inst 的舊 path — 對「純近一年焦點 ticker」focal_breakdown 永遠缺、反向索引拿不到)
   - **Q18 / Q19 / Q20** 主動式 ETF(ingest `f5faa21` → `edc8d49` v2):Q18 `active_etf_meta` master 按 AUM desc;Q19/Q20 v2 加 has_baseline CTE — DB 內該 ETF 只 1 day holdings 時 lots_chg/action = NULL,UI 顯警示「無前日 baseline」+ chip 不渲(避免硬標 new 失真);Q20 多 pct_of_float(lots × 1000 / stock_meta.shares_outstanding × 100)
+  - **Q21** 大盤 / 櫃買指數歷史(ingest `11a88d4`):`market_snapshots` 撈 `^TWII` / `^TWOII` 過去 400 天 daily close,供 cluster chart modal 的大盤 / 櫃買 overlay 線。2026-05 起 render-time yfinance 全移回 ingest,generate_html.py 不再 `import yfinance`(指數歷史走 Q21、MA20 乖離走 Q13 自算、market_notes ticker 走 Q8)
 - `.github/workflows/market_briefing.yml` — render + deploy(07:30 / 18:15 / 23:15 TW cron + repository_dispatch)。**push 不會觸發**,hot-fix 後要 `gh workflow run "Publish daily site"` 手動跑。`concurrency: publish-daily-site` 同 workflow 排隊不互相取消;commit-and-push step 含 `-X ours` rebase retry x3,避免本地 dev push 與 bot 撞 race。必須 `git add docs/index.html docs/history.json` 兩檔(漏 history.json 會在 rebase retry path 卡 unstaged changes,2026-05-19 踩過);wrangler-action wranglerVersion 必 pin 具體版本(`"4"` 浮動會撈到 4.86.0 撞 npx prompt 卡住,2026-05-20 踩過)
 - `docs/index.html` — 渲染輸出(generate_html.py 寫入,bot CI push)
 - `docs/history.json` — chart modal 用的歷史 payload,~5MB,含:
