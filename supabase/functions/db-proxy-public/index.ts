@@ -38,9 +38,11 @@ const ALLOWED: Set<string> = new Set([
   // Q2 — per-symbol latest market_snapshots
   "select distinct on (symbol) symbol, close_price, change_pct, snapshot_date, extra from market_snapshots where close_price is not null order by symbol, snapshot_date desc",
 
-  // Q3 / Q4 — latest rank_date per market
-  "select max(rank_date) from trading_rankings where market='us'",
-  "select max(rank_date) from trading_rankings where market='tw'",
+  // Q3 / Q4 — latest *complete* rank_date per market. `rank IS NOT NULL`
+  // 排除 rank=NULL 雜列(special / focus_member / market_notes_ref)造成的
+  // 幽靈日期 — 確保公開站永遠回退到「已完整抓到 top-N」的最新交易日。
+  "select max(rank_date) from trading_rankings where market='us' and rank is not null",
+  "select max(rank_date) from trading_rankings where market='tw' and rank is not null",
 
   // Q5 — US top 50 today (includes close_price; LIMIT bumped 30→50 2026-05)
   "select row_number() over (order by trading_value desc nulls last)::int as rank, ticker, name, trading_value, change_pct, close_price, extra from trading_rankings where rank_date=$1 and market='us' order by trading_value desc nulls last limit 50",

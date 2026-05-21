@@ -1767,12 +1767,18 @@ async def generate():
         max(snap_dates.values()) if snap_dates else None
     )
 
-    # Rankings
+    # Rankings — rank_date 取「最新完整交易日」:必須 `rank IS NOT NULL`。
+    # trading_rankings 內除了真實排名列(rank 1..N),還有 rank=NULL 的雜列
+    # (special 處置/漲跌停、focus_member、market_notes_ref)。後者的 rank_date
+    # 由各自來源決定(market_notes_ref 甚至用 per-ticker yfinance 收盤日),
+    # 可能領先真實排名日。若盲取 MAX(rank_date) 會選到「只有 rank=NULL 雜列」
+    # 的幽靈日期 → 公開站整頁空。加 `rank IS NOT NULL` 確保永遠回退到「已完整
+    # 抓到 top-N 排名」的最新交易日(對齊公開站鐵則:永遠不空)。
     us_rank_date = await conn.fetchval(
-        "SELECT MAX(rank_date) FROM trading_rankings WHERE market='US'"
+        "SELECT MAX(rank_date) FROM trading_rankings WHERE market='US' AND rank IS NOT NULL"
     )
     tw_rank_date = await conn.fetchval(
-        "SELECT MAX(rank_date) FROM trading_rankings WHERE market='TW'"
+        "SELECT MAX(rank_date) FROM trading_rankings WHERE market='TW' AND rank IS NOT NULL"
     )
     us_ranks, tw_ranks = [], []
     focus_seed_tickers: list[str] = []  # Q16, v2 detect_focus_clusters 用
