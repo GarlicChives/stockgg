@@ -24,7 +24,7 @@ data/search_cache.json
 !.dev.vars.example
 !.env.example
 
-# launchd runtime logs (directory preserved via .gitkeep)
-logs/*
-!logs/.gitkeep
+# macOS
+.DS_Store
+
 supabase/.temp/

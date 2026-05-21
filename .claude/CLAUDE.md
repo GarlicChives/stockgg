@@ -23,7 +23,7 @@ Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
 
 ## 關鍵檔案
 
-- `scripts/generate_html.py` — 單檔 HTML 渲染(~3900 行,所有頁面邏輯 + 內嵌 CSS/JS)
+- `scripts/generate_html.py` — 單檔 HTML 渲染(~4900 行,所有頁面邏輯 + 內嵌 CSS/JS)
 - `src/analysis/focus_themes.py` — 題材叢集(純 Python);兩個函式:
   - `detect_industry_clusters(tw_top_volume)` — 普適 TV 累加(pan_sub 用);輸入 = `stocks_info` filter market='TW';自動 dedupe 同 focal set 為 merged cluster(`A & B & C`)
   - `detect_focus_clusters(seeds, focus_members)` — **v2**(hl_sub 用,2026-05-19,對齊 ingest `8f27ede`);seeds = is_focus_seed(rank≤300 AND chg>4.5%, Q16),focus_members = is_focus_member rows(Q15)。算法:同 sub 種子數 ≥ `FOCUS_MIN_SEEDS`(2) 才算熱門題材,題材成員 today 有交易者 chg > `FOCUS_SENTINEL_THRESHOLD`(-3) 入 `focal`、< 入 `sentinel`。**v1 廢**(2026-05-18 `bd85f1d` → 次日 `8f27ede` 撤,hot_seed / limit_hot_seed / volume_universe 機制完全移除)
@@ -56,8 +56,7 @@ Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
   - 兩 sub-tab 共用 cluster card 排行版型,各自獨立 sort state(`_clusterSort[level]`)
 - **inline payload**(HTML script tag 內):
   - `IIA_CLUSTERS.hl_sub` / `IIA_CLUSTERS.pan_sub`(各 sub-tab 的 cluster + focal ticker)
-  - `IIA_RADAR`(每檔 ticker 的 5 維 metric 與全焦點股平均,modal radar chart 用)
-  - `artModalData`(各 ticker 的 analyst consensus + 公司介紹 HTML 片段)
+  - `artModalData`(各 ticker 的「持股主動式 ETF」表 HTML 片段,個股 modal body 用;2026-05-20 取代舊的 analyst consensus + 公司介紹)
 - **lazy fetch**:`history.json`(modal chart 開啟才 fetch,no-cache 強制 revalidate),`unpkg lightweight-charts`(同上)
 - **互動點**:
   - 廣泛概念股 chip 濾除(universal toggle)→ FLIP 動畫重排 cluster(threshold:cluster 數 >20 用 >3,否則 >1)
@@ -65,7 +64,7 @@ Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
   - 內層 cluster header badge(漲跌/乖離/PE/殖利/β)→ per-cluster focal pill 排序,setFocalSort(cardId, key);預設 chg desc
   - chart 時間粒度 chip(1M/3M/6M/1Y/ALL)→ 過濾 series 後 rebase to 100;1Y 維度需要 ticker_close_history 400 天 backfill 完整
   - chart modal:左欄 ticker 列表 (vertical, by tv desc, 可 disable),右欄兩 chart 對齊(共用 priceScale minimumWidth) + 雙向 crosshair sync + 開啟動畫 + 三大法人 daily/cumulative 切換
-  - modal radar chart(5 維 vs 焦點股平均)、CSV 下載、site search、share button
+  - 個股 modal(持股主動式 ETF 表)、CSV 下載、site search、share button
 - **chip 系統**(2026-05-18 ingest 5a172be 起):
   - `.sp-tag.tag-strict` 嚴處 紅底(`punish_type='strict'`)
   - `.sp-tag.tag-punish` 處 橘底(`punish_type='normal'`)

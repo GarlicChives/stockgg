@@ -20,7 +20,7 @@ transcripts — all of that lives in a separate private system.
 - **熱門題材** — TW sub-industry ranking on top-N volume stocks (N=`RANKINGS_TOP_N` in `src/utils/config.py`); subs with identical focal sets get merged ("A & B & C: stocks"). 加 cluster sort chip(TV / 漲跌 / 殖利率)、universal ticker filter、per-cluster 6m 資金淨流入 sparkline → 點開 modal 大圖 + 1M/3M/6M/1Y/ALL 時間粒度切換
 - **跨來源議題** — common topics across multiple sources (≥ 2)
 - **焦點排行** — Top 15 高殖利率 + Top 15 低 PE,各帶 CSV 下載
-- **股票 modal** — 點任一 ticker pill 開啟,顯示 5 維 radar(漲跌/PE/殖利率/52w%/β vs 全焦點股平均)+ 公司介紹 + analyst consensus
+- **股票 modal** — 點任一 ticker pill 開啟,顯示該檔被哪些主動式 ETF 持有(持股市值 / 佔流通比 / 加減碼)
 - **站內搜尋** — header 右側輸入 ticker / 公司名 / 子產業關鍵字,鍵盤導覽 + 跳到對應 cluster 卡片 + highlight 動畫
 - **分享 + SEO** — Open Graph + Twitter Card,footer 4 顆 share button(Line/X/Facebook/複製連結),mobile 出現原生 share
 
