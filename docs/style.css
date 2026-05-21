@@ -303,8 +303,10 @@ tr:last-child td{border-bottom:none}
             margin-left:.3rem;letter-spacing:0}
 
 /* ── Theme clusters ── */
-.cluster-count{font-size:.78rem;color:var(--muted);margin:.1rem 0 .55rem}
-.cluster-count b{color:var(--text);font-size:.92rem;font-weight:700}
+/* 題材數 — inline 在 sort-row 開頭,「共 N 個題材 / 排序：」同一行 */
+.cluster-count{font-size:.72rem;color:var(--muted)}
+.cluster-count b{color:var(--text);font-weight:700}
+.sort-sep{color:var(--muted);opacity:.5}
 .focus-clusters{display:flex;flex-direction:column;gap:.85rem;margin-bottom:1.5rem}
 .cluster-card{background:#12151f;border-radius:10px;padding:1rem 1.1rem;
                border-left:3px solid var(--accent);will-change:transform}
@@ -785,9 +787,10 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .fs-tab-pane{display:none}
 .fs-tab-pane.active{display:block}
 .fs-hint{font-size:.76rem;color:var(--muted);margin:.2rem 0 .8rem;line-height:1.5}
-/* 選股雷達 各 sub-tab 表格上方「共 N 檔」計數 */
-.fs-count{font-size:.74rem;color:var(--muted);margin:.1rem 0 .7rem}
-.fs-count b{color:var(--text);font-size:.84rem;font-weight:700}
+/* 「共 N 檔」— inline 在 fs-hint 開頭,「共 N 檔 / <說明>」同一段不獨立成行 */
+.fs-count{color:var(--muted)}
+.fs-count b{color:var(--text);font-weight:700}
+.fs-sep{color:var(--muted);opacity:.5;margin:0 .35rem}
 .fs-table{width:100%;border-collapse:collapse;
             background:#12151f;border:1px solid var(--border);
             border-radius:8px;overflow:hidden}
