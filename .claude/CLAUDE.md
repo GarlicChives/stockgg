@@ -23,7 +23,9 @@ Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
 
 ## 關鍵檔案
 
-- `scripts/generate_html.py` — 單檔 HTML 渲染(~4900 行,所有頁面邏輯 + 內嵌 CSS/JS)
+- `scripts/generate_html.py` — HTML 渲染(~2700 行;頁面結構 + 資料 payload)。2026-05 起 CSS/JS 抽成獨立檔(見下),此檔不再內嵌 ~2000 行 CSS/JS,f-string escaping 雷區大幅縮小
+- `docs/style.css` — 全站 CSS(靜態原生檔,直接編輯;改檔後 generate_html.py 用內容雜湊自動 cache-bust `?v=`)
+- `docs/app.js` — 全站 JS 函式(靜態原生檔,直接編輯)。個股 modal 的 `artModalData` 等資料 const 仍 inline 在 index.html(per-render 動態),app.js 以全域 scope 取用
 - `src/analysis/focus_themes.py` — 題材叢集(純 Python);兩個函式:
   - `detect_industry_clusters(tw_top_volume)` — 普適 TV 累加(pan_sub 用);輸入 = `stocks_info` filter market='TW';自動 dedupe 同 focal set 為 merged cluster(`A & B & C`)
   - `detect_focus_clusters(seeds, focus_members)` — **v2**(hl_sub 用,2026-05-19,對齊 ingest `8f27ede`);seeds = is_focus_seed(rank≤300 AND chg>4.5%, Q16),focus_members = is_focus_member rows(Q15)。算法:同 sub 種子數 ≥ `FOCUS_MIN_SEEDS`(2) 才算熱門題材,題材成員 today 有交易者 chg > `FOCUS_SENTINEL_THRESHOLD`(-3) 入 `focal`、< 入 `sentinel`。**v1 廢**(2026-05-18 `bd85f1d` → 次日 `8f27ede` 撤,hot_seed / limit_hot_seed / volume_universe 機制完全移除)

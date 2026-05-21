@@ -1,0 +1,832 @@
+:root {
+  --bg:#0f1117; --card:#1a1d26; --border:#2a2e40;
+  --text:#e2e8f0; --muted:#7a8ba0;
+  --up:#ef5350; --down:#26a69a; --accent:#6c8ef5;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);
+      font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+      line-height:1.65;font-size:15px}
+a{color:var(--accent)}
+button{cursor:pointer;border:none;outline:none}
+
+/* ── Ticker tape (seamless) ── */
+.tape{position:sticky;top:0;z-index:200;
+       background:var(--card);border-bottom:1px solid var(--border);
+       height:36px;overflow:hidden;display:flex;align-items:center;
+       white-space:nowrap}
+.tape-track{display:inline-block;
+             animation:tape-scroll 90s linear infinite;
+             will-change:transform}
+.tape-item{display:inline-block;padding:0 .5rem;font-size:1.1rem;color:var(--muted)}
+.tape-item b{color:var(--text)}
+.tape-up{color:var(--up)} .tape-down{color:var(--down)}
+@keyframes tape-scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+
+
+/* ── Header (logo + tabs in one row) ── */
+header{background:var(--card);border-bottom:1px solid var(--border);
+        padding:.5rem 1.5rem;display:flex;align-items:center;gap:1.5rem;
+        flex-wrap:wrap}
+.brand{font-size:1rem;font-weight:700;color:var(--accent);
+        cursor:pointer;white-space:nowrap;letter-spacing:.02em;
+        background:transparent;border:0;padding:.25rem 0;font-family:inherit;
+        transition:.15s}
+.brand:hover{filter:brightness(1.18)}
+
+/* ── Tabs ── */
+.tabs{display:flex;gap:.3rem}
+.tab-btn{background:transparent;color:var(--muted);padding:.42rem .9rem;
+          border-radius:6px;font-size:.88rem;font-weight:500;transition:.15s;
+          white-space:nowrap}  /* nowrap 防中文按鈕在窄螢幕斷行成單字 */
+.tab-btn:hover{background:rgba(255,255,255,.04);color:var(--text)}
+.tab-btn.active{background:var(--accent);color:#fff}
+@media(max-width:480px){
+  .tab-btn{padding:.4rem .55rem;font-size:.8rem}  /* 4 個 button 在窄螢幕仍排得下 */
+}
+.tab-pane{display:none}
+.tab-pane.active{display:block}
+
+/* ── Site search(header 右側 ticker/公司搜尋)─────────────────────────── */
+.search-box{position:relative;margin-left:auto}
+.search-box input{font-family:inherit;font-size:.78rem;width:14rem;
+                    background:rgba(255,255,255,.04);color:var(--text);
+                    border:1px solid var(--border);border-radius:6px;
+                    padding:.35rem .65rem;transition:.15s;outline:none}
+.search-box input:focus{border-color:var(--accent);
+                          background:rgba(124,138,242,.06)}
+.search-box input::placeholder{color:var(--muted);font-weight:500}
+.search-dropdown{position:absolute;top:calc(100% + 4px);right:0;left:0;
+                   max-height:340px;overflow-y:auto;
+                   background:#161922;border:1px solid var(--border);
+                   border-radius:7px;box-shadow:0 6px 22px rgba(0,0,0,.5);
+                   z-index:200;font-size:.76rem}
+.search-item{display:flex;align-items:center;gap:.55rem;
+               padding:.45rem .7rem;cursor:pointer;
+               border-bottom:1px solid rgba(255,255,255,.04)}
+.search-item:last-child{border-bottom:none}
+.search-item:hover, .search-item.kb-active{background:rgba(124,138,242,.13)}
+.si-ticker{font-weight:700;color:var(--accent);min-width:3.2rem}
+.si-name{color:var(--text);flex:1;white-space:nowrap;overflow:hidden;
+          text-overflow:ellipsis}
+.si-cluster{color:var(--muted);font-size:.68rem;white-space:nowrap}
+.search-empty{padding:.6rem .8rem;color:var(--muted);font-style:italic}
+/* highlight 動畫 — 搜尋結果跳轉到該 cluster 卡片時高亮 1.5s */
+.cluster-card.search-hi{animation:searchHi 1.6s ease-out}
+@keyframes searchHi {
+  0%, 30% { box-shadow: 0 0 0 2px var(--accent), 0 0 24px rgba(124,138,242,.5); }
+  100% { box-shadow: none; }
+}
+/* 搜尋導向後,被搜尋的那檔 stk-pill 外框亮色閃爍 6 秒(0.6s × 10 cycle) */
+.stk-pill.pill-flash{animation:pillFlash .6s ease-in-out 10}
+@keyframes pillFlash {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(124,138,242,0); }
+  50%      { box-shadow: 0 0 0 3px rgba(124,138,242,.85), 0 0 12px rgba(124,138,242,.6); }
+}
+
+/* 右下角回到頂端 button — scroll > 300px 才淡入 */
+.scroll-top-btn{position:fixed;right:1.2rem;bottom:1.5rem;z-index:60;
+                  width:2.7rem;height:2.7rem;border-radius:50%;
+                  background:var(--accent);color:#fff;border:none;cursor:pointer;
+                  font-size:1.2rem;font-weight:700;line-height:1;
+                  box-shadow:0 4px 14px rgba(0,0,0,.45);
+                  opacity:0;visibility:hidden;
+                  transition:opacity .25s ease,visibility .25s,transform .15s}
+.scroll-top-btn.show{opacity:.9;visibility:visible}
+.scroll-top-btn:hover{opacity:1;transform:translateY(-2px)}
+@media(max-width:680px){
+  .scroll-top-btn{right:.9rem;bottom:1rem;width:2.4rem;height:2.4rem;font-size:1.05rem}
+}
+@media(max-width:680px){
+  .search-box{flex-basis:100%;margin:.4rem 0 0}
+  .search-box input{width:100%}
+}
+
+.wrap{width:90%;max-width:90%;margin:0 auto;padding:1.25rem 1.1rem}
+
+/* ── Sub-tabs (焦點股) ── */
+.sub-tabs{display:flex;gap:.35rem;margin-bottom:.9rem}
+.sub-tab-btn{background:var(--card);color:var(--muted);
+              padding:.32rem .8rem;border-radius:6px;
+              font-size:.82rem;font-weight:500;
+              border:1px solid var(--border);transition:.15s}
+.sub-tab-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.sub-tab-pane{display:none}
+.sub-tab-pane.active{display:block}
+
+/* ── Card ── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;
+       padding:1.2rem 1.35rem;margin-bottom:1.1rem}
+.sec{font-size:1rem;font-weight:700;color:var(--accent);letter-spacing:.04em;
+      margin-bottom:.85rem}
+.sec-row{display:flex;align-items:center;justify-content:space-between;gap:.6rem}
+/* .rank-dl 隨焦點排行 tab 2026-05-19 移除(CSV 下載已無 entry point) */
+.section-hdr{font-size:.88rem;font-weight:700;color:var(--accent);letter-spacing:.04em;
+              margin:1rem 0 .65rem}
+
+/* ── Report ── */
+.report h2{color:var(--accent);font-size:.98rem;font-weight:600;
+            margin:1.1rem 0 .5rem;padding-bottom:.3rem;
+            border-bottom:1px solid var(--border)}
+.report h3{color:#a0b0cc;font-size:.9rem;font-weight:600;margin:.9rem 0 .35rem}
+.report p{margin-bottom:.55rem;font-size:.9rem}
+.report ul{padding-left:1.3rem;margin-bottom:.55rem}
+.report li{margin-bottom:.25rem;font-size:.9rem}
+.report strong{color:#c0cfe0}
+.report-stocks{display:flex;flex-wrap:wrap;gap:.35rem;margin:.4rem 0 .65rem}
+.report li .report-stocks{margin:.35rem 0 .15rem}
+
+/* ── Catalyst calendar ── */
+.cal-empty{color:var(--muted);font-size:.85rem;padding:.4rem 0}
+.cal-list{display:flex;flex-direction:column;gap:.1rem}
+.cal-day{display:grid;grid-template-columns:90px 1fr;gap:.65rem;
+          padding:.4rem 0;border-bottom:1px solid var(--border);font-size:.85rem}
+.cal-day:last-child{border-bottom:none}
+.cal-day.past{opacity:.55}
+.cal-day.today .cal-date{color:var(--accent);font-weight:700}
+.cal-date{color:var(--muted);font-weight:600;font-variant-numeric:tabular-nums}
+.cal-events{display:flex;flex-wrap:wrap;gap:.3rem}
+.cal-ev{padding:.15rem .45rem;border-radius:4px;
+        background:rgba(255,255,255,.04);color:#c8d4e5;font-size:.82rem}
+.cal-ev.imp-3{background:rgba(255,150,80,.18);color:#ffba88;font-weight:600}
+.cal-ev.cal-fomc{background:rgba(255,100,120,.18);color:#ff9aa8;font-weight:600}
+.cal-ev.cal-conference{background:rgba(120,180,255,.15);color:#a8c8e8}
+.cal-ev.cal-policy{background:rgba(200,160,255,.15);color:#c8b0e8}
+.cal-ev.has-preview{cursor:pointer;text-decoration:underline dotted rgba(255,255,255,.3)}
+.cal-ev.has-preview:hover{filter:brightness(1.15)}
+/* 2026-05-19 起 .cal-preview inline expandable 改 showCatalystModal 彈窗,
+   .cal-preview / .cal-preview-head / .cal-preview-body CSS 已移除。 */
+
+/* ── Rankings ── */
+.ranks{display:grid;grid-template-columns:1fr 1fr;gap:1.1rem}
+@media(max-width:680px){.ranks{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse}
+th{color:var(--muted);font-weight:500;font-size:.7rem;text-align:left;
+    padding:.28rem .4rem;border-bottom:1px solid var(--border)}
+td{padding:.25rem .4rem;border-bottom:1px solid rgba(42,46,64,.4);font-size:.8rem}
+td.rank{color:var(--muted);width:1.6rem}
+td.ticker{font-weight:600}
+td.name{white-space:nowrap}     /* 防 mobile 窄欄把名稱斷成單字直排 */
+td.num{text-align:right;white-space:nowrap}
+/* tr.rank-row / .col-sector / .rank-dl 等焦點排行專屬 CSS 2026-05-19
+   隨焦點排行 tab 移除 */
+tr:last-child td{border-bottom:none}
+.board-badge{font-size:.55rem;font-weight:600;padding:.1rem .3rem;
+              border-radius:3px;margin-left:.3rem;vertical-align:middle}
+.board-sm{font-size:.55rem;font-weight:600;padding:.05rem .25rem;
+           border-radius:3px;margin-left:.2rem;vertical-align:middle}
+.twse{background:#1a2a3a;color:#6c8ef5}
+.tpex{background:#1a2e24;color:#26a69a}
+
+/* ── Focus stocks ── */
+.focus-themes{display:flex;flex-direction:column;gap:.85rem;margin-bottom:1rem}
+.focus-theme{background:#12151f;border-radius:10px;padding:1rem 1.1rem;
+              border-left:3px solid var(--accent)}
+.theme-top{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;margin-bottom:.45rem}
+.theme-ttl{font-size:.95rem;font-weight:700}
+.sent-badge{font-size:.65rem;font-weight:700;padding:.15rem .45rem;border-radius:4px}
+/* Asian convention: 紅=偏多/bullish, 綠=偏空/bearish (matches up/down) */
+.sent-bull{background:#3a1a1a;color:#ef7a78}
+.sent-bear{background:#1a3a2e;color:#5dc4b9}
+.sent-neu{background:#1e2235;color:var(--muted)}
+.src-note{font-size:.72rem;color:var(--muted)}
+.theme-summary{font-size:.85rem;color:#b0bfcf;margin:.35rem 0}
+.kp-list{font-size:.82rem;padding-left:1.2rem;color:#b0bfcf;margin:.35rem 0}
+.kp-list li{margin-bottom:.2rem}
+.focus-chips{display:flex;flex-wrap:wrap;gap:.35rem;margin:.45rem 0}
+.focus-chip{background:#1e2235;border-left:2px solid #555;font-size:.78rem;
+             font-weight:600;padding:.18rem .45rem;border-radius:5px}
+.focus-chip-match{background:#1a2a3a;border-left:2px solid var(--accent);
+                   font-size:.78rem;font-weight:700;padding:.18rem .45rem;border-radius:5px;
+                   color:var(--accent)}
+.theme-arts{margin-top:.4rem}
+
+/* ── 多題材股 toggle panel ── */
+.univ-panel{display:flex;align-items:center;flex-wrap:wrap;gap:.4rem .55rem;
+             margin-bottom:.85rem;padding:.6rem .85rem;
+             background:#0d1019;border-radius:8px;border:1px solid var(--border)}
+.univ-label{font-size:.7rem;color:var(--muted);font-weight:600;white-space:nowrap}
+.univ-chip{font-size:.75rem;font-weight:600;padding:.2rem .55rem;border-radius:20px;
+            background:#1a2030;color:var(--accent);border:1px solid #2a3a50;
+            cursor:pointer;transition:.15s}
+.univ-chip:hover{background:#1e2a40}
+/* 選中(single-select):該股的多題材被篩出,chip 高亮 */
+.univ-chip.mt-active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* ── Cluster sort chips ── */
+/* sort chip 與 ⓘ 指標說明合併一列(左:排序,右:ⓘ tooltip 觸發點)。
+ * 2026-05-19 從 details 展開改 hover tooltip,容器仍 position:relative
+ * 讓 tooltip body absolute 浮在 trigger 下方。 */
+.sort-explainer-row{position:relative;display:flex;align-items:center;
+                      flex-wrap:wrap;gap:.5rem 1rem;margin-bottom:.7rem}
+.sort-explainer-row .sort-row{margin-bottom:0;flex:0 1 auto}
+.sort-explainer-row .metric-tooltip{margin-left:auto;flex:0 1 auto}
+.metric-tooltip{position:relative;display:inline-block;cursor:help}
+.metric-tooltip .mt-trigger{color:var(--accent);font-weight:600;font-size:.73rem;
+                              letter-spacing:.02em;padding:.18rem .55rem;border-radius:5px;
+                              transition:background .15s;display:inline-block}
+.metric-tooltip:hover .mt-trigger,
+.metric-tooltip:focus .mt-trigger{background:rgba(124,138,242,.08)}
+/* tooltip body 預設隱藏,hover/focus 浮現;絕對定位於 trigger 下方右側 */
+.metric-tooltip .mt-body{position:absolute;top:calc(100% + .35rem);right:0;
+                           z-index:30;min-width:320px;max-width:min(420px,90vw);
+                           background:rgba(20,24,36,.98);
+                           border:1px solid var(--border);border-radius:8px;
+                           box-shadow:0 8px 24px rgba(0,0,0,.45);
+                           padding:.7rem 1rem;font-size:.72rem;color:var(--muted);
+                           line-height:1.55;opacity:0;visibility:hidden;
+                           transform:translateY(-4px);
+                           transition:opacity .18s ease,visibility .18s,transform .18s}
+.metric-tooltip:hover .mt-body,
+.metric-tooltip:focus .mt-body,
+.metric-tooltip:focus-within .mt-body{opacity:1;visibility:visible;transform:translateY(0)}
+.metric-tooltip ul{padding-left:1.1rem;margin:0;list-style:disc}
+.metric-tooltip li{margin-bottom:.3rem}
+.metric-tooltip li b{color:var(--text);font-weight:700}
+.metric-tooltip .metric-note{margin-top:.5rem;padding-top:.35rem;
+                                border-top:1px dashed var(--border);
+                                font-size:.7rem;color:var(--muted)}
+@media(max-width:680px){
+  .metric-tooltip .mt-body{left:0;right:auto;min-width:260px;max-width:90vw}
+}
+.sort-row{display:flex;align-items:center;flex-wrap:wrap;gap:.4rem;
+           margin-bottom:.7rem;padding:.1rem .15rem}
+.sort-label{font-size:.7rem;color:var(--muted);font-weight:600}
+.sort-chip{font-family:inherit;font-size:.7rem;font-weight:600;
+            padding:.22rem .65rem;border-radius:5px;cursor:pointer;
+            background:rgba(255,255,255,.04);color:var(--muted);
+            border:1px solid var(--border);transition:.15s;letter-spacing:.02em}
+.sort-chip:hover{color:var(--text);background:rgba(124,138,242,.08)}
+.sort-chip.active{background:var(--accent-glow);color:var(--accent);
+                    border-color:rgba(124,138,242,.4)}
+/* desc / asc 方向箭頭(只在 active chip 出現,點同 chip 切換方向) */
+.sort-chip.active[data-dir="desc"]::after{content:" ↓";font-weight:800}
+.sort-chip.active[data-dir="asc"]::after{content:" ↑";font-weight:800}
+
+/* ── Highlight 區 (近一年焦點) ─────────────────────────────────────────── */
+/* 前哨 section:toggle 按鈕 inline append 到 focal 末段,點開後 panel 在
+ * focal-stocks div 下方動畫展開(同題材完整 ticker list 扣掉今日 focal,
+ * 顯虛線淡色 pill + PE chip,non-clickable)。 */
+.sntl-toggle-inline{display:inline-flex;align-items:center;gap:.25rem;
+                      padding:.18rem .55rem;border-radius:4px;
+                      font-size:.66rem;color:var(--muted);font-weight:600;
+                      letter-spacing:.04em;user-select:none;cursor:pointer;
+                      background:rgba(255,255,255,.02);border:1px dashed rgba(255,255,255,.12);
+                      font-family:inherit;line-height:1.4;
+                      transition:background .15s,color .15s,border-color .15s}
+.sntl-toggle-inline:hover{color:var(--accent);background:rgba(124,138,242,.08);
+                            border-color:rgba(124,138,242,.4)}
+.sntl-toggle-inline .sntl-arrow{display:inline-block;font-size:.7rem;line-height:1;
+                                   transition:transform .25s ease}
+.sntl-toggle-inline.expanded .sntl-arrow{transform:rotate(180deg)}
+.cluster-sentinel-stocks{display:flex;flex-wrap:wrap;gap:.3rem .35rem;
+                            margin-top:.4rem;padding-top:.4rem;
+                            border-top:1px dashed rgba(255,255,255,.08);
+                            overflow:hidden;
+                            transition:max-height .28s ease,opacity .22s ease}
+/* 顯式 override:.cluster-sentinel-stocks 設了 display:flex 會蓋掉 [hidden]
+ * 屬性的 UA display:none,要再加一條 [hidden] 規則特異性提升才能真隱 */
+.cluster-sentinel-stocks[hidden]{display:none}
+.snt-pill{display:inline-flex;align-items:center;gap:.3rem;
+            padding:.2rem .55rem;border-radius:5px;
+            background:rgba(255,255,255,.02);
+            border:1px dashed rgba(255,255,255,.18);
+            color:var(--muted);font-size:.72rem;font-weight:600;
+            transition:border-color .15s,background .15s;cursor:default}
+.snt-pill:hover{border-color:rgba(124,138,242,.5);background:rgba(124,138,242,.06)}
+.snt-pill .sp-ticker{font-weight:700;font-size:.76rem;color:var(--text)}
+.snt-pill .sp-name{color:var(--muted);font-size:.7rem}
+.snt-pe{font-size:.6rem;font-weight:700;padding:.08rem .3rem;border-radius:3px;
+         background:rgba(124,138,242,.10);color:var(--accent);letter-spacing:.02em;
+         margin-left:.15rem}
+.sntl-hint{font-weight:400;font-size:.65rem;color:var(--muted);
+            margin-left:.3rem;letter-spacing:0}
+
+/* ── Theme clusters ── */
+.focus-clusters{display:flex;flex-direction:column;gap:.85rem;margin-bottom:1.5rem}
+.cluster-card{background:#12151f;border-radius:10px;padding:1rem 1.1rem;
+               border-left:3px solid var(--accent);will-change:transform}
+/* cluster-hdr: nowrap 強制單行,標題用 flex-grow + ellipsis 自動吃可用空間,
+ * 不會把 sparkline / meta 擠到下一行(寬度判斷由瀏覽器 layout 處理,
+ * 不再用 30 字硬閾值)。標題太長被截 ellipsis 時 hover 顯 title attr 全名,
+ * 點擊切 .expanded 解掉 nowrap 允許多行顯示。 */
+.cluster-hdr{display:flex;align-items:center;gap:.55rem;flex-wrap:nowrap;
+              margin-bottom:.7rem;min-width:0}
+/* cluster-name-wrap = cluster-name + info-btn 鎖在一起的 wrapper,
+   讓 ⓘ 緊貼標題不被 flex 推開到 metric 區。 */
+.cluster-name-wrap{display:flex;align-items:center;gap:.15rem;
+                    flex:1 1 auto;min-width:0;overflow:hidden}
+.cluster-name{font-size:.95rem;font-weight:700;
+                flex:0 1 auto;min-width:0;
+                overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+                cursor:pointer;transition:white-space .2s}
+.cluster-name.expanded{white-space:normal;overflow:visible}
+.cluster-metric,.cluster-meta,.spark-btn,.metric-tooltip{flex-shrink:0}
+/* Cluster info button (ⓘ):緊貼 cluster-name 右側 */
+.cluster-info-btn{flex-shrink:0;background:transparent;border:none;cursor:pointer;
+                    color:var(--accent);font-size:.95rem;line-height:1;
+                    padding:0 .35rem;border-radius:4px;
+                    transition:background .15s;opacity:.7}
+.cluster-info-btn:hover{background:rgba(124,138,242,.12);opacity:1}
+
+/* Merged cluster name (focal 完全相同的子產業聚合) — mobile/tablet 收合。
+ * flex-wrap:nowrap 讓 cn-merged 內部不要自己 wrap,搭配 .cluster-name 的
+ * ellipsis truncate 邏輯,讓長 merged name 也走「自動截尾 + 點擊展開」。 */
+.cn-merged{display:inline-flex;flex-wrap:nowrap;align-items:baseline;gap:.1rem .25rem}
+.cn-merged > *{flex-shrink:0}
+.cn-part{display:inline}
+.cn-sep{display:inline;color:var(--muted);font-weight:500}
+.cn-toggle{display:none;font-size:.7rem;font-weight:700;
+            background:var(--accent-glow,rgba(108,142,245,.15));
+            color:var(--accent);border:none;padding:.05rem .4rem;
+            border-radius:4px;cursor:pointer;margin-left:.25rem;
+            font-family:inherit;line-height:1.4}
+.cn-toggle:hover{filter:brightness(1.2)}
+/* Tablet (≤900px): 預設顯示前 3 parts;超過 4 出現按鈕 */
+@media(max-width:900px){
+  .cn-merged:not(.expanded) > span:nth-child(n+6){display:none}
+  .cn-merged[data-parts="4"]:not(.expanded) .cn-toggle,
+  .cn-merged[data-parts="5"]:not(.expanded) .cn-toggle,
+  .cn-merged[data-parts="6"]:not(.expanded) .cn-toggle,
+  .cn-merged[data-parts="7"]:not(.expanded) .cn-toggle,
+  .cn-merged[data-parts="8"]:not(.expanded) .cn-toggle,
+  .cn-merged[data-parts="9"]:not(.expanded) .cn-toggle,
+  .cn-merged[data-parts="10"]:not(.expanded) .cn-toggle{display:inline-block}
+  .cn-merged.expanded .cn-toggle{display:inline-block}
+}
+/* Mobile (≤480px): 預設顯示前 2 parts;超過 3 出現按鈕 */
+@media(max-width:480px){
+  .cn-merged:not(.expanded) > span:nth-child(n+4){display:none}
+  .cn-merged[data-parts="3"]:not(.expanded) .cn-toggle{display:inline-block}
+}
+/* Cluster header metrics (取代舊 cluster-strength badge):
+   focal 股平均漲跌、平均 20MA 乖離。.up/.down/.flat/.neutral 沿用 fmt_pct
+   的 css class (.cluster-metric.up 等比 global .up 更具體,wins) */
+.cluster-metric{font-size:.66rem;font-weight:700;padding:.16rem .42rem;
+                 border-radius:4px;font-variant-numeric:tabular-nums;
+                 white-space:nowrap;cursor:help}
+.cluster-metric.up{background:rgba(239,83,80,.16);color:#f47471}
+.cluster-metric.down{background:rgba(38,166,154,.14);color:#5dc4b9}
+.cluster-metric.flat{background:rgba(255,255,255,.06);color:#fff}
+.cluster-metric.neutral{background:rgba(255,255,255,.05);color:var(--muted)}
+/* metric-btn:badge 可點擊觸發 setClusterSort,is-active-sort 標當前排序維度 */
+.cluster-metric.metric-btn{cursor:pointer;transition:filter .15s,outline-color .15s,box-shadow .15s;
+                             user-select:none;outline:1px solid transparent;outline-offset:0}
+.cluster-metric.metric-btn:hover{filter:brightness(1.18)}
+.cluster-metric.metric-btn:focus-visible{outline-color:var(--accent)}
+.cluster-metric.metric-btn.is-active-sort{outline:1.5px solid var(--accent);outline-offset:1px;
+                                            box-shadow:0 0 0 2px rgba(124,138,242,.18)}
+.cluster-metric.metric-btn.is-active-sort[data-dir="desc"]::after{content:" ↓";opacity:.85}
+.cluster-metric.metric-btn.is-active-sort[data-dir="asc"]::after{content:" ↑";opacity:.85}
+.cluster-meta{font-size:.72rem;color:var(--muted);margin-left:auto}
+.cluster-meta .meta-label{opacity:.75}
+.cluster-meta .meta-val{font-weight:700;margin-left:.15rem}
+.cluster-subtitle{font-size:.7rem;color:var(--muted);margin:.1rem 0 .35rem;letter-spacing:.02em}
+
+/* Sparkline button (cluster card 內嵌 6 個月 TV trend) */
+.spark-btn{display:inline-flex;align-items:center;gap:.3rem;
+            background:transparent;border:none;cursor:pointer;
+            padding:.1rem .35rem;border-radius:5px;transition:background .15s}
+.spark-btn:hover{background:rgba(255,255,255,.05)}
+/* hl_sub cluster 沒 sparkline 資料時的純 chart 入口按鈕 */
+.spark-btn-icon{font-size:1rem;padding:.15rem .55rem;
+                  border:1px solid var(--border);color:var(--accent);
+                  background:rgba(124,138,242,.06)}
+.spark-btn-icon:hover{background:rgba(124,138,242,.18);border-color:rgba(124,138,242,.5)}
+.sparkline{display:block;width:84px;height:22px}
+/* 紅買綠賣亞洲慣例 */
+.sparkline .spark-up{fill:var(--up)}
+.sparkline .spark-down{fill:var(--down)}
+.sparkline .spark-mid{stroke:rgba(255,255,255,.08);stroke-width:.5}
+.spark-label{font-size:.62rem;color:var(--muted);font-weight:600}
+
+/* Theme chart modal — 自適應 vh、左右兩欄、無外層 scrollbar(只左欄超過時隱藏式滾) */
+dialog#theme-chart-dialog{background:var(--card);border:1px solid var(--border);
+                          border-radius:14px;color:var(--text);padding:0;
+                          width:min(1100px,96vw);height:min(820px,92vh);overflow:hidden;
+                          position:fixed;top:50%;left:50%;
+                          transform:translate(-50%,-50%);margin:0}
+dialog#theme-chart-dialog[open]{display:flex;flex-direction:column;
+                                  animation:tcDialogOpen .26s cubic-bezier(.2,.7,.25,1)}
+dialog#theme-chart-dialog::backdrop{background:rgba(0,0,0,.65)}
+dialog#theme-chart-dialog[open]::backdrop{animation:tcBackdropFade .26s ease-out}
+@keyframes tcDialogOpen{
+  from{opacity:0;transform:translate(-50%,-46%) scale(.96)}
+  to  {opacity:1;transform:translate(-50%,-50%) scale(1)}
+}
+@keyframes tcBackdropFade{from{opacity:0}to{opacity:1}}
+@media(max-width:680px){
+  dialog#theme-chart-dialog{width:100vw;height:90vh;
+                              top:auto;bottom:0;left:0;right:0;
+                              transform:translateY(0);
+                              border-radius:14px 14px 0 0;border-bottom:none}
+  @keyframes tcDialogOpen{
+    from{opacity:0;transform:translateY(20px)}
+    to  {opacity:1;transform:translateY(0)}
+  }
+}
+.tc-hdr{display:flex;align-items:center;gap:.6rem;
+        padding:.85rem 1.1rem;border-bottom:1px solid var(--border);
+        flex-shrink:0}
+.tc-title{font-size:1rem;font-weight:700;line-height:1.35}
+.tc-close{background:transparent;color:var(--muted);font-size:1.1rem;
+          padding:.2rem .4rem;border-radius:5px;line-height:1;border:none;cursor:pointer}
+.tc-close:hover{background:rgba(255,255,255,.06);color:var(--text)}
+/* body 改成左右 flex 兩欄;不滾自己,charts-col 各 chart 用 flex:1 撐滿 vh */
+.tc-body{padding:.6rem .8rem .8rem;flex:1;display:flex;gap:.7rem;
+         min-height:0;overflow:hidden}
+@media(max-width:680px){
+  .tc-body{flex-direction:column;gap:.5rem}
+}
+/* 左欄:垂直 ticker 列表,scrollbar 隱藏但仍可滾 */
+.tc-tickerlist-col{flex:0 0 250px;display:flex;flex-direction:column;gap:.4rem;
+                     padding:.55rem .55rem;border:1px solid var(--border);
+                     border-radius:8px;background:rgba(255,255,255,.015);
+                     overflow:hidden;min-height:0}
+@media(max-width:680px){
+  .tc-tickerlist-col{flex:0 0 auto;max-height:30vh}
+}
+.tc-tickerlist-label{font-size:.7rem;color:var(--muted);font-weight:600;
+                       letter-spacing:.04em;padding:.1rem .2rem .3rem;flex-shrink:0;
+                       border-bottom:1px solid var(--border)}
+.tc-ticker-chips{display:flex;flex-direction:column;gap:.32rem;flex:1;min-height:0;
+                   overflow-y:auto;padding-right:.1rem;
+                   scrollbar-width:none;overscroll-behavior:contain}
+.tc-ticker-chips::-webkit-scrollbar{display:none}
+.tc-ticker-chips .modal-tk-pill{align-self:stretch}
+/* 右欄:charts 容器,垂直堆兩張 chart,各 flex:1 撐滿空高 */
+.tc-charts-col{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;
+                 gap:.2rem}
+.tc-chart{width:100%;flex:1;min-height:160px}
+.tc-chart-label{font-size:.7rem;font-weight:600;color:var(--muted);
+                 letter-spacing:.04em;margin:.3rem 0 .1rem;
+                 display:flex;align-items:center;gap:.4rem;flex-shrink:0}
+.tc-chart-label::before{content:"";width:3px;height:11px;background:var(--accent);
+                         border-radius:2px}
+.tc-legend{display:inline-flex;gap:.3rem;margin-left:.6rem;flex-wrap:wrap}
+/* 時間粒度 chip(1M/3M/6M/1Y/ALL) */
+.tc-period{display:inline-flex;gap:.15rem;align-items:center;flex-shrink:0}
+.tc-period-chip{font-size:.66rem;font-weight:700;padding:.22rem .45rem;
+                  border-radius:5px;background:rgba(255,255,255,.05);
+                  color:var(--muted);border:none;cursor:pointer;
+                  transition:.15s;font-family:inherit;letter-spacing:.02em}
+.tc-period-chip:hover{color:var(--text)}
+.tc-period-chip.active{background:var(--accent-glow);color:var(--accent)}
+@media(max-width:480px){
+  .tc-period-chip{padding:.18rem .35rem;font-size:.6rem}
+}
+.tc-leg-chip{display:inline-flex;align-items:center;gap:.3rem;
+              font-size:.66rem;font-weight:700;padding:.15rem .45rem;
+              border-radius:4px;background:rgba(255,255,255,.05);
+              color:var(--muted);border:none;cursor:pointer;transition:.15s;
+              font-family:inherit}
+.tc-leg-chip .leg-sw{display:inline-block;width:10px;height:2px;
+                      background:currentColor;border-radius:1px}
+.tc-leg-chip:hover{color:var(--text)}
+.tc-leg-chip.active.leg-cluster{color:#10b981}
+.tc-leg-chip.active.leg-twii{color:#f59e0b}
+.tc-leg-chip.active.leg-tpex{color:#94aef7}
+.tc-leg-chip:not(.active){opacity:.5;text-decoration:line-through}
+/* Modal 內可點擊 ticker pill:複用 .stk-pill 樣式,加 disable 視覺。
+ * 在左欄垂直列表時 width:100%、內容 nowrap(中文不要破字)、
+ * 超寬就讓 sp-name 截字。 */
+.modal-tk-pill{cursor:pointer;flex-shrink:0;
+                transition:opacity .18s,filter .18s,border-color .18s}
+.modal-tk-pill:hover{border-color:var(--accent)}
+.modal-tk-pill.is-dis{opacity:.35;filter:grayscale(.8)}
+.modal-tk-pill.is-dis .sp-quote{text-decoration:line-through}
+.modal-tk-pill .sp-ticker,
+.modal-tk-pill .mkt-badge,
+.modal-tk-pill .sp-name,
+.modal-tk-pill .sp-quote{white-space:nowrap}
+.modal-tk-pill .sp-name{overflow:hidden;text-overflow:ellipsis;min-width:0;
+                          flex-shrink:0;max-width:7em}
+.modal-tk-pill .sp-quote{margin-left:auto;flex-shrink:0}
+/* tooltip 觸發 ⓘ icon(native title attribute) */
+.tc-info{display:inline-flex;align-items:center;justify-content:center;
+          width:14px;height:14px;border-radius:50%;
+          background:rgba(124,138,242,.15);color:var(--accent);
+          font-size:.6rem;font-weight:700;cursor:help;line-height:1;
+          margin-left:.3rem;flex-shrink:0;font-style:normal}
+.tc-info:hover,.tc-info:focus{background:rgba(124,138,242,.3);outline:none}
+/* 三大法人 histogram 當日/累計 切換 */
+.tc-net-mode{display:inline-flex;gap:.15rem;margin-left:auto;flex-shrink:0}
+.tc-mode-chip{font-size:.65rem;font-weight:700;padding:.18rem .5rem;
+                border-radius:4px;background:rgba(255,255,255,.05);
+                color:var(--muted);border:none;cursor:pointer;
+                transition:.15s;font-family:inherit;letter-spacing:.02em}
+.tc-mode-chip:hover{color:var(--text)}
+.tc-mode-chip.active{background:var(--accent-glow);color:var(--accent)}
+.tc-empty{color:var(--muted);font-size:.85rem;text-align:center;padding:2rem 0}
+.cluster-section-label{font-size:.68rem;color:var(--muted);font-weight:600;
+                         text-transform:uppercase;letter-spacing:.04em;margin:.55rem 0 .3rem}
+.cluster-focal-stocks{display:flex;flex-wrap:wrap;gap:.45rem;margin-bottom:.4rem}
+.focal-pill{display:flex;align-items:center;gap:.3rem;
+             background:var(--card);border:1px solid var(--border);border-radius:8px;
+             padding:.35rem .65rem;cursor:pointer;transition:.15s}
+.focal-pill:hover{border-color:var(--accent)}
+.fp-ticker{font-weight:800;font-size:.85rem}
+.fp-name{font-size:.75rem;color:var(--muted)}
+.fp-pct{font-weight:700;font-size:.82rem}
+.fp-rank{color:var(--muted);font-size:.7rem}
+.cluster-watch-stocks{display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.4rem}
+.watch-chip{font-size:.78rem;padding:.15rem .45rem;border-radius:5px;font-weight:600;display:inline-flex;align-items:center;gap:.25rem}
+.watch-chip.tw{background:#12201a;border:1px solid #1a3a2a;color:#4caf82}
+.watch-chip.us{background:#121520;border:1px solid #1a2a3a;color:#6c8ef5}
+.wc-up{color:#ef5350;font-size:.72rem}.wc-down{color:#26a69a;font-size:.72rem}
+.cluster-sc{font-size:.72rem;color:var(--muted);margin:.2rem 0 .35rem;display:flex;flex-wrap:wrap;gap:.4rem .8rem}
+.sc-label{font-weight:700;color:#6c7a8a}.sc-items{color:var(--muted)}
+.cluster-arts{margin-top:.3rem}
+
+/* ── Stock grid (clickable cards) ── */
+.stock-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:.7rem}
+.stock-card{background:#12151f;border-radius:9px;padding:.8rem .9rem;
+             cursor:pointer;transition:.15s;border:1px solid transparent}
+.stock-card:hover{border-color:var(--accent);background:#14182a}
+.sc-head{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;margin-bottom:.35rem}
+.sc-ticker{font-size:.9rem;font-weight:800}
+.mkt-badge{font-size:.55rem;font-weight:700;padding:.1rem .3rem;border-radius:3px}
+.mkt-us{background:#1a2a3a;color:#6c8ef5}
+.mkt-tw{background:#1a2e24;color:#26a69a}
+.sc-name{font-size:.75rem;color:var(--muted);margin-left:auto}
+.sc-meta{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;font-size:.8rem}
+.sc-pct{font-weight:700}
+.sc-val{color:var(--muted)}
+.sc-rank{color:var(--muted);font-size:.72rem}
+.vol-tag{font-size:.62rem;font-weight:600;padding:.1rem .3rem;border-radius:3px}
+.vol-hot{background:#2a1a1a;color:#ef5350}
+.vol-high{background:#2a2a14;color:#c8a840}
+.vol-mid{background:#1e2235;color:var(--muted)}
+.limit-up-badge{font-size:.62rem;font-weight:700;padding:.1rem .3rem;
+                 border-radius:3px;background:#2a1a3a;color:#cf6ef5}
+.sc-arts-hint{font-size:.72rem;color:var(--muted);margin-top:.4rem}
+
+/* ── Article modal (centered) ── */
+dialog#art-modal{background:var(--card);border:1px solid var(--border);
+                  border-radius:14px;color:var(--text);padding:0;
+                  width:min(680px,96vw);max-height:80vh;overflow:hidden;
+                  position:fixed;top:50%;left:50%;
+                  transform:translate(-50%,-50%);margin:0}
+/* 開啟動畫對齊 theme-chart-dialog 的 tcDialogOpen / tcBackdropFade keyframes
+   (見 line 2625-2629 定義);所有點開 art-modal 的 entry point
+   (showArtModal / showCatalystModal / showClusterTopicModal)共享 */
+dialog#art-modal[open]{display:flex;flex-direction:column;
+                          animation:tcDialogOpen .26s cubic-bezier(.2,.7,.25,1)}
+dialog#art-modal::backdrop{background:rgba(0,0,0,.65)}
+dialog#art-modal[open]::backdrop{animation:tcBackdropFade .26s ease-out}
+.modal-hdr{display:flex;align-items:center;gap:.6rem;
+            padding:.85rem 1.1rem;border-bottom:1px solid var(--border);
+            flex-shrink:0}
+.modal-hdr-title{font-size:.95rem;font-weight:700;flex:1}
+.modal-close{background:transparent;color:var(--muted);font-size:1.1rem;
+              padding:.2rem .4rem;border-radius:5px;line-height:1}
+.modal-close:hover{background:#1e2235;color:var(--text)}
+.modal-body{overflow-y:auto;padding:.9rem 1.1rem;flex:1}
+.modal-art{background:#12151f;border-radius:8px;padding:.75rem .9rem;margin-bottom:.7rem}
+.modal-art-meta{font-size:.72rem;color:var(--muted);margin-bottom:.25rem}
+.modal-art-title{font-size:.85rem;font-weight:600;color:#c8d8ea;margin-bottom:.35rem}
+.modal-snip{font-size:.82rem;color:#b0bfcf;white-space:pre-wrap;line-height:1.65}
+.modal-section{margin-bottom:.9rem}
+/* F1: 公司介紹 section */
+.ci-tags{font-size:.7rem;color:var(--accent);font-weight:600;margin-bottom:.25rem;letter-spacing:.04em}
+.ci-name-en{font-size:.78rem;color:var(--muted);font-style:italic;margin-bottom:.3rem}
+.ci-meta{font-size:.75rem;color:var(--muted);margin-bottom:.4rem}
+.ci-meta a{color:var(--accent);text-decoration:none}
+.ci-meta a:hover{text-decoration:underline}
+.ci-desc{font-size:.82rem;color:#c0cad8;line-height:1.6}
+.modal-section-hdr{font-size:.68rem;font-weight:600;color:var(--muted);
+                    text-transform:uppercase;letter-spacing:.07em;margin-bottom:.5rem}
+.analyst-grid{display:grid;grid-template-columns:1fr 1fr;gap:.4rem;margin-bottom:.4rem}
+.ag-cell{background:#0f1117;border-radius:7px;padding:.45rem .65rem}
+.ag-label{font-size:.66rem;color:var(--muted);display:block;margin-bottom:.1rem}
+.ag-val{font-size:.95rem;font-weight:700}
+.ag-high{color:var(--up)}.ag-low{color:var(--down)}
+.ag-meta{font-size:.74rem;color:var(--muted)}
+.analyst-rec{font-weight:700}
+
+/* ── Cross-source topics (tab 3) ── */
+.topics-grid{display:flex;flex-direction:column;gap:.85rem;margin-bottom:1.25rem}
+.topic-card{background:#12151f;border-radius:10px;padding:1rem 1.1rem;
+             border-left:3px solid var(--up)}
+.topic-head{display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem;flex-wrap:wrap}
+.topic-name{font-size:.9rem;font-weight:700}
+.topic-sum{font-size:.84rem;color:#b0bfcf;margin:.35rem 0}
+.tk-row{display:flex;flex-wrap:wrap;gap:.3rem;margin:.35rem 0}
+
+/* ── Podcast notes ── */
+.pod-source{background:var(--card);border:1px solid var(--border);
+             border-radius:10px;margin-bottom:.75rem}
+.pod-src-hdr{padding:.75rem 1rem;cursor:pointer;display:flex;
+              align-items:center;gap:.5rem;user-select:none}
+.pod-src-hdr:hover{background:#1e2235;border-radius:10px}
+.pod-src-arrow{font-size:.75rem;color:var(--muted);transition:.2s;width:1rem}
+.pod-src-name{font-weight:700;font-size:.9rem}
+.ep-cnt{font-size:.72rem;color:var(--muted);margin-left:auto}
+.pod-episodes{padding:.5rem 1rem 1rem}
+.pod-episodes.hidden{display:none}
+.ep-block{border-top:1px solid var(--border);padding:.5rem 0}
+.ep-hdr{display:flex;align-items:baseline;gap:.5rem;cursor:pointer;
+         padding:.3rem 0;user-select:none}
+.ep-hdr:hover .ep-title{color:var(--accent)}
+.ep-arrow{font-size:.7rem;color:var(--muted);width:.9rem;transition:.2s}
+.ep-title{font-size:.85rem;font-weight:600;flex:1}
+.ep-date{font-size:.72rem;color:var(--muted);white-space:nowrap}
+.ep-body{margin:.5rem 0 .5rem .9rem;font-size:.82rem;color:#b0bfcf;line-height:1.7}
+.ep-body.hidden{display:none}
+.pod-raw{white-space:pre-wrap;font-family:inherit;font-size:.8rem;
+          color:#b0bfcf;line-height:1.75;overflow-wrap:break-word;margin:0}
+.pod-raw-note{font-size:.72rem;color:var(--muted);margin-bottom:.4rem;font-style:italic}
+.pod-notes{font-size:.82rem;color:#b0bfcf;line-height:1.6;overflow-wrap:break-word}
+.pod-notes h4{color:var(--accent);font-size:.82rem;font-weight:700;
+               margin:.9rem 0 .35rem;border-bottom:1px solid var(--border);padding-bottom:.2rem}
+.pod-subsec{font-weight:600;color:#c0cfe0;font-size:.83rem;margin:.8rem 0 .15rem}
+.pod-num-item{padding:.1rem 0 .1rem .9rem;}
+.pod-num{color:var(--muted);font-size:.78rem;margin-right:.3rem}
+.pod-bul-item{padding:.1rem 0 .1rem .9rem;}
+.muted-note{color:var(--muted);font-size:.85rem;padding:.5rem 0}
+.art-seg-chips{display:flex;flex-wrap:wrap;gap:.25rem;margin-top:.3rem}
+.art-seg-chip{font-size:.7rem;font-weight:600;padding:.1rem .35rem;
+               border-radius:4px;background:#1e2235;border:1px solid #2a3050;
+               color:var(--accent);cursor:pointer;transition:.15s}
+.art-seg-chip:hover{background:#252a40;border-color:var(--accent)}
+
+/* ── Unified stock pill (全站統一模組) ── */
+.stk-pill{display:inline-flex;align-items:center;gap:.28rem;
+           background:var(--card);border:1px solid var(--border);border-radius:7px;
+           padding:.3rem .6rem;cursor:pointer;transition:.15s;font-size:.82rem}
+.stk-pill:hover{border-color:var(--accent)}
+.stk-pill.pill-disabled{opacity:.32;filter:grayscale(.75);transition:opacity .18s,filter .18s}
+.cluster-card{transition:transform .38s cubic-bezier(.25,.46,.45,.94)}
+.stk-pill[onclick=""],.stk-pill:not([onclick]){cursor:default}
+/* 選股雷達 table:標的 pill 用 clickable=False(改由整列 tr onclick 處理),
+   但整列可點 → pill 仍須顯 pointer,蓋掉上面的 cursor:default */
+.fs-table tr.fs-row .stk-pill{cursor:pointer}
+.sp-ticker{font-weight:800;font-size:.85rem}
+.sp-name{font-size:.72rem;color:var(--muted)}
+.sp-quote{font-weight:700;font-size:.78rem;font-variant-numeric:tabular-nums}
+/* 處置 / 漲跌停 小 tag(ingest 5a172be 起 extra 帶 flag):
+ *   嚴處 = 紅底(嚴格處置;最嚴重)
+ *   處   = 橘底(一般處置;警示等級)
+ *   漲   = 紅底(亞洲漲)
+ *   跌   = 綠底(亞洲跌)
+ * pill / rankings table 都用同套 chip,_flag_chips() 共用渲染 */
+.sp-tag{font-size:.58rem;font-weight:700;padding:.06rem .3rem;border-radius:3px;
+         letter-spacing:.04em;line-height:1.3;flex-shrink:0;cursor:help}
+.sp-tag.tag-strict{background:rgba(220,38,38,.22);color:#fca5a5;
+                     border:1px solid rgba(220,38,38,.5)}
+.sp-tag.tag-punish{background:rgba(245,158,11,.18);color:#f59e0b;
+                     border:1px solid rgba(245,158,11,.35)}
+.sp-tag.tag-limit-up{background:rgba(239,83,80,.18);color:#f47471;
+                       border:1px solid rgba(239,83,80,.4)}
+.sp-tag.tag-limit-down{background:rgba(38,166,154,.18);color:#5dc4b9;
+                         border:1px solid rgba(38,166,154,.4)}
+
+.up{color:var(--up)} .down{color:var(--down)} .flat{color:#fff} .neutral{color:var(--muted)}
+footer{color:var(--muted);font-size:.75rem;
+        padding:1.5rem 1rem;border-top:1px solid var(--border);margin-top:.5rem;
+        line-height:1.6}
+footer .disclaimer{max-width:760px;margin:0 auto .8rem;text-align:left}
+footer .disclaimer h3{color:#a0b0cc;font-size:.78rem;font-weight:600;
+                       margin:0 0 .35rem;letter-spacing:.04em}
+footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--border)}
+/* 2026-05-19 share-row / share-btn / share-label / shareReport JS 全移除
+   — 公開站不再提供分享按鈕,user 自行用瀏覽器分享。 */
+
+/* ── 主動式 ETF 頁(2026-05-20)+ 個股 modal 內 ETF 表 ────────────── */
+/* ETF 切換從 23 個 tab button 改為下拉 select(2026-05-20,排序 AUM desc) */
+.aetf-select-row{display:flex;align-items:center;gap:.55rem;margin-bottom:1rem;
+                   flex-wrap:wrap}
+.aetf-select-label{font-size:.78rem;color:var(--muted);font-weight:600;
+                     letter-spacing:.04em}
+.aetf-select{font-family:inherit;font-size:.85rem;font-weight:600;
+                background:var(--card);color:var(--text);
+                border:1px solid var(--border);border-radius:8px;
+                padding:.5rem .8rem;cursor:pointer;
+                min-width:18rem;max-width:100%;
+                transition:.15s}
+.aetf-select:hover,.aetf-select:focus{border-color:rgba(124,138,242,.5);
+                                         background:rgba(124,138,242,.05);outline:none}
+.aetf-select option{background:var(--card);color:var(--text);
+                       font-family:inherit;padding:.4rem}
+.aetf-pane{display:none}
+.aetf-pane.active{display:block}
+
+.aetf-info{display:flex;flex-wrap:wrap;align-items:baseline;gap:.4rem 1.2rem;
+            padding:.7rem 1rem;background:#12151f;border-radius:8px;
+            border:1px solid var(--border);margin-bottom:1rem}
+.aetf-name{font-size:1rem;font-weight:700;color:var(--text)}
+.aetf-meta{font-size:.78rem;color:var(--text)}
+.aetf-meta .muted{color:var(--muted);margin-right:.15rem}
+
+.aetf-section-hdr{font-size:.88rem;font-weight:700;color:var(--accent);
+                     letter-spacing:.04em;margin:1rem 0 .6rem}
+.aetf-changes{display:flex;flex-direction:column;gap:.6rem;
+                background:#12151f;border-radius:8px;border:1px solid var(--border);
+                padding:.6rem .8rem;margin-bottom:1rem}
+.aetf-chg-row{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem}
+.aetf-chg-label{font-size:.78rem;font-weight:700;color:var(--muted);
+                  margin-right:.3rem;min-width:5rem}
+.aetf-chg-pill{display:inline-flex;align-items:center;gap:.25rem;
+                  padding:.2rem .55rem;border-radius:5px;font-size:.72rem;
+                  cursor:pointer;transition:.12s;border:1px solid transparent}
+.aetf-chg-pill:hover{transform:translateY(-1px);filter:brightness(1.1)}
+.aetf-chg-pill.add{background:#fee2e2;color:#b91c1c}
+.aetf-chg-pill.reduce{background:#d1fae5;color:#047857}
+.aetf-chg-pill.new{background:#fef3c7;color:#b45309}
+.aetf-chg-pill.exit{background:#e5e7eb;color:#4b5563}
+.aetf-cp-tk{font-weight:700}
+.aetf-cp-nm{opacity:.85}
+.aetf-chg-up{color:#b91c1c;font-weight:700;font-size:.7rem;margin-left:.2rem}
+.aetf-chg-down{color:#047857;font-weight:700;font-size:.7rem;margin-left:.2rem}
+.aetf-chg-na{color:var(--muted);font-size:.7rem;margin-left:.2rem}
+/* baseline 警示(該 ETF DB 只有 1 day holdings,無前日 baseline 比較) */
+.aetf-no-baseline-note{background:rgba(245,158,11,.08);
+                          border:1px solid rgba(245,158,11,.3);border-radius:6px;
+                          padding:.55rem .8rem;margin:.4rem 0 .8rem;
+                          font-size:.78rem;color:#d97706;line-height:1.5}
+
+.aetf-table{width:100%;border-collapse:collapse;
+              background:#12151f;border:1px solid var(--border);
+              border-radius:8px;overflow:hidden}
+.aetf-table th{font-size:.72rem;color:var(--muted);font-weight:600;
+                 text-align:left;padding:.5rem .7rem;
+                 border-bottom:1px solid var(--border);background:rgba(255,255,255,.02)}
+.aetf-table td{padding:.45rem .7rem;font-size:.82rem;
+                 border-bottom:1px solid rgba(42,46,64,.4)}
+.aetf-table tr:last-child td{border-bottom:none}
+.aetf-table th.r,.aetf-table td.r{text-align:right}
+.aetf-table th.c,.aetf-table td.c{text-align:center}
+.aetf-table tr.aetf-hold-row{cursor:pointer;transition:background .12s}
+.aetf-table tr.aetf-hold-row:hover td{background:rgba(124,138,242,.06)}
+.aetf-h-tk{font-weight:700;color:var(--text)}
+.aetf-h-nm{color:var(--muted);margin-left:.25rem}
+
+.aetf-chip{display:inline-block;font-size:.66rem;font-weight:700;
+              padding:.18rem .5rem;border-radius:4px;letter-spacing:.04em}
+.aetf-chip-add{background:#fee2e2;color:#b91c1c}
+.aetf-chip-reduce{background:#d1fae5;color:#047857}
+.aetf-chip-new{background:#fef3c7;color:#b45309}
+.aetf-chip-exit{background:#e5e7eb;color:#4b5563}
+
+/* 個股 modal 內 ETF 表 — reuse 上述 .aetf-table 樣式 */
+.aetf-modal-hdr{font-size:.95rem;font-weight:700;color:var(--accent);
+                 letter-spacing:.04em;margin:0 0 .55rem}
+.aetf-stats{display:flex;flex-wrap:wrap;gap:.4rem 1.5rem;margin-bottom:.7rem;
+              font-size:.78rem}
+.aetf-stats .muted{color:var(--muted);margin-right:.15rem}
+.aetf-etf-cell{min-width:6rem}
+.aetf-etf-code{font-weight:700;color:var(--text)}
+.aetf-etf-issuer{font-size:.7rem;color:var(--muted);margin-left:.2rem}
+.aetf-lots-sub{color:var(--muted);font-size:.72rem;margin-left:.25rem}
+
+/* ── 焦點股頁(2026-05-20)出量股 / 潛力股 ────────────────────────────── */
+.fs-tab-pane{display:none}
+.fs-tab-pane.active{display:block}
+.fs-hint{font-size:.76rem;color:var(--muted);margin:.2rem 0 .8rem;line-height:1.5}
+.fs-table{width:100%;border-collapse:collapse;
+            background:#12151f;border:1px solid var(--border);
+            border-radius:8px;overflow:hidden}
+.fs-table th{font-size:.72rem;color:var(--muted);font-weight:600;
+               text-align:left;padding:.5rem .7rem;
+               border-bottom:1px solid var(--border);background:rgba(255,255,255,.02)}
+/* 可點擊排序的 th */
+.fs-th{cursor:pointer;user-select:none;white-space:nowrap;transition:color .12s}
+.fs-th:hover{color:var(--accent)}
+.fs-sort-ind{display:inline-block;width:.85em;font-size:.85em;opacity:.5}
+.fs-th.fs-sorted-asc .fs-sort-ind::after{content:"▲";opacity:1}
+.fs-th.fs-sorted-desc .fs-sort-ind::after{content:"▼";opacity:1}
+.fs-th.fs-sorted-asc,.fs-th.fs-sorted-desc{color:var(--accent)}
+/* 交集股「符合條件」chip */
+.fs-match-chip{display:inline-block;font-size:.66rem;font-weight:700;
+                 padding:.1rem .4rem;border-radius:4px;margin:.1rem .12rem .1rem 0}
+.fs-match-chip.fs-mc-vol{background:rgba(124,138,242,.16);color:#9aa8f5}
+.fs-match-chip.fs-mc-pot{background:rgba(38,166,154,.16);color:#5dc4b9}
+.fs-match-chip.fs-mc-nh{background:rgba(239,83,80,.16);color:#f47471}
+.fs-match-chip.fs-mc-gr{background:rgba(245,158,11,.16);color:#e0922e}
+.fs-table td{padding:.5rem .7rem;font-size:.82rem;
+               border-bottom:1px solid rgba(42,46,64,.4);vertical-align:middle}
+.fs-table tr:last-child td{border-bottom:none}
+/* 數值欄不換行 — 3率/營收增率的升降箭頭必須緊貼數字,不可掉到下一行 */
+.fs-table th.r,.fs-table td.r{text-align:right;white-space:nowrap}
+.fs-table tr.fs-row{cursor:pointer;transition:background .12s}
+.fs-table tr.fs-row:hover td{background:rgba(124,138,242,.06)}
+/* 選股雷達 12 欄表格易擠壓。標的 pill 一律 flex-wrap:股價 sp-quote
+   固定掉到第二行(代號+名稱留第一行)→ 標的欄變窄,不分螢幕寬度都套用。 */
+.fs-table td .stk-pill{flex-wrap:wrap;row-gap:.06rem}
+.fs-table td .stk-pill .sp-quote{flex-basis:100%}
+/* 較小螢幕(≤1280px)再額外縮小 th/td 左右格距 + pill padding */
+@media(max-width:1280px){
+  .fs-table th,.fs-table td{padding:.42rem .38rem}
+  .fs-table td .stk-pill{padding:.26rem .42rem}
+}
+.fs-tk{font-weight:700;color:var(--text)}
+.fs-nm{color:var(--muted);margin-left:.25rem}
+.fs-theme-chip{display:inline-block;font-size:.68rem;
+                 background:rgba(124,138,242,.1);color:var(--accent);
+                 border:1px solid rgba(124,138,242,.25);border-radius:4px;
+                 padding:.1rem .4rem;margin:.1rem .15rem .1rem 0;
+                 max-width:8.5rem;white-space:nowrap;overflow:hidden;
+                 text-overflow:ellipsis;vertical-align:middle;
+                 cursor:pointer;transition:background .12s}
+.fs-theme-chip:hover{background:rgba(124,138,242,.25)}
+.fs-etf-held{font-size:.74rem;color:var(--text);font-weight:600}
