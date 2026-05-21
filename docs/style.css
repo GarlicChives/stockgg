@@ -593,11 +593,17 @@ dialog#art-modal{background:var(--card);border:1px solid var(--border);
                   width:min(680px,96vw);max-height:80vh;overflow:hidden;
                   position:fixed;top:50%;left:50%;
                   transform:translate(-50%,-50%);margin:0}
-/* 開啟動畫對齊 theme-chart-dialog 的 tcDialogOpen / tcBackdropFade keyframes
-   (見 line 2625-2629 定義);所有點開 art-modal 的 entry point
-   (showArtModal / showCatalystModal / showClusterTopicModal)共享 */
+/* art-modal 用 transform:translate(-50%,-50%) 置中,故開啟動畫 keyframe
+   必須帶 translate —— 不可共用 chart modal 的 tcDialogOpen(那是 .tc-shell
+   flex 置中、scale-only;共用會在動畫期間掉中心 → 從角落閃到中間)。
+   所有 entry point(showArtModal / showCatalystModal /
+   showClusterTopicModal)共享 artModalOpen。 */
+@keyframes artModalOpen{
+  from{opacity:0;transform:translate(-50%,-46%) scale(.96)}
+  to  {opacity:1;transform:translate(-50%,-50%) scale(1)}
+}
 dialog#art-modal[open]{display:flex;flex-direction:column;
-                          animation:tcDialogOpen .26s cubic-bezier(.2,.7,.25,1)}
+                          animation:artModalOpen .26s cubic-bezier(.2,.7,.25,1)}
 dialog#art-modal::backdrop{background:rgba(0,0,0,.65)}
 dialog#art-modal[open]::backdrop{animation:tcBackdropFade .26s ease-out}
 .modal-hdr{display:flex;align-items:center;gap:.6rem;
