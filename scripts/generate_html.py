@@ -3707,6 +3707,14 @@ footer .meta{{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bo
 .fs-table th.r,.fs-table td.r{{text-align:right;white-space:nowrap}}
 .fs-table tr.fs-row{{cursor:pointer;transition:background .12s}}
 .fs-table tr.fs-row:hover td{{background:rgba(124,138,242,.06)}}
+/* 較小螢幕(≤1280px):選股雷達 12 欄表格易擠壓(隸屬題材欄會逐字換行)。
+   (1) 縮小 th/td 左右格距;(2) 標的 pill 改 flex-wrap,股價 sp-quote
+   掉到第二行 → 標的欄變窄,騰出橫向空間給其他欄。 */
+@media(max-width:1280px){{
+  .fs-table th,.fs-table td{{padding:.42rem .38rem}}
+  .fs-table td .stk-pill{{flex-wrap:wrap;row-gap:.06rem;padding:.26rem .42rem}}
+  .fs-table td .stk-pill .sp-quote{{flex-basis:100%}}
+}}
 .fs-tk{{font-weight:700;color:var(--text)}}
 .fs-nm{{color:var(--muted);margin-left:.25rem}}
 .fs-theme-chip{{display:inline-block;font-size:.68rem;
