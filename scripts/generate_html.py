@@ -2586,6 +2586,13 @@ async def generate():
 
 <!-- Theme chart modal (子產業 6 個月 TV / 平均漲跌 趨勢) -->
 <dialog id="theme-chart-dialog">
+  <div class="tc-nav tc-nav-left">
+    <button class="tc-nav-x" type="button" title="關閉" aria-label="關閉"
+            onclick="document.getElementById('theme-chart-dialog').close()">✕</button>
+    <button class="tc-nav-arrow" type="button" title="下一個題材" aria-label="下一個題材"
+            onclick="tcNavTheme('next')">←</button>
+  </div>
+  <div class="tc-panel">
   <div class="tc-hdr">
     <div class="tc-title" id="tc-title" style="flex:1;min-width:0"></div>
     <div class="tc-period">
@@ -2634,6 +2641,13 @@ async def generate():
 
       <div class="tc-empty" id="tc-empty" style="display:none">尚無歷史資料</div>
     </div>
+  </div>
+  </div>
+  <div class="tc-nav tc-nav-right">
+    <button class="tc-nav-x" type="button" title="關閉" aria-label="關閉"
+            onclick="document.getElementById('theme-chart-dialog').close()">✕</button>
+    <button class="tc-nav-arrow" type="button" title="上一個題材" aria-label="上一個題材"
+            onclick="tcNavTheme('prev')">→</button>
   </div>
 </dialog>
 

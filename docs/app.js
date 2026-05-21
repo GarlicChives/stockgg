@@ -972,7 +972,9 @@ function openThemeChart(cardId) {
   });
   const dlg = document.getElementById('theme-chart-dialog');
   if (!dlg) return;
-  dlg.showModal();
+  // 已開啟時不可再 showModal(會丟 InvalidStateError);tcNavTheme 切換題材
+  // 會在 dialog 已開的狀態下重呼 openThemeChart,故守一層。
+  if (!dlg.open) dlg.showModal();
   // 顯示 loading hint(首次 fetch history.json 可能要 ~1 秒)
   const tcEmpty = document.getElementById('tc-empty');
   if (!window.IIA_HISTORY) {
@@ -988,6 +990,38 @@ function openThemeChart(cardId) {
     });
 }
 
+/* tcNavTheme: chart modal 切換上/下一個題材。左箭頭=next、右箭頭=prev。
+ * 順序 = 外層該 sub-tab cluster 卡的 DOM 順序(即使用者當下選的排序);
+ * 環狀循環。.tc-body 做水平滑動動畫,中途 openThemeChart 重渲染。 */
+function tcNavTheme(dir) {
+  if (!_openThemeCardId) return;
+  const cur = document.getElementById(_openThemeCardId);
+  const container = cur && cur.closest('.focus-clusters');
+  if (!container) return;
+  const cards = [...container.querySelectorAll('.cluster-card')];
+  const idx = cards.indexOf(cur);
+  if (idx < 0 || cards.length < 2) return;
+  const n = cards.length;
+  const tIdx = dir === 'next' ? (idx + 1) % n : (idx - 1 + n) % n;
+  const targetId = cards[tIdx].id;
+  if (!targetId) return;
+  const body = document.querySelector('#theme-chart-dialog .tc-body');
+  if (!body) { openThemeChart(targetId); return; }
+  const outX = dir === 'next' ? -34 : 34;
+  body.animate(
+    [{ opacity: 1, transform: 'translateX(0)' },
+     { opacity: 0, transform: `translateX(${outX}px)` }],
+    { duration: 130, easing: 'ease-in' }
+  ).onfinish = () => {
+    openThemeChart(targetId);
+    const b2 = document.querySelector('#theme-chart-dialog .tc-body');
+    if (b2) b2.animate(
+      [{ opacity: 0, transform: `translateX(${-outX}px)` },
+       { opacity: 1, transform: 'translateX(0)' }],
+      { duration: 190, easing: 'ease-out' });
+  };
+}
+
 // 關 dialog 時清理
 (function () {
   const dlg = document.getElementById('theme-chart-dialog');
@@ -996,11 +1030,10 @@ function openThemeChart(cardId) {
     _openThemeCardId = null;
     _disposeThemeCharts();
   });
-  // backdrop click 關閉(像 art-modal)
+  // dim 區點擊關閉:dialog 已是滿版容器,只有點到 .tc-panel / .tc-nav 以外
+  // 的暗色區才關(點 panel 內容、點兩側導覽遮罩都不關)。
   dlg.addEventListener('click', (e) => {
-    const rect = dlg.getBoundingClientRect();
-    if (e.clientX < rect.left || e.clientX > rect.right
-        || e.clientY < rect.top || e.clientY > rect.bottom) {
+    if (!e.target.closest('.tc-panel') && !e.target.closest('.tc-nav')) {
       dlg.close();
     }
   });
