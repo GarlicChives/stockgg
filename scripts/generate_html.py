@@ -463,6 +463,8 @@ def _industry_section_html(
     stock_meta: dict | None = None,
     ticker_net_inst: dict[str, dict[str, float]] | None = None,
     topics_by_ticker: dict[str, str] | None = None,
+    topics_by_focus_theme: dict[str, list] | None = None,
+    topics_stocks_info: dict | None = None,
 ) -> str:
     """Render industry cluster cards. level = "main" | "sub" | "hl_sub" | "pan_sub"。
     前哨觀察(watch)已從顯示移除(2026-05-16),只保留今日焦點。
@@ -585,6 +587,8 @@ def _industry_section_html(
     # 提到 for-loop 外避免每 iter 重算 + 解決前向使用 UnboundLocalError
     is_sub_level = level in ("sub", "hl_sub", "pan_sub")
     _topics_by_ticker = topics_by_ticker or {}
+    _topics_by_focus_theme = topics_by_focus_theme or {}
+    _topics_stocks_info = topics_stocks_info or {}
     cluster_topic_payload: dict[str, str] = {}  # card_id -> rendered topic_card HTML(s)
     cards = []
     cluster_json: list[dict] = []
@@ -825,21 +829,20 @@ def _industry_section_html(
                 f'{icon} {html_lib.escape(c.name)}</span>'
             )
 
-        # Cluster info ⓘ button:該 cluster 成交額最高 focal(c.focal 已 sort
-        # by trading_value desc on line ~1054 sort_by_chg 之前)反查 topics_by_ticker。
-        # 若有 match → render ⓘ button(onclick → showClusterTopicModal)+
-        # 把 topic HTML 加進 cluster_topic_payload[card_id]。沒 match → 不渲。
+        # Cluster info ⓘ button:關聯跨來源議題。hl_sub(焦點)走 focus_themes
+        # 題材名比對、其他 level 走龍頭股 ticker 反查(見 _resolve_cluster_topics)。
+        # 有 match → render ⓘ button(onclick → showClusterTopicModal)+ 把
+        # topic HTML 加進 cluster_topic_payload[card_id];沒 match → 不渲。
         info_btn_html = ""
-        if c.focal:
-            _primary_tk = max(c.focal, key=lambda s: s.trading_value).ticker
-            _topics_html = _topics_by_ticker.get(_primary_tk)
-            if _topics_html:
-                cluster_topic_payload[card_id] = _topics_html
-                info_btn_html = (
-                    f'<button class="cluster-info-btn" type="button" '
-                    f"onclick=\"showClusterTopicModal('{card_id}')\" "
-                    f'title="點擊查看此題材關聯議題">ⓘ</button>'
-                )
+        _topics_html = _resolve_cluster_topics(
+            c, level, _topics_by_ticker, _topics_by_focus_theme, _topics_stocks_info)
+        if _topics_html:
+            cluster_topic_payload[card_id] = _topics_html
+            info_btn_html = (
+                f'<button class="cluster-info-btn" type="button" '
+                f"onclick=\"showClusterTopicModal('{card_id}')\" "
+                f'title="點擊查看此題材關聯議題">ⓘ</button>'
+            )
 
         cards.append(f"""
 <div class="cluster-card" id="{card_id}">
@@ -1804,22 +1807,29 @@ def build_focus_html(
         for s in getattr(c, "sentinel", []) or []:
             modal_data[s.ticker] = ""
 
-    # Cluster info modal(ⓘ button)資料源:以「該 cluster 成交額最高 focal
-    # ticker」反查 market_notes.topics 內 tickers 包含該 ticker 的 topic,
-    # 收集 _render_topic_card HTML。同 ticker 可能對應多 topic 也都列出。
-    # 對應 cluster.focal[0] (focal 已 sort by trading_value desc on _industry_section_html 內)。
-    # 此處先以 ticker 為 key 預先 cache,_industry_section_html 內再 keyed by card_id。
+    # Cluster info modal(ⓘ button)資料源 — 兩條路徑:
+    # - pan_sub(泛分類):topics_by_ticker — 以該 cluster 成交額最高 focal
+    #   ticker 反查 topic.tickers,_render_topic_card 預渲成 HTML。
+    # - hl_sub(焦點):topics_by_focus_theme — ingest ec138cd 起每個 topic
+    #   有 AI 指派的 focus_themes(近一年焦點字典 sub 原字串);建 sub→topics
+    #   反向索引,_industry_section_html 內用 cluster.members 比對。改走題材名
+    #   而非龍頭股 ticker → 解「只認單一龍頭股、議題沒點名 ticker 就漏接」。
     topics_by_ticker: dict[str, str] = {}
+    topics_by_focus_theme: dict[str, list[dict]] = {}
     if market_notes and market_notes.get("topics"):
         from collections import defaultdict
         _tk_topics = defaultdict(list)
+        _ft_topics = defaultdict(list)
         for topic in market_notes["topics"]:
             for tk in topic.get("tickers", []) or []:
                 _tk_topics[tk].append(topic)
+            for sub in topic.get("focus_themes", []) or []:
+                _ft_topics[sub].append(topic)
         topics_by_ticker = {
             tk: ''.join(_render_topic_card(t, stocks_info) for t in topics)
             for tk, topics in _tk_topics.items()
         }
+        topics_by_focus_theme = dict(_ft_topics)
 
     # 兩 tab 共用 cluster card 排行版型,level 拿來區分 IIA_CLUSTERS namespace
     # + sort chip data-level + container id;近一年焦點 tab 在 cluster card 內
@@ -1829,6 +1839,8 @@ def build_focus_html(
         highlight_subs=highlight_subs, stock_meta=stock_meta,
         ticker_net_inst=ticker_net_inst,
         topics_by_ticker=topics_by_ticker,
+        topics_by_focus_theme=topics_by_focus_theme,
+        topics_stocks_info=stocks_info,
     ) if hl_clusters else '<p class="muted-note">今日「近一年焦點」題材無焦點股入榜</p>'
     pan_html = _industry_section_html(
         pan_clusters, all_stocks, "pan_sub", theme_history_payload,
@@ -1879,6 +1891,39 @@ def _render_topic_card(topic: dict, stocks_info: dict | None = None) -> str:
         + (f'<div class="tk-row">{tk_html}</div>' if tk_html else '')
         + '</div>'
     )
+
+
+def _resolve_cluster_topics(
+    cluster,
+    level: str,
+    topics_by_ticker: dict[str, str],
+    topics_by_focus_theme: dict[str, list],
+    stocks_info: dict,
+) -> str:
+    """回傳該 cluster 關聯的跨來源議題 HTML(topic cards 串接),無則 ''。
+
+    - hl_sub(焦點):用 cluster.members 的 sub 名比對 topic.focus_themes
+      (ingest ec138cd 起 AI 為每個 topic 指派的近一年焦點題材;值為
+      theme_dictionary.json sub 原字串、ingest 端已做交集過濾)。merged
+      cluster 有多個 member sub,跨 sub 命中同一 topic 依物件 id 去重、
+      保留首次出現順序。
+    - 其他 level(pan_sub 泛分類):舊路徑 —— 取成交額最高 focal ticker
+      反查 topic.tickers(topics_by_ticker 已是預渲 HTML)。
+    """
+    if level == "hl_sub":
+        seen: set[int] = set()
+        ordered: list[dict] = []
+        for _main, sub in (cluster.members or []):
+            for t in topics_by_focus_theme.get(sub) or []:
+                if id(t) in seen:
+                    continue
+                seen.add(id(t))
+                ordered.append(t)
+        return "".join(_render_topic_card(t, stocks_info) for t in ordered)
+    if cluster.focal:
+        primary = max(cluster.focal, key=lambda s: s.trading_value).ticker
+        return topics_by_ticker.get(primary) or ""
+    return ""
 
 
 def build_notes_html(market_notes: dict | None, podcast_rows: list,
