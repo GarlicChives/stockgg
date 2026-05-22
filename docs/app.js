@@ -1087,10 +1087,13 @@ function _tcSyncSortBar() {
     _openThemeCardId = null;
     _disposeThemeCharts();
   });
-  // dim 區點擊關閉:dialog 是滿版容器,.tc-shell 才是整個 modal 單元
-  // (排序長條 + 兩側導覽 + panel 都在其內)。點 .tc-shell 以外的暗色區才關。
+  // dim 區點擊關閉:dialog 是滿版容器,.tc-shell(唯一子節點)是整個 modal
+  // 單元。暗色區是 dlg 本身未被 tc-shell 覆蓋的部分 → 只有 e.target === dlg
+  // 才算點到暗色區。不可用 e.target.closest('.tc-shell'):點 ticker pill 時
+  // toggleModalTicker 會同步重繪 #tc-ticker-chips 的 innerHTML,被點的 pill
+  // 在事件冒泡到 dlg 前已脫離 DOM,closest() 對孤兒節點回傳 null → 誤關 modal。
   dlg.addEventListener('click', (e) => {
-    if (!e.target.closest('.tc-shell')) dlg.close();
+    if (e.target === dlg) dlg.close();
   });
   // 防止 wheel 滾動穿透到外層頁面:只有 target 在左欄 ticker 列表內才放行
   // (chart 自有 wheel zoom 處理,padding/標題等空白處則 preventDefault)
