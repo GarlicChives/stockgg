@@ -1409,6 +1409,9 @@ def build_focus_stock_page(
     # 只評估潛力股 condition B,其餘條件強制 False(避免下跌股污染出量 /
     # 新高 / 成長 / 交集 sub-tab)。
     cands: list[dict] = []
+    # 籌碼股:散戶 / 大戶持股比「週減」的零界噪音緩衝(個百分點)。TDCC 集保
+    # 級距金額換算的週變化有 ±0.1~0.3pp bucketing 噪音 → 週減須逾此值才認列。
+    _HOLDER_NOISE = 0.3
     _scan = ([(t, cl, False) for t, cl in focal_to_clusters.items()]
              + [(t, cl, True) for t, cl in sentinel_to_clusters.items()])
     for tk, clusters, is_sentinel in _scan:
@@ -1483,21 +1486,25 @@ def build_focus_stock_page(
             is_growth = _is_growth_meta(meta)
             # 籌碼股(對齊附件三區;主力 / 前十大券商 4 條因 TWSE 付費券商
             # 分點資料無免費來源,捨棄):
-            #   第1區(必須):散戶賣超 = 散戶持股比週減(retail_chg < 0)
+            #   第1區(必須):散戶賣超 = 散戶持股比週減 > 0.3pp
             #   第2區(≥1):投信買超 ΣT3≥5%量 / 外資買超 ΣF3≥10%量 /
             #               大戶持股比週增 ≥1.5(大戶 = 持股 ≥5000萬;此即
             #               「籌碼鎖定率」—— 大戶吸籌)
             #   第3區(皆不可):外資賣超≤-10%量 / 投信賣超≤-5%量 /
-            #               散戶買超>0 / 大戶持股比週減<0
+            #               大戶持股比週減 > 0.3pp
+            # 散戶 / 大戶週減用 _HOLDER_NOISE(0.3pp)緩衝濾 TDCC bucketing
+            # 噪音;原第3區「散戶買超」排除已移除 —— 第1區強制散戶週減,該
+            # 排除恆 false(死條件,2026-05-22 移除)。
             if _chip is None:
                 is_chip = False
             else:
-                _r1 = (chip_retail_chg is not None and chip_retail_chg < 0)
+                _r1 = (chip_retail_chg is not None
+                       and chip_retail_chg < -_HOLDER_NOISE)
                 _r2 = (chip_t3_pct >= 0.05 or chip_f3_pct >= 0.10
                        or (chip_big_chg is not None and chip_big_chg >= 1.5))
                 _r3 = (chip_f3_pct <= -0.10 or chip_t3_pct <= -0.05
-                       or (chip_retail_chg is not None and chip_retail_chg > 0)
-                       or (chip_big_chg is not None and chip_big_chg < 0))
+                       or (chip_big_chg is not None
+                           and chip_big_chg < -_HOLDER_NOISE))
                 is_chip = bool(_r1 and _r2 and not _r3)
 
         matched: list[str] = []
@@ -1769,8 +1776,8 @@ def build_focus_stock_page(
         + '<div class="fs-tab-pane" id="fstab-chip">'
         + _pane_head('散戶持股比週減(必須),且【投信買超 ≥ 5%量 / 外資買超 ≥ 10%量 / '
                      '大戶持股比週增 ≥ 1.5】至少一項,並排除外資賣超 ≥ 10%量 / 投信賣超 '
-                     '≥ 5%量 / 散戶買超 / 大戶持股比週減;依大戶持股比週增排序。散戶與'
-                     '大戶持股比採 TDCC 集保週資料近似運算',
+                     '≥ 5%量 / 大戶持股比週減;依大戶持股比週增排序。散戶 / 大戶持股比採 '
+                     'TDCC 集保週資料近似運算,週減幅 ≤ 0.3 個百分點視為噪音不計',
                      chip_stocks)
         + chip_html + '</div>'
     )
