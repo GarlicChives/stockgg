@@ -1240,6 +1240,128 @@ def _focus_stock_etf_cell(etf_rows: list) -> str:
     return " ".join(parts)
 
 
+def _is_growth_meta(meta: dict) -> bool:
+    """成長股判定:月營收連 3 月 YoY > 0 + 近一季 4 損益科目金額 YoY 皆 > 0。
+    NULL 視為不符合(缺資料不誤判)。今日 / 昨日重算共用。"""
+    def _g(v):
+        try:
+            return float(v) if v is not None else None
+        except (TypeError, ValueError):
+            return None
+    gp, oi = _g(meta.get("gross_profit_yoy")), _g(meta.get("operating_income_yoy"))
+    pt, ni = _g(meta.get("pretax_income_yoy")), _g(meta.get("net_income_yoy"))
+    return bool(
+        meta.get("revenue_yoy_3m_all_positive") is True
+        and gp is not None and gp > 0
+        and oi is not None and oi > 0
+        and pt is not None and pt > 0
+        and ni is not None and ni > 0
+    )
+
+
+def _was_intersect_stock(hist: list[dict], meta: dict, as_of_date: str) -> bool:
+    """某焦點股在 as_of_date(交易日)是否入選「交集股」= 站上季線且符合
+    ≥ 2 條件(出量 / 潛力 / 新高 / 成長)。供潛力股 condition B 的「前一
+    交易日入選交集股」判定。條件以 ticker_close_full 歷史 + stock_meta 快照
+    重算(成長條件無逐日歷史 → 用現有快照近似);潛力用基礎定義
+    (MA10 > MA20 且 close < MA20×1.15),不含 condition B 本身 —— 交集股的
+    潛力必來自 focal 股,而 B 股恆為前哨且 matched 只記「潛力」一項 → 永不
+    入交集股,故此處 A-only 即精確、無遞迴。"""
+    if not hist or not as_of_date:
+        return False
+    rows = [h for h in hist if h.get("d") and h["d"] <= as_of_date]
+    day_row = next((h for h in rows if h["d"] == as_of_date), None)
+    if not day_row or day_row.get("c") is None:
+        return False
+    day_close = day_row["c"]
+    closes = [h["c"] for h in rows if h.get("c") is not None]
+    if len(closes) < 60:
+        return False  # 季線算不出 → 未確認站上,不算交集股
+    ma60 = sum(closes[-60:]) / 60
+    if not day_close > ma60:
+        return False  # 全域季線過濾
+    ma10 = sum(closes[-10:]) / 10
+    ma20 = sum(closes[-20:]) / 20
+    prev = [h for h in rows if h["d"] != as_of_date and h.get("c") and h.get("v")]
+    prev5 = prev[-5:]
+    avg5_tv = (sum(h["c"] * h["v"] for h in prev5) / 5) if len(prev5) == 5 else None
+    day_tv = day_close * day_row["v"] if day_row.get("v") else None
+    vol_mult = (day_tv / avg5_tv) if (day_tv and avg5_tv) else None
+    is_volume = bool(vol_mult and vol_mult > 3)
+    is_potential = bool(ma10 > ma20 and day_close < ma20 * 1.15)
+    past52 = [h["c"] for h in rows
+              if h["d"] != as_of_date and h.get("c") is not None][-252:]
+    is_new_high = bool(past52 and day_close >= max(past52))
+    is_growth = _is_growth_meta(meta)
+    return (is_volume + is_potential + is_new_high + is_growth) >= 2
+
+
+async def _compute_yesterday_intersect(
+    conn,
+    ticker_close_full: dict[str, list[dict]],
+    stock_meta: dict,
+    today_str: str,
+) -> set[str]:
+    """重算「前一交易日」的交集股名單,供潛力股 condition B 判定。
+
+    流程:從 ticker_close_full 推前一交易日 → 抓昨日 Q15 / Q16(沿用既有
+    allowlist 模板,只換 rank_date 參數,免改 allowlist)→ detect_focus_clusters
+    得昨日 focal union → 對每檔焦點股以歷史重算條件 → 符合交集股者入集合。
+    任一步失敗回空集合(潛力股退化為純 condition A)。"""
+    try:
+        all_dates = sorted({h["d"] for hist in ticker_close_full.values()
+                             for h in hist if h.get("d")})
+        prev_days = [d for d in all_dates if d < today_str]
+        if not prev_days:
+            return set()
+        prev_trading_day = prev_days[-1]
+
+        seed_rows = await conn.fetch(
+            "SELECT ticker FROM trading_rankings WHERE rank_date=$1 "
+            "AND market='TW' AND extra->>'is_focus_seed' = 'true' ORDER BY ticker",
+            prev_trading_day,
+        )
+        yest_seeds = [r["ticker"] for r in seed_rows]
+
+        member_rows = await conn.fetch(
+            "SELECT ticker, name, trading_value, change_pct, close_price, "
+            "is_limit_up_30m, extra "
+            "FROM trading_rankings WHERE rank_date=$1 AND market='TW' "
+            "AND extra->>'is_focus_member' = 'true' ORDER BY ticker",
+            prev_trading_day,
+        )
+        yest_members: dict[str, dict] = {}
+        for r in member_rows:
+            tk = r["ticker"]
+            if _is_etf(tk, r["name"] or ""):
+                continue
+            extra = (json.loads(r["extra"]) if isinstance(r.get("extra"), str)
+                     else (r.get("extra") or {}))
+            yest_members[tk] = {
+                "name": r["name"] or tk,
+                "change_pct": (float(r["change_pct"])
+                               if r["change_pct"] is not None else None),
+                "trading_value": float(r["trading_value"] or 0),
+                "rank": None,
+                "limit_up": bool(extra.get("is_limit_up") or r.get("is_limit_up_30m")),
+            }
+
+        yest_clusters = detect_focus_clusters(yest_seeds, yest_members)
+        yest_focal = {s.ticker for c in yest_clusters for s in c.focal}
+
+        result: set[str] = set()
+        for tk in yest_focal:
+            hist = ticker_close_full.get(tk)
+            if hist and _was_intersect_stock(hist, stock_meta.get(tk, {}),
+                                             prev_trading_day):
+                result.add(tk)
+        print(f"  yesterday intersect set ({prev_trading_day}): {len(result)} stocks")
+        return result
+    except Exception as exc:
+        print(f"  ⚠ compute yesterday intersect failed: {exc}")
+        return set()
+
+
 def build_focus_stock_page(
     focus_hl_clusters: list,
     stocks_info: dict,
@@ -1247,18 +1369,28 @@ def build_focus_stock_page(
     stock_meta: dict,
     aetf_holdings_by_ticker: dict[str, list],
     today_str: str,
+    yest_intersect_set: set[str],
 ) -> str:
     """焦點股 tab:來源 = 熱門題材「焦點」(hl_sub)的 focal union。
     3 sub-tab(順序:交集股 / 出量股 / 潛力股):
     - 交集股:同時符合 2 項(含)以上條件,依符合條件數 desc(同數量再月線乖離 desc);多「符合條件」欄
     - 出量股:今日成交金額 > 前 5 交易日均(不含今日)× 2,依出量倍數 desc
-    - 潛力股:MA10 > MA20 且 股價 < MA20×1.2,依月線乖離 desc
+    - 潛力股:condition A(MA10 > MA20 且股價 < MA20×1.15)或 condition B
+      (前一交易日入選交集股、今日跌逾 3.5% 且成交金額萎縮至前一交易日 ¼
+      以下);B 股恆為前哨股,依月線乖離 desc
     全欄位 client-side 可點擊排序(ASC/DESC toggle)。
     """
+    # focal = 焦點股(走 condition A + 全部條件);sentinel = 前哨股(今日跌
+    # → chg ≤ -3),只為潛力股 condition B 評估,不參與其他 sub-tab。
     focal_to_clusters: dict[str, list[str]] = {}
+    sentinel_to_clusters: dict[str, list[str]] = {}
     for c in (focus_hl_clusters or []):
         for s in c.focal:
             focal_to_clusters.setdefault(s.ticker, []).append(c.name)
+        for s in (c.sentinel or []):
+            sentinel_to_clusters.setdefault(s.ticker, []).append(c.name)
+    sentinel_to_clusters = {t: cl for t, cl in sentinel_to_clusters.items()
+                            if t not in focal_to_clusters}
 
     def _f(v):
         if v is None:
@@ -1268,12 +1400,17 @@ def build_focus_stock_page(
         except (TypeError, ValueError):
             return None
 
-    # per-ticker 計算 + condition 判定
+    # per-ticker 計算 + condition 判定。focal 走全部條件;sentinel(前哨股)
+    # 只評估潛力股 condition B,其餘條件強制 False(避免下跌股污染出量 /
+    # 新高 / 成長 / 交集 sub-tab)。
     cands: list[dict] = []
-    for tk, clusters in focal_to_clusters.items():
+    _scan = ([(t, cl, False) for t, cl in focal_to_clusters.items()]
+             + [(t, cl, True) for t, cl in sentinel_to_clusters.items()])
+    for tk, clusters, is_sentinel in _scan:
         info = stocks_info.get(tk, {})
         today_close = _f(info.get("close_price"))
         today_tv = _f(info.get("trading_value"))
+        today_chg = _f(info.get("change_pct"))
         hist = ticker_close_full.get(tk, [])  # date asc
         prev = [h for h in hist
                 if h.get("d") != today_str and h.get("c") and h.get("v")]
@@ -1292,34 +1429,43 @@ def build_focus_stock_page(
         if not (today_close and ma60 and today_close > ma60):
             continue
 
-        # 條件判定(未來新增條件 → 加 is_xxx + matched.append)
-        is_volume = bool(vol_mult and vol_mult > 3)
-        is_potential = bool(
+        meta = stock_meta.get(tk, {})
+        # 潛力 condition A:MA10 > MA20 且 股價 < MA20 × 1.15
+        is_potential_a = bool(
             ma10 and ma20 and today_close
             and ma10 > ma20
-            and today_close < ma20 * 1.2
+            and today_close < ma20 * 1.15
         )
-        # 新高股:今日股價創 52 週(~252 交易日)新高 — 今日 close ≥ 過去
-        # 52 週(不含今日)最高 close。歷史不足 252 筆則用掛牌以來最高。
-        _hist_excl_today = [h["c"] for h in hist
-                            if h.get("d") != today_str and h.get("c") is not None]
-        _past52 = _hist_excl_today[-252:]
-        is_new_high = bool(today_close and _past52 and today_close >= max(_past52))
-        meta = stock_meta.get(tk, {})
-        # 成長股:月營收連 3 月 YoY>0 + 近一季 4 損益科目金額 YoY 皆 >0
-        # (NULL 視為不符合 — 缺資料不誤判)。注意用金額年增率欄
-        # gross_profit_yoy 等,不是 margin 比率的 *_yoy_dir。
-        _gp_yoy = _f(meta.get("gross_profit_yoy"))
-        _oi_yoy = _f(meta.get("operating_income_yoy"))
-        _pt_yoy = _f(meta.get("pretax_income_yoy"))
-        _ni_yoy = _f(meta.get("net_income_yoy"))
-        is_growth = bool(
-            meta.get("revenue_yoy_3m_all_positive") is True
-            and _gp_yoy is not None and _gp_yoy > 0
-            and _oi_yoy is not None and _oi_yoy > 0
-            and _pt_yoy is not None and _pt_yoy > 0
-            and _ni_yoy is not None and _ni_yoy > 0
+        # 潛力 condition B(回踩股):前一交易日入選交集股、今日跌逾 3.5%、
+        # 今日成交金額萎縮至前一交易日的 1/4 以下。B 股恆為前哨(跌 > 3.5%
+        # → chg ≤ -3 → sentinel),故只在 sentinel 分支生效。前一交易日成交
+        # 金額 = 該股最近一筆非今日歷史的 close × volume。
+        yest_tv = (prev[-1]["c"] * prev[-1]["v"]) if prev else None
+        is_potential_b = bool(
+            tk in yest_intersect_set
+            and today_chg is not None and today_chg < -3.5
+            and today_tv and yest_tv and today_tv < yest_tv * 0.25
         )
+
+        if is_sentinel:
+            # 前哨股只走 condition B,不符即不列入
+            if not is_potential_b:
+                continue
+            is_potential = True
+            is_volume = is_new_high = is_growth = False
+        else:
+            is_potential = is_potential_a or is_potential_b
+            # 條件判定(未來新增條件 → 加 is_xxx + matched.append)
+            is_volume = bool(vol_mult and vol_mult > 3)
+            # 新高股:今日股價創 52 週(~252 交易日)新高 — 今日 close ≥ 過去
+            # 52 週(不含今日)最高 close。歷史不足 252 筆則用掛牌以來最高。
+            _hist_excl_today = [h["c"] for h in hist
+                                if h.get("d") != today_str and h.get("c") is not None]
+            _past52 = _hist_excl_today[-252:]
+            is_new_high = bool(today_close and _past52 and today_close >= max(_past52))
+            # 成長股:月營收連 3 月 + 近一季 4 損益科目金額 YoY 皆 > 0
+            is_growth = _is_growth_meta(meta)
+
         matched: list[str] = []
         if is_volume:
             matched.append("出量")
@@ -1507,7 +1653,7 @@ def build_focus_stock_page(
     vol_html = _table(volume_stocks, "volume",
                       "今日無焦點股出量(成交金額 > 前 5 日均 × 3)")
     pot_html = _table(potential_stocks, "potential",
-                      "今日無焦點股符合潛力條件(MA10 > MA20 且股價 < MA20×1.2)")
+                      "今日無焦點股符合潛力條件")
     nh_html  = _table(new_high_stocks, "newhigh",
                       "今日無焦點股創 52 週新高")
     gr_html  = _table(growth_stocks, "growth",
@@ -1560,7 +1706,9 @@ def build_focus_stock_page(
                      volume_stocks)
         + vol_html + '</div>'
         + '<div class="fs-tab-pane" id="fstab-pot">'
-        + _pane_head('十日均價 &gt; 月均價、股價低於月均價 1.2 倍,依月線乖離率排序。',
+        + _pane_head('十日均價 &gt; 月均價且股價低於月均價 1.15 倍,或前一交易日入選'
+                     '交集股、今日跌逾 3.5% 且成交金額萎縮至前一交易日 ¼ 以下,'
+                     '依月線乖離率排序。',
                      potential_stocks)
         + pot_html + '</div>'
         + '<div class="fs-tab-pane" id="fstab-nh">'
@@ -2371,9 +2519,12 @@ async def generate():
 
     # ── 焦點股 tab(2026-05-20):出量股 / 潛力股,來源 = hl_sub focal union ──
     _today_str = tw_rank_date.strftime("%Y-%m-%d") if tw_rank_date else ""
+    # 潛力股 condition B 需「前一交易日入選交集股」名單 → 重算昨日 focus pipeline
+    _yest_intersect = await _compute_yesterday_intersect(
+        conn, ticker_close_full, stock_meta, _today_str)
     focus_stock_html = build_focus_stock_page(
         focus_hl_clusters, stocks_info, ticker_close_full,
-        stock_meta, aetf_holdings_by_ticker, _today_str,
+        stock_meta, aetf_holdings_by_ticker, _today_str, _yest_intersect,
     )
 
     # ── 個股 modal data:2026-05-20 取代「intro + analyst」為「持股主動式 ETF」表 ──
