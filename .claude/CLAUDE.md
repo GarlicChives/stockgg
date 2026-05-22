@@ -28,7 +28,7 @@ Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
 - `docs/app.js` — 全站 JS 函式(靜態原生檔,直接編輯)。個股 modal 的 `artModalData` 等資料 const 仍 inline 在 index.html(per-render 動態),app.js 以全域 scope 取用
 - `src/analysis/focus_themes.py` — 題材叢集(純 Python);兩個函式:
   - `detect_industry_clusters(tw_top_volume)` — 普適 TV 累加(pan_sub 用);輸入 = `stocks_info` filter market='TW';自動 dedupe 同 focal set 為 merged cluster(`A & B & C`)
-  - `detect_focus_clusters(seeds, focus_members)` — **v2**(hl_sub 用,2026-05-19,對齊 ingest `8f27ede`);seeds = is_focus_seed((rank≤300 OR 近漲停 chg≥9.5%) AND chg>4.5%, Q16),focus_members = is_focus_member rows(Q15)。算法:同 sub 種子數 ≥ `FOCUS_MIN_SEEDS`(2) 才算熱門題材,題材成員 today 有交易者 chg > `FOCUS_SENTINEL_THRESHOLD`(-3) 入 `focal`、< 入 `sentinel`。**v1 廢**(2026-05-18 `bd85f1d` → 次日 `8f27ede` 撤,hot_seed / limit_hot_seed / volume_universe 機制完全移除)
+  - `detect_focus_clusters(seeds, focus_members)` — **v2**(hl_sub 用,2026-05-19,對齊 ingest `8f27ede`);seeds = is_focus_seed((rank≤120 OR 近漲停 chg≥9.5%) AND chg>4.45%, Q16),focus_members = is_focus_member rows(Q15)。算法:同 sub 種子數 ≥ `FOCUS_MIN_SEEDS`(2) 才算熱門題材,題材成員 today 有交易者 chg > `FOCUS_SENTINEL_THRESHOLD`(-3) 入 `focal`、< 入 `sentinel`。**v1 廢**(2026-05-18 `bd85f1d` → 次日 `8f27ede` 撤,hot_seed / limit_hot_seed / volume_universe 機制完全移除)
 - `src/utils/db.py` — async DB client(用 `SUPABASE_ANON_KEY` + `db-proxy-public`)
 - `data/theme_dictionary.json` — statementdog 主產業 / 子產業階層字典(2026-05 改 schema:ticker-centric `stocks` 物件,純台股;由 ingest 端 `scrape_statementdog_industries.py` 產生再 sync 到本 repo)。**main='近一年焦點'** 是 ingest 端人工編彙的長線觀察題材(62 sub / 230 ticker;sub 名稱「前綴·後綴」可用 「·」 split 群組),公開站「熱門題材」頁有獨立 sub-tab「🌟 焦點」,跟「📊 泛分類」(原 statementdog 47 main) 並陳
 - `supabase/functions/db-proxy-public/index.ts` — Edge Function 含 SQL allowlist(目前 **21 條**):
@@ -39,7 +39,7 @@ Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
   - Q13 ticker_close_history 400 天讀取(讓近一年焦點 cluster chart modal 能畫加權指數,因 theme_history 沒此 main 的 row)
   - Q14 special rows(處置 / 漲跌停 not in top-50)WHERE `extra->>'is_special'='true'`
   - **Q15 v2** focus_member rows(ticker 屬「近一年焦點」字典任一 sub 且 today 有交易,ingest `8f27ede` 起;v1 是 `is_volume_universe`,次日撤)WHERE `extra->>'is_focus_member'='true'`
-  - **Q16** focus_seed ticker list((rank ≤ 300 OR 近漲停 chg ≥ 9.5%) AND chg > 4.5%, ingest `8f27ede`;`a23e1cc` 加近漲停豁免 —— 漲停股成交值鎖死壓抑會讓 rank 失真掉出 300)WHERE `extra->>'is_focus_seed'='true'`
+  - **Q16** focus_seed ticker list((rank ≤ 120 OR 近漲停 chg ≥ 9.5%) AND chg > 4.45%, ingest `8f27ede`;`a23e1cc` 加近漲停豁免 —— 漲停股成交值鎖死壓抑會讓 rank 失真掉出榜外;`c1490b8` 排名門檻 300→120 + 漲幅 4.5→4.45,排名門檻獨立成 ingest config `FOCUS_SEED_MAX_RANK`、與 universe 寫入筆數 `RANKINGS_UNIVERSE_N`=300 解耦)WHERE `extra->>'is_focus_seed'='true'`
   - **Q17** ticker_net_inst_history 攤平歷史 net_inst (NTD = T86/3insti × close, ingest `ed3b2e9` 起;取代從 `theme_history.focal_breakdown` 反向索引建 ticker_net_inst 的舊 path — 對「純近一年焦點 ticker」focal_breakdown 永遠缺、反向索引拿不到)
   - **Q18 / Q19 / Q20** 主動式 ETF(ingest `f5faa21` → `edc8d49` v2):Q18 `active_etf_meta` master 按 AUM desc;Q19/Q20 v2 加 has_baseline CTE — DB 內該 ETF 只 1 day holdings 時 lots_chg/action = NULL,UI 顯警示「無前日 baseline」+ chip 不渲(避免硬標 new 失真);Q20 多 pct_of_float(lots × 1000 / stock_meta.shares_outstanding × 100)
   - **Q21** 大盤 / 櫃買指數歷史(ingest `11a88d4`):`market_snapshots` 撈 `^TWII` / `^TWOII` 過去 400 天 daily close,供 cluster chart modal 的大盤 / 櫃買 overlay 線。2026-05 起 render-time yfinance 全移回 ingest,generate_html.py 不再 `import yfinance`(指數歷史走 Q21、MA20 乖離走 Q13 自算、market_notes ticker 走 Q8)

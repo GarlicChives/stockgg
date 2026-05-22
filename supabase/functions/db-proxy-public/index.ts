@@ -103,7 +103,7 @@ const ALLOWED: Set<string> = new Set([
   "select ticker, name, trading_value, change_pct, close_price, is_limit_up_30m, extra from trading_rankings where rank_date=$1 and market='tw' and extra->>'is_focus_member' = 'true' order by ticker",
 
   // Q16 — focus_seed ticker list (ingest 8f27ede / v2 規格 2026-05-19 起):
-  // (rank ≤ 300 OR change_pct ≥ 9.5% 近漲停) AND change_pct > 4.5% 預計算種子。供「焦點」tab detection
+  // (rank ≤ 120 OR change_pct ≥ 9.5% 近漲停) AND change_pct > 4.45% 預計算種子(ingest c1490b8;排名門檻 FOCUS_SEED_MAX_RANK=120)。供「焦點」tab detection
   // step 1 反查題材字典,累計 sub 種子計數 ≥ 2 才算熱門題材。只需 ticker
   // (其他欄位走 Q15 拿)。注意:seed 不一定是 focus_member(條件不同)。
   "select ticker from trading_rankings where rank_date=$1 and market='tw' and extra->>'is_focus_seed' = 'true' order by ticker",

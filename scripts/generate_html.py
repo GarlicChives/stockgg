@@ -2028,8 +2028,8 @@ async def generate():
         except Exception as exc:
             print(f"  ⚠ focus_member rows query failed (Q15 v2 not deployed?): {exc}")
 
-        # Q16 v2:focus_seed ticker list(rank ≤ 300 AND chg > 4.5%, ingest
-        # 預計算)。給 detect_focus_clusters v2 反查題材字典累計 sub 種子計數。
+        # Q16 v2:focus_seed ticker list((rank ≤ 120 OR 近漲停) AND chg > 4.45%,
+        # ingest 預計算)。給 detect_focus_clusters v2 反查題材字典累計 sub 種子計數。
         # 只需 ticker(其他資訊走 Q6 / Q15 抓)。
         try:
             focus_seed_rows = await conn.fetch(
@@ -2091,7 +2091,7 @@ async def generate():
     _main_clusters, sub_clusters = detect_industry_clusters(tw_top_volume)
 
     # 焦點 cluster detection v2(2026-05-19 起,對應 ingest 8f27ede):
-    # seeds = is_focus_seed (rank≤300 + chg>4.5%, ingest 預計算 Q16)
+    # seeds = is_focus_seed ((rank≤120 OR 近漲停) AND chg>4.45%, ingest 預計算 Q16)
     # focus_members = is_focus_member rows (Q15) ∩ stocks_info (filter ETF)
     # 算法:同 sub 種子數 ≥ 2 才算熱門;sub 字典成員 today 有交易者
     #   chg > -3 入 focal、chg < -3 入 sentinel。pan_sub 維持原 detect_industry_clusters。
