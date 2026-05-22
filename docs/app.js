@@ -831,6 +831,7 @@ function _syncCrosshair(srcChart, dstChart, dstSeries) {
 function _renderThemeChart(cardId) {
   const cluster = _findClusterDef(cardId);
   if (!cluster) return;
+  _tcUpdateCounter(cardId);
   _renderTickerChips(cluster);
   document.getElementById('tc-title').textContent = '🔸 ' + cluster.name;
   let { netSeries, priceSeries } = _computeClusterSeries(cluster);
@@ -1077,6 +1078,20 @@ function tcSetSort(key) {
 function _tcSyncSortBar() {
   document.querySelectorAll('#theme-chart-dialog .tc-sort-chip').forEach(c =>
     c.classList.toggle('active', c.dataset.sort === _tcSort));
+}
+
+/* 更新排序長條右側題材編號 N/total。N = 目前題材在 _tcSortedClusters
+ * 的位次(與左右導覽 tcNavTheme 同順序),total = 該 sub-tab 題材數。
+ * 點排序 chip → tcSetSort 跳第一個 → N=1;按 → 導覽 → N 遞增。 */
+function _tcUpdateCounter(cardId) {
+  const el = document.getElementById('tc-counter');
+  if (!el) return;
+  const container = document.getElementById(cardId)?.closest('.focus-clusters');
+  if (!container) { el.textContent = ''; return; }
+  const level = container.id.replace('cluster-container-', '');
+  const sorted = _tcSortedClusters(level);
+  const idx = sorted.findIndex(c => c.cardId === cardId);
+  el.textContent = idx >= 0 ? (idx + 1) + '/' + sorted.length : '';
 }
 
 // 關 dialog 時清理

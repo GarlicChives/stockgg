@@ -415,15 +415,23 @@ dialog#theme-chart-dialog::backdrop{background:rgba(0,0,0,.35)}
   from{opacity:0;transform:scale(.96)}
   to  {opacity:1;transform:scale(1)}
 }
-/* 上方排序長條:成交金額 / 平均漲跌 / 平均乖離 / 平均 PE */
+/* 上方排序長條:成交金額 / 平均漲跌 / 平均乖離 / 平均 PE。
+   padding-left = .tc-nav 寬(56px)→ 排序 chip 左緣切齊 .tc-panel(中段內容
+   區塊)左緣;長條本身仍滿版,X 在其右端 = modal 右上角。 */
 .tc-topbar{flex-shrink:0;display:flex;align-items:center;gap:.4rem;
-           padding:.45rem .8rem;border-bottom:1px solid var(--border)}
+           padding:.4rem .8rem .4rem 56px;border-bottom:1px solid var(--border)}
 .tc-sort-chip{font-family:inherit;font-size:.72rem;font-weight:600;
               padding:.28rem .72rem;border-radius:6px;cursor:pointer;
               background:transparent;color:var(--muted);
               border:1px solid var(--border);transition:.12s}
 .tc-sort-chip:hover{border-color:var(--accent);color:var(--text)}
 .tc-sort-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+/* 題材編號 N/total — 位次同左右導覽順序;tabular-nums 防數字跳動抖寬 */
+.tc-counter{font-size:.72rem;font-weight:600;color:var(--muted);
+            letter-spacing:.02em;margin-left:.25rem;
+            font-variant-numeric:tabular-nums}
+/* X 推到長條右端(margin-left:auto);counter 留在排序 chip 那側 */
+.tc-topbar .tc-close{margin-left:auto}
 /* 中段:左側欄 | panel | 右側欄 */
 .tc-shell-row{flex:1;display:flex;min-height:0}
 .tc-panel{flex:1;min-width:0;background:var(--card);
@@ -440,6 +448,7 @@ dialog#theme-chart-dialog::backdrop{background:rgba(0,0,0,.35)}
   dialog#theme-chart-dialog[open]{align-items:flex-end}
   .tc-shell{width:100vw;height:92vh;border-radius:14px 14px 0 0;border-bottom:none}
   .tc-nav{display:none}  /* 手機無側邊空間,隱藏側欄(排序長條保留) */
+  .tc-topbar{padding-left:.8rem}  /* 無側欄 → 不必對齊 panel,padding 復原 */
 }
 .tc-hdr{display:flex;align-items:center;gap:.6rem;
         padding:.85rem 1.1rem;border-bottom:1px solid var(--border);

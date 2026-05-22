@@ -2756,6 +2756,9 @@ async def generate():
     <button class="tc-sort-chip active" data-sort="chg" type="button" onclick="tcSetSort('chg')">平均漲跌</button>
     <button class="tc-sort-chip" data-sort="bias" type="button" onclick="tcSetSort('bias')">平均乖離</button>
     <button class="tc-sort-chip" data-sort="pe" type="button" onclick="tcSetSort('pe')">平均 PE</button>
+    <span class="tc-counter" id="tc-counter" aria-live="polite"></span>
+    <button class="tc-close" type="button" aria-label="關閉"
+            onclick="document.getElementById('theme-chart-dialog').close()">✕</button>
   </div>
   <div class="tc-shell-row">
   <div class="tc-nav tc-nav-left">
@@ -2772,8 +2775,6 @@ async def generate():
       <button class="tc-period-chip" data-period="1y" type="button" onclick="setChartPeriod('1y')">1Y</button>
       <button class="tc-period-chip" data-period="all" type="button" onclick="setChartPeriod('all')">ALL</button>
     </div>
-    <button class="tc-close" type="button"
-            onclick="document.getElementById('theme-chart-dialog').close()">✕</button>
   </div>
   <div class="tc-body">
     <!-- 左欄:焦點 ticker 垂直列表(點擊在 modal 內 disable;依成交金額 desc 排序) -->
