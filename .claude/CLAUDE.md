@@ -36,7 +36,7 @@ Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
   - **Q3 / Q4** rank_date 必帶 `AND rank IS NOT NULL` — `trading_rankings` 內除真實排名列(rank 1..N)還有 rank=NULL 雜列(special / focus_member / market_notes_ref),後者 rank_date 可能領先真實排名日。盲取 `MAX(rank_date)` 會選到幽靈日期 → 公開站整頁空。加 filter 確保永遠回退「已完整抓到 top-N 的最新交易日」(公開站鐵則:永遠不空、永遠呈現最新完整交易日)
   - Q11 theme_history 180→**400 days** retention
   - Q12 stock_meta(公司基本面快照;2026-05-20 起含三率 gross/operating/net_margin + *_yoy_dir + 營收 revenue_mom/yoy,選股雷達頁(原「焦點股」)5 欄用,ingest `57c7e8b`;`8b155c1` 再加成長股欄 revenue_yoy_3m_all_positive + gross_profit/operating_income/pretax_income/net_income_yoy)
-  - Q13 ticker_close_history 400 天讀取(讓近一年焦點 cluster chart modal 能畫加權指數,因 theme_history 沒此 main 的 row)
+  - Q13 ticker_close_history 400 天讀取(讓近一年焦點 cluster chart modal 能畫加權指數,因 theme_history 沒此 main 的 row);2026-05-22 起 SELECT 含 `high`(每日盤中最高價)。Q6/Q14/Q15(trading_rankings 今日列)同步加 `high` —— 供「選股雷達 > 新高股」:新高定義 2026-05-22 從「收盤創新高」改為「今日盤中最高價 ≥ 過去 252 日最高盤中價」(收盤定義會把盤中未觸及真實 52 週高、僅收盤超過自家近期收盤上限的股票誤判入選,如 3030;ingest `5a530ea` 持久化 high)
   - Q14 special rows(處置 / 漲跌停 not in top-50)WHERE `extra->>'is_special'='true'`
   - **Q15 v2** focus_member rows(ticker 屬「近一年焦點」字典任一 sub 且 today 有交易,ingest `8f27ede` 起;v1 是 `is_volume_universe`,次日撤)WHERE `extra->>'is_focus_member'='true'`
   - **Q16** focus_seed ticker list((rank ≤ 120 OR 近漲停 chg ≥ 9.5%) AND chg > 4.45%, ingest `8f27ede`;`a23e1cc` 加近漲停豁免 —— 漲停股成交值鎖死壓抑會讓 rank 失真掉出榜外;`c1490b8` 排名門檻 300→120 + 漲幅 4.5→4.45,排名門檻獨立成 ingest config `FOCUS_SEED_MAX_RANK`、與 universe 寫入筆數 `RANKINGS_UNIVERSE_N`=300 解耦)WHERE `extra->>'is_focus_seed'='true'`

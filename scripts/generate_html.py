@@ -1291,9 +1291,11 @@ def _was_intersect_stock(hist: list[dict], meta: dict, as_of_date: str) -> bool:
     vol_mult = (day_tv / avg5_tv) if (day_tv and avg5_tv) else None
     is_volume = bool(vol_mult and vol_mult > 3)
     is_potential = bool(ma10 > ma20 and day_close < ma20 * 1.15)
-    past52 = [h["c"] for h in rows
-              if h["d"] != as_of_date and h.get("c") is not None][-252:]
-    is_new_high = bool(past52 and day_close >= max(past52))
+    # 新高:as_of_date 盤中高 ≥ 過去(不含當日)252 日盤中高;high NULL 安全
+    day_high = day_row.get("high")
+    past52_high = [h["high"] for h in rows
+                   if h["d"] != as_of_date and h.get("high") is not None][-252:]
+    is_new_high = bool(day_high and past52_high and day_high >= max(past52_high))
     is_growth = _is_growth_meta(meta)
     return (is_volume + is_potential + is_new_high + is_growth) >= 2
 
@@ -1326,7 +1328,7 @@ async def _compute_yesterday_intersect(
         yest_seeds = [r["ticker"] for r in seed_rows]
 
         member_rows = await conn.fetch(
-            "SELECT ticker, name, trading_value, change_pct, close_price, "
+            "SELECT ticker, name, trading_value, change_pct, close_price, high, "
             "is_limit_up_30m, extra "
             "FROM trading_rankings WHERE rank_date=$1 AND market='TW' "
             "AND extra->>'is_focus_member' = 'true' ORDER BY ticker",
@@ -1459,12 +1461,15 @@ def build_focus_stock_page(
             is_potential = is_potential_a or is_potential_b
             # 條件判定(未來新增條件 → 加 is_xxx + matched.append)
             is_volume = bool(vol_mult and vol_mult > 3)
-            # 新高股:今日股價創 52 週(~252 交易日)新高 — 今日 close ≥ 過去
-            # 52 週(不含今日)最高 close。歷史不足 252 筆則用掛牌以來最高。
-            _hist_excl_today = [h["c"] for h in hist
-                                if h.get("d") != today_str and h.get("c") is not None]
-            _past52 = _hist_excl_today[-252:]
-            is_new_high = bool(today_close and _past52 and today_close >= max(_past52))
+            # 新高股:今日盤中觸及 52 週(~252 交易日)新高 — 今日盤中最高價
+            # ≥ 過去 52 週(不含今日)最高盤中價。今日盤中高來自 trading_rankings
+            # (stocks_info.high),baseline 來自 ticker_close_history.high。
+            # high 缺值的列不計入(NULL 安全);歷史不足 252 筆則用掛牌以來最高。
+            today_high = _f(info.get("high"))
+            _past52_high = [h["high"] for h in hist
+                            if h.get("d") != today_str and h.get("high") is not None][-252:]
+            is_new_high = bool(today_high and _past52_high
+                               and today_high >= max(_past52_high))
             # 成長股:月營收連 3 月 + 近一季 4 損益科目金額 YoY 皆 > 0
             is_growth = _is_growth_meta(meta)
 
@@ -1657,7 +1662,7 @@ def build_focus_stock_page(
     pot_html = _table(potential_stocks, "potential",
                       "今日無焦點股符合潛力條件")
     nh_html  = _table(new_high_stocks, "newhigh",
-                      "今日無焦點股創 52 週新高")
+                      "今日無焦點股盤中觸及 52 週新高")
     gr_html  = _table(growth_stocks, "growth",
                       "今日無焦點股符合成長條件(月營收連 3 月 + 4 損益科目金額 YoY 皆正)")
 
@@ -1714,7 +1719,8 @@ def build_focus_stock_page(
                      potential_stocks)
         + pot_html + '</div>'
         + '<div class="fs-tab-pane" id="fstab-nh">'
-        + _pane_head('今日股價創 52 週新高的焦點股,依月線乖離率排序。', new_high_stocks)
+        + _pane_head('今日盤中最高價觸及 52 週新高(≥ 過去 52 週最高價)的焦點股,'
+                     '依月線乖離率排序。', new_high_stocks)
         + nh_html + '</div>'
         + '<div class="fs-tab-pane" id="fstab-gr">'
         + _pane_head('月營收連 3 月 YoY &gt; 0,且近一季毛利 / 營業利益 / 稅前淨利 / '
@@ -2019,7 +2025,7 @@ async def generate():
     if tw_rank_date:
         tw_ranks = [dict(r) for r in await conn.fetch(
             f"""SELECT ROW_NUMBER() OVER (ORDER BY trading_value DESC NULLS LAST)::int AS rank,
-                       ticker, name, trading_value, change_pct, close_price,
+                       ticker, name, trading_value, change_pct, close_price, high,
                        is_limit_up_30m, extra
                 FROM trading_rankings
                 WHERE rank_date=$1 AND market='TW'
@@ -2032,7 +2038,7 @@ async def generate():
         try:
             _existing_tickers = {r["ticker"] for r in tw_ranks}
             special_ranks = [dict(r) for r in await conn.fetch(
-                "SELECT ticker, name, trading_value, change_pct, close_price, "
+                "SELECT ticker, name, trading_value, change_pct, close_price, high, "
                 "is_limit_up_30m, extra "
                 "FROM trading_rankings WHERE rank_date=$1 AND market='TW' "
                 "AND extra->>'is_special' = 'true' ORDER BY ticker",
@@ -2056,7 +2062,7 @@ async def generate():
         try:
             _existing_tickers = {r["ticker"] for r in tw_ranks}
             focus_member_ranks = [dict(r) for r in await conn.fetch(
-                "SELECT ticker, name, trading_value, change_pct, close_price, "
+                "SELECT ticker, name, trading_value, change_pct, close_price, high, "
                 "is_limit_up_30m, extra "
                 "FROM trading_rankings WHERE rank_date=$1 AND market='TW' "
                 "AND extra->>'is_focus_member' = 'true' ORDER BY ticker",
@@ -2117,6 +2123,7 @@ async def generate():
             "board": extra.get("board", "TWSE"),
             "change_pct": float(r["change_pct"]) if r["change_pct"] is not None else None,
             "close_price": float(r["close_price"]) if r.get("close_price") is not None else None,
+            "high": float(r["high"]) if r.get("high") is not None else None,
             "trading_value": float(r["trading_value"] or 0),
             "rank": r["rank"],  # 可能 None(extra.is_special=true 但不在 top-50)
             "limit_up": bool(extra.get("is_limit_up") or r.get("is_limit_up_30m")),
@@ -2370,7 +2377,7 @@ async def generate():
     if _hist_tickers:
         try:
             tch_rows = await conn.fetch(
-                "SELECT ticker, rank_date, close, shares_out, volume FROM ticker_close_history "
+                "SELECT ticker, rank_date, close, shares_out, volume, high FROM ticker_close_history "
                 "WHERE ticker = ANY($1::text[]) "
                 "AND rank_date >= current_date - INTERVAL '400 days' "
                 "ORDER BY ticker, rank_date",
@@ -2385,11 +2392,12 @@ async def generate():
                 _close = float(r["close"]) if r["close"] is not None else None
                 _shares = float(r["shares_out"]) if r["shares_out"] is not None else None
                 _vol = float(r["volume"]) if r["volume"] is not None else None
+                _high = float(r["high"]) if r["high"] is not None else None
                 ticker_close_payload.setdefault(r["ticker"], []).append({
                     "d": d_str, "c": _close, "s": _shares,
                 })
                 ticker_close_full.setdefault(r["ticker"], []).append({
-                    "d": d_str, "c": _close, "s": _shares, "v": _vol,
+                    "d": d_str, "c": _close, "s": _shares, "v": _vol, "high": _high,
                 })
             print(f"  ticker_close_history: {len(tch_rows)} rows for "
                   f"{len(ticker_close_payload)}/{len(_hist_tickers)} tickers")
