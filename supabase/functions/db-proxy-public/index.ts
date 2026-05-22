@@ -139,12 +139,12 @@ const ALLOWED: Set<string> = new Set([
   // ingest 端 src/news/chip_history.py 寫入(FOCUS_MAIN 字典 universe)。
   "select ticker, rank_date, foreign_net_shares, trust_net_shares from ticker_chip_history where ticker = any($1::text[]) and rank_date >= current_date - interval '30 days' order by ticker, rank_date",
 
-  // Q23 — ticker_holder_dist 近期週資料(TDCC 集保大戶持股),供「籌碼股」
-  // 的籌碼鎖定率(big_holder_pct_chg = 大戶持股比週變)與散戶持股週變。
+  // Q23 — ticker_holder_dist 近期週資料(TDCC 集保大戶持股),供「籌碼股」。
   // levels = 17 級持股分佈 JSON(每級 h 人數 / p 佔比% / s 股數);stockgg
-  // 端用「級距上限股數 × 股價 < 1000萬」金額定義算散戶持股比,免固定張數
-  // 級距對高 / 低價股失真。ingest 端 src/news/holder_dist.py 寫入。
-  "select ticker, data_date, big_holder_pct_chg, levels from ticker_holder_dist where ticker = any($1::text[]) and data_date >= current_date - interval '60 days' order by ticker, data_date",
+  // 端用「級距上限 × 股價 < 1000萬」算散戶持股比、「級距下限 × 股價 ≥
+  // 5000萬」算大戶持股比(= 籌碼鎖定率基礎),免固定股數級距對高 / 低價股
+  // 失真。ingest 端 src/news/holder_dist.py 寫入。
+  "select ticker, data_date, levels from ticker_holder_dist where ticker = any($1::text[]) and data_date >= current_date - interval '60 days' order by ticker, data_date",
 ])
 
 function normalize(q: string): string {

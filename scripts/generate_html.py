@@ -1457,8 +1457,8 @@ def build_focus_stock_page(
         _chip = (chip_signals or {}).get(tk)
         chip_f3_pct = _chip["f3_pct"] if _chip else None
         chip_t3_pct = _chip["t3_pct"] if _chip else None
-        chip_lock = _chip.get("lock") if _chip else None
         chip_retail_chg = _chip.get("retail_chg") if _chip else None
+        chip_big_chg = _chip.get("big_chg") if _chip else None
 
         if is_sentinel:
             # 前哨股只走 condition B,不符即不列入
@@ -1485,16 +1485,19 @@ def build_focus_stock_page(
             # 分點資料無免費來源,捨棄):
             #   第1區(必須):散戶賣超 = 散戶持股比週減(retail_chg < 0)
             #   第2區(≥1):投信買超 ΣT3≥5%量 / 外資買超 ΣF3≥10%量 /
-            #               籌碼鎖定率(大戶持股比週變)≥1.5
-            #   第3區(皆不可):外資賣超≤-10%量 / 投信賣超≤-5%量 / 散戶買超>0
+            #               大戶持股比週增 ≥1.5(大戶 = 持股 ≥5000萬;此即
+            #               「籌碼鎖定率」—— 大戶吸籌)
+            #   第3區(皆不可):外資賣超≤-10%量 / 投信賣超≤-5%量 /
+            #               散戶買超>0 / 大戶持股比週減<0
             if _chip is None:
                 is_chip = False
             else:
                 _r1 = (chip_retail_chg is not None and chip_retail_chg < 0)
                 _r2 = (chip_t3_pct >= 0.05 or chip_f3_pct >= 0.10
-                       or (chip_lock is not None and chip_lock >= 1.5))
+                       or (chip_big_chg is not None and chip_big_chg >= 1.5))
                 _r3 = (chip_f3_pct <= -0.10 or chip_t3_pct <= -0.05
-                       or (chip_retail_chg is not None and chip_retail_chg > 0))
+                       or (chip_retail_chg is not None and chip_retail_chg > 0)
+                       or (chip_big_chg is not None and chip_big_chg < 0))
                 is_chip = bool(_r1 and _r2 and not _r3)
 
         matched: list[str] = []
@@ -1506,6 +1509,8 @@ def build_focus_stock_page(
             matched.append("新高")
         if is_growth:
             matched.append("成長")
+        if is_chip:
+            matched.append("籌碼")
         cands.append({
             "ticker": tk,
             "name": (info.get("name") or "")[:12],
@@ -1528,9 +1533,7 @@ def build_focus_stock_page(
             "etf_rows": aetf_holdings_by_ticker.get(tk, []),
             "is_volume": is_volume, "is_potential": is_potential,
             "is_new_high": is_new_high, "is_growth": is_growth,
-            "is_chip": is_chip,
-            "chip_f3_pct": chip_f3_pct, "chip_t3_pct": chip_t3_pct,
-            "chip_lock": chip_lock, "chip_retail_chg": chip_retail_chg,
+            "is_chip": is_chip, "chip_big_chg": chip_big_chg,
             "matched": matched,
         })
 
@@ -1545,12 +1548,12 @@ def build_focus_stock_page(
     potential_stocks = sorted([c for c in cands if c["is_potential"]], key=_by_bias)
     new_high_stocks  = sorted([c for c in cands if c["is_new_high"]], key=_by_bias)
     growth_stocks    = sorted([c for c in cands if c["is_growth"]], key=_by_bias)
-    # 籌碼股依籌碼鎖定率 desc(大戶吸籌最多在前;None 排尾),同值再外資佔量 desc
+    # 籌碼股依大戶持股比週增 desc(大戶吸籌最多在前;None 排尾),同值再月線乖離 desc
     _chip_inf = float("-inf")
     chip_stocks = sorted(
         [c for c in cands if c["is_chip"]],
-        key=lambda c: (-(c["chip_lock"] if c["chip_lock"] is not None else _chip_inf),
-                       -(c["chip_f3_pct"] if c["chip_f3_pct"] is not None else _chip_inf)),
+        key=lambda c: (-(c["chip_big_chg"] if c["chip_big_chg"] is not None else _chip_inf),
+                       _by_bias(c)),
     )
 
     def _bias_cell(v):
@@ -1595,9 +1598,9 @@ def build_focus_stock_page(
         return f'<span class="{cls}">{sign}{val:.2f}%{arrow}</span>'
 
     _MATCH_CHIP_CLS = {"出量": "fs-mc-vol", "潛力": "fs-mc-pot",
-                       "新高": "fs-mc-nh", "成長": "fs-mc-gr"}
+                       "新高": "fs-mc-nh", "成長": "fs-mc-gr", "籌碼": "fs-mc-chip"}
     # 條件 → 短 key(交集股篩選列 data-cond / row data-matched 用)
-    _MATCH_KEY = {"出量": "vol", "潛力": "pot", "新高": "nh", "成長": "gr"}
+    _MATCH_KEY = {"出量": "vol", "潛力": "pot", "新高": "nh", "成長": "gr", "籌碼": "chip"}
 
     def _match_cell(matched):
         return "".join(
@@ -1718,7 +1721,7 @@ def build_focus_stock_page(
         '</div>'
     )
     # 交集股條件篩選列(預設全 disabled;多選 AND;順序同 sub-tab;有交集股才顯示)
-    _filter_conds = [("vol", "出量"), ("pot", "潛力"), ("nh", "新高"), ("gr", "成長")]
+    _filter_conds = [("vol", "出量"), ("pot", "潛力"), ("nh", "新高"), ("gr", "成長"), ("chip", "籌碼")]
     _int_filter_bar = ((
         '<div class="fs-filter-bar">'
         '<span class="fs-filter-label">篩選符合條件</span>'
@@ -1765,9 +1768,9 @@ def build_focus_stock_page(
         + gr_html + '</div>'
         + '<div class="fs-tab-pane" id="fstab-chip">'
         + _pane_head('散戶持股比週減(必須),且【投信買超 ≥ 5%量 / 外資買超 ≥ 10%量 / '
-                     '籌碼鎖定率 ≥ 1.5】至少一項,並排除外資賣超 ≥ 10%量 / 投信賣超 ≥ '
-                     '5%量 / 散戶買超;依籌碼鎖定率排序。散戶與鎖定率採 TDCC 集保週'
-                     '資料近似運算',
+                     '大戶持股比週增 ≥ 1.5】至少一項,並排除外資賣超 ≥ 10%量 / 投信賣超 '
+                     '≥ 5%量 / 散戶買超 / 大戶持股比週減;依大戶持股比週增排序。散戶與'
+                     '大戶持股比採 TDCC 集保週資料近似運算',
                      chip_stocks)
         + chip_html + '</div>'
     )
@@ -2526,14 +2529,19 @@ async def generate():
         except Exception as exc:
             print(f"  ⚠ ticker_chip_history query failed (Q22 not deployed?): {exc}")
 
-        # TDCC 持股級距上限(股);L15「百萬股以上」開放級距 → 永遠非散戶。
+        # TDCC 持股級距上 / 下限(股)。散戶 / 大戶皆改金額定義,免固定股數
+        # 級距對高 / 低價股失真(¥3000 股 1 張即 300萬、¥10 股 100 張才 100萬)。
         _TDCC_UB = {1: 999, 2: 5000, 3: 10000, 4: 15000, 5: 20000, 6: 30000,
                     7: 40000, 8: 50000, 9: 100000, 10: 200000, 11: 400000,
                     12: 600000, 13: 800000, 14: 1000000}
-        _RETAIL_CAP = 10_000_000  # 持股市值 < 1000萬 視為散戶
+        _TDCC_LB = {1: 1, 2: 1000, 3: 5001, 4: 10001, 5: 15001, 6: 20001,
+                    7: 30001, 8: 40001, 9: 50001, 10: 100001, 11: 200001,
+                    12: 400001, 13: 600001, 14: 800001, 15: 1000001}
+        _RETAIL_CAP = 10_000_000   # 散戶:持股市值 < 1000萬(級距上限 × 股價)
+        _BIG_FLOOR  = 50_000_000   # 大戶:持股市值 ≥ 5000萬(級距下限 × 股價)
 
-        def _retail_pct_amt(levels, retail_lv: set) -> float | None:
-            """金額定義散戶持股比 = retail_lv 級距的 p(佔集保庫存%)加總。"""
+        def _level_pct_sum(levels, lv_set: set) -> float | None:
+            """lv_set 指定級距的 p(佔集保庫存%)加總;散戶 / 大戶共用。"""
             if isinstance(levels, str):
                 try:
                     levels = json.loads(levels)
@@ -2542,7 +2550,7 @@ async def generate():
             if not isinstance(levels, dict):
                 return None
             tot = 0.0
-            for L in retail_lv:
+            for L in lv_set:
                 p = (levels.get(str(L)) or {}).get("p")
                 if p is not None:
                     tot += float(p)
@@ -2551,7 +2559,7 @@ async def generate():
         holder_by_tk: dict[str, dict] = {}
         try:
             hd_rows = await conn.fetch(
-                "SELECT ticker, data_date, big_holder_pct_chg, levels "
+                "SELECT ticker, data_date, levels "
                 "FROM ticker_holder_dist "
                 "WHERE ticker = ANY($1::text[]) "
                 "AND data_date >= current_date - INTERVAL '60 days' "
@@ -2562,23 +2570,26 @@ async def generate():
             for r in hd_rows:
                 _hd_acc.setdefault(r["ticker"], []).append(r)
             for tk, rows in _hd_acc.items():
-                last = rows[-1]
-                lock = (float(last["big_holder_pct_chg"])
-                        if last["big_holder_pct_chg"] is not None else None)
-                # 散戶持股比:級距上限股數 × 股價 < 1000萬 的級距視為散戶。
-                # TDCC 固定股數級距對高 / 低價股失真(¥3000 股 1 張即 300萬、
-                # ¥10 股 100 張才 100萬),故改金額定義。兩週用同一股價(最新
-                # 收盤)→ 週變純反映持股結構,免受股價波動把級距推過門檻。
+                # 散戶 = 級距上限 × 股價 < 1000萬;大戶 = 級距下限 × 股價 ≥
+                # 5000萬(中間 1000萬~5000萬 為中實戶)。big_chg = 大戶持股比
+                # 週變(即「籌碼鎖定率」)。兩週用同一股價(最新收盤)→ 週變
+                # 純反映持股結構,免受股價波動把級距推過門檻。
                 close = stocks_info.get(tk, {}).get("close_price")
-                retail_chg = None
+                retail_chg = big_chg = None
                 if close and close > 0 and len(rows) >= 2:
                     retail_lv = {L for L, ub in _TDCC_UB.items()
                                  if ub * close < _RETAIL_CAP}
-                    rp_now = _retail_pct_amt(rows[-1]["levels"], retail_lv)
-                    rp_prev = _retail_pct_amt(rows[-2]["levels"], retail_lv)
+                    big_lv = {L for L, lb in _TDCC_LB.items()
+                              if lb * close >= _BIG_FLOOR}
+                    rp_now = _level_pct_sum(rows[-1]["levels"], retail_lv)
+                    rp_prev = _level_pct_sum(rows[-2]["levels"], retail_lv)
                     if rp_now is not None and rp_prev is not None:
                         retail_chg = rp_now - rp_prev
-                holder_by_tk[tk] = {"lock": lock, "retail_chg": retail_chg}
+                    bp_now = _level_pct_sum(rows[-1]["levels"], big_lv)
+                    bp_prev = _level_pct_sum(rows[-2]["levels"], big_lv)
+                    if bp_now is not None and bp_prev is not None:
+                        big_chg = bp_now - bp_prev
+                holder_by_tk[tk] = {"retail_chg": retail_chg, "big_chg": big_chg}
             print(f"  ticker_holder_dist (Q23): {len(hd_rows)} rows for "
                   f"{len(holder_by_tk)} tickers")
         except Exception as exc:
@@ -2603,7 +2614,7 @@ async def generate():
             chip_signals[tk] = {
                 "f3": f3, "t3": t3, "v3": v3,
                 "f3_pct": f3 / v3, "t3_pct": t3 / v3,
-                "lock": hd.get("lock"), "retail_chg": hd.get("retail_chg"),
+                "retail_chg": hd.get("retail_chg"), "big_chg": hd.get("big_chg"),
             }
         print(f"  chip_signals: {len(chip_signals)} tickers with 近3日籌碼")
 
