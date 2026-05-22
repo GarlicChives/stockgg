@@ -10,22 +10,12 @@ body{background:var(--bg);color:var(--text);
 a{color:var(--accent)}
 button{cursor:pointer;border:none;outline:none}
 
-/* ── Ticker tape (seamless) ── */
-.tape{position:sticky;top:0;z-index:200;
-       background:var(--card);border-bottom:1px solid var(--border);
-       height:36px;overflow:hidden;display:flex;align-items:center;
-       white-space:nowrap}
-.tape-track{display:inline-block;
-             animation:tape-scroll 90s linear infinite;
-             will-change:transform}
-.tape-item{display:inline-block;padding:0 .5rem;font-size:1.1rem;color:var(--muted)}
-.tape-item b{color:var(--text)}
-.tape-up{color:var(--up)} .tape-down{color:var(--down)}
-@keyframes tape-scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
-
-
-/* ── Header (logo + tabs in one row) ── */
-header{background:var(--card);border-bottom:1px solid var(--border);
+/* ── Header (logo + tabs in one row;sticky 固定頁面頂端) ──
+   2026-05 移除原本頁首跑馬燈(.tape),Menu 條本身改 position:sticky
+   常駐頂端。sticky(非 fixed)→ header 仍佔流排空間、下方內容不需
+   padding-top 補位,且 header 是 body 第一個元素故等同永遠固定。 */
+header{position:sticky;top:0;z-index:200;
+        background:var(--card);border-bottom:1px solid var(--border);
         padding:.5rem 1.5rem;display:flex;align-items:center;gap:1.5rem;
         flex-wrap:wrap}
 .brand{font-size:1rem;font-weight:700;color:var(--accent);

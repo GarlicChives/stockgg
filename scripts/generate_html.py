@@ -7,7 +7,6 @@ Three-tab layout:
   股市筆記  — Cross-source topic intersection + podcast notes (collapsible)
 
 Fixed elements:
-  - Ticker tape (sticky top, seamless continuous scroll)
   - Direction badge (fixed top-right: short/mid term + report date)
 """
 import asyncio
@@ -2545,42 +2544,6 @@ async def generate():
         d = snaps.get(sym, {})
         return d.get("close"), d.get("chg")
 
-    INDICATORS = [
-        ("S&amp;P 500", "^GSPC",    True),
-        ("NASDAQ",      "^IXIC",    True),
-        ("SOX",         "^SOX",     True),
-        ("東證 TOPIX",  "1308.T",   True),
-        ("韓股 KOSPI",  "^KS11",    True),
-        ("台股 TWII",   "^TWII",    True),
-        ("VIX",         "^VIX",     True),
-        ("10Y 殖利率",  "^TNX",     False),
-        ("DXY",         "DX-Y.NYB", True),
-        ("恐慌貪婪",    "FEAR_GREED", True),
-    ]
-
-    # Ticker tape — duplicate content for seamless loop
-    tape_items = []
-    for label, sym, show_pct in INDICATORS:
-        close, chg = ind(sym)
-        if close is None:
-            continue
-        if sym in ("^VIX", "^TNX", "FEAR_GREED"):
-            val = f"{close:.2f}"
-        else:
-            val = f"{close:,.0f}"
-        pct_html = ""
-        if show_pct and chg is not None:
-            arrow = "▲" if chg >= 0 else "▼"
-            cls = "tape-up" if chg >= 0 else "tape-down"
-            pct_html = f'<span class="{cls}">{arrow}{abs(chg):.2f}%</span>'
-        tape_items.append(
-            f'<span class="tape-item">{label}&nbsp;<b>{val}</b>'
-            f'{"&nbsp;" + pct_html if pct_html else ""}</span>'
-        )
-    tape_content = '&ensp;·&ensp;'.join(tape_items)
-    # Duplicate for seamless loop; animation runs translateX(-50%)
-    tape_html = f'<div class="tape-track">{tape_content}&ensp;&ensp;&ensp;&ensp;{tape_content}</div>'
-
     # ── SEO / Open Graph(Line / FB / X / Google preview)──────────────────────
     site_url = "https://stockgg.v4578469.workers.dev"
     _twii_close, _twii_chg = ind("^TWII")
@@ -2647,9 +2610,6 @@ async def generate():
 <link rel="stylesheet" href="style.css?v={css_ver}">
 </head>
 <body>
-
-<!-- Ticker tape -->
-<div class="tape">{tape_html}</div>
 
 <header>
   <button class="brand" onclick="showTab('focus');window.scrollTo(0,0);" title="回首頁">IIA 投資情報</button>
