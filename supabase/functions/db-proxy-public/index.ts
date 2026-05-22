@@ -133,6 +133,16 @@ const ALLOWED: Set<string> = new Set([
   // Q21 — 大盤 / 櫃買指數過去 400 天 daily close,供 cluster chart modal
   // 的大盤 / 櫃買 overlay 線。ingest 寫入 market_snapshots(指數快照)。
   "select snapshot_date, symbol, close_price, change_pct from market_snapshots where symbol = any($1::text[]) and snapshot_date >= current_date - interval '400 days' order by symbol, snapshot_date",
+
+  // Q22 — ticker_chip_history 近期 daily 三大法人分項買賣超「股數」,供
+  // 「選股雷達 > 籌碼股」算近 3 交易日外資 / 投信買賣超佔成交量%。
+  // ingest 端 src/news/chip_history.py 寫入(FOCUS_MAIN 字典 universe)。
+  "select ticker, rank_date, foreign_net_shares, trust_net_shares from ticker_chip_history where ticker = any($1::text[]) and rank_date >= current_date - interval '30 days' order by ticker, rank_date",
+
+  // Q23 — ticker_holder_dist 近期週資料(TDCC 集保大戶持股),供「籌碼股」
+  // 的籌碼鎖定率(big_holder_pct_chg = 大戶持股比週變)與散戶持股週變
+  // (retail_pct 兩週 diff)。ingest 端 src/news/holder_dist.py 寫入。
+  "select ticker, data_date, big_holder_pct_chg, retail_pct from ticker_holder_dist where ticker = any($1::text[]) and data_date >= current_date - interval '60 days' order by ticker, data_date",
 ])
 
 function normalize(q: string): string {

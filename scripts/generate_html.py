@@ -1374,6 +1374,7 @@ def build_focus_stock_page(
     aetf_holdings_by_ticker: dict[str, list],
     today_str: str,
     yest_intersect_set: set[str],
+    chip_signals: dict[str, dict] | None = None,
 ) -> str:
     """焦點股 tab:來源 = 熱門題材「焦點」(hl_sub)的 focal union。
     3 sub-tab(順序:交集股 / 出量股 / 潛力股):
@@ -1451,12 +1452,20 @@ def build_focus_stock_page(
             and today_tv and yest_tv and today_tv < yest_tv * 0.25
         )
 
+        # 籌碼訊號(近 3 日外資/投信佔量% + 大戶/散戶持股週變);chip_signals
+        # 已在 generate() 對齊 chip_history ∩ ticker_close_full 末 3 日算好。
+        _chip = (chip_signals or {}).get(tk)
+        chip_f3_pct = _chip["f3_pct"] if _chip else None
+        chip_t3_pct = _chip["t3_pct"] if _chip else None
+        chip_lock = _chip.get("lock") if _chip else None
+        chip_retail_chg = _chip.get("retail_chg") if _chip else None
+
         if is_sentinel:
             # 前哨股只走 condition B,不符即不列入
             if not is_potential_b:
                 continue
             is_potential = True
-            is_volume = is_new_high = is_growth = False
+            is_volume = is_new_high = is_growth = is_chip = False
         else:
             is_potential = is_potential_a or is_potential_b
             # 條件判定(未來新增條件 → 加 is_xxx + matched.append)
@@ -1472,6 +1481,21 @@ def build_focus_stock_page(
                                and today_high >= max(_past52_high))
             # 成長股:月營收連 3 月 + 近一季 4 損益科目金額 YoY 皆 > 0
             is_growth = _is_growth_meta(meta)
+            # 籌碼股(對齊附件三區;主力 / 前十大券商 4 條因 TWSE 付費券商
+            # 分點資料無免費來源,捨棄):
+            #   第1區(必須):散戶賣超 = 散戶持股比週減(retail_chg < 0)
+            #   第2區(≥1):投信買超 ΣT3≥5%量 / 外資買超 ΣF3≥10%量 /
+            #               籌碼鎖定率(大戶持股比週變)≥1.5
+            #   第3區(皆不可):外資賣超≤-10%量 / 投信賣超≤-5%量 / 散戶買超>0
+            if _chip is None:
+                is_chip = False
+            else:
+                _r1 = (chip_retail_chg is not None and chip_retail_chg < 0)
+                _r2 = (chip_t3_pct >= 0.05 or chip_f3_pct >= 0.10
+                       or (chip_lock is not None and chip_lock >= 1.5))
+                _r3 = (chip_f3_pct <= -0.10 or chip_t3_pct <= -0.05
+                       or (chip_retail_chg is not None and chip_retail_chg > 0))
+                is_chip = bool(_r1 and _r2 and not _r3)
 
         matched: list[str] = []
         if is_volume:
@@ -1504,6 +1528,9 @@ def build_focus_stock_page(
             "etf_rows": aetf_holdings_by_ticker.get(tk, []),
             "is_volume": is_volume, "is_potential": is_potential,
             "is_new_high": is_new_high, "is_growth": is_growth,
+            "is_chip": is_chip,
+            "chip_f3_pct": chip_f3_pct, "chip_t3_pct": chip_t3_pct,
+            "chip_lock": chip_lock, "chip_retail_chg": chip_retail_chg,
             "matched": matched,
         })
 
@@ -1518,6 +1545,13 @@ def build_focus_stock_page(
     potential_stocks = sorted([c for c in cands if c["is_potential"]], key=_by_bias)
     new_high_stocks  = sorted([c for c in cands if c["is_new_high"]], key=_by_bias)
     growth_stocks    = sorted([c for c in cands if c["is_growth"]], key=_by_bias)
+    # 籌碼股依籌碼鎖定率 desc(大戶吸籌最多在前;None 排尾),同值再外資佔量 desc
+    _chip_inf = float("-inf")
+    chip_stocks = sorted(
+        [c for c in cands if c["is_chip"]],
+        key=lambda c: (-(c["chip_lock"] if c["chip_lock"] is not None else _chip_inf),
+                       -(c["chip_f3_pct"] if c["chip_f3_pct"] is not None else _chip_inf)),
+    )
 
     def _bias_cell(v):
         if v is None:
@@ -1574,10 +1608,25 @@ def build_focus_stock_page(
     def _etf_held_count(etf_rows):
         return len([r for r in etf_rows if (r.get("lots") or 0) > 0])
 
+    # 籌碼數值 cell:正(買 / 增)紅、負(賣 / 減)綠,亞洲慣例;NULL → —。
+    # mult 用來把佔量比率(fraction)放大成 %。
+    def _chip_cell(val, mult=1.0):
+        if val is None:
+            return '<span class="muted">—</span>'
+        v = val * mult
+        cls = "up" if v > 0 else ("down" if v < 0 else "flat")
+        sign = "+" if v > 0 else ""
+        return f'<span class="{cls}">{sign}{v:.2f}%</span>'
+
     # column 配置:(label, sort-key, is-numeric, td-class)。
     # mode='volume' 插「出量倍數」、mode='intersect' 加「符合條件」。
     def _columns(mode):
         cols = [("標的", "tk", 0, ""), ("成交金額", "tv", 1, "r")]
+        if mode == "chip":
+            cols += [("近3日外資", "f3", 1, "r"), ("近3日投信", "t3", 1, "r"),
+                     ("籌碼鎖定率", "lock", 1, "r"), ("散戶持股週變", "rchg", 1, "r"),
+                     ("隸屬題材", "theme", 1, ""), ("主動式 ETF", "etf", 1, "")]
+            return cols
         if mode == "volume":
             cols.append(("出量倍數", "volmult", 1, "r"))
         cols += [("月線乖離", "bias", 1, "r"), ("PE", "pe", 1, "r"),
@@ -1600,6 +1649,8 @@ def build_focus_stock_page(
         vm = c["vol_mult"]
         gm, om, nm = c["gross_margin"], c["operating_margin"], c["net_margin"]
         rmom, ryoy = c["revenue_mom"], c["revenue_yoy"]
+        cf3, ct3 = c["chip_f3_pct"], c["chip_t3_pct"]
+        clock, crchg = c["chip_lock"], c["chip_retail_chg"]
         # data-* 給 client-side sortFsTable 用(數值欄缺值留空 → JS 排尾)
         attrs = (
             f'data-tk="{html_lib.escape(tk)}" '
@@ -1614,6 +1665,10 @@ def build_focus_stock_page(
             f'data-theme="{len(c["clusters"])}" '
             f'data-etf="{etf_n}" '
             f'data-volmult="{f"{vm:.4f}" if vm else ""}" '
+            f'data-f3="{f"{cf3:.6f}" if cf3 is not None else ""}" '
+            f'data-t3="{f"{ct3:.6f}" if ct3 is not None else ""}" '
+            f'data-lock="{f"{clock:.4f}" if clock is not None else ""}" '
+            f'data-rchg="{f"{crchg:.4f}" if crchg is not None else ""}" '
             f'data-match="{len(c["matched"])}" '
             f'data-matched="{",".join(_MATCH_KEY.get(m, "") for m in c["matched"])}"'
         )
@@ -1623,6 +1678,16 @@ def build_focus_stock_page(
             f'<td>{_stk_pill(tk, stocks_info, clickable=False)}</td>',
             f'<td class="r">{f"{tv/1e8:.0f} 億" if tv else "—"}</td>',
         ]
+        if mode == "chip":
+            tds += [
+                f'<td class="r">{_chip_cell(cf3, 100)}</td>',
+                f'<td class="r">{_chip_cell(ct3, 100)}</td>',
+                f'<td class="r">{_chip_cell(clock)}</td>',
+                f'<td class="r">{_chip_cell(crchg)}</td>',
+                f'<td>{_cluster_cell(c["clusters"])}</td>',
+                f'<td>{_focus_stock_etf_cell(c["etf_rows"])}</td>',
+            ]
+            return f"<tr class=\"fs-row\" {attrs} onclick='{click}'>{''.join(tds)}</tr>"
         if mode == "volume":
             tds.append(f'<td class="r"><b>{vm:.2f}×</b></td>' if vm else '<td class="r">—</td>')
         tds += [
@@ -1665,6 +1730,7 @@ def build_focus_stock_page(
                       "今日無焦點股盤中觸及 52 週新高")
     gr_html  = _table(growth_stocks, "growth",
                       "今日無焦點股符合成長條件(月營收連 3 月 + 4 損益科目金額 YoY 皆正)")
+    chip_html = _table(chip_stocks, "chip", "今日無焦點股符合籌碼條件")
 
     nav_html = (
         '<div class="sub-tabs">'
@@ -1678,6 +1744,8 @@ def build_focus_stock_page(
         'onclick="showFocusStockTab(\'nh\')">⛰ 新高股</button>'
         '<button class="sub-tab-btn" data-fstab="gr" type="button" '
         'onclick="showFocusStockTab(\'gr\')">🌱 成長股</button>'
+        '<button class="sub-tab-btn" data-fstab="chip" type="button" '
+        'onclick="showFocusStockTab(\'chip\')">🔒 籌碼股</button>'
         '</div>'
     )
     # 交集股條件篩選列(預設全 disabled;多選 AND;順序同 sub-tab;有交集股才顯示)
@@ -1726,6 +1794,13 @@ def build_focus_stock_page(
         + _pane_head('月營收連 3 月 YoY &gt; 0,且近一季毛利 / 營業利益 / 稅前淨利 / '
                      '稅後淨利金額年增率皆 &gt; 0,依月線乖離率排序。', growth_stocks)
         + gr_html + '</div>'
+        + '<div class="fs-tab-pane" id="fstab-chip">'
+        + _pane_head('散戶持股比週減(必須),且【投信買超 ≥ 5%量 / 外資買超 ≥ 10%量 / '
+                     '籌碼鎖定率 ≥ 1.5】至少一項,並排除外資賣超 ≥ 10%量 / 投信賣超 ≥ '
+                     '5%量 / 散戶買超;依籌碼鎖定率排序。散戶與鎖定率採 TDCC 集保週'
+                     '資料近似,主力 / 前十大券商條件因官方券商分點為付費資料未納入。',
+                     chip_stocks)
+        + chip_html + '</div>'
     )
     return nav_html + panes_html
 
@@ -2452,6 +2527,87 @@ async def generate():
         except Exception as exc:
             print(f"  ⚠ ticker_net_inst_history query failed (Q17 not deployed?): {exc}")
 
+    # Q22 / Q23 — 籌碼股(選股雷達 sub-tab)資料源:
+    #   Q22 ticker_chip_history daily 三大法人分項 net_shares(近 3 交易日)
+    #   Q23 ticker_holder_dist 週資料(TDCC 集保大戶持股)
+    # chip_signals[ticker] = {f3, t3, v3, f3_pct, t3_pct, lock, retail_chg}:
+    #   近 3 日 = chip_history ∩ ticker_close_full 共同日期取末 3 筆(對齊
+    #   外資/投信 net_shares 與成交量同 3 日,避免兩表 latest 日期差 1 天錯位)。
+    chip_signals: dict[str, dict] = {}
+    if _hist_tickers:
+        chip_by_tk: dict[str, dict[str, tuple]] = {}
+        try:
+            chip_rows = await conn.fetch(
+                "SELECT ticker, rank_date, foreign_net_shares, trust_net_shares "
+                "FROM ticker_chip_history "
+                "WHERE ticker = ANY($1::text[]) "
+                "AND rank_date >= current_date - INTERVAL '30 days' "
+                "ORDER BY ticker, rank_date",
+                _hist_tickers,
+            )
+            for r in chip_rows:
+                _d = r["rank_date"]
+                d_str = _d.strftime("%Y-%m-%d") if hasattr(_d, "strftime") else str(_d)[:10]
+                chip_by_tk.setdefault(r["ticker"], {})[d_str] = (
+                    float(r["foreign_net_shares"]) if r["foreign_net_shares"] is not None else 0.0,
+                    float(r["trust_net_shares"]) if r["trust_net_shares"] is not None else 0.0,
+                )
+            print(f"  ticker_chip_history (Q22): {len(chip_rows)} rows for "
+                  f"{len(chip_by_tk)} tickers")
+        except Exception as exc:
+            print(f"  ⚠ ticker_chip_history query failed (Q22 not deployed?): {exc}")
+
+        holder_by_tk: dict[str, dict] = {}
+        try:
+            hd_rows = await conn.fetch(
+                "SELECT ticker, data_date, big_holder_pct_chg, retail_pct "
+                "FROM ticker_holder_dist "
+                "WHERE ticker = ANY($1::text[]) "
+                "AND data_date >= current_date - INTERVAL '60 days' "
+                "ORDER BY ticker, data_date",
+                _hist_tickers,
+            )
+            _hd_acc: dict[str, list] = {}
+            for r in hd_rows:
+                _hd_acc.setdefault(r["ticker"], []).append(r)
+            for tk, rows in _hd_acc.items():
+                last = rows[-1]
+                lock = (float(last["big_holder_pct_chg"])
+                        if last["big_holder_pct_chg"] is not None else None)
+                retail_chg = None
+                if len(rows) >= 2:
+                    r_now, r_prev = rows[-1]["retail_pct"], rows[-2]["retail_pct"]
+                    if r_now is not None and r_prev is not None:
+                        retail_chg = float(r_now) - float(r_prev)
+                holder_by_tk[tk] = {"lock": lock, "retail_chg": retail_chg}
+            print(f"  ticker_holder_dist (Q23): {len(hd_rows)} rows for "
+                  f"{len(holder_by_tk)} tickers")
+        except Exception as exc:
+            print(f"  ⚠ ticker_holder_dist query failed (Q23 not deployed?): {exc}")
+
+        for tk in _hist_tickers:
+            cdates = chip_by_tk.get(tk)
+            if not cdates:
+                continue
+            vol_by_d = {row["d"]: row["v"] for row in ticker_close_full.get(tk, [])
+                        if row.get("v") is not None}
+            common = sorted(d for d in cdates if d in vol_by_d)
+            if len(common) < 3:
+                continue
+            last3 = common[-3:]
+            f3 = sum(cdates[d][0] for d in last3)
+            t3 = sum(cdates[d][1] for d in last3)
+            v3 = sum(vol_by_d[d] for d in last3)
+            if not v3 or v3 <= 0:
+                continue
+            hd = holder_by_tk.get(tk, {})
+            chip_signals[tk] = {
+                "f3": f3, "t3": t3, "v3": v3,
+                "f3_pct": f3 / v3, "t3_pct": t3 / v3,
+                "lock": hd.get("lock"), "retail_chg": hd.get("retail_chg"),
+            }
+        print(f"  chip_signals: {len(chip_signals)} tickers with 近3日籌碼")
+
     # 大盤(^TWII)+ 櫃買(^TWOII)指數 400 天 daily close — Q21,從 ingest
     # 寫入的 market_snapshots 讀,供 chart 第二張三線 overlay(都 rebase to
     # 100 看相對強弱)。2026-05 起資料收集移回 ingest,stockgg 不再 render-time
@@ -2577,6 +2733,7 @@ async def generate():
     focus_stock_html = build_focus_stock_page(
         focus_hl_clusters, stocks_info, ticker_close_full,
         stock_meta, aetf_holdings_by_ticker, _today_str, _yest_intersect,
+        chip_signals,
     )
 
     # ── 個股 modal data:2026-05-20 取代「intro + analyst」為「持股主動式 ETF」表 ──
