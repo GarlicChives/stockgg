@@ -1608,25 +1608,10 @@ def build_focus_stock_page(
     def _etf_held_count(etf_rows):
         return len([r for r in etf_rows if (r.get("lots") or 0) > 0])
 
-    # 籌碼數值 cell:正(買 / 增)紅、負(賣 / 減)綠,亞洲慣例;NULL → —。
-    # mult 用來把佔量比率(fraction)放大成 %。
-    def _chip_cell(val, mult=1.0):
-        if val is None:
-            return '<span class="muted">—</span>'
-        v = val * mult
-        cls = "up" if v > 0 else ("down" if v < 0 else "flat")
-        sign = "+" if v > 0 else ""
-        return f'<span class="{cls}">{sign}{v:.2f}%</span>'
-
     # column 配置:(label, sort-key, is-numeric, td-class)。
     # mode='volume' 插「出量倍數」、mode='intersect' 加「符合條件」。
     def _columns(mode):
         cols = [("標的", "tk", 0, ""), ("成交金額", "tv", 1, "r")]
-        if mode == "chip":
-            cols += [("近3日外資", "f3", 1, "r"), ("近3日投信", "t3", 1, "r"),
-                     ("籌碼鎖定率", "lock", 1, "r"), ("散戶持股週變", "rchg", 1, "r"),
-                     ("隸屬題材", "theme", 1, ""), ("主動式 ETF", "etf", 1, "")]
-            return cols
         if mode == "volume":
             cols.append(("出量倍數", "volmult", 1, "r"))
         cols += [("月線乖離", "bias", 1, "r"), ("PE", "pe", 1, "r"),
@@ -1649,8 +1634,6 @@ def build_focus_stock_page(
         vm = c["vol_mult"]
         gm, om, nm = c["gross_margin"], c["operating_margin"], c["net_margin"]
         rmom, ryoy = c["revenue_mom"], c["revenue_yoy"]
-        cf3, ct3 = c["chip_f3_pct"], c["chip_t3_pct"]
-        clock, crchg = c["chip_lock"], c["chip_retail_chg"]
         # data-* 給 client-side sortFsTable 用(數值欄缺值留空 → JS 排尾)
         attrs = (
             f'data-tk="{html_lib.escape(tk)}" '
@@ -1665,10 +1648,6 @@ def build_focus_stock_page(
             f'data-theme="{len(c["clusters"])}" '
             f'data-etf="{etf_n}" '
             f'data-volmult="{f"{vm:.4f}" if vm else ""}" '
-            f'data-f3="{f"{cf3:.6f}" if cf3 is not None else ""}" '
-            f'data-t3="{f"{ct3:.6f}" if ct3 is not None else ""}" '
-            f'data-lock="{f"{clock:.4f}" if clock is not None else ""}" '
-            f'data-rchg="{f"{crchg:.4f}" if crchg is not None else ""}" '
             f'data-match="{len(c["matched"])}" '
             f'data-matched="{",".join(_MATCH_KEY.get(m, "") for m in c["matched"])}"'
         )
@@ -1678,16 +1657,6 @@ def build_focus_stock_page(
             f'<td>{_stk_pill(tk, stocks_info, clickable=False)}</td>',
             f'<td class="r">{f"{tv/1e8:.0f} 億" if tv else "—"}</td>',
         ]
-        if mode == "chip":
-            tds += [
-                f'<td class="r">{_chip_cell(cf3, 100)}</td>',
-                f'<td class="r">{_chip_cell(ct3, 100)}</td>',
-                f'<td class="r">{_chip_cell(clock)}</td>',
-                f'<td class="r">{_chip_cell(crchg)}</td>',
-                f'<td>{_cluster_cell(c["clusters"])}</td>',
-                f'<td>{_focus_stock_etf_cell(c["etf_rows"])}</td>',
-            ]
-            return f"<tr class=\"fs-row\" {attrs} onclick='{click}'>{''.join(tds)}</tr>"
         if mode == "volume":
             tds.append(f'<td class="r"><b>{vm:.2f}×</b></td>' if vm else '<td class="r">—</td>')
         tds += [
@@ -1798,7 +1767,7 @@ def build_focus_stock_page(
         + _pane_head('散戶持股比週減(必須),且【投信買超 ≥ 5%量 / 外資買超 ≥ 10%量 / '
                      '籌碼鎖定率 ≥ 1.5】至少一項,並排除外資賣超 ≥ 10%量 / 投信賣超 ≥ '
                      '5%量 / 散戶買超;依籌碼鎖定率排序。散戶與鎖定率採 TDCC 集保週'
-                     '資料近似,主力 / 前十大券商條件因官方券商分點為付費資料未納入。',
+                     '資料近似運算',
                      chip_stocks)
         + chip_html + '</div>'
     )
@@ -2557,10 +2526,32 @@ async def generate():
         except Exception as exc:
             print(f"  ⚠ ticker_chip_history query failed (Q22 not deployed?): {exc}")
 
+        # TDCC 持股級距上限(股);L15「百萬股以上」開放級距 → 永遠非散戶。
+        _TDCC_UB = {1: 999, 2: 5000, 3: 10000, 4: 15000, 5: 20000, 6: 30000,
+                    7: 40000, 8: 50000, 9: 100000, 10: 200000, 11: 400000,
+                    12: 600000, 13: 800000, 14: 1000000}
+        _RETAIL_CAP = 10_000_000  # 持股市值 < 1000萬 視為散戶
+
+        def _retail_pct_amt(levels, retail_lv: set) -> float | None:
+            """金額定義散戶持股比 = retail_lv 級距的 p(佔集保庫存%)加總。"""
+            if isinstance(levels, str):
+                try:
+                    levels = json.loads(levels)
+                except (ValueError, TypeError):
+                    return None
+            if not isinstance(levels, dict):
+                return None
+            tot = 0.0
+            for L in retail_lv:
+                p = (levels.get(str(L)) or {}).get("p")
+                if p is not None:
+                    tot += float(p)
+            return tot
+
         holder_by_tk: dict[str, dict] = {}
         try:
             hd_rows = await conn.fetch(
-                "SELECT ticker, data_date, big_holder_pct_chg, retail_pct "
+                "SELECT ticker, data_date, big_holder_pct_chg, levels "
                 "FROM ticker_holder_dist "
                 "WHERE ticker = ANY($1::text[]) "
                 "AND data_date >= current_date - INTERVAL '60 days' "
@@ -2574,11 +2565,19 @@ async def generate():
                 last = rows[-1]
                 lock = (float(last["big_holder_pct_chg"])
                         if last["big_holder_pct_chg"] is not None else None)
+                # 散戶持股比:級距上限股數 × 股價 < 1000萬 的級距視為散戶。
+                # TDCC 固定股數級距對高 / 低價股失真(¥3000 股 1 張即 300萬、
+                # ¥10 股 100 張才 100萬),故改金額定義。兩週用同一股價(最新
+                # 收盤)→ 週變純反映持股結構,免受股價波動把級距推過門檻。
+                close = stocks_info.get(tk, {}).get("close_price")
                 retail_chg = None
-                if len(rows) >= 2:
-                    r_now, r_prev = rows[-1]["retail_pct"], rows[-2]["retail_pct"]
-                    if r_now is not None and r_prev is not None:
-                        retail_chg = float(r_now) - float(r_prev)
+                if close and close > 0 and len(rows) >= 2:
+                    retail_lv = {L for L, ub in _TDCC_UB.items()
+                                 if ub * close < _RETAIL_CAP}
+                    rp_now = _retail_pct_amt(rows[-1]["levels"], retail_lv)
+                    rp_prev = _retail_pct_amt(rows[-2]["levels"], retail_lv)
+                    if rp_now is not None and rp_prev is not None:
+                        retail_chg = rp_now - rp_prev
                 holder_by_tk[tk] = {"lock": lock, "retail_chg": retail_chg}
             print(f"  ticker_holder_dist (Q23): {len(hd_rows)} rows for "
                   f"{len(holder_by_tk)} tickers")
