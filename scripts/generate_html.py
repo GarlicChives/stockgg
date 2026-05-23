@@ -536,6 +536,7 @@ def _industry_section_html(
             f'<button class="sort-chip active" data-sort="chg"   data-level="{level}" data-dir="desc" type="button" onclick="setClusterSort(\'chg\',\'{level}\')">平均漲跌</button>'
             f'<button class="sort-chip"        data-sort="bias"  data-level="{level}" type="button" onclick="setClusterSort(\'bias\',\'{level}\')">平均乖離</button>'
             f'<button class="sort-chip"        data-sort="pe"    data-level="{level}" type="button" onclick="setClusterSort(\'pe\',\'{level}\')">平均 PE</button>'
+            f'<button class="sort-chip"        data-sort="peg"   data-level="{level}" type="button" onclick="setClusterSort(\'peg\',\'{level}\')">平均 PEG</button>'
             '</div>'
             + explainer_html
             + '</div>'
@@ -607,6 +608,14 @@ def _industry_section_html(
             return sum(xs) / len(xs) if xs else None
         avg_pe = _mean([all_stocks.get(s.ticker, {}).get("pe_ttm")
                         for s in c.focal if (all_stocks.get(s.ticker, {}).get("pe_ttm") or 0) > 0])
+        # PEG 只計入 status='ok_*' 且 > 0 的 ticker(eps_declining / low_growth /
+        # insufficient_history 不計入平均)
+        def _peg_of(t):
+            inf = all_stocks.get(t, {})
+            st = inf.get("peg_status")
+            pg = inf.get("peg_ratio")
+            return pg if (st and st.startswith("ok_") and pg is not None and pg > 0) else None
+        avg_peg = _mean([_peg_of(s.ticker) for s in c.focal])
 
         def _plain_badge(label: str, value: float | None, title: str, sort_key: str,
                          card_id: str, fmt: str = "{:.2f}") -> str:
@@ -627,6 +636,7 @@ def _industry_section_html(
             + _metric_badge("漲跌", avg_chg, "點擊依此題材內個股漲跌幅排序", "chg", card_id, is_default_sort=True)
             + _metric_badge("乖離", avg_ma20, "點擊依此題材內個股 20MA 乖離率排序", "bias", card_id)
             + _plain_badge("PE", avg_pe, "點擊依此題材內個股 PE (TTM)排序", "pe", card_id, "{:.1f}")
+            + _plain_badge("PEG", avg_peg, "點擊依此題材內個股 PEG 排序(<1 低估、≈1 合理、>1 偏貴)", "peg", card_id, "{:.2f}")
         )
 
         member_keys = [f"{m}||{s}" for m, s in (c.members or [])]
@@ -635,6 +645,9 @@ def _industry_section_html(
         def _focal_entry(s):
             info = all_stocks.get(s.ticker, {})
             mkt = info.get("market") or ("TW" if s.ticker.split(".")[0].isdigit() else "US")
+            # peg 只在 status='ok_*' 時帶值;其他狀態 None → 排序排尾
+            _ps = info.get("peg_status")
+            _pg = info.get("peg_ratio") if (_ps and _ps.startswith("ok_")) else None
             return {
                 "ticker": s.ticker,
                 "n":     (info.get("name") or "")[:10],
@@ -644,6 +657,7 @@ def _industry_section_html(
                 "close": info.get("close_price"),
                 "bias":  info.get("ma20_bias"),
                 "pe":    info.get("pe_ttm"),
+                "peg":   _pg,
             }
         cluster_json.append({
             "cardId": card_id,
@@ -1526,6 +1540,9 @@ def build_focus_stock_page(
             "vol_mult": vol_mult,
             "ma10": ma10, "ma20": ma20, "ma20_bias": ma20_bias,
             "pe": _f(meta.get("pe_ttm")),
+            "peg": _f(meta.get("peg_ratio")),
+            "peg_status": meta.get("peg_status"),
+            "eps_yoy": _f(meta.get("eps_ttm_yoy")),
             # 三率 + YoY 方向(ingest 57c7e8b 起寫 stock_meta;dir 可能 NULL)
             "gross_margin": _f(meta.get("gross_margin")),
             "operating_margin": _f(meta.get("operating_margin")),
@@ -1595,6 +1612,24 @@ def build_focus_stock_page(
             arrow = ""
         return f"{val:.2f}%{arrow}"
 
+    # PEG cell:status-aware 顯示。'ok_ttm'/'ok_q' 顯數字 + 計算法小標籤(TTM/季),
+    # 配色 <1 綠(低估) / 1-1.5 灰(合理) / >1.5 紅(偏貴);其他 status 顯文字。
+    def _peg_cell(c):
+        st = c.get("peg_status")
+        peg = c.get("peg")
+        if st and st.startswith("ok_") and peg is not None and peg > 0:
+            cls = "peg-low" if peg < 1 else ("peg-mid" if peg <= 1.5 else "peg-high")
+            tag = "TTM" if st == "ok_ttm" else "季"
+            return (f'<span class="{cls}" title="PEG = PE ÷ EPS YoY。<1 低估、≈1 合理、>1 偏貴;'
+                    f'此值以{tag}法計算">{peg:.2f}<span class="peg-tag">{tag}</span></span>')
+        if st == "eps_declining":
+            return '<span class="muted" title="EPS YoY < 0(EPS 衰退,PEG 不適用)">EPS 衰退</span>'
+        if st == "low_growth":
+            return '<span class="muted" title="|EPS YoY| < 1% 或 |PEG| > 10 被 clip(低成長 / 異常)">低成長</span>'
+        if st == "insufficient_history":
+            return '<span class="muted" title="yfinance 季報資料不足,無法計算 PEG">—</span>'
+        return '<span class="muted">—</span>'
+
     # 營收增率 cell:本身帶正負(正升 ▲紅 / 負降 ▼綠)
     def _rev_cell(val):
         if val is None:
@@ -1625,6 +1660,7 @@ def build_focus_stock_page(
         if mode == "volume":
             cols.append(("出量倍數", "volmult", 1, "r"))
         cols += [("月線乖離", "bias", 1, "r"), ("PE", "pe", 1, "r"),
+                 ("PEG", "peg", 1, "r"),
                  ("毛利率", "gm", 1, "r"), ("營益率", "om", 1, "r"),
                  ("淨利率", "nm", 1, "r"),
                  ("營收月增", "rmom", 1, "r"), ("營收年增", "ryoy", 1, "r"),
@@ -1638,6 +1674,9 @@ def build_focus_stock_page(
         click = f"showArtModal({json.dumps(tk)},{json.dumps(nm)})"
         pe = c["pe"]
         pe_str = f"{pe:.1f}" if (pe and pe > 0) else "—"
+        # PEG sort key:ok_* 才用 peg_ratio 排,其他 status null → 排尾
+        _ps = c.get("peg_status")
+        peg_sort = c.get("peg") if (_ps and _ps.startswith("ok_") and c.get("peg") and c["peg"] > 0) else None
         tv = c["today_tv"] or 0
         bias = c["ma20_bias"]
         etf_n = _etf_held_count(c["etf_rows"])
@@ -1650,6 +1689,7 @@ def build_focus_stock_page(
             f'data-tv="{tv:.0f}" '
             f'data-bias="{f"{bias:.4f}" if bias is not None else ""}" '
             f'data-pe="{f"{pe:.4f}" if (pe and pe > 0) else ""}" '
+            f'data-peg="{f"{peg_sort:.4f}" if peg_sort is not None else ""}" '
             f'data-gm="{f"{gm:.4f}" if gm is not None else ""}" '
             f'data-om="{f"{om:.4f}" if om is not None else ""}" '
             f'data-nm="{f"{nm:.4f}" if nm is not None else ""}" '
@@ -1672,6 +1712,7 @@ def build_focus_stock_page(
         tds += [
             f'<td class="r">{_bias_cell(bias)}</td>',
             f'<td class="r">{pe_str}</td>',
+            f'<td class="r">{_peg_cell(c)}</td>',
             f'<td class="r">{_margin_cell(gm, c["gm_dir"])}</td>',
             f'<td class="r">{_margin_cell(om, c["om_dir"])}</td>',
             f'<td class="r">{_margin_cell(nm, c["nm_dir"])}</td>',
@@ -1838,6 +1879,8 @@ def build_focus_html(
             "week52_high": float(meta["week52_high"]) if meta.get("week52_high") is not None else None,
             "week52_low":  float(meta["week52_low"])  if meta.get("week52_low")  is not None else None,
             "pe_ttm":      float(meta["pe_ttm"])      if meta.get("pe_ttm")      is not None else None,
+            "peg_ratio":   float(meta["peg_ratio"])   if meta.get("peg_ratio")   is not None else None,
+            "peg_status":  meta.get("peg_status"),
             "dividend_yield": float(meta["dividend_yield"]) if meta.get("dividend_yield") is not None else None,
             "beta":        float(meta["beta"])        if meta.get("beta")        is not None else None,
         }
@@ -2247,7 +2290,7 @@ async def generate():
                 "       operating_margin_yoy_dir, net_margin_yoy_dir, revenue_mom, "
                 "       revenue_yoy, revenue_month, revenue_yoy_3m_all_positive, "
                 "       gross_profit_yoy, operating_income_yoy, pretax_income_yoy, "
-                "       net_income_yoy "
+                "       net_income_yoy, peg_ratio, peg_status, eps_ttm_yoy "
                 "FROM stock_meta WHERE ticker = ANY($1::text[])",
                 _all_meta_tickers,
             )
@@ -2930,6 +2973,7 @@ async def generate():
     <button class="tc-sort-chip active" data-sort="chg" type="button" onclick="tcSetSort('chg')">平均漲跌</button>
     <button class="tc-sort-chip" data-sort="bias" type="button" onclick="tcSetSort('bias')">平均乖離</button>
     <button class="tc-sort-chip" data-sort="pe" type="button" onclick="tcSetSort('pe')">平均 PE</button>
+    <button class="tc-sort-chip" data-sort="peg" type="button" onclick="tcSetSort('peg')">平均 PEG</button>
     <span class="tc-counter" id="tc-counter" aria-live="polite"></span>
     <button class="tc-close" type="button" aria-label="關閉"
             onclick="document.getElementById('theme-chart-dialog').close()">✕</button>

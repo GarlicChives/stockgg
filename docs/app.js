@@ -436,6 +436,7 @@ function _recalcClusters(level) {
       avgChg:   _mean(activeFocal.map(f => f.chg)),
       avgBias:  _mean(activeFocal.map(f => f.bias)),
       avgPe:    _mean(activeFocal.map(f => (f.pe != null && f.pe > 0) ? f.pe : null)),
+      avgPeg:   _mean(activeFocal.map(f => (f.peg != null && f.peg > 0) ? f.peg : null)),
     };
   });
 
@@ -448,6 +449,7 @@ function _recalcClusters(level) {
     chg:   { label: '平均漲跌', val: (s) => _fmtPct2(s.avgChg),                          cls: (s) => _pctCls(s.avgChg) },
     bias:  { label: '平均乖離', val: (s) => _fmtPct2(s.avgBias),                         cls: (s) => _pctCls(s.avgBias) },
     pe:    { label: '平均 PE',  val: (s) => s.avgPe == null ? '—' : s.avgPe.toFixed(1),  cls: (s) => 'neutral' },
+    peg:   { label: '平均 PEG', val: (s) => s.avgPeg == null ? '—' : s.avgPeg.toFixed(2), cls: (s) => 'neutral' },
   };
   const _sortKey = _getSortKey(level);
   const _sortDir = _getSortDir(level);
@@ -468,6 +470,7 @@ function _recalcClusters(level) {
     if (_sortKey === 'chg')   return s.avgChg;
     if (_sortKey === 'bias')  return s.avgBias;
     if (_sortKey === 'pe')    return s.avgPe;
+    if (_sortKey === 'peg')   return s.avgPeg;
     return s.activeTv;  // 'tv' default
   };
   const _dirMul = _sortDir === 'asc' ? -1 : 1;
@@ -1014,6 +1017,7 @@ function _tcSortedClusters(level) {
     if (_tcSort === 'chg')  return avg(foc, f => f.chg);
     if (_tcSort === 'bias') return avg(foc, f => f.bias);
     if (_tcSort === 'pe')   return avg(foc, f => (f.pe != null && f.pe > 0) ? f.pe : null);
+    if (_tcSort === 'peg')  return avg(foc, f => (f.peg != null && f.peg > 0) ? f.peg : null);
     return (c.baseTv != null) ? c.baseTv      // 'tv'
       : foc.reduce((s, f) => s + (f.tv || 0), 0);
   };

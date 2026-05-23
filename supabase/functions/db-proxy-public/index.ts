@@ -75,8 +75,11 @@ const ALLOWED: Set<string> = new Set([
 
   // Q12 — stock_meta 公司基本面快照(由 ingest 端 src/news/stock_meta.py
   // 週更新寫入)。一次查多檔焦點股的完整 metadata 供:加權指數計算、
-  // cluster PE/yield/beta 平均、pill 52w 位置%、modal 公司介紹 section
-  "select ticker, name_zh, name_en, sector, industry, description, website, employees, shares_outstanding, float_shares, market_cap, pe_ttm, pe_forward, pb, eps_ttm, eps_forward, book_value, dividend_yield, last_dividend, ex_dividend_date, week52_high, week52_low, beta, gross_margin, operating_margin, net_margin, margin_year_quarter, gross_margin_yoy_dir, operating_margin_yoy_dir, net_margin_yoy_dir, revenue_mom, revenue_yoy, revenue_month, revenue_yoy_3m_all_positive, gross_profit_yoy, operating_income_yoy, pretax_income_yoy, net_income_yoy from stock_meta where ticker = any($1::text[])",
+  // cluster PE / PEG / yield / beta 平均、pill 52w 位置%、modal 公司介紹 section。
+  // 2026-05-23 加 peg_ratio / peg_status / eps_ttm_yoy(ingest c24faee):PEG
+  // 本益成長比顯示於「熱門題材」cluster 卡與「選股雷達」表;status 用來區隔
+  // ok_ttm / ok_q / eps_declining / low_growth / insufficient_history。
+  "select ticker, name_zh, name_en, sector, industry, description, website, employees, shares_outstanding, float_shares, market_cap, pe_ttm, pe_forward, pb, eps_ttm, eps_forward, book_value, dividend_yield, last_dividend, ex_dividend_date, week52_high, week52_low, beta, gross_margin, operating_margin, net_margin, margin_year_quarter, gross_margin_yoy_dir, operating_margin_yoy_dir, net_margin_yoy_dir, revenue_mom, revenue_yoy, revenue_month, revenue_yoy_3m_all_positive, gross_profit_yoy, operating_income_yoy, pretax_income_yoy, net_income_yoy, peg_ratio, peg_status, eps_ttm_yoy from stock_meta where ticker = any($1::text[])",
 
   // Q13 — ticker_close_history 過去 400 天 daily close + shares_outstanding + high。
   // 公開站 cluster chart modal 加權指數計算的「真資料源」(替代 focal_breakdown
