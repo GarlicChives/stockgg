@@ -1277,12 +1277,12 @@ def _is_growth_meta(meta: dict) -> bool:
 
 def _was_intersect_stock(hist: list[dict], meta: dict, as_of_date: str) -> bool:
     """某焦點股在 as_of_date(交易日)是否入選「交集股」= 站上季線且符合
-    ≥ 2 條件(出量 / 潛力 / 新高 / 成長)。供潛力股 condition B 的「前一
+    ≥ 2 條件(出量 / 潛力 / 新高 / 成長)。供潛力股 condition C 的「前一
     交易日入選交集股」判定。條件以 ticker_close_full 歷史 + stock_meta 快照
-    重算(成長條件無逐日歷史 → 用現有快照近似);潛力用基礎定義
-    (MA10 > MA20 且 close < MA20×1.15),不含 condition B 本身 —— 交集股的
-    潛力必來自 focal 股,而 B 股恆為前哨且 matched 只記「潛力」一項 → 永不
-    入交集股,故此處 A-only 即精確、無遞迴。"""
+    重算(成長條件無逐日歷史 → 用現有快照近似);潛力用 A 或 B(C 恆為前哨
+    且 matched 只記「潛力」→ 永不入交集股,故 A/B-only 即精確、無遞迴)。
+    籌碼條件 (chip_signals) 不重算 → 此處不含 chip → 是 actual intersect 的
+    下界 (under-estimate;一個 ticker 只靠 chip 跨 ≥2 的會被漏掉)。"""
     if not hist or not as_of_date:
         return False
     rows = [h for h in hist if h.get("d") and h["d"] <= as_of_date]
@@ -1296,15 +1296,28 @@ def _was_intersect_stock(hist: list[dict], meta: dict, as_of_date: str) -> bool:
     ma60 = sum(closes[-60:]) / 60
     if not day_close > ma60:
         return False  # 全域季線過濾
+    ma5  = sum(closes[-5:])  / 5
     ma10 = sum(closes[-10:]) / 10
     ma20 = sum(closes[-20:]) / 20
     prev = [h for h in rows if h["d"] != as_of_date and h.get("c") and h.get("v")]
-    prev5 = prev[-5:]
+    prev5, prev30 = prev[-5:], prev[-30:]
     avg5_tv = (sum(h["c"] * h["v"] for h in prev5) / 5) if len(prev5) == 5 else None
+    avg30_tv = (sum(h["c"] * h["v"] for h in prev30) / 30) if len(prev30) == 30 else None
     day_tv = day_close * day_row["v"] if day_row.get("v") else None
     vol_mult = (day_tv / avg5_tv) if (day_tv and avg5_tv) else None
     is_volume = bool(vol_mult and vol_mult > 3)
-    is_potential = bool(ma10 > ma20 and day_close < ma20 * 1.15)
+    # 潛力 A:MA5 > MA10 > MA20 且 close < MA20 × 1.15
+    is_potential_a = bool(ma5 > ma10 > ma20 and day_close < ma20 * 1.15)
+    # 潛力 B:三均線糾結 + close > all MAs 但距離不太遠 + 近 5 日量 > 近 30 日 × 2
+    _ma_set = [ma5, ma10, ma20]
+    _ma_converged = ((max(_ma_set) - min(_ma_set)) / (sum(_ma_set) / 3)) < 0.025
+    is_potential_b = bool(
+        _ma_converged
+        and day_close > max(_ma_set)
+        and day_close <= ma20 * 1.05
+        and avg5_tv and avg30_tv and avg5_tv > avg30_tv * 2
+    )
+    is_potential = is_potential_a or is_potential_b
     # 新高:as_of_date 盤中高 ≥ 過去(不含當日)252 日盤中高;high NULL 安全
     day_high = day_row.get("high")
     past52_high = [h["high"] for h in rows
@@ -1394,9 +1407,11 @@ def build_focus_stock_page(
     3 sub-tab(順序:交集股 / 出量股 / 潛力股):
     - 交集股:同時符合 2 項(含)以上條件,依符合條件數 desc(同數量再月線乖離 desc);多「符合條件」欄
     - 出量股:今日成交金額 > 前 5 交易日均(不含今日)× 2,依出量倍數 desc
-    - 潛力股:condition A(MA10 > MA20 且股價 < MA20×1.15)或 condition B
-      (前一交易日入選交集股、今日跌逾 3.5% 且成交金額萎縮至前一交易日 ¼
-      以下);B 股恆為前哨股,依月線乖離 desc
+    - 潛力股:condition A(多頭排列:MA5 > MA10 > MA20 且股價 < MA20×1.15)
+      或 condition B(糾結突破:三均線糾結 + 股價站上所有均線但距離不太遠 +
+      近 5 日量 > 近 30 日 × 2)或 condition C(回踩股:前一交易日入選交集股、
+      今日跌逾 3.5% 但仍高於月線、且成交金額萎縮至前一交易日 ¼ 以下);
+      C 股恆為前哨股,依月線乖離 desc
     全欄位 client-side 可點擊排序(ASC/DESC toggle)。
     """
     # focal = 焦點股(走 condition A + 全部條件);sentinel = 前哨股(今日跌
@@ -1436,9 +1451,11 @@ def build_focus_stock_page(
         hist = ticker_close_full.get(tk, [])  # date asc
         prev = [h for h in hist
                 if h.get("d") != today_str and h.get("c") and h.get("v")]
-        prev5 = prev[-5:]
+        prev5, prev30 = prev[-5:], prev[-30:]
         avg5_tv = (sum(h["c"] * h["v"] for h in prev5) / 5) if len(prev5) == 5 else None
+        avg30_tv = (sum(h["c"] * h["v"] for h in prev30) / 30) if len(prev30) == 30 else None
         closes = [h["c"] for h in hist if h.get("c") is not None]
+        ma5  = sum(closes[-5:])  / 5  if len(closes) >= 5  else None
         ma10 = sum(closes[-10:]) / 10 if len(closes) >= 10 else None
         ma20 = sum(closes[-20:]) / 20 if len(closes) >= 20 else None
         ma60 = sum(closes[-60:]) / 60 if len(closes) >= 60 else None
@@ -1452,20 +1469,40 @@ def build_focus_stock_page(
             continue
 
         meta = stock_meta.get(tk, {})
-        # 潛力 condition A:MA10 > MA20 且 股價 < MA20 × 1.15
+        # 潛力 condition A(多頭排列):MA5 > MA10 > MA20,且股價未脫離月線
+        # (close < MA20 × 1.15)。
         is_potential_a = bool(
-            ma10 and ma20 and today_close
-            and ma10 > ma20
+            ma5 and ma10 and ma20 and today_close
+            and ma5 > ma10 > ma20
             and today_close < ma20 * 1.15
         )
-        # 潛力 condition B(回踩股):前一交易日入選交集股、今日跌逾 3.5%、
-        # 今日成交金額萎縮至前一交易日的 1/4 以下。B 股恆為前哨(跌 > 3.5%
-        # → chg ≤ -3 → sentinel),故只在 sentinel 分支生效。前一交易日成交
-        # 金額 = 該股最近一筆非今日歷史的 close × volume。
-        yest_tv = (prev[-1]["c"] * prev[-1]["v"]) if prev else None
+        # 潛力 condition B(均線糾結突破):MA5 / MA10 / MA20 三線糾結
+        # (max-min 相對均值 < 2.5%) + 股價站上所有均線但距離不太遠
+        # (close ≤ MA20 × 1.05) + 近 5 日均成交金額 > 近 30 日均 × 2
+        # (吸籌啟動 setup)。
+        _MA_CONVERGE_PCT = 0.025
+        _CLOSE_TIGHT_RATIO = 1.05
+        _VOL_HEATING_MULT = 2
+        _ma_set = [m for m in (ma5, ma10, ma20) if m is not None]
+        _ma_converged = (
+            len(_ma_set) == 3
+            and ((max(_ma_set) - min(_ma_set)) / (sum(_ma_set) / 3)) < _MA_CONVERGE_PCT
+        )
         is_potential_b = bool(
+            _ma_converged and today_close
+            and today_close > max(_ma_set)
+            and today_close <= ma20 * _CLOSE_TIGHT_RATIO
+            and avg5_tv and avg30_tv and avg5_tv > avg30_tv * _VOL_HEATING_MULT
+        )
+        # 潛力 condition C(回踩股):前一交易日入選交集股、今日跌逾 3.5%、
+        # 仍高於月線(close > MA20)、且成交金額萎縮至前一交易日的 1/4 以下。
+        # C 股恆為前哨(跌 > 3.5% → chg ≤ -3 → sentinel),故只在 sentinel
+        # 分支生效。前一交易日成交金額 = 該股最近一筆非今日歷史的 close × volume。
+        yest_tv = (prev[-1]["c"] * prev[-1]["v"]) if prev else None
+        is_potential_c = bool(
             tk in yest_intersect_set
             and today_chg is not None and today_chg < -3.5
+            and today_close and ma20 and today_close > ma20
             and today_tv and yest_tv and today_tv < yest_tv * 0.25
         )
 
@@ -1478,12 +1515,14 @@ def build_focus_stock_page(
         chip_big_chg = _chip.get("big_chg") if _chip else None
 
         if is_sentinel:
-            # 前哨股只走 condition B,不符即不列入
-            if not is_potential_b:
+            # 前哨股只走 condition C(回踩股),不符即不列入
+            if not is_potential_c:
                 continue
             is_potential = True
             is_volume = is_new_high = is_growth = is_chip = False
         else:
+            # focal 走 A(多頭排列)或 B(糾結突破);C 需今日跌 > 3.5% 必為
+            # sentinel,focal 不會撞到。
             is_potential = is_potential_a or is_potential_b
             # 條件判定(未來新增條件 → 加 is_xxx + matched.append)
             is_volume = bool(vol_mult and vol_mult > 3)
@@ -1801,9 +1840,11 @@ def build_focus_stock_page(
                      volume_stocks)
         + vol_html + '</div>'
         + '<div class="fs-tab-pane" id="fstab-pot">'
-        + _pane_head('十日均價 &gt; 月均價且股價低於月均價 1.15 倍,或前一交易日入選'
-                     '交集股、今日跌逾 3.5% 且成交金額萎縮至前一交易日 ¼ 以下,'
-                     '依月線乖離率排序。',
+        + _pane_head('五日均價 &gt; 十日均價 &gt; 月均價,且股價低於月均價 1.15 倍;'
+                     '或五日 / 十日 / 月均線糾結、股價站上所有均線但距離不太遠、'
+                     '近 5 日均成交金額 &gt; 近 30 日均 × 2;或前一交易日入選交集股、'
+                     '今日跌逾 3.5% 但仍高於月線、且成交金額萎縮至前一交易日 ¼ '
+                     '以下。依月線乖離率排序。',
                      potential_stocks)
         + pot_html + '</div>'
         + '<div class="fs-tab-pane" id="fstab-nh">'

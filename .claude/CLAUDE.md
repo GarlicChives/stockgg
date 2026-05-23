@@ -71,6 +71,11 @@ Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
   - chart modal:左欄 ticker 列表 (vertical, by tv desc, 可 disable),右欄兩 chart 對齊(共用 priceScale minimumWidth) + 雙向 crosshair sync + 開啟動畫 + 三大法人 daily/cumulative 切換
   - chart modal 排序長條(`.tc-topbar`):排序 chip 左緣靠 `padding-left:56px`(= `.tc-nav` 寬)切齊中段 `.tc-panel`;chip 右側 `#tc-counter` 顯題材編號 `N/total`(N = `_tcSortedClusters` 位次,同左右導覽順序;`_tcUpdateCounter` 在 `_renderThemeChart` 內更新);關閉 X 在長條右端(`.tc-close` `margin-left:auto`,非 `.tc-hdr`)
   - 個股 modal(持股主動式 ETF 表)、CSV 下載、site search、share button
+- **潛力股**(選股雷達 sub-tab,2026-05-23 更新)三條件 OR(均過全站季線 gate):
+  - A(多頭排列):MA5 > MA10 > MA20 且 close < MA20 × 1.15
+  - B(糾結突破):MA5/10/20 三線糾結((max-min)/mean < 2.5%) + close > all MAs + close ≤ MA20 × 1.05 + 近 5 日均成交金額 > 近 30 日均 × 2
+  - C(回踩股,sentinel-only):前一交易日入選交集股 + 今日跌 > 3.5% + 仍高於月線(close > MA20) + 今日成交金額 < 前一交易日 × 0.25
+  - `_was_intersect_stock`(計算「前一交易日入選交集股」名單)同步用新 A or B(不含 C,C 恆 sentinel)且不含 chip → 是 actual intersect 的下界
 - **chip 系統**(2026-05-18 ingest 5a172be 起):
   - `.sp-tag.tag-strict` 嚴處 紅底(`punish_type='strict'`)
   - `.sp-tag.tag-punish` 處 橘底(`punish_type='normal'`)
