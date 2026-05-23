@@ -664,6 +664,12 @@ def _industry_section_html(
             "memberKeys": member_keys,
             "name": c.name,
             "focal": [_focal_entry(s) for s in c.focal],
+            # sentinel(2026-05-24 起進 modal):同題材內今日 chg < -3 的成員。
+            # modal 端 ticker 列表 + 加權指數 + 三大法人計算皆納入 sentinel,
+            # 讓 user 看見題材完整面貌(原本只顯 focal,sentinel 只在卡片
+            # 「前哨」toggle 摺疊區段,modal 不可見)。cluster 頁卡片 metric
+            # 仍維持 focal-only(代表題材「熱度」基線)。
+            "sentinel": [_focal_entry(s) for s in (getattr(c, "sentinel", None) or [])],
             "baseTv": c.trading_value,
         })
 
@@ -1378,10 +1384,13 @@ async def _compute_yesterday_intersect(
             }
 
         yest_clusters = detect_focus_clusters(yest_seeds, yest_members)
-        yest_focal = {s.ticker for c in yest_clusters for s in c.focal}
+        # 2026-05-24 起昨日 intersect 也納入 sentinel(對齊新設計:sentinel
+        # 等同評估全條件)。一檔昨日跌但符合 ≥2 條件的也是昨日交集股。
+        yest_all = {s.ticker for c in yest_clusters
+                    for s in list(c.focal) + list(getattr(c, 'sentinel', None) or [])}
 
         result: set[str] = set()
-        for tk in yest_focal:
+        for tk in yest_all:
             hist = ticker_close_full.get(tk)
             if hist and _was_intersect_stock(hist, stock_meta.get(tk, {}),
                                              prev_trading_day):
@@ -1434,9 +1443,10 @@ def build_focus_stock_page(
         except (TypeError, ValueError):
             return None
 
-    # per-ticker 計算 + condition 判定。focal 走全部條件;sentinel(前哨股)
-    # 只評估潛力股 condition B,其餘條件強制 False(避免下跌股污染出量 /
-    # 新高 / 成長 / 交集 sub-tab)。
+    # per-ticker 計算 + condition 判定。focal 與 sentinel(前哨股)2026-05-24
+    # 起一視同仁,等同評估全部條件(原本 sentinel 只限 potential C → 下跌股
+    # 被排除在出量 / 新高 / 成長 / 籌碼 / 交集股之外;改為一致 → 下跌股的
+    # 法人進場 / 成長 YoY / 等訊號也能進選股雷達)。
     cands: list[dict] = []
     # 籌碼股:散戶 / 大戶持股比「週減」的零界噪音緩衝(個百分點)。TDCC 集保
     # 級距金額換算的週變化有 ±0.1~0.3pp bucketing 噪音 → 週減須逾此值才認列。
@@ -1496,8 +1506,8 @@ def build_focus_stock_page(
         )
         # 潛力 condition C(回踩股):前一交易日入選交集股、今日跌逾 3.5%、
         # 仍高於月線(close > MA20)、且成交金額萎縮至前一交易日的 1/4 以下。
-        # C 股恆為前哨(跌 > 3.5% → chg ≤ -3 → sentinel),故只在 sentinel
-        # 分支生效。前一交易日成交金額 = 該股最近一筆非今日歷史的 close × volume。
+        # C 條件 chg < -3.5 自然只對 sentinel(focal chg > -3)發生;前一交易日
+        # 成交金額 = 該股最近一筆非今日歷史的 close × volume。
         yest_tv = (prev[-1]["c"] * prev[-1]["v"]) if prev else None
         is_potential_c = bool(
             tk in yest_intersect_set
@@ -1514,51 +1524,42 @@ def build_focus_stock_page(
         chip_retail_chg = _chip.get("retail_chg") if _chip else None
         chip_big_chg = _chip.get("big_chg") if _chip else None
 
-        if is_sentinel:
-            # 前哨股只走 condition C(回踩股),不符即不列入
-            if not is_potential_c:
-                continue
-            is_potential = True
-            is_volume = is_new_high = is_growth = is_chip = False
+        # 潛力:A 多頭排列 OR B 糾結突破 OR C 回踩股。C 自然只對 sentinel 發生。
+        is_potential = is_potential_a or is_potential_b or is_potential_c
+        is_volume = bool(vol_mult and vol_mult > 3)
+        # 新高股:今日盤中觸及 52 週(~252 交易日)新高 — 今日盤中最高價
+        # ≥ 過去 52 週(不含今日)最高盤中價。今日盤中高來自 trading_rankings
+        # (stocks_info.high),baseline 來自 ticker_close_history.high。
+        # high 缺值的列不計入(NULL 安全);歷史不足 252 筆則用掛牌以來最高。
+        today_high = _f(info.get("high"))
+        _past52_high = [h["high"] for h in hist
+                        if h.get("d") != today_str and h.get("high") is not None][-252:]
+        is_new_high = bool(today_high and _past52_high
+                           and today_high >= max(_past52_high))
+        # 成長股:月營收連 3 月 + 近一季 4 損益科目金額 YoY 皆 > 0
+        is_growth = _is_growth_meta(meta)
+        # 籌碼股(對齊附件三區;主力 / 前十大券商 4 條因 TWSE 付費券商
+        # 分點資料無免費來源,捨棄):
+        #   第1區(必須):散戶賣超 = 散戶持股比週減 > 0.3pp
+        #   第2區(≥1):投信買超 ΣT3≥5%量 / 外資買超 ΣF3≥10%量 /
+        #               大戶持股比週增 ≥1.5(大戶 = 持股 ≥5000萬;此即
+        #               「籌碼鎖定率」—— 大戶吸籌)
+        #   第3區(皆不可):外資賣超≤-10%量 / 投信賣超≤-5%量 /
+        #               大戶持股比週減 > 0.3pp
+        # 散戶 / 大戶週減用 _HOLDER_NOISE(0.3pp)緩衝濾 TDCC bucketing
+        # 噪音;原第3區「散戶買超」排除已移除 —— 第1區強制散戶週減,該
+        # 排除恆 false(死條件,2026-05-22 移除)。
+        if _chip is None:
+            is_chip = False
         else:
-            # focal 走 A(多頭排列)或 B(糾結突破);C 需今日跌 > 3.5% 必為
-            # sentinel,focal 不會撞到。
-            is_potential = is_potential_a or is_potential_b
-            # 條件判定(未來新增條件 → 加 is_xxx + matched.append)
-            is_volume = bool(vol_mult and vol_mult > 3)
-            # 新高股:今日盤中觸及 52 週(~252 交易日)新高 — 今日盤中最高價
-            # ≥ 過去 52 週(不含今日)最高盤中價。今日盤中高來自 trading_rankings
-            # (stocks_info.high),baseline 來自 ticker_close_history.high。
-            # high 缺值的列不計入(NULL 安全);歷史不足 252 筆則用掛牌以來最高。
-            today_high = _f(info.get("high"))
-            _past52_high = [h["high"] for h in hist
-                            if h.get("d") != today_str and h.get("high") is not None][-252:]
-            is_new_high = bool(today_high and _past52_high
-                               and today_high >= max(_past52_high))
-            # 成長股:月營收連 3 月 + 近一季 4 損益科目金額 YoY 皆 > 0
-            is_growth = _is_growth_meta(meta)
-            # 籌碼股(對齊附件三區;主力 / 前十大券商 4 條因 TWSE 付費券商
-            # 分點資料無免費來源,捨棄):
-            #   第1區(必須):散戶賣超 = 散戶持股比週減 > 0.3pp
-            #   第2區(≥1):投信買超 ΣT3≥5%量 / 外資買超 ΣF3≥10%量 /
-            #               大戶持股比週增 ≥1.5(大戶 = 持股 ≥5000萬;此即
-            #               「籌碼鎖定率」—— 大戶吸籌)
-            #   第3區(皆不可):外資賣超≤-10%量 / 投信賣超≤-5%量 /
-            #               大戶持股比週減 > 0.3pp
-            # 散戶 / 大戶週減用 _HOLDER_NOISE(0.3pp)緩衝濾 TDCC bucketing
-            # 噪音;原第3區「散戶買超」排除已移除 —— 第1區強制散戶週減,該
-            # 排除恆 false(死條件,2026-05-22 移除)。
-            if _chip is None:
-                is_chip = False
-            else:
-                _r1 = (chip_retail_chg is not None
-                       and chip_retail_chg < -_HOLDER_NOISE)
-                _r2 = (chip_t3_pct >= 0.05 or chip_f3_pct >= 0.10
-                       or (chip_big_chg is not None and chip_big_chg >= 1.5))
-                _r3 = (chip_f3_pct <= -0.10 or chip_t3_pct <= -0.05
-                       or (chip_big_chg is not None
-                           and chip_big_chg < -_HOLDER_NOISE))
-                is_chip = bool(_r1 and _r2 and not _r3)
+            _r1 = (chip_retail_chg is not None
+                   and chip_retail_chg < -_HOLDER_NOISE)
+            _r2 = (chip_t3_pct >= 0.05 or chip_f3_pct >= 0.10
+                   or (chip_big_chg is not None and chip_big_chg >= 1.5))
+            _r3 = (chip_f3_pct <= -0.10 or chip_t3_pct <= -0.05
+                   or (chip_big_chg is not None
+                       and chip_big_chg < -_HOLDER_NOISE))
+            is_chip = bool(_r1 and _r2 and not _r3)
 
         matched: list[str] = []
         if is_volume:

@@ -84,6 +84,9 @@ Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
   - 共用 `_flag_chips(info)` helper,_stk_pill + rank_rows_html 都用
 - **rank=NULL handling**:special row(rank=NULL,extra.is_special=true)在 ranking table 顯「—」+ chip
 - **前哨 section**(hl_sub cluster 才有,2026-05-19 v2 規格):由 `detect_focus_clusters` 提供 `cluster.sentinel`(題材成員 today 交易者依 `FOCUS_SENTINEL_THRESHOLD` (-3%) 切;chg > -3 入 focal、< 入 sentinel)。chip 用 `_stk_pill` 顯漲跌%(跟 focal pill 同樣式,加 `data-sentinel="1"` 區隔)。inline toggle button 在 focal pills 末段,點開後 panel max-height + opacity 動畫展開(`.cluster-sentinel-stocks[hidden]` 配 `toggleSentinelInline()`)。**舊版**(theme_dictionary 內該 sub 的完整 ticker list 扣 focal、顯 PE)保留為其他 level 的 fallback path(目前無實際使用,純粹兼容)
+- **sentinel 一視同仁**(2026-05-24 起):兩處改一致對待:
+  - **Modal**:`cluster_json` 加 `sentinel` 欄,app.js `_renderTickerChips` ticker 列表 + `_computeClusterSeries`(加權指數 + 三大法人)+ `_tcSortedClusters`(modal nav metric)全納入 sentinel。`baseTv` 仍 focal-only(題材「熱度」基線,cluster 頁外層 TV sort 用)。
+  - **選股雷達**:`build_focus_stock_page` 拿掉 sentinel-only-C 分支,sentinel 與 focal 同走全條件(出量 / 新高 / 成長 / 籌碼 / 潛力 A/B/C)。`_compute_yesterday_intersect` 也納入昨日 sentinel。原本「避免下跌股污染」的保守設計改為「下跌股的法人進場 / 成長 YoY 等訊號也值得列入」。
 
 ## 本地操作
 

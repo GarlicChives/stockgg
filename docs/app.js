@@ -611,19 +611,24 @@ function _findClusterDef(cardId) {
  *     缺的日子用該檔上一次有資料的 close × shares 延續,標準加權指數做法)
  *     之後 _rebaseSeries 把它 rebase 到 100。
  * payload 5-tuple [tv, chg, close, net_inst, shares_out]
- * 鎖定今天的 cluster.focal ticker set,**同時套 _univDis(外層) + _modalTickerDis(modal 內)** 過濾。 */
+ * 鎖定今天的 cluster.focal + cluster.sentinel ticker set(2026-05-24 起 sentinel
+ * 也納入計算),**同時套 _univDis(外層) + _modalTickerDis(modal 內)** 過濾。 */
 function _computeClusterSeries(cluster) {
   const hist = window.IIA_HISTORY || {};
   const tch  = window.IIA_TICKER_CLOSE || {};       // Q13:per-ticker 400 天 close+shares
   const tnet = window.IIA_TICKER_NET_INST || {};    // per-ticker daily net_inst(跨 main 索引)
   const keys = cluster.memberKeys || [];
-  const todayFocals = [...new Set((cluster.focal || []).map(f => f.ticker))]
-    .filter(t => !_univDis.has(t) && !_modalTickerDis.has(t));
+  // 2026-05-24 起 modal 圖表(加權指數 + 三大法人)計算納入 sentinel,讓
+  // 題材完整面貌可見;原本只取 cluster.focal,sentinel 不進 modal 計算。
+  const todayMembers = [...new Set([
+    ...(cluster.focal || []).map(f => f.ticker),
+    ...(cluster.sentinel || []).map(f => f.ticker),
+  ])].filter(t => !_univDis.has(t) && !_modalTickerDis.has(t));
 
   // 收集所有出現過的 dates(ticker_close ∪ ticker_net_inst ∪ theme_history)
   const dateSet = new Set();
-  todayFocals.forEach(t => (tch[t] || []).forEach(p => dateSet.add(p.d)));
-  todayFocals.forEach(t => Object.keys(tnet[t] || {}).forEach(d => dateSet.add(d)));
+  todayMembers.forEach(t => (tch[t] || []).forEach(p => dateSet.add(p.d)));
+  todayMembers.forEach(t => Object.keys(tnet[t] || {}).forEach(d => dateSet.add(d)));
   keys.forEach(k => (hist[k] || []).forEach(row => dateSet.add(row.d)));
   const dates = [...dateSet].sort();
   if (!dates.length) return { netSeries: [], priceSeries: [] };
@@ -633,7 +638,7 @@ function _computeClusterSeries(cluster) {
   //   ticker_net_inst[ticker][date] = net_shares ← 跨 main 反向索引,hl_sub 也能拿
   //   hist[key].s[ticker] = [tv,chg,close,net,shares] ← 舊路徑當 fallback
   const raw = {};   // ticker -> {date -> {close, shares, net}}
-  todayFocals.forEach(t => {
+  todayMembers.forEach(t => {
     raw[t] = {};
     // 1) ticker_close 的 close+shares
     (tch[t] || []).forEach(p => {
@@ -660,7 +665,7 @@ function _computeClusterSeries(cluster) {
 
   // per-ticker forward-fill close/shares (net 不 fill,法人買賣超是 daily transaction)
   const filled = {};
-  todayFocals.forEach(t => {
+  todayMembers.forEach(t => {
     filled[t] = {};
     let lastClose = null, lastShares = null;
     dates.forEach(d => {
@@ -678,7 +683,7 @@ function _computeClusterSeries(cluster) {
   const priceSeries = [];
   dates.forEach(d => {
     let mcap = 0, net = 0;
-    todayFocals.forEach(t => {
+    todayMembers.forEach(t => {
       const f = filled[t][d];
       if (f) mcap += f.close * f.shares;
       const r = raw[t][d];
@@ -765,10 +770,13 @@ function _dispTk(t) {
 function _renderTickerChips(cluster) {
   const box = document.getElementById('tc-ticker-chips');
   if (!box) return;
-  // 左欄垂直列表依當日成交金額 desc 排序(常用焦點靠上,長尾擠下方)
-  const focals = (cluster.focal || []).filter(f => !_univDis.has(f.ticker))
+  // 左欄垂直列表 = focal + sentinel(2026-05-24 起);依當日成交金額 desc 排序。
+  // sentinel = 同題材今日 chg<-3 的成員,原本只在熱門題材卡的「前哨」摺疊區,
+  // 不進 modal;改為一併納入(modal 圖表計算也含 sentinel,見 _computeClusterSeries)。
+  const members = [...(cluster.focal || []), ...(cluster.sentinel || [])]
+    .filter(f => !_univDis.has(f.ticker))
     .slice().sort((a, b) => (b.tv || 0) - (a.tv || 0));
-  box.innerHTML = focals.map(f => {
+  box.innerHTML = members.map(f => {
     const dis = _modalTickerDis.has(f.ticker) ? ' is-dis' : '';
     const pct = _fmtPctJs(f.chg);
     let quote;
@@ -1003,23 +1011,25 @@ function openThemeChart(cardId) {
 }
 
 /* _tcSortedClusters: 回傳 IIA_CLUSTERS[level] 依 modal 排序 _tcSort「由高至低」
- * 排序後的陣列。指標由 cluster.focal 聚合(tv 用 baseTv;chg/bias/pe 取焦點股
- * 簡單平均,pe skip ≤0)。modal 左右導覽順序即用此 —— 與外層頁面排序無關。 */
+ * 排序後的陣列。指標由 cluster.focal + cluster.sentinel 聚合(2026-05-24 起
+ * sentinel 也納入計算)。tv 用 baseTv(focal-only,維持題材「熱度」基線);
+ * chg/bias/pe/peg 用 focal+sentinel 平均。modal 左右導覽順序即用此 —— 與外層
+ * 頁面排序無關。 */
 function _tcSortedClusters(level) {
   const arr = ((window.IIA_CLUSTERS || {})[level] || []).slice();
-  const avg = (foc, sel) => {
-    const v = foc.map(sel).filter(x => x != null);
+  const avg = (members, sel) => {
+    const v = members.map(sel).filter(x => x != null);
     return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null;
   };
   const metric = (c) => {
-    const foc = c.focal || [];
-    if (!foc.length) return null;
-    if (_tcSort === 'chg')  return avg(foc, f => f.chg);
-    if (_tcSort === 'bias') return avg(foc, f => f.bias);
-    if (_tcSort === 'pe')   return avg(foc, f => (f.pe != null && f.pe > 0) ? f.pe : null);
-    if (_tcSort === 'peg')  return avg(foc, f => (f.peg != null && f.peg > 0) ? f.peg : null);
+    const all = [...(c.focal || []), ...(c.sentinel || [])];
+    if (!all.length) return null;
+    if (_tcSort === 'chg')  return avg(all, f => f.chg);
+    if (_tcSort === 'bias') return avg(all, f => f.bias);
+    if (_tcSort === 'pe')   return avg(all, f => (f.pe != null && f.pe > 0) ? f.pe : null);
+    if (_tcSort === 'peg')  return avg(all, f => (f.peg != null && f.peg > 0) ? f.peg : null);
     return (c.baseTv != null) ? c.baseTv      // 'tv'
-      : foc.reduce((s, f) => s + (f.tv || 0), 0);
+      : all.reduce((s, f) => s + (f.tv || 0), 0);
   };
   return arr.sort((a, b) => {
     const va = metric(a), vb = metric(b);
