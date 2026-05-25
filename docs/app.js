@@ -147,8 +147,8 @@ function _renderArtModalBody(ticker, name) {
       '<div class="art-kline-period">' +
         '<button class="art-kline-chip" data-period="1m" type="button" onclick="setKlinePeriod(\'1m\')">1M</button>' +
         '<button class="art-kline-chip" data-period="3m" type="button" onclick="setKlinePeriod(\'3m\')">3M</button>' +
-        '<button class="art-kline-chip active" data-period="6m" type="button" onclick="setKlinePeriod(\'6m\')">6M</button>' +
-        '<button class="art-kline-chip" data-period="1y" type="button" onclick="setKlinePeriod(\'1y\')">1Y</button>' +
+        '<button class="art-kline-chip" data-period="6m" type="button" onclick="setKlinePeriod(\'6m\')">6M</button>' +
+        '<button class="art-kline-chip active" data-period="1y" type="button" onclick="setKlinePeriod(\'1y\')">1Y</button>' +
       '</div>' +
       '<div class="art-kline-chart" id="art-kline-chart"></div>' +
       '<div class="art-kline-empty" id="art-kline-empty" style="display:none">載入 K 線中…</div>' +
@@ -195,7 +195,7 @@ let _klinePeriod = '6m';
 const _KLINE_PERIOD_DAYS = { '1m': 30, '3m': 90, '6m': 180, '1y': 365, '2y': 730 };
 
 function _loadStockKline(ticker) {
-  _klinePeriod = '6m';  // 每次開/切換 ticker 重置預設
+  _klinePeriod = '1y';  // 每次開/切換 ticker 重置預設(2026-05-25 從 6m 改 1y)
   // 切換 ticker 必須先 dispose 上一檔 chart,避免新 ticker render 時舊 chart 還在
   if (_klineChart) {
     try { _klineChart.remove(); } catch (e) {}
@@ -1244,13 +1244,17 @@ function toggleIndexLine(key) {
 function openThemeByName(name) {
   const C = window.IIA_CLUSTERS || {};
   const cluster = (C.hl_sub || []).find(c => c.name === name);
-  if (cluster && cluster.cardId) openThemeChart(cluster.cardId);
+  // 選股雷達點 fs-theme-chip 走 minimal 模式 —— 不顯排序 chip / counter /
+  // 左右導覽(用戶要求 2026-05-25)。熱門題材 spark-btn 走預設(完整 UI)。
+  if (cluster && cluster.cardId) openThemeChart(cluster.cardId, { minimal: true });
 }
 
-function openThemeChart(cardId) {
+function openThemeChart(cardId, opts) {
+  opts = opts || {};
   _openThemeCardId = cardId;
   const dlg = document.getElementById('theme-chart-dialog');
   if (!dlg) return;
+  dlg.classList.toggle('tc-minimal', !!opts.minimal);
   // 首次開啟(dialog 尚未開)→ modal 排序預設 = 外層該 sub-tab 當前排序;
   // 之後 tcNavTheme / tcSetSort 在已開狀態重呼,不重設(modal 排序獨立)。
   // 已開啟時不可再 showModal(會丟 InvalidStateError)。
