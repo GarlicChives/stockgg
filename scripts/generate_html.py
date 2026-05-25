@@ -3120,6 +3120,7 @@ async def generate():
               title="加權指數計算法&#10;1. 每檔焦點股當日市值 = 收盤價 × 流通在外股數&#10;2. cluster daily mcap = Σ 全部焦點股當日市值;某檔某日缺資料時用該檔最後一次有資料的 close × shares 延續(per-ticker forward-fill,標準加權指數做法)&#10;3. 三條線(cluster / TWII / TPEX)同時 rebase 到 100(取三條共同起點當基準),純看相對強弱不看絕對水位&#10;4. cluster 線會依「焦點 chip 列表」即時重算">ⓘ</span>
         <span class="tc-legend">
           <button class="tc-leg-chip leg-cluster active" type="button" onclick="toggleIndexLine('cluster')"><span class="leg-sw"></span>焦點股</button>
+          <button class="tc-leg-chip leg-all" type="button" onclick="toggleIndexLine('all')" title="忽略左側 toggle、固定以全部標的計算的 baseline,比對手動篩選後的相對強弱"><span class="leg-sw"></span>全部標的</button>
           <button class="tc-leg-chip leg-twii active" type="button" onclick="toggleIndexLine('twii')"><span class="leg-sw"></span>大盤(TWII)</button>
           <button class="tc-leg-chip leg-tpex active" type="button" onclick="toggleIndexLine('tpex')"><span class="leg-sw"></span>櫃買(TPEX)</button>
         </span>

@@ -836,7 +836,7 @@ let _openThemeCardId = null;       // 目前打開的 cluster cardId(null = 關)
 let _tcSort = 'chg';               // chart modal 自己的排序 key(獨立於外層頁面)
 let _tcCharts = { net: null, price: null, netSeries: null,
                     clusterSeries: null, twiiSeries: null, tpexSeries: null };
-const _lineVis = { cluster: true, twii: true, tpex: true };
+const _lineVis = { cluster: true, twii: true, tpex: true, all: false };
 // 時間粒度('1m'/'3m'/'6m'/'1y'/'all'),預設 6m,點 chip 切換
 let _chartPeriod = '6m';
 const _PERIOD_DAYS = { '1m': 30, '3m': 90, '6m': 180, '1y': 365 };
@@ -901,7 +901,10 @@ function _findClusterDef(cardId) {
  * payload 5-tuple [tv, chg, close, net_inst, shares_out]
  * 鎖定今天的 cluster.focal + cluster.sentinel ticker set(2026-05-24 起 sentinel
  * 也納入計算),**同時套 _univDis(外層) + _modalTickerDis(modal 內)** 過濾。 */
-function _computeClusterSeries(cluster) {
+function _computeClusterSeries(cluster, opts) {
+  // opts.ignoreModalDis: 算「全部標的」baseline 用 —— 忽略 _modalTickerDis 內 ticker,
+  // 仍套 _univDis(外層概念股 disable 屬全域層級,不該被 modal 蓋掉)。
+  opts = opts || {};
   const hist = window.IIA_HISTORY || {};
   const tch  = window.IIA_TICKER_CLOSE || {};       // Q13:per-ticker 400 天 close+shares
   const tnet = window.IIA_TICKER_NET_INST || {};    // per-ticker daily net_inst(跨 main 索引)
@@ -911,7 +914,7 @@ function _computeClusterSeries(cluster) {
   const todayMembers = [...new Set([
     ...(cluster.focal || []).map(f => f.ticker),
     ...(cluster.sentinel || []).map(f => f.ticker),
-  ])].filter(t => !_univDis.has(t) && !_modalTickerDis.has(t));
+  ])].filter(t => !_univDis.has(t) && (opts.ignoreModalDis || !_modalTickerDis.has(t)));
 
   // 收集所有出現過的 dates(ticker_close ∪ ticker_net_inst ∪ theme_history)
   const dateSet = new Set();
@@ -1134,11 +1137,14 @@ function _renderThemeChart(cardId) {
   _renderTickerChips(cluster);
   document.getElementById('tc-title').textContent = '🔸 ' + cluster.name;
   let { netSeries, priceSeries } = _computeClusterSeries(cluster);
+  // baseline:忽略 _modalTickerDis,讓 user 對比手動 toggle 篩後 vs 全選的強弱
+  let { priceSeries: priceSeriesAll } = _computeClusterSeries(cluster, { ignoreModalDis: true });
   let twiiRaw = _computeIndexSeries('TWII');
   let tpexRaw = _computeIndexSeries('TPEX');
   // 按 _chartPeriod 截尾段(1M/3M/6M/1Y/ALL)
   netSeries = _filterByPeriod(netSeries);
   priceSeries = _filterByPeriod(priceSeries);
+  priceSeriesAll = _filterByPeriod(priceSeriesAll);
   twiiRaw = _filterByPeriod(twiiRaw);
   tpexRaw = _filterByPeriod(tpexRaw);
   // **關鍵**:四條線必須對齊到同一個 startDate,crosshair 垂直線才會在兩張
@@ -1192,6 +1198,13 @@ function _renderThemeChart(cardId) {
   _tcCharts.clusterSeries = _tcCharts.price.addLineSeries(lineOpts('#10b981'));
   _tcCharts.clusterSeries.setData(clusterRebased);
   _tcCharts.clusterSeries.applyOptions({ visible: _lineVis.cluster });
+  // 全部標的 baseline(忽略 modal 內 ticker toggle);虛線區隔
+  const clusterAllRebased = _rebaseSeries(priceSeriesAll, startDate);
+  _tcCharts.clusterAllSeries = _tcCharts.price.addLineSeries({
+    ...lineOpts('#a78bfa'), lineStyle: 2,   // 2 = dashed
+  });
+  _tcCharts.clusterAllSeries.setData(clusterAllRebased);
+  _tcCharts.clusterAllSeries.applyOptions({ visible: _lineVis.all });
   _tcCharts.twiiSeries = _tcCharts.price.addLineSeries(lineOpts('#f59e0b'));
   _tcCharts.twiiSeries.setData(twiiRebased);
   _tcCharts.twiiSeries.applyOptions({ visible: _lineVis.twii });
@@ -1247,7 +1260,11 @@ function _renderThemeChart(cardId) {
 
 function toggleIndexLine(key) {
   _lineVis[key] = !_lineVis[key];
-  const seriesKey = key === 'cluster' ? 'clusterSeries' : key === 'twii' ? 'twiiSeries' : 'tpexSeries';
+  const seriesKeyMap = {
+    cluster: 'clusterSeries', twii: 'twiiSeries',
+    tpex: 'tpexSeries', all: 'clusterAllSeries',
+  };
+  const seriesKey = seriesKeyMap[key];
   if (_tcCharts[seriesKey]) {
     _tcCharts[seriesKey].applyOptions({ visible: _lineVis[key] });
   }

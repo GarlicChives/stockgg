@@ -514,8 +514,11 @@ dialog#theme-chart-dialog::backdrop{background:rgba(0,0,0,.35)}
                       background:currentColor;border-radius:1px}
 .tc-leg-chip:hover{color:var(--text)}
 .tc-leg-chip.active.leg-cluster{color:#10b981}
+.tc-leg-chip.active.leg-all{color:#a78bfa}
 .tc-leg-chip.active.leg-twii{color:#f59e0b}
 .tc-leg-chip.active.leg-tpex{color:#94aef7}
+/* 全部標的 baseline 是虛線:legend chip sw 也對應顯虛線視覺 */
+.tc-leg-chip.leg-all .leg-sw{background:repeating-linear-gradient(90deg,currentColor 0 3px,transparent 3px 5px)}
 .tc-leg-chip:not(.active){opacity:.5;text-decoration:line-through}
 /* Modal 內可點擊 ticker pill:複用 .stk-pill 樣式,加 disable 視覺。
  * 在左欄垂直列表時 width:100%、內容 nowrap(中文不要破字)、
