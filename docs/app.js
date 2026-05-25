@@ -37,7 +37,74 @@ function showSubTab(name) {
    改為「持股主動式 ETF」表(server-side render 進 artModalData),前端不再
    需要客戶端雷達 SVG。 */
 
-function showArtModal(ticker, name) {
+/* 個股 modal 來源 scope:從 clicked element 找最近的 stk-pill 容器,
+   取其內所有 [onclick*="showArtModal"] 兄弟元素的 ticker 順序作為左右導覽
+   範圍。順序 = 該容器當下 DOM 順序 = 外層排序結果(focal pill setFocalSort
+   切換後 DOM 也重排,所以自動繼承)。 */
+let _artScope = [];       // ordered ticker list within source container
+let _artScopeIdx = -1;    // current index in _artScope
+let _artCurrentTicker = null;
+let _artCurrentName = '';
+
+const _ART_SCOPE_SELECTORS = [
+  '.cluster-focal-stocks',       // 熱門題材 cluster focal/sentinel pill
+  '.cluster-sentinel-stocks',    // 熱門題材 sentinel 展開區
+  '.tk-row',                     // 市場話題 / catalyst topic 內 ticker chips
+  '.aetf-hold-table tbody',      // 主動式 ETF 持股表
+  '.fs-list',                    // 選股雷達 list-style sub-tab
+  '.fs-table tbody',             // 選股雷達 table-style sub-tab(交集股等)
+  '.aetf-cp-row',                // ETF 異動列(若 stk-pill chip 在內)
+];
+
+function _detectArtScope(evt) {
+  if (!evt || !evt.currentTarget) return null;
+  for (const sel of _ART_SCOPE_SELECTORS) {
+    const container = evt.currentTarget.closest(sel);
+    if (container) return container;
+  }
+  return null;
+}
+
+function _extractTickerFromOnclick(el) {
+  const oc = el.getAttribute && el.getAttribute('onclick');
+  if (!oc) return null;
+  const m = oc.match(/showArtModal\(\s*"([^"]+)"\s*,\s*"((?:\\.|[^"\\])*)"/);
+  if (!m) return null;
+  // unescape \uXXXX 之類(name 內中文用 \uXXXX)
+  let name = '';
+  try { name = JSON.parse('"' + m[2] + '"'); } catch (e) { name = m[2]; }
+  return { ticker: m[1], name };
+}
+
+function showArtModal(ticker, name, evt) {
+  _artCurrentTicker = ticker;
+  _artCurrentName = name || '';
+  // 計算 scope:同 container 內所有 showArtModal 觸發點按 DOM 順序
+  const container = _detectArtScope(evt);
+  if (container) {
+    const pills = container.querySelectorAll('[onclick*="showArtModal"]');
+    _artScope = [];
+    pills.forEach(p => {
+      const info = _extractTickerFromOnclick(p);
+      if (info) _artScope.push(info);
+    });
+  } else {
+    _artScope = [{ ticker, name: _artCurrentName }];
+  }
+  // dedupe(同一 container 可能同 ticker 出現多次,如 ETF 持股表)
+  const seen = new Set();
+  _artScope = _artScope.filter(it => seen.has(it.ticker) ? false : (seen.add(it.ticker), true));
+  _artScopeIdx = _artScope.findIndex(it => it.ticker === ticker);
+  if (_artScopeIdx < 0) {
+    _artScope.unshift({ ticker, name: _artCurrentName });
+    _artScopeIdx = 0;
+  }
+  _renderArtModalBody(ticker, _artCurrentName);
+  document.getElementById('art-modal').showModal();
+}
+
+/* 重新渲染 modal body(切換 ticker 時 reuse,不關 modal)*/
+function _renderArtModalBody(ticker, name) {
   document.getElementById('modal-title').textContent = _dispTk(ticker) + ' ' + (name || '');
   const etfHtml = artModalData[ticker] || '<p style="color:#7a8ba0">本檔目前無主動 ETF 持有</p>';
   document.getElementById('modal-body').innerHTML = (
@@ -57,8 +124,37 @@ function showArtModal(ticker, name) {
       '<div class="art-kline-empty" id="art-kline-empty" style="display:none">載入 K 線中…</div>' +
     '</div>'
   );
-  document.getElementById('art-modal').showModal();
+  _updateArtCounter();
+  // K 線 lazy:不立即 render(預設 ETF tab 顯示,K 線在 hidden pane 內 render
+  // 寬度為 0 導致壓縮)。fetch data 先載,切到 K 線 tab 時才 render chart。
   _loadStockKline(ticker);
+}
+
+/* 更新 art-counter「N/total」+ disable 條件(只有 1 檔時兩箭頭都 disable)*/
+function _updateArtCounter() {
+  const counter = document.getElementById('art-counter');
+  if (counter) {
+    counter.textContent = _artScope.length
+      ? `${_artScopeIdx + 1}/${_artScope.length}`
+      : '';
+  }
+  const prev = document.getElementById('art-nav-prev');
+  const next = document.getElementById('art-nav-next');
+  if (prev) prev.disabled = _artScope.length < 2;
+  if (next) next.disabled = _artScope.length < 2;
+}
+
+/* 左右導覽:環狀切到 prev/next ticker(同 scope 內)*/
+function artNavTicker(dir) {
+  if (_artScope.length < 2) return;
+  const n = _artScope.length;
+  _artScopeIdx = dir === 'next'
+    ? (_artScopeIdx + 1) % n
+    : (_artScopeIdx - 1 + n) % n;
+  const cur = _artScope[_artScopeIdx];
+  _artCurrentTicker = cur.ticker;
+  _artCurrentName = cur.name;
+  _renderArtModalBody(cur.ticker, cur.name);
 }
 
 function setArtTab(name) {
@@ -69,9 +165,15 @@ function setArtTab(name) {
     if (match) p.removeAttribute('hidden');
     else p.setAttribute('hidden', '');
   });
-  // 切到 K 線 tab 後 chart 容器寬度可能才被瀏覽器算定,主動重排一次避免空白
-  if (name === 'kline' && _klineChart) {
-    try { _klineChart.timeScale().fitContent(); } catch (e) {}
+  // 切到 K 線 tab:lazy render —— hidden pane 內 chart container 寬度為 0,
+  // 必須等 tab 變 visible 後再建 chart(不然蠟燭被壓在右半邊)。
+  // 若 chart 已建好但被 hidden → 切回時主動 fitContent。
+  if (name === 'kline') {
+    if (!_klineChart && _klineData && _klineData.length) {
+      _renderStockKline();
+    } else if (_klineChart) {
+      try { _klineChart.timeScale().fitContent(); } catch (e) {}
+    }
   }
 }
 
@@ -83,7 +185,13 @@ let _klinePeriod = '6m';
 const _KLINE_PERIOD_DAYS = { '1m': 30, '3m': 90, '6m': 180, '1y': 365, '2y': 730 };
 
 function _loadStockKline(ticker) {
-  _klinePeriod = '6m';  // 每次開 modal 重置預設
+  _klinePeriod = '6m';  // 每次開/切換 ticker 重置預設
+  // 切換 ticker 必須先 dispose 上一檔 chart,避免新 ticker render 時舊 chart 還在
+  if (_klineChart) {
+    try { _klineChart.remove(); } catch (e) {}
+    _klineChart = null;
+  }
+  _klineData = null;
   document.querySelectorAll('.art-kline-chip').forEach(b =>
     b.classList.toggle('active', b.dataset.period === _klinePeriod));
   const empty = document.getElementById('art-kline-empty');
@@ -100,7 +208,12 @@ function _loadStockKline(ticker) {
       }
       if (empty) empty.style.display = 'none';
       if (chart) chart.style.display = '';
-      _renderStockKline();
+      // 只在 K 線 tab 已 visible 時 render;hidden pane 內 container 寬度為 0
+      // render 會被壓縮。切到 K 線 tab 時 setArtTab 會接手 render。
+      const pane = document.getElementById('art-pane-kline');
+      if (pane && !pane.hasAttribute('hidden')) {
+        _renderStockKline();
+      }
     })
     .catch(err => {
       console.error('kline load failed', err);
@@ -1286,12 +1399,16 @@ document.getElementById('art-modal').addEventListener('click', function(e) {
   if (e.target === this) this.close();
 });
 // modal 關閉時 dispose K 線 chart 釋放資源(lightweight-charts 物件不會自動 GC)
+// + 清 scope / 導覽 state
 document.getElementById('art-modal').addEventListener('close', () => {
   if (_klineChart) {
     try { _klineChart.remove(); } catch (e) {}
     _klineChart = null;
   }
   _klineData = null;
+  _artScope = [];
+  _artScopeIdx = -1;
+  _artCurrentTicker = null;
 });
 
 /* ── 分享報告 ─────────────────────────────────────────────────────────────── */

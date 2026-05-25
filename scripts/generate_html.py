@@ -221,7 +221,7 @@ def _stk_pill(ticker: str, stocks_info: dict, clickable: bool = True, extra_attr
     else:
         quote = pct_str
     name_span = f'<span class="sp-name">{html_lib.escape(name[:8])}</span>' if name else ""
-    click = f" onclick='showArtModal({json.dumps(ticker)},{json.dumps(name[:12])})'" if clickable else ""
+    click = f" onclick='showArtModal({json.dumps(ticker)},{json.dumps(name[:12])},event)'" if clickable else ""
     extra = f" {extra_attrs}" if extra_attrs else ""
 
     # 處置 / 漲跌停 flag tag(ingest 5a172be 起 extra 帶進來):
@@ -1155,7 +1155,7 @@ def build_active_etf_page(etf_list: list, holdings_by_etf: dict[str, list]) -> s
             # 外層 attribute 用 ' 包,內層 json.dumps 用 " 避免引號嵌套撞 SyntaxError
             return (
                 f'<span class="aetf-chg-pill {css}" '
-                f"onclick='showArtModal({json.dumps(tk)},{json.dumps(nm)})' "
+                f"onclick='showArtModal({json.dumps(tk)},{json.dumps(nm)},event)' "
                 f'role="button" tabindex="0">'
                 f'<span class="aetf-cp-tk">{html_lib.escape(_disp_ticker(tk))}</span>'
                 f'<span class="aetf-cp-nm">{html_lib.escape(nm)}</span>'
@@ -1202,7 +1202,7 @@ def build_active_etf_page(etf_list: list, holdings_by_etf: dict[str, list]) -> s
             lots = int(h.get("lots") or 0)
             weight = float(h.get("weight_pct") or 0)
             # 外層 attribute 用 ' 包,內層 json.dumps 用 " 避免雙引號嵌套
-            click = f"showArtModal({json.dumps(tk)},{json.dumps(nm)})"
+            click = f"showArtModal({json.dumps(tk)},{json.dumps(nm)},event)"
             hold_rows.append(
                 f"<tr class=\"aetf-hold-row\" onclick='{click}'>"
                 f'<td><span class="aetf-h-tk">{html_lib.escape(_disp_ticker(tk))}</span> '
@@ -1736,7 +1736,7 @@ def build_focus_stock_page(
 
     def _row(c, mode):
         tk, nm = c["ticker"], c["name"]
-        click = f"showArtModal({json.dumps(tk)},{json.dumps(nm)})"
+        click = f"showArtModal({json.dumps(tk)},{json.dumps(nm)},event)"
         pe = c["pe"]
         pe_str = f"{pe:.1f}" if (pe and pe > 0) else "—"
         # PEG sort key:ok_* 才用 peg_ratio 排,其他 status null → 排尾
@@ -3071,13 +3071,31 @@ async def generate():
   </div>
 </div>
 
-<!-- Article modal -->
+<!-- Article modal (個股 modal,加大 + 左右導覽 + counter 比照 tc-modal,2026-05-25) -->
 <dialog id="art-modal">
-  <div class="modal-hdr">
-    <span class="modal-hdr-title" id="modal-title"></span>
-    <button class="modal-close" onclick="document.getElementById('art-modal').close()">✕</button>
+  <div class="art-shell">
+    <div class="art-topbar">
+      <span class="art-counter" id="art-counter" aria-live="polite"></span>
+      <button class="art-close" type="button" aria-label="關閉"
+              onclick="document.getElementById('art-modal').close()">✕</button>
+    </div>
+    <div class="art-shell-row">
+      <div class="art-nav art-nav-left">
+        <button class="art-nav-arrow" type="button" title="上一檔" aria-label="上一檔"
+                id="art-nav-prev" onclick="artNavTicker('prev')">←</button>
+      </div>
+      <div class="art-panel">
+        <div class="modal-hdr">
+          <span class="modal-hdr-title" id="modal-title"></span>
+        </div>
+        <div class="modal-body" id="modal-body"></div>
+      </div>
+      <div class="art-nav art-nav-right">
+        <button class="art-nav-arrow" type="button" title="下一檔" aria-label="下一檔"
+                id="art-nav-next" onclick="artNavTicker('next')">→</button>
+      </div>
+    </div>
   </div>
-  <div class="modal-body" id="modal-body"></div>
 </dialog>
 
 <!-- Theme chart modal (子產業 6 個月 TV / 平均漲跌 趨勢) -->

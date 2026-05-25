@@ -587,9 +587,11 @@ dialog#theme-chart-dialog::backdrop{background:rgba(0,0,0,.35)}
 .sc-arts-hint{font-size:.72rem;color:var(--muted);margin-top:.4rem}
 
 /* ── Article modal (centered) ── */
-dialog#art-modal{background:var(--card);border:1px solid var(--border);
-                  border-radius:14px;color:var(--text);padding:0;
-                  width:min(680px,96vw);max-height:80vh;overflow:hidden;
+/* 2026-05-25 加大,比照 tc-modal 規格:1080px / 90vh,
+   加 .art-shell 結構容納左右 nav arrow + 上方 topbar(counter + close) */
+dialog#art-modal{background:transparent;border:none;color:var(--text);padding:0;
+                  width:min(1080px,96vw);height:90vh;max-height:90vh;
+                  overflow:visible;
                   position:fixed;top:50%;left:50%;
                   transform:translate(-50%,-50%);margin:0}
 /* art-modal 用 transform:translate(-50%,-50%) 置中,故開啟動畫 keyframe
@@ -601,10 +603,39 @@ dialog#art-modal{background:var(--card);border:1px solid var(--border);
   from{opacity:0;transform:translate(-50%,-46%) scale(.96)}
   to  {opacity:1;transform:translate(-50%,-50%) scale(1)}
 }
-dialog#art-modal[open]{display:flex;flex-direction:column;
+dialog#art-modal[open]{display:block;
                           animation:artModalOpen .26s cubic-bezier(.2,.7,.25,1)}
 dialog#art-modal::backdrop{background:rgba(0,0,0,.65)}
 dialog#art-modal[open]::backdrop{animation:tcBackdropFade .26s ease-out}
+/* art-shell:整體外殼,filed art-topbar + art-shell-row(左 nav + panel + 右 nav)*/
+.art-shell{width:100%;height:100%;display:flex;flex-direction:column;
+           background:var(--card);border:1px solid var(--border);
+           border-radius:14px;overflow:hidden}
+.art-topbar{flex-shrink:0;display:flex;align-items:center;gap:.4rem;
+            padding:.4rem .8rem .4rem 56px;border-bottom:1px solid var(--border)}
+.art-counter{font-size:.72rem;font-weight:600;color:var(--muted);
+             letter-spacing:.02em;font-variant-numeric:tabular-nums}
+.art-close{margin-left:auto;background:transparent;color:var(--muted);
+           font-size:1.1rem;padding:.2rem .4rem;border-radius:5px;
+           line-height:1;border:none;cursor:pointer}
+.art-close:hover{background:rgba(255,255,255,.06);color:var(--text)}
+.art-shell-row{flex:1;display:flex;min-height:0}
+.art-panel{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.art-nav{flex-shrink:0;width:56px;display:flex;align-items:center;justify-content:center}
+.art-nav-arrow{width:42px;height:42px;border-radius:50%;
+               border:1px solid var(--border);background:rgba(15,17,23,.6);
+               color:var(--text);font-size:1.2rem;line-height:1;cursor:pointer;
+               display:flex;align-items:center;justify-content:center;transition:.15s}
+.art-nav-arrow:hover{border-color:var(--accent);background:var(--accent);color:#fff}
+.art-nav-arrow:disabled{opacity:.3;cursor:not-allowed}
+.art-nav-arrow:disabled:hover{border-color:var(--border);background:rgba(15,17,23,.6);color:var(--text)}
+@media(max-width:680px){
+  dialog#art-modal{width:100vw;height:92vh;top:auto;bottom:0;left:0;
+                   transform:translate(0,0)}
+  dialog#art-modal[open]{animation:none}  /* 手機 transform 跟 keyframe 衝突,直接關動畫 */
+  .art-nav{display:none}  /* 手機無側邊空間,藏側邊 nav */
+  .art-topbar{padding-left:.8rem}
+}
 .modal-hdr{display:flex;align-items:center;gap:.6rem;
             padding:.85rem 1.1rem;border-bottom:1px solid var(--border);
             flex-shrink:0}
