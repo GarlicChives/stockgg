@@ -516,13 +516,8 @@ dialog#theme-chart-dialog::backdrop{background:rgba(0,0,0,.35)}
 .tc-leg-chip.active.leg-cluster{color:#10b981}
 .tc-leg-chip.active.leg-twii{color:#f59e0b}
 .tc-leg-chip.active.leg-tpex{color:#94aef7}
-/* chart mode tab(加權指數 / 個股強弱,2026-05-26)*/
-.tc-mode-tabs{display:inline-flex;gap:.2rem;margin-right:.6rem}
-.tc-mode-tab{font-family:inherit;font-size:.74rem;font-weight:600;
-             padding:.28rem .55rem;border-radius:5px;cursor:pointer;
-             background:transparent;color:var(--muted);border:1px solid var(--border);transition:.12s}
-.tc-mode-tab:hover{color:var(--text)}
-.tc-mode-tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+/* chart 1 mode chip(指數 / 個股,2026-05-26)放右上,對齊 .tc-net-mode 風格 */
+.tc-price-mode{display:inline-flex;gap:.15rem;margin-left:auto;flex-shrink:0}
 /* strength mode 下隱「焦點股」legend chip(該 mode 沒這條總線)*/
 dialog#theme-chart-dialog.tc-strength .tc-leg-chip.leg-cluster{display:none}
 .tc-leg-chip:not(.active){opacity:.5;text-decoration:line-through}

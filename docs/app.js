@@ -1104,7 +1104,8 @@ function toggleModalTicker(ticker) {
 function setNetMode(mode) {
   if (mode === _netMode) return;
   _netMode = mode;
-  document.querySelectorAll('.tc-mode-chip').forEach(b => {
+  // 只切 .tc-net-mode 內 chip,避免誤動 chart 1 的 .tc-price-mode 內 chip
+  document.querySelectorAll('.tc-net-mode .tc-mode-chip').forEach(b => {
     b.classList.toggle('active', b.dataset.mode === mode);
   });
   if (_openThemeCardId) _renderThemeChart(_openThemeCardId);
@@ -1305,8 +1306,8 @@ function toggleIndexLine(key) {
 function setChartMode(mode) {
   if (mode === _chartMode) return;
   _chartMode = mode;
-  document.querySelectorAll('.tc-mode-tab').forEach(b =>
-    b.classList.toggle('active', b.dataset.mode === mode));
+  document.querySelectorAll('.tc-price-mode .tc-mode-chip').forEach(b =>
+    b.classList.toggle('active', b.dataset.cmode === mode));
   // strength mode 隱「焦點股」legend chip(該 mode 沒這條總線,顯示反而混淆)
   const dlg = document.getElementById('theme-chart-dialog');
   if (dlg) dlg.classList.toggle('tc-strength', mode === 'strength');
@@ -1355,11 +1356,13 @@ function openThemeChart(cardId, opts) {
   _modalTickerDis = new Set();
   _netMode = 'daily';
   _chartMode = 'index';
-  document.querySelectorAll('.tc-mode-chip').forEach(b => {
+  // net chart 的「當日 / 累計」(.tc-net-mode 內)
+  document.querySelectorAll('.tc-net-mode .tc-mode-chip').forEach(b => {
     b.classList.toggle('active', b.dataset.mode === 'daily');
   });
-  document.querySelectorAll('.tc-mode-tab').forEach(b => {
-    b.classList.toggle('active', b.dataset.mode === 'index');
+  // chart 1 的「指數 / 個股」(.tc-price-mode 內,2026-05-26 新增)
+  document.querySelectorAll('.tc-price-mode .tc-mode-chip').forEach(b => {
+    b.classList.toggle('active', b.dataset.cmode === 'index');
   });
   dlg.classList.remove('tc-strength');
   // 顯示 loading hint(首次 fetch history.json 可能要 ~1 秒)
