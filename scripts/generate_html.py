@@ -1361,7 +1361,7 @@ async def _compute_yesterday_intersect(
         yest_seeds = [r["ticker"] for r in seed_rows]
 
         member_rows = await conn.fetch(
-            "SELECT ticker, name, trading_value, change_pct, close_price, high, "
+            "SELECT ticker, name, trading_value, change_pct, close_price, high, open, low, "
             "is_limit_up_30m, extra "
             "FROM trading_rankings WHERE rank_date=$1 AND market='TW' "
             "AND extra->>'is_focus_member' = 'true' ORDER BY ticker",
@@ -1561,6 +1561,21 @@ def build_focus_stock_page(
                        and chip_big_chg < -_HOLDER_NOISE))
             is_chip = bool(_r1 and _r2 and not _r3)
 
+        # 早盤漲停股(2026-05-25):open == high == low == close 四值相等
+        # → 全日只成交一個價,且該價 = 收漲停(chg ≥ +9.95%);意義 = 開盤
+        # 撮合即鎖死、全日無 tick 跌破鎖死價、收盤仍鎖。NUMERIC 用 0.01 容差
+        # 避免精度地雷(ingest 4ea7c3e 提示)。
+        today_open = _f(info.get("open"))
+        today_low  = _f(info.get("low"))
+        is_early_lock = bool(
+            today_open is not None and today_high is not None and today_low is not None
+            and today_close is not None and today_chg is not None
+            and today_chg >= 9.95
+            and abs(today_open - today_close) < 0.01
+            and abs(today_high - today_close) < 0.01
+            and abs(today_low  - today_close) < 0.01
+        )
+
         matched: list[str] = []
         if is_volume:
             matched.append("出量")
@@ -1572,6 +1587,8 @@ def build_focus_stock_page(
             matched.append("成長")
         if is_chip:
             matched.append("籌碼")
+        if is_early_lock:
+            matched.append("早漲停")
         cands.append({
             "ticker": tk,
             "name": (info.get("name") or "")[:12],
@@ -1598,6 +1615,7 @@ def build_focus_stock_page(
             "is_volume": is_volume, "is_potential": is_potential,
             "is_new_high": is_new_high, "is_growth": is_growth,
             "is_chip": is_chip, "chip_big_chg": chip_big_chg,
+            "is_early_lock": is_early_lock,
             "matched": matched,
         })
 
@@ -1618,6 +1636,11 @@ def build_focus_stock_page(
         [c for c in cands if c["is_chip"]],
         key=lambda c: (-(c["chip_big_chg"] if c["chip_big_chg"] is not None else _chip_inf),
                        _by_bias(c)),
+    )
+    # 早盤漲停股依今日成交金額 desc(大量鎖死代表多空爭奪激烈、值得關注)
+    early_lock_stocks = sorted(
+        [c for c in cands if c["is_early_lock"]],
+        key=lambda c: -(c["today_tv"] or 0),
     )
 
     def _bias_cell(v):
@@ -1680,9 +1703,11 @@ def build_focus_stock_page(
         return f'<span class="{cls}">{sign}{val:.2f}%{arrow}</span>'
 
     _MATCH_CHIP_CLS = {"出量": "fs-mc-vol", "潛力": "fs-mc-pot",
-                       "新高": "fs-mc-nh", "成長": "fs-mc-gr", "籌碼": "fs-mc-chip"}
+                       "新高": "fs-mc-nh", "成長": "fs-mc-gr", "籌碼": "fs-mc-chip",
+                       "早漲停": "fs-mc-elock"}
     # 條件 → 短 key(交集股篩選列 data-cond / row data-matched 用)
-    _MATCH_KEY = {"出量": "vol", "潛力": "pot", "新高": "nh", "成長": "gr", "籌碼": "chip"}
+    _MATCH_KEY = {"出量": "vol", "潛力": "pot", "新高": "nh", "成長": "gr",
+                  "籌碼": "chip", "早漲停": "elock"}
 
     def _match_cell(matched):
         return "".join(
@@ -1791,6 +1816,7 @@ def build_focus_stock_page(
     gr_html  = _table(growth_stocks, "growth",
                       "今日無焦點股符合成長條件(月營收連 3 月 + 4 損益科目金額 YoY 皆正)")
     chip_html = _table(chip_stocks, "chip", "今日無焦點股符合籌碼條件")
+    elock_html = _table(early_lock_stocks, "elock", "今日無焦點股早盤鎖死至收盤")
 
     nav_html = (
         '<div class="sub-tabs">'
@@ -1806,10 +1832,12 @@ def build_focus_stock_page(
         'onclick="showFocusStockTab(\'gr\')">🌱 成長股</button>'
         '<button class="sub-tab-btn" data-fstab="chip" type="button" '
         'onclick="showFocusStockTab(\'chip\')">🔒 籌碼股</button>'
+        '<button class="sub-tab-btn" data-fstab="elock" type="button" '
+        'onclick="showFocusStockTab(\'elock\')">🔥 早盤漲停股</button>'
         '</div>'
     )
     # 交集股條件篩選列(預設全 disabled;多選 AND;順序同 sub-tab;有交集股才顯示)
-    _filter_conds = [("vol", "出量"), ("pot", "潛力"), ("nh", "新高"), ("gr", "成長"), ("chip", "籌碼")]
+    _filter_conds = [("vol", "出量"), ("pot", "潛力"), ("nh", "新高"), ("gr", "成長"), ("chip", "籌碼"), ("elock", "早漲停")]
     _int_filter_bar = ((
         '<div class="fs-filter-bar">'
         '<span class="fs-filter-label">篩選符合條件</span>'
@@ -1863,6 +1891,11 @@ def build_focus_stock_page(
                      'TDCC 集保週資料近似運算,週減幅 ≤ 0.3 個百分點視為噪音不計',
                      chip_stocks)
         + chip_html + '</div>'
+        + '<div class="fs-tab-pane" id="fstab-elock">'
+        + _pane_head('開盤撮合即漲停鎖死、全日無 tick 跌破鎖死價、收盤仍鎖(open '
+                     '= high = low = close 且漲幅 ≥ 9.95%),依今日成交金額排序。',
+                     early_lock_stocks)
+        + elock_html + '</div>'
     )
     return nav_html + panes_html
 
@@ -2164,7 +2197,7 @@ async def generate():
     if tw_rank_date:
         tw_ranks = [dict(r) for r in await conn.fetch(
             f"""SELECT ROW_NUMBER() OVER (ORDER BY trading_value DESC NULLS LAST)::int AS rank,
-                       ticker, name, trading_value, change_pct, close_price, high,
+                       ticker, name, trading_value, change_pct, close_price, high, open, low,
                        is_limit_up_30m, extra
                 FROM trading_rankings
                 WHERE rank_date=$1 AND market='TW'
@@ -2177,7 +2210,7 @@ async def generate():
         try:
             _existing_tickers = {r["ticker"] for r in tw_ranks}
             special_ranks = [dict(r) for r in await conn.fetch(
-                "SELECT ticker, name, trading_value, change_pct, close_price, high, "
+                "SELECT ticker, name, trading_value, change_pct, close_price, high, open, low, "
                 "is_limit_up_30m, extra "
                 "FROM trading_rankings WHERE rank_date=$1 AND market='TW' "
                 "AND extra->>'is_special' = 'true' ORDER BY ticker",
@@ -2201,7 +2234,7 @@ async def generate():
         try:
             _existing_tickers = {r["ticker"] for r in tw_ranks}
             focus_member_ranks = [dict(r) for r in await conn.fetch(
-                "SELECT ticker, name, trading_value, change_pct, close_price, high, "
+                "SELECT ticker, name, trading_value, change_pct, close_price, high, open, low, "
                 "is_limit_up_30m, extra "
                 "FROM trading_rankings WHERE rank_date=$1 AND market='TW' "
                 "AND extra->>'is_focus_member' = 'true' ORDER BY ticker",
@@ -2263,6 +2296,8 @@ async def generate():
             "change_pct": float(r["change_pct"]) if r["change_pct"] is not None else None,
             "close_price": float(r["close_price"]) if r.get("close_price") is not None else None,
             "high": float(r["high"]) if r.get("high") is not None else None,
+            "open": float(r["open"]) if r.get("open") is not None else None,
+            "low": float(r["low"]) if r.get("low") is not None else None,
             "trading_value": float(r["trading_value"] or 0),
             "rank": r["rank"],  # 可能 None(extra.is_special=true 但不在 top-50)
             "limit_up": bool(extra.get("is_limit_up") or r.get("is_limit_up_30m")),
@@ -2516,7 +2551,7 @@ async def generate():
     if _hist_tickers:
         try:
             tch_rows = await conn.fetch(
-                "SELECT ticker, rank_date, close, shares_out, volume, high FROM ticker_close_history "
+                "SELECT ticker, rank_date, close, shares_out, volume, high, open, low FROM ticker_close_history "
                 "WHERE ticker = ANY($1::text[]) "
                 "AND rank_date >= current_date - INTERVAL '400 days' "
                 "ORDER BY ticker, rank_date",
@@ -2532,11 +2567,14 @@ async def generate():
                 _shares = float(r["shares_out"]) if r["shares_out"] is not None else None
                 _vol = float(r["volume"]) if r["volume"] is not None else None
                 _high = float(r["high"]) if r["high"] is not None else None
+                _open = float(r["open"]) if r["open"] is not None else None
+                _low  = float(r["low"])  if r["low"]  is not None else None
                 ticker_close_payload.setdefault(r["ticker"], []).append({
                     "d": d_str, "c": _close, "s": _shares,
                 })
                 ticker_close_full.setdefault(r["ticker"], []).append({
-                    "d": d_str, "c": _close, "s": _shares, "v": _vol, "high": _high,
+                    "d": d_str, "c": _close, "s": _shares, "v": _vol,
+                    "high": _high, "open": _open, "low": _low,
                 })
             print(f"  ticker_close_history: {len(tch_rows)} rows for "
                   f"{len(ticker_close_payload)}/{len(_hist_tickers)} tickers")

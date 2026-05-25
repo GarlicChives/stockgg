@@ -47,8 +47,9 @@ const ALLOWED: Set<string> = new Set([
   // Q5 — US top 50 today (includes close_price; LIMIT bumped 30→50 2026-05)
   "select row_number() over (order by trading_value desc nulls last)::int as rank, ticker, name, trading_value, change_pct, close_price, extra from trading_rankings where rank_date=$1 and market='us' order by trading_value desc nulls last limit 50",
 
-  // Q6 — TW top 50 today (includes close_price + high + is_limit_up_30m)
-  "select row_number() over (order by trading_value desc nulls last)::int as rank, ticker, name, trading_value, change_pct, close_price, high, is_limit_up_30m, extra from trading_rankings where rank_date=$1 and market='tw' order by trading_value desc nulls last limit 50",
+  // Q6 — TW top 50 today (includes close_price + high + open + low + is_limit_up_30m)
+  // 2026-05-25 加 open / low(ingest 4ea7c3e):供「早盤漲停股」判定 open=high=low=close。
+  "select row_number() over (order by trading_value desc nulls last)::int as rank, ticker, name, trading_value, change_pct, close_price, high, open, low, is_limit_up_30m, extra from trading_rankings where rank_date=$1 and market='tw' order by trading_value desc nulls last limit 50",
 
   // Q7 — change% for watch tickers (focus theme watch list)
   "select distinct on (ticker) ticker, change_pct from trading_rankings where ticker = any($1::text[]) order by ticker, rank_date desc",
@@ -87,13 +88,13 @@ const ALLOWED: Set<string> = new Set([
   // ticker;近一年焦點 main 整批沒進 top-50 的 ticker 用這張表才拿得到歷史)。
   // high = 每日盤中最高價,供「選股雷達 > 新高股」算 52 週盤中高 baseline。
   // ingest 端 src/news/stock_meta.py + scripts/backfill_ticker_history.py 寫入。
-  "select ticker, rank_date, close, shares_out, volume, high from ticker_close_history where ticker = any($1::text[]) and rank_date >= current_date - interval '400 days' order by ticker, rank_date",
+  "select ticker, rank_date, close, shares_out, volume, high, open, low from ticker_close_history where ticker = any($1::text[]) and rank_date >= current_date - interval '400 days' order by ticker, rank_date",
 
   // Q14 — special rows(處置 / 漲跌停)not in top 50。ingest 5a172be 起把這些
   // ticker 也寫進 trading_rankings(rank=NULL,extra.is_special='true');
   // Q6 只回 LIMIT 50 by TV 漏掉它們,Q14 補抓讓 cluster detection 抓得到
   // 被動元件 同題材的 3026 / 2492 等(沒進 top-50 但仍進 cluster)。
-  "select ticker, name, trading_value, change_pct, close_price, high, is_limit_up_30m, extra from trading_rankings where rank_date=$1 and market='tw' and extra->>'is_special' = 'true' order by ticker",
+  "select ticker, name, trading_value, change_pct, close_price, high, open, low, is_limit_up_30m, extra from trading_rankings where rank_date=$1 and market='tw' and extra->>'is_special' = 'true' order by ticker",
 
   // Q15 — focus_member rows (ingest 8f27ede / v2 規格 2026-05-19 起):
   // ticker 屬「近一年焦點」main 任一 sub。涵蓋三個 bucket 的並集:
@@ -104,7 +105,7 @@ const ALLOWED: Set<string> = new Set([
   // 公開站「焦點」tab 用這個 query 拿題材成員 today 交易資料,分 focal
   // (chg > -3%) / sentinel (chg < -3%) 顯示。
   // 廢:v1 is_volume_universe(2026-05-18 commit bd85f1d, 隔天 8f27ede 撤)。
-  "select ticker, name, trading_value, change_pct, close_price, high, is_limit_up_30m, extra from trading_rankings where rank_date=$1 and market='tw' and extra->>'is_focus_member' = 'true' order by ticker",
+  "select ticker, name, trading_value, change_pct, close_price, high, open, low, is_limit_up_30m, extra from trading_rankings where rank_date=$1 and market='tw' and extra->>'is_focus_member' = 'true' order by ticker",
 
   // Q16 — focus_seed ticker list (ingest 8f27ede / v2 規格 2026-05-19 起):
   // (rank ≤ 120 OR change_pct ≥ 9.5% 近漲停) AND change_pct > 4.45% 預計算種子(ingest c1490b8;排名門檻 FOCUS_SEED_MAX_RANK=120)。供「焦點」tab detection

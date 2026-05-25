@@ -839,6 +839,7 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .fs-match-chip.fs-mc-nh{background:rgba(239,83,80,.16);color:#f47471}
 .fs-match-chip.fs-mc-gr{background:rgba(245,158,11,.16);color:#e0922e}
 .fs-match-chip.fs-mc-chip{background:rgba(78,197,214,.16);color:#4ec5d6}
+.fs-match-chip.fs-mc-elock{background:rgba(232,121,166,.18);color:#e879a6}
 /* PEG(本益成長比)配色:<1 低估綠 / 1-1.5 合理灰 / >1.5 偏貴紅;
    peg-tag = 小標籤註明 TTM 或 季 法計算。 */
 .peg-low{color:#5dc4b9}
@@ -860,6 +861,7 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .fs-filter-btn.active[data-cond="nh"]{background:rgba(239,83,80,.16);color:#f47471;border-color:rgba(239,83,80,.5)}
 .fs-filter-btn.active[data-cond="gr"]{background:rgba(245,158,11,.16);color:#e0922e;border-color:rgba(245,158,11,.5)}
 .fs-filter-btn.active[data-cond="chip"]{background:rgba(78,197,214,.16);color:#4ec5d6;border-color:rgba(78,197,214,.5)}
+.fs-filter-btn.active[data-cond="elock"]{background:rgba(232,121,166,.18);color:#e879a6;border-color:rgba(232,121,166,.5)}
 .fs-table tr.fs-row[hidden]{display:none}
 .fs-table td{padding:.5rem .7rem;font-size:.82rem;
                border-bottom:1px solid rgba(42,46,64,.4);vertical-align:middle}
