@@ -121,7 +121,13 @@ function _fetchKline(ticker) {
       if (!r.ok) throw new Error('kline ' + r.status);
       return r.json();
     })
-    .then(data => { _klineCache[ticker] = data; return data; });
+    .then(data => {
+      // 2026-05-25 起 server 寫 {b: build_stamp, k: [[d,o,h,l,c,v],...]};
+      // 舊純 array 格式仍兼容(過渡期 / fallback)。
+      const arr = Array.isArray(data) ? data : (data && data.k) || [];
+      _klineCache[ticker] = arr;
+      return arr;
+    });
 }
 
 function _renderStockKline() {

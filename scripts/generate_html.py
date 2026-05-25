@@ -2586,17 +2586,26 @@ async def generate():
             _kline_dir = OUT_FILE.parent / "kline"
             _kline_dir.mkdir(parents=True, exist_ok=True)
             _kline_written = 0
+            # 2026-05-25:JSON 從純 array 改為 {b, k} object — b 是 build_stamp
+            # UTC ISO,k 是原本的 OHLCV array。目的:讓每次 regen 的 kline 內容
+            # hash 必定不同,wrangler 才會強制重新 upload。原本純 array 形式
+            # 內容無變化的 ticker 會被 wrangler 跳過(認 KV 已有 blob),但因
+            # 過去多次 deploy 因 --log-level 旗標 abort,wrangler 內部 manifest
+            # cache 跟 Cloudflare KV 實際狀態不一致,導致這些「跳過」的 ticker
+            # 在線上 fetch 全 404。前端 _fetchKline 已兼容 {b,k} 與舊純 array。
+            _build_stamp_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
             for tk, rows in ticker_close_full.items():
-                kline = [
+                kline_arr = [
                     [r["d"], r.get("open"), r.get("high"), r.get("low"),
                      r.get("c"), r.get("v")]
                     for r in rows
                     if r.get("open") is not None and r.get("c") is not None
                 ]
-                if not kline:
+                if not kline_arr:
                     continue
                 (_kline_dir / f"{tk}.json").write_text(
-                    json.dumps(kline, ensure_ascii=False, separators=(",", ":")),
+                    json.dumps({"b": _build_stamp_iso, "k": kline_arr},
+                               ensure_ascii=False, separators=(",", ":")),
                     encoding="utf-8",
                 )
                 _kline_written += 1
