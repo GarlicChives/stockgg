@@ -80,6 +80,10 @@ jobs:
 
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v4
+        env:
+          # 暫時開啟 verbose 確認 kline 真的被 ✨ uploaded(user 仍 404,需驗證
+          # wrangler upload 行為 — 完成診斷後回滾)
+          WRANGLER_LOG: debug
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

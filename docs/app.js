@@ -228,25 +228,32 @@ function _loadStockKline(ticker) {
     });
 }
 
-function _fetchKline(ticker) {
-  if (_klineCache[ticker]) return Promise.resolve(_klineCache[ticker]);
+async function _fetchKline(ticker) {
+  if (_klineCache[ticker]) return _klineCache[ticker];
   // ?_= cache-bust query 是必要的 —— Cloudflare 邊緣節點會 cache 4xx
   // response,deploy 補上檔案後 path 仍可能 serve 邊緣 cached 404,
   // 加隨機 query 強制 revalidate 到 origin Worker。
-  const url = 'kline/' + encodeURIComponent(ticker) + '.json?_=' + Date.now();
-  return fetch(url, { cache: 'no-store' })
-    .then(r => {
-      if (r.status === 404) return [];          // 該 ticker 無 kline 檔(universe 外)
-      if (!r.ok) throw new Error('kline ' + r.status);
-      return r.json();
-    })
-    .then(data => {
+  // Retry 邏輯:Cloudflare Workers Static Assets deploy 完成後,各 edge node
+  // 的 manifest sync 需要時間(實測幾分鐘內可能拿到 404 但檔案實際已上傳)。
+  // 404 時隔 1.2s / 2.5s 再 retry 兩次;仍 404 才視為真的不存在(不快取空 array,
+  // 避免一次 propagation miss 被永久記住)。
+  const baseUrl = 'kline/' + encodeURIComponent(ticker) + '.json';
+  const delays = [0, 1200, 2500];
+  for (let i = 0; i < delays.length; i++) {
+    if (delays[i]) await new Promise(res => setTimeout(res, delays[i]));
+    const url = baseUrl + '?_=' + Date.now() + (i ? '&r=' + i : '');
+    const r = await fetch(url, { cache: 'no-store' });
+    if (r.ok) {
+      const data = await r.json();
       // 2026-05-25 起 server 寫 {b: build_stamp, k: [[d,o,h,l,c,v],...]};
       // 舊純 array 格式仍兼容(過渡期 / fallback)。
       const arr = Array.isArray(data) ? data : (data && data.k) || [];
-      _klineCache[ticker] = arr;
+      if (arr.length) _klineCache[ticker] = arr;  // 空 array 不快取(下次 retry)
       return arr;
-    });
+    }
+    if (r.status !== 404) throw new Error('kline ' + r.status);
+  }
+  return [];   // 三次都 404 才確定該 ticker 無資料
 }
 
 function _renderStockKline() {
