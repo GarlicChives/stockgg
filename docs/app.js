@@ -1224,7 +1224,9 @@ function _renderThemeChart(cardId) {
       });
       series.setData(rebased);
       _tcCharts.tickerSeriesList.push({ ticker: f.ticker, series });
-      legendItems.push({ ticker: f.ticker, name: f.name || '', color });
+      // cluster.focal 物件結構 = {ticker, n, mkt, tv, chg, close, bias, pe, peg}
+      // —— name 欄位是 `n` 縮寫,不是 `name`(server payload 節省大小)
+      legendItems.push({ ticker: f.ticker, name: f.n || '', color });
     });
     _renderStrengthLegend(legendItems);
   } else {
