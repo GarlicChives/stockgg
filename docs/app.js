@@ -38,13 +38,18 @@ function showSubTab(name) {
    需要客戶端雷達 SVG。 */
 
 /* 個股 modal 來源 scope:從 clicked element 找最近的 stk-pill 容器,
-   取其內所有 [onclick*="showArtModal"] 兄弟元素的 ticker 順序作為左右導覽
-   範圍。順序 = 該容器當下 DOM 順序 = 外層排序結果(focal pill setFocalSort
-   切換後 DOM 也重排,所以自動繼承)。 */
-let _artScope = [];       // ordered ticker list within source container
-let _artScopeIdx = -1;    // current index in _artScope
+   取其內 visible([onclick*="showArtModal"] 且非 .hidden / row.hidden) 的
+   ticker 順序作為左右導覽範圍。順序 = 該容器當下 DOM 順序 = 外層排序結果。
+   外層 filter / sort 變動會 hook _refreshArtScope() 重撈。modal 內頂部
+   ticker chips bar 允許 user 手動把個別 ticker disable —— 不從 scope 移除
+   (避免「都 disable 後不知道從哪 enable 回來」),只在 navigate 時跳過。 */
+let _artScope = [];                 // ordered ticker list within source container
+let _artScopeIdx = -1;              // current index in _artScope
 let _artCurrentTicker = null;
 let _artCurrentName = '';
+let _artScopeContainer = null;      // DOM ref:來源 container,filter 變動時 re-scan 用
+let _artScopeObserver = null;       // MutationObserver:監聽 container 變化自動 refresh
+const _artDisabled = new Set();     // user 手動 disable 的 ticker(modal 範圍內)
 
 const _ART_SCOPE_SELECTORS = [
   '.cluster-focal-stocks',       // 熱門題材 cluster focal/sentinel pill
@@ -76,26 +81,61 @@ function _extractTickerFromOnclick(el) {
   return { ticker: m[1], name };
 }
 
+/* 重撈 scope:從 _artScopeContainer 內取所有 visible([onclick*="showArtModal"]
+   且非 row.hidden / 任意祖先 hidden) 的 ticker。外層 filter / sort 觸發時呼叫。 */
+function _refreshArtScope() {
+  if (!_artScopeContainer) return;
+  const pills = _artScopeContainer.querySelectorAll('[onclick*="showArtModal"]');
+  const next = [];
+  const seen = new Set();
+  pills.forEach(p => {
+    // visibility check:任一祖先(到 _artScopeContainer 為止)有 hidden 屬性 → skip
+    let el = p;
+    let visible = true;
+    while (el && el !== _artScopeContainer) {
+      if (el.hidden) { visible = false; break; }
+      el = el.parentElement;
+    }
+    if (!visible) return;
+    const info = _extractTickerFromOnclick(p);
+    if (info && !seen.has(info.ticker)) {
+      seen.add(info.ticker);
+      next.push(info);
+    }
+  });
+  _artScope = next.length ? next : [{ ticker: _artCurrentTicker, name: _artCurrentName }];
+  // 維持當前 ticker idx;若 current 被 filter 出去 → 改 idx 0
+  const idx = _artScope.findIndex(it => it.ticker === _artCurrentTicker);
+  _artScopeIdx = idx >= 0 ? idx : 0;
+  // 同步 modal 內 ticker bar(若 modal 開著)
+  const bar = document.getElementById('art-ticker-bar');
+  if (bar) bar.innerHTML = _buildTickerBarHtml();
+  _updateArtCounter();
+}
+
 function showArtModal(ticker, name, evt) {
   _artCurrentTicker = ticker;
   _artCurrentName = name || '';
-  // 計算 scope:同 container 內所有 showArtModal 觸發點按 DOM 順序
-  const container = _detectArtScope(evt);
-  if (container) {
-    const pills = container.querySelectorAll('[onclick*="showArtModal"]');
-    _artScope = [];
-    pills.forEach(p => {
-      const info = _extractTickerFromOnclick(p);
-      if (info) _artScope.push(info);
+  _artDisabled.clear();
+  _artScopeContainer = _detectArtScope(evt);
+  // dispose 上次 observer(若 modal 連續開不同 container)
+  if (_artScopeObserver) { _artScopeObserver.disconnect(); _artScopeObserver = null; }
+  if (_artScopeContainer) {
+    // MutationObserver 監聽 container 內 child / hidden 屬性變化,外層 filter
+    // (toggleFsFilter row.hidden) 或 sort (setFocalSort _renderFocalSort 重建
+    // pills) 觸發時自動 _refreshArtScope。免逐個 sort/filter handler 加 hook。
+    _artScopeObserver = new MutationObserver(() => _refreshArtScope());
+    _artScopeObserver.observe(_artScopeContainer, {
+      childList: true, subtree: true,
+      attributes: true, attributeFilter: ['hidden'],
     });
+    _refreshArtScope();
   } else {
     _artScope = [{ ticker, name: _artCurrentName }];
+    _artScopeIdx = 0;
   }
-  // dedupe(同一 container 可能同 ticker 出現多次,如 ETF 持股表)
-  const seen = new Set();
-  _artScope = _artScope.filter(it => seen.has(it.ticker) ? false : (seen.add(it.ticker), true));
-  _artScopeIdx = _artScope.findIndex(it => it.ticker === ticker);
-  if (_artScopeIdx < 0) {
+  // 確保 current 在 scope 內(_refreshArtScope 若拿到空可能 fallback)
+  if (!_artScope.some(it => it.ticker === ticker)) {
     _artScope.unshift({ ticker, name: _artCurrentName });
     _artScopeIdx = 0;
   }
@@ -103,17 +143,35 @@ function showArtModal(ticker, name, evt) {
   document.getElementById('art-modal').showModal();
 }
 
-/* 重新渲染 modal body(切換 ticker 時 reuse,不關 modal)*/
+/* 建 ticker bar HTML:每檔一個 chip,current 高亮 + disabled 劃線 */
+function _buildTickerBarHtml() {
+  if (_artScope.length < 2) return '';   // 只 1 檔不顯 bar
+  return _artScope.map(it => {
+    const cls = ['art-ticker-chip'];
+    if (it.ticker === _artCurrentTicker) cls.push('current');
+    if (_artDisabled.has(it.ticker)) cls.push('disabled');
+    const nm = it.name ? ` <span class="art-tc-nm">${_escAttr(it.name)}</span>` : '';
+    return `<button class="${cls.join(' ')}" type="button" `
+         + `data-art-tk="${it.ticker}" onclick="artTickerToggle('${it.ticker}', event)">`
+         + `<span class="art-tc-tk">${_dispTk(it.ticker)}</span>${nm}</button>`;
+  }).join('');
+}
+
+/* 輕量 HTML attr escape(name 內可能含 &/" 等)*/
+function _escAttr(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+                  .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/* 重新渲染 modal body(切換 ticker 時 reuse,不關 modal)
+   2026-05-25:取消 tab,K 線 + ETF 直接上下排列(K 線在上);頂部加
+   ticker chips bar 允許 user toggle 個別 ticker enable/disable。 */
 function _renderArtModalBody(ticker, name) {
   document.getElementById('modal-title').textContent = _dispTk(ticker) + ' ' + (name || '');
   const etfHtml = artModalData[ticker] || '<p style="color:#7a8ba0">本檔目前無主動 ETF 持有</p>';
   document.getElementById('modal-body').innerHTML = (
-    '<div class="art-tab-bar">' +
-      '<button class="art-tab-btn active" data-art-tab="etf" type="button" onclick="setArtTab(\'etf\')">主動式 ETF</button>' +
-      '<button class="art-tab-btn" data-art-tab="kline" type="button" onclick="setArtTab(\'kline\')">日 K 線</button>' +
-    '</div>' +
-    '<div class="art-tab-pane" id="art-pane-etf">' + etfHtml + '</div>' +
-    '<div class="art-tab-pane" id="art-pane-kline" hidden>' +
+    '<div class="art-ticker-bar" id="art-ticker-bar">' + _buildTickerBarHtml() + '</div>' +
+    '<div class="art-kline-section">' +
       '<div class="art-kline-period">' +
         '<button class="art-kline-chip" data-period="1m" type="button" onclick="setKlinePeriod(\'1m\')">1M</button>' +
         '<button class="art-kline-chip" data-period="3m" type="button" onclick="setKlinePeriod(\'3m\')">3M</button>' +
@@ -122,59 +180,65 @@ function _renderArtModalBody(ticker, name) {
       '</div>' +
       '<div class="art-kline-chart" id="art-kline-chart"></div>' +
       '<div class="art-kline-empty" id="art-kline-empty" style="display:none">載入 K 線中…</div>' +
-    '</div>'
+    '</div>' +
+    '<div class="art-etf-section">' + etfHtml + '</div>'
   );
   _updateArtCounter();
-  // K 線 lazy:不立即 render(預設 ETF tab 顯示,K 線在 hidden pane 內 render
-  // 寬度為 0 導致壓縮)。fetch data 先載,切到 K 線 tab 時才 render chart。
+  // K 線 chart 永遠 visible,可立即 render(取代舊 lazy 路徑)
   _loadStockKline(ticker);
 }
 
-/* 更新 art-counter「N/total」+ disable 條件(只有 1 檔時兩箭頭都 disable)*/
+/* 更新 art-counter「N/M」(N = current 在「啟用」清單內的位次,M = 啟用總數)
+   + nav 箭頭 disable 條件(啟用 ≤ 1 時兩邊都 disable)。
+   disabled ticker 不算入 total —— 即使 _artScope 有 10 檔,user disable 3 檔
+   counter 顯 X/7。 */
 function _updateArtCounter() {
+  const enabled = _artScope.filter(it => !_artDisabled.has(it.ticker));
+  const enIdx = enabled.findIndex(it => it.ticker === _artCurrentTicker);
   const counter = document.getElementById('art-counter');
   if (counter) {
-    counter.textContent = _artScope.length
-      ? `${_artScopeIdx + 1}/${_artScope.length}`
+    counter.textContent = enabled.length
+      ? `${(enIdx >= 0 ? enIdx : 0) + 1}/${enabled.length}`
       : '';
   }
   const prev = document.getElementById('art-nav-prev');
   const next = document.getElementById('art-nav-next');
-  if (prev) prev.disabled = _artScope.length < 2;
-  if (next) next.disabled = _artScope.length < 2;
+  const navDisabled = enabled.length < 2;
+  if (prev) prev.disabled = navDisabled;
+  if (next) next.disabled = navDisabled;
 }
 
-/* 左右導覽:環狀切到 prev/next ticker(同 scope 內)*/
+/* 左右導覽:環狀切到 prev/next ticker(跳過 _artDisabled 內的 ticker)*/
 function artNavTicker(dir) {
-  if (_artScope.length < 2) return;
+  if (!_artScope.length) return;
   const n = _artScope.length;
-  _artScopeIdx = dir === 'next'
-    ? (_artScopeIdx + 1) % n
-    : (_artScopeIdx - 1 + n) % n;
-  const cur = _artScope[_artScopeIdx];
-  _artCurrentTicker = cur.ticker;
-  _artCurrentName = cur.name;
-  _renderArtModalBody(cur.ticker, cur.name);
-}
-
-function setArtTab(name) {
-  document.querySelectorAll('.art-tab-btn').forEach(b =>
-    b.classList.toggle('active', b.dataset.artTab === name));
-  document.querySelectorAll('.art-tab-pane').forEach(p => {
-    const match = p.id === 'art-pane-' + name;
-    if (match) p.removeAttribute('hidden');
-    else p.setAttribute('hidden', '');
-  });
-  // 切到 K 線 tab:lazy render —— hidden pane 內 chart container 寬度為 0,
-  // 必須等 tab 變 visible 後再建 chart(不然蠟燭被壓在右半邊)。
-  // 若 chart 已建好但被 hidden → 切回時主動 fitContent。
-  if (name === 'kline') {
-    if (!_klineChart && _klineData && _klineData.length) {
-      _renderStockKline();
-    } else if (_klineChart) {
-      try { _klineChart.timeScale().fitContent(); } catch (e) {}
+  let idx = _artScopeIdx;
+  for (let i = 0; i < n; i++) {
+    idx = dir === 'next' ? (idx + 1) % n : (idx - 1 + n) % n;
+    if (!_artDisabled.has(_artScope[idx].ticker)) {
+      _artScopeIdx = idx;
+      const cur = _artScope[idx];
+      _artCurrentTicker = cur.ticker;
+      _artCurrentName = cur.name;
+      _renderArtModalBody(cur.ticker, cur.name);
+      return;
     }
   }
+  // 全部 disabled(理論上不會,因 current ticker 不應被 disable);no-op
+}
+
+/* 切 ticker enable/disable 狀態。current ticker 不能被 disable(否則 modal
+   就空了)—— 點 current 視為「立刻跳到下一啟用 ticker」較直覺?簡化先版:
+   current chip 點擊 no-op,只能 toggle 其他。 */
+function artTickerToggle(ticker, evt) {
+  if (evt) evt.stopPropagation();
+  if (ticker === _artCurrentTicker) return;   // current 不能 disable
+  if (_artDisabled.has(ticker)) _artDisabled.delete(ticker);
+  else _artDisabled.add(ticker);
+  // 只刷該 chip 樣式 + counter(不重 render 整個 modal)
+  const chip = document.querySelector(`.art-ticker-chip[data-art-tk="${ticker}"]`);
+  if (chip) chip.classList.toggle('disabled', _artDisabled.has(ticker));
+  _updateArtCounter();
 }
 
 /* ── 個股 modal 日 K 線(lazy fetch per-ticker JSON)─────────────────────── */
@@ -208,12 +272,8 @@ function _loadStockKline(ticker) {
       }
       if (empty) empty.style.display = 'none';
       if (chart) chart.style.display = '';
-      // 只在 K 線 tab 已 visible 時 render;hidden pane 內 container 寬度為 0
-      // render 會被壓縮。切到 K 線 tab 時 setArtTab 會接手 render。
-      const pane = document.getElementById('art-pane-kline');
-      if (pane && !pane.hasAttribute('hidden')) {
-        _renderStockKline();
-      }
+      // K 線永遠 visible(取消 tab 後),直接 render
+      _renderStockKline();
     })
     .catch(err => {
       console.error('kline load failed', err);
@@ -369,6 +429,8 @@ function toggleFsFilter(btn) {
       [{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'none' }],
       { duration: 200, easing: 'ease-out' });
   });
+  // 個股 modal scope 同步由 MutationObserver 統一處理(showArtModal 內 observe
+  // _artScopeContainer 的 hidden / childList 變化),這裡無需顯式呼叫。
 }
 
 /* Merged cluster name — 計算螢幕對應 visible 閾值並產出 "+N ▾" / "收合 ▴" */
@@ -1409,6 +1471,9 @@ document.getElementById('art-modal').addEventListener('close', () => {
   _artScope = [];
   _artScopeIdx = -1;
   _artCurrentTicker = null;
+  _artScopeContainer = null;
+  _artDisabled.clear();
+  if (_artScopeObserver) { _artScopeObserver.disconnect(); _artScopeObserver = null; }
 });
 
 /* ── 分享報告 ─────────────────────────────────────────────────────────────── */

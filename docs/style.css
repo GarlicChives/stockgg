@@ -644,16 +644,29 @@ dialog#art-modal[open]::backdrop{animation:tcBackdropFade .26s ease-out}
               padding:.2rem .4rem;border-radius:5px;line-height:1}
 .modal-close:hover{background:#1e2235;color:var(--text)}
 .modal-body{overflow-y:auto;padding:.9rem 1.1rem;flex:1}
-/* 個股 modal 內部 tab(日 K 線 / 主動式 ETF,2026-05-25) */
-.art-tab-bar{display:flex;gap:.2rem;border-bottom:1px solid var(--border);margin-bottom:.8rem}
-.art-tab-btn{background:transparent;color:var(--muted);border:none;
-             padding:.55rem .9rem;cursor:pointer;font-family:inherit;font-size:.82rem;
-             font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px;
-             transition:.15s;letter-spacing:.02em}
-.art-tab-btn:hover{color:var(--text)}
-.art-tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
-.art-tab-pane[hidden]{display:none}
-/* 個股 modal 日 K 線(P2 2026-05-25) */
+/* 個股 modal 頂部 ticker chips bar(2026-05-25,取代 tab 結構;K 線 + ETF
+   合併為單頁,K 線在上 ETF 在下;此 bar 顯示同 scope 內所有可導覽 ticker,
+   點擊可 toggle disable 從導覽剔除) */
+.art-ticker-bar{display:flex;gap:.3rem;overflow-x:auto;overflow-y:hidden;
+                padding:.4rem 0 .8rem;margin-bottom:.6rem;
+                border-bottom:1px solid var(--border);
+                scrollbar-width:thin}
+.art-ticker-bar:empty{display:none}
+.art-ticker-chip{flex-shrink:0;display:inline-flex;align-items:center;gap:.25rem;
+                 padding:.28rem .55rem;border-radius:6px;cursor:pointer;
+                 background:transparent;color:var(--muted);
+                 border:1px solid var(--border);font-family:inherit;
+                 font-size:.72rem;font-weight:600;transition:.12s;letter-spacing:.02em}
+.art-ticker-chip:hover{border-color:var(--accent);color:var(--text)}
+.art-ticker-chip.current{background:var(--accent);color:#fff;border-color:var(--accent);cursor:default}
+.art-ticker-chip.current:hover{background:var(--accent);color:#fff}
+.art-ticker-chip.disabled{opacity:.4;text-decoration:line-through}
+.art-ticker-chip.disabled:hover{border-color:var(--border);color:var(--muted)}
+.art-tc-tk{font-variant-numeric:tabular-nums}
+.art-tc-nm{color:inherit;opacity:.9;font-weight:500}
+/* 個股 modal K 線 + ETF section 排版(2026-05-25 取消 tab) */
+.art-kline-section{margin-bottom:1.2rem}
+.art-etf-section{margin-top:.4rem}
 .art-kline-period{display:flex;justify-content:flex-end;gap:.2rem;margin-bottom:.4rem;flex-shrink:0}
 .art-kline-chip{font-size:.66rem;font-weight:700;padding:.22rem .45rem;
                 border-radius:5px;background:rgba(255,255,255,.05);color:var(--muted);
