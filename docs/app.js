@@ -41,23 +41,38 @@ function showArtModal(ticker, name) {
   document.getElementById('modal-title').textContent = _dispTk(ticker) + ' ' + (name || '');
   const etfHtml = artModalData[ticker] || '<p style="color:#7a8ba0">本檔目前無主動 ETF 持有</p>';
   document.getElementById('modal-body').innerHTML = (
-    '<div class="art-kline-section">' +
-      '<div class="art-kline-hdr">' +
-        '<span class="art-kline-title">日 K 線</span>' +
-        '<span class="art-kline-period">' +
-          '<button class="art-kline-chip" data-period="1m" type="button" onclick="setKlinePeriod(\'1m\')">1M</button>' +
-          '<button class="art-kline-chip" data-period="3m" type="button" onclick="setKlinePeriod(\'3m\')">3M</button>' +
-          '<button class="art-kline-chip active" data-period="6m" type="button" onclick="setKlinePeriod(\'6m\')">6M</button>' +
-          '<button class="art-kline-chip" data-period="1y" type="button" onclick="setKlinePeriod(\'1y\')">1Y</button>' +
-        '</span>' +
+    '<div class="art-tab-bar">' +
+      '<button class="art-tab-btn active" data-art-tab="kline" type="button" onclick="setArtTab(\'kline\')">日 K 線</button>' +
+      '<button class="art-tab-btn" data-art-tab="etf" type="button" onclick="setArtTab(\'etf\')">主動式 ETF</button>' +
+    '</div>' +
+    '<div class="art-tab-pane" id="art-pane-kline">' +
+      '<div class="art-kline-period">' +
+        '<button class="art-kline-chip" data-period="1m" type="button" onclick="setKlinePeriod(\'1m\')">1M</button>' +
+        '<button class="art-kline-chip" data-period="3m" type="button" onclick="setKlinePeriod(\'3m\')">3M</button>' +
+        '<button class="art-kline-chip active" data-period="6m" type="button" onclick="setKlinePeriod(\'6m\')">6M</button>' +
+        '<button class="art-kline-chip" data-period="1y" type="button" onclick="setKlinePeriod(\'1y\')">1Y</button>' +
       '</div>' +
       '<div class="art-kline-chart" id="art-kline-chart"></div>' +
       '<div class="art-kline-empty" id="art-kline-empty" style="display:none">載入 K 線中…</div>' +
     '</div>' +
-    '<div class="art-etf-section">' + etfHtml + '</div>'
+    '<div class="art-tab-pane" id="art-pane-etf" hidden>' + etfHtml + '</div>'
   );
   document.getElementById('art-modal').showModal();
   _loadStockKline(ticker);
+}
+
+function setArtTab(name) {
+  document.querySelectorAll('.art-tab-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.artTab === name));
+  document.querySelectorAll('.art-tab-pane').forEach(p => {
+    const match = p.id === 'art-pane-' + name;
+    if (match) p.removeAttribute('hidden');
+    else p.setAttribute('hidden', '');
+  });
+  // 切到 K 線 tab 後 chart 容器寬度可能才被瀏覽器算定,主動重排一次避免空白
+  if (name === 'kline' && _klineChart) {
+    try { _klineChart.timeScale().fitContent(); } catch (e) {}
+  }
 }
 
 /* ── 個股 modal 日 K 線(lazy fetch per-ticker JSON)─────────────────────── */
