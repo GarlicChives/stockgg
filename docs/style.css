@@ -518,8 +518,15 @@ dialog#theme-chart-dialog::backdrop{background:rgba(0,0,0,.35)}
 .tc-leg-chip.active.leg-tpex{color:#94aef7}
 /* chart 1 mode chip(指數 / 個股,2026-05-26)放右上,對齊 .tc-net-mode 風格 */
 .tc-price-mode{display:inline-flex;gap:.15rem;margin-left:auto;flex-shrink:0}
-/* strength mode 下隱「焦點股」legend chip(該 mode 沒這條總線)*/
-dialog#theme-chart-dialog.tc-strength .tc-leg-chip.leg-cluster{display:none}
+/* strength mode 下隱 index mode 的 legend chip(焦點股 / 大盤 / 櫃買都不畫)*/
+dialog#theme-chart-dialog.tc-strength .tc-legend{display:none}
+/* strength mode 下顯個股 ticker → 顏色對照 legend(取代大盤櫃買 legend 位置)*/
+.tc-tk-legend{display:inline-flex;flex-wrap:wrap;gap:.4rem;margin-left:.6rem}
+.tc-tk-legend:empty{display:none}
+.tc-tk-leg-item{display:inline-flex;align-items:center;gap:.25rem;font-size:.72rem;
+                color:var(--text);font-weight:600;font-family:inherit}
+.tc-tk-leg-sw{display:inline-block;width:12px;height:3px;border-radius:1.5px}
+.tc-tk-leg-tk{font-variant-numeric:tabular-nums;letter-spacing:.02em}
 .tc-leg-chip:not(.active){opacity:.5;text-decoration:line-through}
 /* Modal 內可點擊 ticker pill:複用 .stk-pill 樣式,加 disable 視覺。
  * 在左欄垂直列表時 width:100%、內容 nowrap(中文不要破字)、

@@ -1202,10 +1202,13 @@ function _renderThemeChart(cardId) {
     // 個股強弱 mode:focal 內每檔 enabled ticker 各一條 line,rebase 100。
     // sentinel 不畫(只關注 cluster 主力 focal,sentinel 拉進來會太擠)。
     // disabled ticker 不畫(跟左側 toggle 同步)。
+    // 此 mode 不畫大盤 / 櫃買(用戶要求,純看個股強弱);legend 改顯 ticker
+    // → 顏色對照(_buildStrengthLegend)。
     const focalList = (cluster.focal || []).filter(f =>
       !_univDis.has(f.ticker) && !_modalTickerDis.has(f.ticker));
     const tch = window.IIA_TICKER_CLOSE || {};
     _tcCharts.tickerSeriesList = [];
+    const legendItems = [];
     focalList.forEach((f, idx) => {
       const rows = (tch[f.ticker] || [])
         .filter(p => p.c != null)
@@ -1221,14 +1224,9 @@ function _renderThemeChart(cardId) {
       });
       series.setData(rebased);
       _tcCharts.tickerSeriesList.push({ ticker: f.ticker, series });
+      legendItems.push({ ticker: f.ticker, name: f.name || '', color });
     });
-    // strength mode 也保留大盤 / 櫃買對照(用較淡顏色),user 可 legend toggle 隱
-    _tcCharts.twiiSeries = _tcCharts.price.addLineSeries(lineOpts('#f59e0b'));
-    _tcCharts.twiiSeries.setData(twiiRebased);
-    _tcCharts.twiiSeries.applyOptions({ visible: _lineVis.twii });
-    _tcCharts.tpexSeries = _tcCharts.price.addLineSeries(lineOpts('#94aef7'));
-    _tcCharts.tpexSeries.setData(tpexRebased);
-    _tcCharts.tpexSeries.applyOptions({ visible: _lineVis.tpex });
+    _renderStrengthLegend(legendItems);
   } else {
     _tcCharts.clusterSeries = _tcCharts.price.addLineSeries(lineOpts('#10b981'));
     _tcCharts.clusterSeries.setData(clusterRebased);
@@ -1239,6 +1237,7 @@ function _renderThemeChart(cardId) {
     _tcCharts.tpexSeries = _tcCharts.price.addLineSeries(lineOpts('#94aef7'));
     _tcCharts.tpexSeries.setData(tpexRebased);
     _tcCharts.tpexSeries.applyOptions({ visible: _lineVis.tpex });
+    _renderStrengthLegend([]);   // index mode 清空 ticker legend
   }
 
   // Chart 2(下):資金淨流入流出 histogram
@@ -1313,6 +1312,24 @@ function setChartMode(mode) {
   if (dlg) dlg.classList.toggle('tc-strength', mode === 'strength');
   // index mode 顯加權 / strength mode 顯個股,只切 chart 1(下方三大法人不變)
   if (_openThemeCardId) _renderThemeChart(_openThemeCardId);
+}
+
+function _escAttr(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+                  .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/* strength mode legend:render 每檔 ticker 對應顏色色塊 + ticker 號 */
+function _renderStrengthLegend(items) {
+  const el = document.getElementById('tc-tk-legend');
+  if (!el) return;
+  el.innerHTML = items.map(it => {
+    const title = it.name ? ` title="${_escAttr(it.ticker + ' ' + it.name)}"` : '';
+    return `<span class="tc-tk-leg-item"${title}>`
+         + `<span class="tc-tk-leg-sw" style="background:${it.color}"></span>`
+         + `<span class="tc-tk-leg-tk">${_dispTk(it.ticker)}</span>`
+         + `</span>`;
+  }).join('');
 }
 
 /* 個股 line palette:用 HSL hue 等分,saturation/lightness 固定。

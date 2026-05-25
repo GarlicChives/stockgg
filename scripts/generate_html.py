@@ -3123,6 +3123,7 @@ async def generate():
           <button class="tc-leg-chip leg-twii active" type="button" onclick="toggleIndexLine('twii')"><span class="leg-sw"></span>大盤(TWII)</button>
           <button class="tc-leg-chip leg-tpex active" type="button" onclick="toggleIndexLine('tpex')"><span class="leg-sw"></span>櫃買(TPEX)</button>
         </span>
+        <span class="tc-tk-legend" id="tc-tk-legend"></span>
         <span class="tc-price-mode">
           <button class="tc-mode-chip active" data-cmode="index" type="button" onclick="setChartMode('index')">指數</button>
           <button class="tc-mode-chip" data-cmode="strength" type="button" onclick="setChartMode('strength')">個股</button>
