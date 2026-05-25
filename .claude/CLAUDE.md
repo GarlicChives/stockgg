@@ -51,6 +51,7 @@ Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
   - `index`: TWII + TPEX 指數
   - `ticker_close`: per-ticker 400 天 close+shares(Q13)
   - `ticker_net_inst`: per-ticker daily net_inst(跨 main 反向索引,給近一年焦點 cluster 用)
+- `docs/kline/<ticker>.json` — 個股 modal 日 K 線 lazy fetch payload(P2 2026-05-25)。compact array `[[d,o,h,l,c,v],...]`,單檔 ~14KB(2330),450 檔 ~6MB 總計。**`.gitignore` 排除**(每次 regen 重寫,wrangler-action 仍會 deploy 整個 docs/);相當於用「per-regen 寫靜態檔」取代「client-side db-proxy fetch + 暴露 anon key」。Q13 維持 400 天(730 天會爆 db-proxy 6MB response 上限),所以 kline 也只有 ~400 天,UI 時間粒度 chip 上限 1Y。
 - `wrangler.jsonc` — `assets.directory: docs` → Workers 整個 docs/ 當靜態 asset 服務
 
 ## 前端架構速覽

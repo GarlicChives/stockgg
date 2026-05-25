@@ -28,3 +28,4 @@ data/search_cache.json
 .DS_Store
 
 supabase/.temp/
+docs/kline/

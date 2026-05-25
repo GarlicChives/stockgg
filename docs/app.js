@@ -39,9 +39,124 @@ function showSubTab(name) {
 
 function showArtModal(ticker, name) {
   document.getElementById('modal-title').textContent = _dispTk(ticker) + ' ' + (name || '');
-  document.getElementById('modal-body').innerHTML =
-    artModalData[ticker] || '<p style="color:#7a8ba0">本檔目前無主動 ETF 持有</p>';
+  const etfHtml = artModalData[ticker] || '<p style="color:#7a8ba0">本檔目前無主動 ETF 持有</p>';
+  document.getElementById('modal-body').innerHTML = (
+    '<div class="art-kline-section">' +
+      '<div class="art-kline-hdr">' +
+        '<span class="art-kline-title">日 K 線</span>' +
+        '<span class="art-kline-period">' +
+          '<button class="art-kline-chip" data-period="1m" type="button" onclick="setKlinePeriod(\'1m\')">1M</button>' +
+          '<button class="art-kline-chip" data-period="3m" type="button" onclick="setKlinePeriod(\'3m\')">3M</button>' +
+          '<button class="art-kline-chip active" data-period="6m" type="button" onclick="setKlinePeriod(\'6m\')">6M</button>' +
+          '<button class="art-kline-chip" data-period="1y" type="button" onclick="setKlinePeriod(\'1y\')">1Y</button>' +
+        '</span>' +
+      '</div>' +
+      '<div class="art-kline-chart" id="art-kline-chart"></div>' +
+      '<div class="art-kline-empty" id="art-kline-empty" style="display:none">載入 K 線中…</div>' +
+    '</div>' +
+    '<div class="art-etf-section">' + etfHtml + '</div>'
+  );
   document.getElementById('art-modal').showModal();
+  _loadStockKline(ticker);
+}
+
+/* ── 個股 modal 日 K 線(lazy fetch per-ticker JSON)─────────────────────── */
+const _klineCache = {};            // ticker → [[d,o,h,l,c,v], ...]
+let _klineChart = null;            // 當前 chart 實例(modal 關閉時 dispose)
+let _klineData = null;             // 當前載入的 data array
+let _klinePeriod = '6m';
+const _KLINE_PERIOD_DAYS = { '1m': 30, '3m': 90, '6m': 180, '1y': 365, '2y': 730 };
+
+function _loadStockKline(ticker) {
+  _klinePeriod = '6m';  // 每次開 modal 重置預設
+  document.querySelectorAll('.art-kline-chip').forEach(b =>
+    b.classList.toggle('active', b.dataset.period === _klinePeriod));
+  const empty = document.getElementById('art-kline-empty');
+  const chart = document.getElementById('art-kline-chart');
+  if (empty) { empty.textContent = '載入 K 線中…'; empty.style.display = ''; }
+  if (chart) chart.style.display = 'none';
+  Promise.all([_loadLightweightCharts(), _fetchKline(ticker)])
+    .then(([_, data]) => {
+      _klineData = data || [];
+      if (!_klineData.length) {
+        if (empty) { empty.textContent = '本檔尚無 K 線資料'; empty.style.display = ''; }
+        if (chart) chart.style.display = 'none';
+        return;
+      }
+      if (empty) empty.style.display = 'none';
+      if (chart) chart.style.display = '';
+      _renderStockKline();
+    })
+    .catch(err => {
+      console.error('kline load failed', err);
+      if (empty) { empty.textContent = 'K 線載入失敗'; empty.style.display = ''; }
+      if (chart) chart.style.display = 'none';
+    });
+}
+
+function _fetchKline(ticker) {
+  if (_klineCache[ticker]) return Promise.resolve(_klineCache[ticker]);
+  return fetch('kline/' + encodeURIComponent(ticker) + '.json', { cache: 'no-cache' })
+    .then(r => {
+      if (r.status === 404) return [];          // 該 ticker 無 kline 檔(universe 外)
+      if (!r.ok) throw new Error('kline ' + r.status);
+      return r.json();
+    })
+    .then(data => { _klineCache[ticker] = data; return data; });
+}
+
+function _renderStockKline() {
+  const container = document.getElementById('art-kline-chart');
+  if (!container || !_klineData) return;
+  // dispose previous chart(period 切換或重開 modal)
+  if (_klineChart) {
+    try { _klineChart.remove(); } catch (e) {}
+    _klineChart = null;
+  }
+  const days = _KLINE_PERIOD_DAYS[_klinePeriod];
+  let data = _klineData;
+  if (days && data.length > days) data = data.slice(-days);
+  // data row 格式: [d, o, h, l, c, v]
+  const candles = data.map(r => ({ time: r[0], open: r[1], high: r[2], low: r[3], close: r[4] }));
+  const volumes = data.map(r => ({
+    time: r[0], value: r[5] || 0,
+    color: (r[4] >= r[1]) ? 'rgba(239,83,80,.5)' : 'rgba(38,166,154,.5)',  // 紅漲綠跌 亞洲
+  }));
+  _klineChart = LightweightCharts.createChart(container, {
+    layout: { background: { type: 'solid', color: 'transparent' },
+              textColor: '#7c8290', attributionLogo: false },
+    grid: { vertLines: { color: 'rgba(255,255,255,.04)' },
+            horzLines: { color: 'rgba(255,255,255,.04)' } },
+    rightPriceScale: { borderColor: 'rgba(255,255,255,.08)',
+                       scaleMargins: { top: 0.05, bottom: 0.28 } },
+    timeScale: { borderColor: 'rgba(255,255,255,.08)', timeVisible: false },
+    crosshair: { mode: 1 },
+    autoSize: true,
+    handleScroll: { mouseWheel: false, pressedMouseMove: true,
+                    horzTouchDrag: true, vertTouchDrag: true },
+    handleScale: { mouseWheel: false, axisPressedMouseMove: true, pinch: true },
+  });
+  const candleSeries = _klineChart.addCandlestickSeries({
+    upColor: '#ef5350', downColor: '#26a69a',
+    borderUpColor: '#ef5350', borderDownColor: '#26a69a',
+    wickUpColor: '#ef5350', wickDownColor: '#26a69a',
+  });
+  candleSeries.setData(candles);
+  const volSeries = _klineChart.addHistogramSeries({
+    priceFormat: { type: 'volume' },
+    priceScaleId: 'vol',
+  });
+  volSeries.priceScale().applyOptions({ scaleMargins: { top: 0.78, bottom: 0 } });
+  volSeries.setData(volumes);
+  _klineChart.timeScale().fitContent();
+}
+
+function setKlinePeriod(p) {
+  if (p === _klinePeriod) return;
+  _klinePeriod = p;
+  document.querySelectorAll('.art-kline-chip').forEach(b =>
+    b.classList.toggle('active', b.dataset.period === p));
+  _renderStockKline();
 }
 
 /* showAetfTab: 主動式 ETF 頁 tab 切換(per-ETF) */
@@ -1144,6 +1259,14 @@ function toggleEl(id) {
 // Close modal on backdrop click
 document.getElementById('art-modal').addEventListener('click', function(e) {
   if (e.target === this) this.close();
+});
+// modal 關閉時 dispose K 線 chart 釋放資源(lightweight-charts 物件不會自動 GC)
+document.getElementById('art-modal').addEventListener('close', () => {
+  if (_klineChart) {
+    try { _klineChart.remove(); } catch (e) {}
+    _klineChart = null;
+  }
+  _klineData = null;
 });
 
 /* ── 分享報告 ─────────────────────────────────────────────────────────────── */

@@ -2578,6 +2578,29 @@ async def generate():
                 })
             print(f"  ticker_close_history: {len(tch_rows)} rows for "
                   f"{len(ticker_close_payload)}/{len(_hist_tickers)} tickers")
+            # 個股 modal 日 K 線(P2):per-ticker JSON 寫到 docs/kline/
+            # <ticker>.json,lazy fetch,免暴露 anon key 給 client。
+            # 格式:[[d,o,h,l,c,v], ...](compact array,~60 bytes/row)。
+            # 不入 git(docs/kline/ 加 .gitignore),wrangler-action assets
+            # 直接 deploy 整個 docs/。日 K 最多 730 天 (~50KB/檔)。
+            _kline_dir = OUT_FILE.parent / "kline"
+            _kline_dir.mkdir(parents=True, exist_ok=True)
+            _kline_written = 0
+            for tk, rows in ticker_close_full.items():
+                kline = [
+                    [r["d"], r.get("open"), r.get("high"), r.get("low"),
+                     r.get("c"), r.get("v")]
+                    for r in rows
+                    if r.get("open") is not None and r.get("c") is not None
+                ]
+                if not kline:
+                    continue
+                (_kline_dir / f"{tk}.json").write_text(
+                    json.dumps(kline, ensure_ascii=False, separators=(",", ":")),
+                    encoding="utf-8",
+                )
+                _kline_written += 1
+            print(f"  kline files: {_kline_written} tickers written to docs/kline/")
         except Exception as exc:
             print(f"  ⚠ ticker_close_history query failed: {exc}")
 
