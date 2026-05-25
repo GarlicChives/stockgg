@@ -51,7 +51,7 @@ Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
   - `index`: TWII + TPEX 指數
   - `ticker_close`: per-ticker 400 天 close+shares(Q13)
   - `ticker_net_inst`: per-ticker daily net_inst(跨 main 反向索引,給近一年焦點 cluster 用)
-- `docs/kline/<ticker>.json` — 個股 modal 日 K 線 lazy fetch payload(P2 2026-05-25)。compact array `[[d,o,h,l,c,v],...]`,單檔 ~14KB(2330),450 檔 ~6MB 總計。**`.gitignore` 排除**(每次 regen 重寫,避免 git repo 膨脹)。但 wrangler v4 部署 Static Assets 預設會 respect 根目錄 `.gitignore` —— 所以 `docs/.assetsignore`(空白檔,只含註解)必須存在,讓 wrangler 改用 `.assetsignore` 為唯一 ignore 來源,不再 fallback 讀 `.gitignore`,kline/ 才會被上傳(2026-05-25 踩過:加 .assetsignore 之前線上 fetch /kline/*.json 全 404)。相當於用「per-regen 寫靜態檔」取代「client-side db-proxy fetch + 暴露 anon key」。Q13 維持 400 天(730 天會爆 db-proxy 6MB response 上限),所以 kline 也只有 ~400 天,UI 時間粒度 chip 上限 1Y。
+- `docs/kline/<ticker>.json` — 個股 modal 日 K 線 lazy fetch payload(P2 2026-05-25)。compact array `[[d,o,h,l,c,v],...]`,單檔 ~14KB(2330),450 檔 ~6MB 總計。**`.gitignore` 排除**(每次 regen 重寫,避免 git repo 膨脹);wrangler v4 部署 Static Assets **不** respect `.gitignore`,所以 kline/ 仍會被上傳到 Cloudflare(實證 wrangler upload count = root 4 + kline 450 = 454 對得上)。相當於用「per-regen 寫靜態檔」取代「client-side db-proxy fetch + 暴露 anon key」。Q13 維持 400 天(730 天會爆 db-proxy 6MB response 上限),所以 kline 也只有 ~400 天,UI 時間粒度 chip 上限 1Y。**`_fetchKline` 必須帶 `?_=Date.now()` cache-bust query**(`docs/app.js`):Cloudflare 邊緣節點會 cache 4xx response,若該 path 在 P2 commit 之後、kline 檔生成之前曾被 fetch 過,邊緣 cache 就會固化 404,後續 deploy 補檔也仍 serve cached 404 直到 cache 過期(2026-05-25 踩過,根因誤判過 .gitignore 和 .assetsignore 都不是真兇)。
 - `wrangler.jsonc` — `assets.directory: docs` → Workers 整個 docs/ 當靜態 asset 服務
 
 ## 前端架構速覽

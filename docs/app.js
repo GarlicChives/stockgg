@@ -111,7 +111,11 @@ function _loadStockKline(ticker) {
 
 function _fetchKline(ticker) {
   if (_klineCache[ticker]) return Promise.resolve(_klineCache[ticker]);
-  return fetch('kline/' + encodeURIComponent(ticker) + '.json', { cache: 'no-cache' })
+  // ?_= cache-bust query 是必要的 —— Cloudflare 邊緣節點會 cache 4xx
+  // response,deploy 補上檔案後 path 仍可能 serve 邊緣 cached 404,
+  // 加隨機 query 強制 revalidate 到 origin Worker。
+  const url = 'kline/' + encodeURIComponent(ticker) + '.json?_=' + Date.now();
+  return fetch(url, { cache: 'no-store' })
     .then(r => {
       if (r.status === 404) return [];          // 該 ticker 無 kline 檔(universe 外)
       if (!r.ok) throw new Error('kline ' + r.status);

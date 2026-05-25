@@ -1,6 +1,0 @@
-# wrangler v4 Static Assets 預設會 respect 根目錄 .gitignore
-# (kline/ 為節省 git repo 空間設了 .gitignore),導致 docs/kline/
-# 450 個 per-ticker JSON 沒被上傳到 Cloudflare → 個股 modal 點開 K 線全 404。
-# 加這個檔(內容只含註解)讓 wrangler 改用 .assetsignore 為唯一 ignore 來源,
-# 不再 fallback 讀 .gitignore — 即可一併上傳 kline/ 目錄。
-# 2026-05-25 修。
