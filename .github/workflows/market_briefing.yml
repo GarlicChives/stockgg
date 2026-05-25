@@ -100,11 +100,12 @@ jobs:
 
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v4
+        env:
+          # 環境變數方式取 verbose log(wrangler v4 deploy 子命令不認 --log-level 旗標)
+          WRANGLER_LOG: debug
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           # Pin 具體版本 — `wranglerVersion: "4"` 浮動取最新會撈到 4.86.0
           # 撞 npx interactive prompt 卡住 (2026-05-19 踩到);pin 已測過的版本。
           wranglerVersion: "4.20.0"
-          # 加 verbose log 看 wrangler 是否真的把 docs/kline/ 列入 asset upload
-          command: deploy --log-level debug
