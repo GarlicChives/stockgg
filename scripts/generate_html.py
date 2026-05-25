@@ -2583,17 +2583,15 @@ async def generate():
             # 格式:[[d,o,h,l,c,v], ...](compact array,~60 bytes/row)。
             # 不入 git(docs/kline/ 加 .gitignore),wrangler-action assets
             # 直接 deploy 整個 docs/。日 K 最多 730 天 (~50KB/檔)。
-            _kline_dir = OUT_FILE.parent / "kline"
-            _kline_dir.mkdir(parents=True, exist_ok=True)
-            _kline_written = 0
-            # 2026-05-25:JSON 從純 array 改為 {b, k} object — b 是 build_stamp
-            # UTC ISO,k 是原本的 OHLCV array。目的:讓每次 regen 的 kline 內容
-            # hash 必定不同,wrangler 才會強制重新 upload。原本純 array 形式
-            # 內容無變化的 ticker 會被 wrangler 跳過(認 KV 已有 blob),但因
-            # 過去多次 deploy 因 --log-level 旗標 abort,wrangler 內部 manifest
-            # cache 跟 Cloudflare KV 實際狀態不一致,導致這些「跳過」的 ticker
-            # 在線上 fetch 全 404。前端 _fetchKline 已兼容 {b,k} 與舊純 array。
+            # 2026-05-25 v2:per-ticker docs/kline/<tk>.json 改為單一
+            # docs/kline.json 含所有 ticker(`{"b": stamp, "k": {tk: [[d,o,h,l,c,v],...], ...}}`)。
+            # 原因:per-ticker 路徑 450 個 manifest entry 對 Cloudflare Workers
+            # Static Assets 的 edge node sync 慢(實測 deploy 完 >40s 後 user fetch
+            # 仍 404,且 retry 1.2s/2.5s 也沒救),單一 entry sync 較快。
+            # client 端 _fetchKline 改 lazy 載 kline.json 一次,後續 ticker 從
+            # in-memory dict 取。檔案 ~6MB / gzip ~2MB,跟 history.json 同等級。
             _build_stamp_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            _kline_all: dict[str, list] = {}
             for tk, rows in ticker_close_full.items():
                 kline_arr = [
                     [r["d"], r.get("open"), r.get("high"), r.get("low"),
@@ -2601,15 +2599,26 @@ async def generate():
                     for r in rows
                     if r.get("open") is not None and r.get("c") is not None
                 ]
-                if not kline_arr:
-                    continue
+                if kline_arr:
+                    _kline_all[tk] = kline_arr
+            _kline_path = OUT_FILE.parent / "kline.json"
+            _kline_path.write_text(
+                json.dumps({"b": _build_stamp_iso, "k": _kline_all},
+                           ensure_ascii=False, separators=(",", ":")),
+                encoding="utf-8",
+            )
+            _kline_size = _kline_path.stat().st_size
+            print(f"  kline.json: {len(_kline_all)} tickers, {_kline_size:,} bytes")
+            # 同時保留舊 per-ticker docs/kline/<tk>.json 一段時間作為 fallback,
+            # 等用戶端確認 kline.json 路徑 stable 後再清理(後續 commit)。
+            _kline_dir = OUT_FILE.parent / "kline"
+            _kline_dir.mkdir(parents=True, exist_ok=True)
+            for tk, arr in _kline_all.items():
                 (_kline_dir / f"{tk}.json").write_text(
-                    json.dumps({"b": _build_stamp_iso, "k": kline_arr},
+                    json.dumps({"b": _build_stamp_iso, "k": arr},
                                ensure_ascii=False, separators=(",", ":")),
                     encoding="utf-8",
                 )
-                _kline_written += 1
-            print(f"  kline files: {_kline_written} tickers written to docs/kline/")
         except Exception as exc:
             print(f"  ⚠ ticker_close_history query failed: {exc}")
 
