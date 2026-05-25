@@ -2959,6 +2959,9 @@ async def generate():
                if (_docs_dir / "style.css").exists() else "0")
     js_ver = (hashlib.md5((_docs_dir / "app.js").read_bytes()).hexdigest()[:8]
               if (_docs_dir / "app.js").exists() else "0")
+    # build_stamp 讓每次 regen 的 HTML 必有新 hash,Cloudflare Workers Static Assets
+    # 才會強制重傳替換掉舊版(2026-05-25 修:wrangler 偶爾會卡舊 manifest)
+    build_stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     page = f"""<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -3171,6 +3174,7 @@ const catalystModalData = {catalyst_modal_data_json};
 const catalystModalTitles = {catalyst_modal_titles_json};
 </script>
 <script src="app.js?v={js_ver}"></script>
+<!-- build {build_stamp} -->
 </body>
 </html>"""
 

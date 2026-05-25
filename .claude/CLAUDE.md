@@ -112,7 +112,7 @@ bash scripts/deploy_db_proxy_public.sh      # Edge Function redeploy
 - [ ] 改了 CSS 或 HTML 結構?是 → 本機 `uv run python scripts/generate_html.py`
   + Playwright / `open docs/index.html` 親眼看一次
 - [ ] 改了 chart / lazy-load 相關?是 → 確認 `docs/history.json` 也一併 regen
-- [ ] **commit 前必檢**:`grep -c "<<<<<<<" docs/index.html` 必須是 0(歷史上踩過 git stash autostash 留 marker 進 inline script 導致 SyntaxError 整個頁面壞掉)
+- [ ] **commit 前必檢**:`grep -c "<<<<<<<" docs/index.html` 必須是 0(2026-05-25 踩第二次:P2 commit `88af34fc` 帶 marker 進 inline script;後續 bot regen 雖乾淨,Cloudflare Workers Static Assets 卻把髒版 stuck 在邊緣不重傳。`scripts/generate_html.py` 已加 `<!-- build {build_stamp} -->` UTC timestamp 讓每次 regen 的 HTML hash 必定變化迫使 wrangler 重傳,但 marker 本身仍要在 commit 前 grep 防呆)
 - [ ] 改了 SEO meta?是 → 用 Twitter Card Validator / FB Debugger 看 preview
 - [ ] Python fstring 內寫 JS:`\n` / `\r` / `\t` / `{`、`}` 都要雙化(`\\n`、`{{`、`}}`),且 inline `onclick="..."` attribute **外層用單引號** `'...'`、內層 `json.dumps()` 用 `"..."` 才不會撞引號嵌套 SyntaxError
 - [ ] Pre-commit hook 跑通沒?沒看到 ✋ 提醒就過了 = 改動非結構性
