@@ -597,6 +597,7 @@ dialog#theme-chart-dialog::backdrop{background:rgba(0,0,0,.35)}
 dialog#art-modal{background:transparent;border:none;color:var(--text);padding:0;
                   width:min(1080px,96vw);height:90vh;max-height:90vh;
                   overflow:visible;
+                  overscroll-behavior:contain;  /* 阻止 modal 內滾輪 bubble 到背景頁面 */
                   position:fixed;top:50%;left:50%;
                   transform:translate(-50%,-50%);margin:0}
 /* art-modal 用 transform:translate(-50%,-50%) 置中,故開啟動畫 keyframe
@@ -649,7 +650,8 @@ dialog#art-modal[open]::backdrop{animation:tcBackdropFade .26s ease-out}
               padding:.2rem .4rem;border-radius:5px;line-height:1}
 .modal-close:hover{background:#1e2235;color:var(--text)}
 .modal-body{overflow-y:auto;padding:.9rem 1.1rem;flex:1;
-            scrollbar-width:none}  /* Firefox 隱藏卷軸但可滾輪滾動 */
+            scrollbar-width:none;
+            overscroll-behavior:contain}  /* Firefox 隱卷軸 + 阻止滾到邊界 bubble 到外層頁面 */
 .modal-body::-webkit-scrollbar{display:none}  /* Chrome/Safari */
 /* 個股 modal K 線 + ETF section 排版(2026-05-25 取消 tab,合併單頁;K 線上 ETF 下) */
 .art-kline-section{margin-bottom:1.2rem}
