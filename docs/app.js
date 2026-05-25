@@ -230,14 +230,15 @@ function _loadStockKline(ticker) {
 
 // 2026-05-25 v2:從 per-ticker /kline/<tk>.json 改為單一 /kline.json
 // (含所有 ticker 的 {b, k: {tk: [[d,o,h,l,c,v],...], ...}})。
-// 單一 entry sync 比 450 個 manifest entry 快,解 Cloudflare Workers Static
-// Assets edge node manifest sync 延遲導致 user fetch 404 的問題。
-// lazy load:第一次任意 ticker 點 modal 才 fetch,後續 ticker 從 in-memory 取。
+// 跟 history.json 同模式:固定 URL + cache:'no-cache' revalidate。
+// **不要加 ?_=Date.now() cache-bust query** —— 每次 URL 不同會讓 Cloudflare
+// 邊緣節點每次都 cache miss,實地 query origin Worker,放大 manifest sync 延遲。
+// 固定 URL 讓邊緣節點有穩定 cache key,deploy 後 Cloudflare 自動 invalidate,
+// 後續 fetch 走邊緣 cache 穩定快速。
 let _klineAllPromise = null;
 function _loadKlineAll() {
   if (_klineAllPromise) return _klineAllPromise;
-  const url = 'kline.json?_=' + Date.now();
-  _klineAllPromise = fetch(url, { cache: 'no-store' })
+  _klineAllPromise = fetch('kline.json', { cache: 'no-cache' })
     .then(r => {
       if (!r.ok) throw new Error('kline.json ' + r.status);
       return r.json();
