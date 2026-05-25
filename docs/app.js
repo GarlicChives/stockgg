@@ -42,10 +42,11 @@ function showArtModal(ticker, name) {
   const etfHtml = artModalData[ticker] || '<p style="color:#7a8ba0">本檔目前無主動 ETF 持有</p>';
   document.getElementById('modal-body').innerHTML = (
     '<div class="art-tab-bar">' +
-      '<button class="art-tab-btn active" data-art-tab="kline" type="button" onclick="setArtTab(\'kline\')">日 K 線</button>' +
-      '<button class="art-tab-btn" data-art-tab="etf" type="button" onclick="setArtTab(\'etf\')">主動式 ETF</button>' +
+      '<button class="art-tab-btn active" data-art-tab="etf" type="button" onclick="setArtTab(\'etf\')">主動式 ETF</button>' +
+      '<button class="art-tab-btn" data-art-tab="kline" type="button" onclick="setArtTab(\'kline\')">日 K 線</button>' +
     '</div>' +
-    '<div class="art-tab-pane" id="art-pane-kline">' +
+    '<div class="art-tab-pane" id="art-pane-etf">' + etfHtml + '</div>' +
+    '<div class="art-tab-pane" id="art-pane-kline" hidden>' +
       '<div class="art-kline-period">' +
         '<button class="art-kline-chip" data-period="1m" type="button" onclick="setKlinePeriod(\'1m\')">1M</button>' +
         '<button class="art-kline-chip" data-period="3m" type="button" onclick="setKlinePeriod(\'3m\')">3M</button>' +
@@ -54,8 +55,7 @@ function showArtModal(ticker, name) {
       '</div>' +
       '<div class="art-kline-chart" id="art-kline-chart"></div>' +
       '<div class="art-kline-empty" id="art-kline-empty" style="display:none">載入 K 線中…</div>' +
-    '</div>' +
-    '<div class="art-tab-pane" id="art-pane-etf" hidden>' + etfHtml + '</div>'
+    '</div>'
   );
   document.getElementById('art-modal').showModal();
   _loadStockKline(ticker);
