@@ -836,7 +836,11 @@ let _openThemeCardId = null;       // 目前打開的 cluster cardId(null = 關)
 let _tcSort = 'chg';               // chart modal 自己的排序 key(獨立於外層頁面)
 let _tcCharts = { net: null, price: null, netSeries: null,
                     clusterSeries: null, twiiSeries: null, tpexSeries: null };
-const _lineVis = { cluster: true, twii: true, tpex: true, all: false };
+const _lineVis = { cluster: true, twii: true, tpex: true };
+// chart mode:'index' = 焦點股加權 vs 大盤(現狀);'strength' = focal 個股各
+// 自一條 line(rebase 100 from startDate)互比強弱。左側 ticker chip toggle
+// 在兩 mode 下都動態 hide/show。
+let _chartMode = 'index';
 // 時間粒度('1m'/'3m'/'6m'/'1y'/'all'),預設 6m,點 chip 切換
 let _chartPeriod = '6m';
 const _PERIOD_DAYS = { '1m': 30, '3m': 90, '6m': 180, '1y': 365 };
@@ -1019,6 +1023,7 @@ function _disposeThemeCharts() {
   _tcCharts.clusterSeries = null;
   _tcCharts.twiiSeries = null;
   _tcCharts.tpexSeries = null;
+  _tcCharts.tickerSeriesList = null;
 }
 
 /* 把當日 netSeries 轉成滾動累計;color 依累計值正負重算 */
@@ -1137,14 +1142,11 @@ function _renderThemeChart(cardId) {
   _renderTickerChips(cluster);
   document.getElementById('tc-title').textContent = '🔸 ' + cluster.name;
   let { netSeries, priceSeries } = _computeClusterSeries(cluster);
-  // baseline:忽略 _modalTickerDis,讓 user 對比手動 toggle 篩後 vs 全選的強弱
-  let { priceSeries: priceSeriesAll } = _computeClusterSeries(cluster, { ignoreModalDis: true });
   let twiiRaw = _computeIndexSeries('TWII');
   let tpexRaw = _computeIndexSeries('TPEX');
   // 按 _chartPeriod 截尾段(1M/3M/6M/1Y/ALL)
   netSeries = _filterByPeriod(netSeries);
   priceSeries = _filterByPeriod(priceSeries);
-  priceSeriesAll = _filterByPeriod(priceSeriesAll);
   twiiRaw = _filterByPeriod(twiiRaw);
   tpexRaw = _filterByPeriod(tpexRaw);
   // **關鍵**:四條線必須對齊到同一個 startDate,crosshair 垂直線才會在兩張
@@ -1195,22 +1197,48 @@ function _renderThemeChart(cardId) {
     color, lineWidth: 2,
     priceFormat: { type: 'custom', formatter: v => v.toFixed(1) },
   });
-  _tcCharts.clusterSeries = _tcCharts.price.addLineSeries(lineOpts('#10b981'));
-  _tcCharts.clusterSeries.setData(clusterRebased);
-  _tcCharts.clusterSeries.applyOptions({ visible: _lineVis.cluster });
-  // 全部標的 baseline(忽略 modal 內 ticker toggle);虛線區隔
-  const clusterAllRebased = _rebaseSeries(priceSeriesAll, startDate);
-  _tcCharts.clusterAllSeries = _tcCharts.price.addLineSeries({
-    ...lineOpts('#a78bfa'), lineStyle: 2,   // 2 = dashed
-  });
-  _tcCharts.clusterAllSeries.setData(clusterAllRebased);
-  _tcCharts.clusterAllSeries.applyOptions({ visible: _lineVis.all });
-  _tcCharts.twiiSeries = _tcCharts.price.addLineSeries(lineOpts('#f59e0b'));
-  _tcCharts.twiiSeries.setData(twiiRebased);
-  _tcCharts.twiiSeries.applyOptions({ visible: _lineVis.twii });
-  _tcCharts.tpexSeries = _tcCharts.price.addLineSeries(lineOpts('#94aef7'));
-  _tcCharts.tpexSeries.setData(tpexRebased);
-  _tcCharts.tpexSeries.applyOptions({ visible: _lineVis.tpex });
+  if (_chartMode === 'strength') {
+    // 個股強弱 mode:focal 內每檔 enabled ticker 各一條 line,rebase 100。
+    // sentinel 不畫(只關注 cluster 主力 focal,sentinel 拉進來會太擠)。
+    // disabled ticker 不畫(跟左側 toggle 同步)。
+    const focalList = (cluster.focal || []).filter(f =>
+      !_univDis.has(f.ticker) && !_modalTickerDis.has(f.ticker));
+    const tch = window.IIA_TICKER_CLOSE || {};
+    _tcCharts.tickerSeriesList = [];
+    focalList.forEach((f, idx) => {
+      const rows = (tch[f.ticker] || [])
+        .filter(p => p.c != null)
+        .map(p => ({ time: p.d, value: p.c }));
+      const filtered = _filterByPeriod(rows).filter(p => p.time >= startDate);
+      if (!filtered.length) return;
+      const rebased = _rebaseSeries(filtered, startDate);
+      const color = _pickTickerColor(idx, focalList.length);
+      const series = _tcCharts.price.addLineSeries({
+        color, lineWidth: 2, lastValueVisible: true, priceLineVisible: false,
+        priceFormat: { type: 'custom', formatter: v => v.toFixed(1) },
+        title: _dispTk(f.ticker),
+      });
+      series.setData(rebased);
+      _tcCharts.tickerSeriesList.push({ ticker: f.ticker, series });
+    });
+    // strength mode 也保留大盤 / 櫃買對照(用較淡顏色),user 可 legend toggle 隱
+    _tcCharts.twiiSeries = _tcCharts.price.addLineSeries(lineOpts('#f59e0b'));
+    _tcCharts.twiiSeries.setData(twiiRebased);
+    _tcCharts.twiiSeries.applyOptions({ visible: _lineVis.twii });
+    _tcCharts.tpexSeries = _tcCharts.price.addLineSeries(lineOpts('#94aef7'));
+    _tcCharts.tpexSeries.setData(tpexRebased);
+    _tcCharts.tpexSeries.applyOptions({ visible: _lineVis.tpex });
+  } else {
+    _tcCharts.clusterSeries = _tcCharts.price.addLineSeries(lineOpts('#10b981'));
+    _tcCharts.clusterSeries.setData(clusterRebased);
+    _tcCharts.clusterSeries.applyOptions({ visible: _lineVis.cluster });
+    _tcCharts.twiiSeries = _tcCharts.price.addLineSeries(lineOpts('#f59e0b'));
+    _tcCharts.twiiSeries.setData(twiiRebased);
+    _tcCharts.twiiSeries.applyOptions({ visible: _lineVis.twii });
+    _tcCharts.tpexSeries = _tcCharts.price.addLineSeries(lineOpts('#94aef7'));
+    _tcCharts.tpexSeries.setData(tpexRebased);
+    _tcCharts.tpexSeries.applyOptions({ visible: _lineVis.tpex });
+  }
 
   // Chart 2(下):資金淨流入流出 histogram
   _tcCharts.net = LightweightCharts.createChart(netEl, chartOpts);
@@ -1255,14 +1283,15 @@ function _renderThemeChart(cardId) {
 
   // crosshair 兩張圖雙向同步(垂直虛線貫穿兩張)
   _syncCrosshair(_tcCharts.price, _tcCharts.net, _tcCharts.netSeries);
-  _syncCrosshair(_tcCharts.net, _tcCharts.price, _tcCharts.clusterSeries);
+  // strength mode 沒 clusterSeries,改用 twiiSeries(兩 mode 都存在)當參考
+  _syncCrosshair(_tcCharts.net, _tcCharts.price,
+    _tcCharts.clusterSeries || _tcCharts.twiiSeries);
 }
 
 function toggleIndexLine(key) {
   _lineVis[key] = !_lineVis[key];
   const seriesKeyMap = {
-    cluster: 'clusterSeries', twii: 'twiiSeries',
-    tpex: 'tpexSeries', all: 'clusterAllSeries',
+    cluster: 'clusterSeries', twii: 'twiiSeries', tpex: 'tpexSeries',
   };
   const seriesKey = seriesKeyMap[key];
   if (_tcCharts[seriesKey]) {
@@ -1270,6 +1299,30 @@ function toggleIndexLine(key) {
   }
   const btn = document.querySelector('.tc-leg-chip.leg-' + key);
   if (btn) btn.classList.toggle('active', _lineVis[key]);
+}
+
+/* 切 chart mode:index(加權指數 vs 大盤) ↔ strength(個股各自 line) */
+function setChartMode(mode) {
+  if (mode === _chartMode) return;
+  _chartMode = mode;
+  document.querySelectorAll('.tc-mode-tab').forEach(b =>
+    b.classList.toggle('active', b.dataset.mode === mode));
+  // strength mode 隱「焦點股」legend chip(該 mode 沒這條總線,顯示反而混淆)
+  const dlg = document.getElementById('theme-chart-dialog');
+  if (dlg) dlg.classList.toggle('tc-strength', mode === 'strength');
+  // index mode 顯加權 / strength mode 顯個股,只切 chart 1(下方三大法人不變)
+  if (_openThemeCardId) _renderThemeChart(_openThemeCardId);
+}
+
+/* 個股 line palette:用 HSL hue 等分,saturation/lightness 固定。
+   為了跟既有色(綠 / 橙 / 藍 / 紫)區隔,個股 hue 起點偏暖 + 高 saturation。 */
+function _pickTickerColor(idx, total) {
+  // 12 色 distinct palette;>12 檔 hue 開始接近但 lightness 變化區隔
+  const palette = [
+    '#ef4444','#f97316','#eab308','#84cc16','#22c55e','#14b8a6',
+    '#06b6d4','#3b82f6','#6366f1','#8b5cf6','#d946ef','#ec4899',
+  ];
+  return palette[idx % palette.length];
 }
 
 /* openThemeByName: 焦點股頁「隸屬題材」chip 點擊 → 用 cluster name 反查
@@ -1301,9 +1354,14 @@ function openThemeChart(cardId, opts) {
   // Reset modal-only state(disable set + histogram mode 都不跨 cluster 持久化)
   _modalTickerDis = new Set();
   _netMode = 'daily';
+  _chartMode = 'index';
   document.querySelectorAll('.tc-mode-chip').forEach(b => {
     b.classList.toggle('active', b.dataset.mode === 'daily');
   });
+  document.querySelectorAll('.tc-mode-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === 'index');
+  });
+  dlg.classList.remove('tc-strength');
   // 顯示 loading hint(首次 fetch history.json 可能要 ~1 秒)
   const tcEmpty = document.getElementById('tc-empty');
   if (!window.IIA_HISTORY) {

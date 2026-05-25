@@ -514,11 +514,17 @@ dialog#theme-chart-dialog::backdrop{background:rgba(0,0,0,.35)}
                       background:currentColor;border-radius:1px}
 .tc-leg-chip:hover{color:var(--text)}
 .tc-leg-chip.active.leg-cluster{color:#10b981}
-.tc-leg-chip.active.leg-all{color:#a78bfa}
 .tc-leg-chip.active.leg-twii{color:#f59e0b}
 .tc-leg-chip.active.leg-tpex{color:#94aef7}
-/* 全部標的 baseline 是虛線:legend chip sw 也對應顯虛線視覺 */
-.tc-leg-chip.leg-all .leg-sw{background:repeating-linear-gradient(90deg,currentColor 0 3px,transparent 3px 5px)}
+/* chart mode tab(加權指數 / 個股強弱,2026-05-26)*/
+.tc-mode-tabs{display:inline-flex;gap:.2rem;margin-right:.6rem}
+.tc-mode-tab{font-family:inherit;font-size:.74rem;font-weight:600;
+             padding:.28rem .55rem;border-radius:5px;cursor:pointer;
+             background:transparent;color:var(--muted);border:1px solid var(--border);transition:.12s}
+.tc-mode-tab:hover{color:var(--text)}
+.tc-mode-tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+/* strength mode 下隱「焦點股」legend chip(該 mode 沒這條總線)*/
+dialog#theme-chart-dialog.tc-strength .tc-leg-chip.leg-cluster{display:none}
 .tc-leg-chip:not(.active){opacity:.5;text-decoration:line-through}
 /* Modal 內可點擊 ticker pill:複用 .stk-pill 樣式,加 disable 視覺。
  * 在左欄垂直列表時 width:100%、內容 nowrap(中文不要破字)、
