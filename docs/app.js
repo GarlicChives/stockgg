@@ -1220,7 +1220,7 @@ function _renderThemeChart(cardId) {
       const series = _tcCharts.price.addLineSeries({
         color, lineWidth: 2, lastValueVisible: true, priceLineVisible: false,
         priceFormat: { type: 'custom', formatter: v => v.toFixed(1) },
-        title: _dispTk(f.ticker),
+        // title 不設 —— ticker 號已在上方 legend 顯示,chart 內 label 留純價格
       });
       series.setData(rebased);
       _tcCharts.tickerSeriesList.push({ ticker: f.ticker, series });
@@ -1319,15 +1319,15 @@ function _escAttr(s) {
                   .replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-/* strength mode legend:render 每檔 ticker 對應顏色色塊 + ticker 號 */
+/* strength mode legend:render 每檔 ticker 對應顏色色塊 + ticker 號 + 公司名 */
 function _renderStrengthLegend(items) {
   const el = document.getElementById('tc-tk-legend');
   if (!el) return;
   el.innerHTML = items.map(it => {
-    const title = it.name ? ` title="${_escAttr(it.ticker + ' ' + it.name)}"` : '';
-    return `<span class="tc-tk-leg-item"${title}>`
+    return `<span class="tc-tk-leg-item">`
          + `<span class="tc-tk-leg-sw" style="background:${it.color}"></span>`
          + `<span class="tc-tk-leg-tk">${_dispTk(it.ticker)}</span>`
+         + (it.name ? `<span class="tc-tk-leg-nm">${_escAttr(it.name)}</span>` : '')
          + `</span>`;
   }).join('');
 }

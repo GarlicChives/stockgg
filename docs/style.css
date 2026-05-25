@@ -527,6 +527,7 @@ dialog#theme-chart-dialog.tc-strength .tc-legend{display:none}
                 color:var(--text);font-weight:600;font-family:inherit}
 .tc-tk-leg-sw{display:inline-block;width:12px;height:3px;border-radius:1.5px}
 .tc-tk-leg-tk{font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.tc-tk-leg-nm{color:var(--muted);font-weight:500;margin-left:.15rem}
 .tc-leg-chip:not(.active){opacity:.5;text-decoration:line-through}
 /* Modal 內可點擊 ticker pill:複用 .stk-pill 樣式,加 disable 視覺。
  * 在左欄垂直列表時 width:100%、內容 nowrap(中文不要破字)、

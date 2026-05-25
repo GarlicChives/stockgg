@@ -3113,9 +3113,9 @@ async def generate():
 
     <!-- 右欄:兩張 chart 上下排列,各自 flex:1 自適應 -->
     <div class="tc-charts-col">
-      <!-- Chart 1(上):焦點股加權指數 vs 大盤 / 個股強弱 mode tab(右上)-->
+      <!-- Chart 1(上):焦點股加權指數 / 個股強弱 mode tab(右上)-->
       <div class="tc-chart-label">
-        焦點股加權指數 vs 大盤
+        焦點股加權指數
         <span class="tc-info" tabindex="0"
               title="加權指數計算法&#10;1. 每檔焦點股當日市值 = 收盤價 × 流通在外股數&#10;2. cluster daily mcap = Σ 全部焦點股當日市值;某檔某日缺資料時用該檔最後一次有資料的 close × shares 延續(per-ticker forward-fill,標準加權指數做法)&#10;3. 三條線(cluster / TWII / TPEX)同時 rebase 到 100(取三條共同起點當基準),純看相對強弱不看絕對水位&#10;4. cluster 線會依「焦點 chip 列表」即時重算&#10;5. 個股強弱模式:focal 內 enabled 個股各自 rebase 100 from startDate,互比強弱;左側 toggle 同步控顯隱">ⓘ</span>
         <span class="tc-legend">
