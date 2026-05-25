@@ -78,31 +78,8 @@ jobs:
           echo "Push failed after 3 attempts" >&2
           exit 1
 
-      - name: Debug docs/ before deploy
-        run: |
-          echo "=== docs/ root contents ==="
-          ls -la docs/
-          echo ""
-          echo "=== docs/kline/ exists? ==="
-          ls -la docs/kline/ 2>&1 | head -10 || echo "NOT FOUND"
-          echo ""
-          echo "=== docs/kline/ total file count ==="
-          find docs/kline -type f 2>/dev/null | wc -l
-          echo ""
-          echo "=== sample: docs/kline/4958.json head ==="
-          head -c 200 docs/kline/4958.json 2>&1 || echo "FILE NOT FOUND"
-          echo ""
-          echo "=== sample: docs/kline/3236.json head ==="
-          head -c 200 docs/kline/3236.json 2>&1 || echo "FILE NOT FOUND"
-          echo ""
-          echo "=== file mode (permissions) of one kline file ==="
-          stat docs/kline/2330.json 2>&1 || echo "2330 NOT FOUND"
-
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v4
-        env:
-          # 環境變數方式取 verbose log(wrangler v4 deploy 子命令不認 --log-level 旗標)
-          WRANGLER_LOG: debug
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
