@@ -147,8 +147,8 @@ function _renderArtModalBody(ticker, name) {
       '<div class="art-kline-period">' +
         '<button class="art-kline-chip" data-period="1m" type="button" onclick="setKlinePeriod(\'1m\')">1M</button>' +
         '<button class="art-kline-chip" data-period="3m" type="button" onclick="setKlinePeriod(\'3m\')">3M</button>' +
-        '<button class="art-kline-chip" data-period="6m" type="button" onclick="setKlinePeriod(\'6m\')">6M</button>' +
-        '<button class="art-kline-chip active" data-period="1y" type="button" onclick="setKlinePeriod(\'1y\')">1Y</button>' +
+        '<button class="art-kline-chip active" data-period="6m" type="button" onclick="setKlinePeriod(\'6m\')">6M</button>' +
+        '<button class="art-kline-chip" data-period="1y" type="button" onclick="setKlinePeriod(\'1y\')">1Y</button>' +
       '</div>' +
       '<div class="art-kline-chart" id="art-kline-chart"></div>' +
       '<div class="art-kline-empty" id="art-kline-empty" style="display:none">載入 K 線中…</div>' +
@@ -195,7 +195,7 @@ let _klinePeriod = '6m';
 const _KLINE_PERIOD_DAYS = { '1m': 30, '3m': 90, '6m': 180, '1y': 365, '2y': 730 };
 
 function _loadStockKline(ticker) {
-  _klinePeriod = '1y';  // 每次開/切換 ticker 重置預設(2026-05-25 從 6m 改 1y)
+  _klinePeriod = '6m';  // 每次開/切換 ticker 重置預設
   // 切換 ticker 必須先 dispose 上一檔 chart,避免新 ticker render 時舊 chart 還在
   if (_klineChart) {
     try { _klineChart.remove(); } catch (e) {}
@@ -228,27 +228,43 @@ function _loadStockKline(ticker) {
     });
 }
 
-// 2026-05-25 v2:從 per-ticker /kline/<tk>.json 改為單一 /kline.json
-// (含所有 ticker 的 {b, k: {tk: [[d,o,h,l,c,v],...], ...}})。
+// 2026-05-25 v2:從 per-ticker /kline/<tk>.json 改為單一 /kline.json。
 // 跟 history.json 同模式:固定 URL + cache:'no-cache' revalidate。
 // **不要加 ?_=Date.now() cache-bust query** —— 每次 URL 不同會讓 Cloudflare
-// 邊緣節點每次都 cache miss,實地 query origin Worker,放大 manifest sync 延遲。
-// 固定 URL 讓邊緣節點有穩定 cache key,deploy 後 Cloudflare 自動 invalidate,
-// 後續 fetch 走邊緣 cache 穩定快速。
+// 邊緣節點每次 cache miss,放大 manifest sync 延遲。
+//
+// retry 策略:Cloudflare Workers Static Assets deploy 後可能有 propagation
+// 延遲(實測偶爾 10 分鐘),fetch 失敗時自動延遲 retry 直到成功。modal
+// 端在 _loadKlineAll 解決前顯「載入 K 線中...」,不顯「本檔尚無 K 線資料」
+// 誤訊息(只有 ticker 不在 universe 才顯)。
 let _klineAllPromise = null;
 function _loadKlineAll() {
   if (_klineAllPromise) return _klineAllPromise;
-  _klineAllPromise = fetch('kline.json', { cache: 'no-cache' })
-    .then(r => {
-      if (!r.ok) throw new Error('kline.json ' + r.status);
-      return r.json();
-    })
-    .then(payload => payload && payload.k || {})
-    .catch(err => {
-      console.error('kline.json load failed', err);
-      _klineAllPromise = null;   // 失敗清掉 promise 讓下次可重試
-      return {};
-    });
+  const fetchOnce = () =>
+    fetch('kline.json', { cache: 'no-cache' })
+      .then(r => {
+        if (!r.ok) throw new Error('kline.json ' + r.status);
+        return r.json();
+      })
+      .then(payload => payload && payload.k || {});
+  // 指數退避 retry:0 / 2s / 5s / 10s / 20s / 30s,共 6 輪嘗試,最久 ~67 秒
+  const delays = [0, 2000, 5000, 10000, 20000, 30000];
+  _klineAllPromise = (async () => {
+    let lastErr;
+    for (let i = 0; i < delays.length; i++) {
+      if (delays[i]) await new Promise(res => setTimeout(res, delays[i]));
+      try {
+        return await fetchOnce();
+      } catch (err) {
+        lastErr = err;
+        console.warn(`kline.json attempt ${i + 1} failed: ${err.message}`);
+      }
+    }
+    // 全失敗:清 promise(下次 modal 開可重試)+ 拋錯(讓 _loadStockKline 的
+    // catch 顯「載入失敗」而非「本檔尚無」誤訊息)
+    _klineAllPromise = null;
+    throw lastErr || new Error('kline.json all retries failed');
+  })();
   return _klineAllPromise;
 }
 

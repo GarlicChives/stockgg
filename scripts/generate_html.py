@@ -1561,20 +1561,8 @@ def build_focus_stock_page(
                        and chip_big_chg < -_HOLDER_NOISE))
             is_chip = bool(_r1 and _r2 and not _r3)
 
-        # 早盤漲停股(2026-05-25):open == high == low == close 四值相等
-        # → 全日只成交一個價,且該價 = 收漲停(chg ≥ +9.95%);意義 = 開盤
-        # 撮合即鎖死、全日無 tick 跌破鎖死價、收盤仍鎖。NUMERIC 用 0.01 容差
-        # 避免精度地雷(ingest 4ea7c3e 提示)。
-        today_open = _f(info.get("open"))
-        today_low  = _f(info.get("low"))
-        is_early_lock = bool(
-            today_open is not None and today_high is not None and today_low is not None
-            and today_close is not None and today_chg is not None
-            and today_chg >= 9.95
-            and abs(today_open - today_close) < 0.01
-            and abs(today_high - today_close) < 0.01
-            and abs(today_low  - today_close) < 0.01
-        )
+        # 早盤漲停股移除(2026-05-25):無 intraday tick 資料無法精準分 0930
+        # 前後,日 OHLC 近似版誤判太多,user 決定移除整個 sub-tab + chip + 條件。
 
         matched: list[str] = []
         if is_volume:
@@ -1587,8 +1575,6 @@ def build_focus_stock_page(
             matched.append("成長")
         if is_chip:
             matched.append("籌碼")
-        if is_early_lock:
-            matched.append("早漲停")
         cands.append({
             "ticker": tk,
             "name": (info.get("name") or "")[:12],
@@ -1615,7 +1601,6 @@ def build_focus_stock_page(
             "is_volume": is_volume, "is_potential": is_potential,
             "is_new_high": is_new_high, "is_growth": is_growth,
             "is_chip": is_chip, "chip_big_chg": chip_big_chg,
-            "is_early_lock": is_early_lock,
             "matched": matched,
         })
 
@@ -1637,12 +1622,6 @@ def build_focus_stock_page(
         key=lambda c: (-(c["chip_big_chg"] if c["chip_big_chg"] is not None else _chip_inf),
                        _by_bias(c)),
     )
-    # 早盤漲停股依今日成交金額 desc(大量鎖死代表多空爭奪激烈、值得關注)
-    early_lock_stocks = sorted(
-        [c for c in cands if c["is_early_lock"]],
-        key=lambda c: -(c["today_tv"] or 0),
-    )
-
     def _bias_cell(v):
         if v is None:
             return '<span class="muted">—</span>'
@@ -1703,11 +1682,10 @@ def build_focus_stock_page(
         return f'<span class="{cls}">{sign}{val:.2f}%{arrow}</span>'
 
     _MATCH_CHIP_CLS = {"出量": "fs-mc-vol", "潛力": "fs-mc-pot",
-                       "新高": "fs-mc-nh", "成長": "fs-mc-gr", "籌碼": "fs-mc-chip",
-                       "早漲停": "fs-mc-elock"}
+                       "新高": "fs-mc-nh", "成長": "fs-mc-gr", "籌碼": "fs-mc-chip"}
     # 條件 → 短 key(交集股篩選列 data-cond / row data-matched 用)
     _MATCH_KEY = {"出量": "vol", "潛力": "pot", "新高": "nh", "成長": "gr",
-                  "籌碼": "chip", "早漲停": "elock"}
+                  "籌碼": "chip"}
 
     def _match_cell(matched):
         return "".join(
@@ -1816,7 +1794,6 @@ def build_focus_stock_page(
     gr_html  = _table(growth_stocks, "growth",
                       "今日無焦點股符合成長條件(月營收連 3 月 + 4 損益科目金額 YoY 皆正)")
     chip_html = _table(chip_stocks, "chip", "今日無焦點股符合籌碼條件")
-    elock_html = _table(early_lock_stocks, "elock", "今日無焦點股早盤鎖死至收盤")
 
     nav_html = (
         '<div class="sub-tabs">'
@@ -1832,12 +1809,10 @@ def build_focus_stock_page(
         'onclick="showFocusStockTab(\'gr\')">🌱 成長股</button>'
         '<button class="sub-tab-btn" data-fstab="chip" type="button" '
         'onclick="showFocusStockTab(\'chip\')">🔒 籌碼股</button>'
-        '<button class="sub-tab-btn" data-fstab="elock" type="button" '
-        'onclick="showFocusStockTab(\'elock\')">🔥 早盤漲停股</button>'
         '</div>'
     )
     # 交集股條件篩選列(預設全 disabled;多選 AND;順序同 sub-tab;有交集股才顯示)
-    _filter_conds = [("vol", "出量"), ("pot", "潛力"), ("nh", "新高"), ("gr", "成長"), ("chip", "籌碼"), ("elock", "早漲停")]
+    _filter_conds = [("vol", "出量"), ("pot", "潛力"), ("nh", "新高"), ("gr", "成長"), ("chip", "籌碼")]
     _int_filter_bar = ((
         '<div class="fs-filter-bar">'
         '<span class="fs-filter-label">篩選符合條件</span>'
@@ -1891,11 +1866,6 @@ def build_focus_stock_page(
                      'TDCC 集保週資料近似運算,週減幅 ≤ 0.3 個百分點視為噪音不計',
                      chip_stocks)
         + chip_html + '</div>'
-        + '<div class="fs-tab-pane" id="fstab-elock">'
-        + _pane_head('開盤撮合即漲停鎖死、全日無 tick 跌破鎖死價、收盤仍鎖(open '
-                     '= high = low = close 且漲幅 ≥ 9.95%),依今日成交金額排序。',
-                     early_lock_stocks)
-        + elock_html + '</div>'
     )
     return nav_html + panes_html
 
@@ -2609,16 +2579,14 @@ async def generate():
             )
             _kline_size = _kline_path.stat().st_size
             print(f"  kline.json: {len(_kline_all)} tickers, {_kline_size:,} bytes")
-            # 同時保留舊 per-ticker docs/kline/<tk>.json 一段時間作為 fallback,
-            # 等用戶端確認 kline.json 路徑 stable 後再清理(後續 commit)。
-            _kline_dir = OUT_FILE.parent / "kline"
-            _kline_dir.mkdir(parents=True, exist_ok=True)
-            for tk, arr in _kline_all.items():
-                (_kline_dir / f"{tk}.json").write_text(
-                    json.dumps({"b": _build_stamp_iso, "k": arr},
-                               ensure_ascii=False, separators=(",", ":")),
-                    encoding="utf-8",
-                )
+            # 不再寫 per-ticker docs/kline/<tk>.json fallback —— 跟 docs/kline.json
+            # 同名衝突(file vs directory)疑似讓 Cloudflare Workers Static Assets
+            # silent drop /kline.json manifest entry,造成線上 10 分鐘後仍 404
+            # (假設 A:path collision,2026-05-25)。同時主動清掉舊目錄避殘留。
+            import shutil
+            _old_kline_dir = OUT_FILE.parent / "kline"
+            if _old_kline_dir.exists():
+                shutil.rmtree(_old_kline_dir)
         except Exception as exc:
             print(f"  ⚠ ticker_close_history query failed: {exc}")
 

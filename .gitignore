@@ -29,3 +29,4 @@ data/search_cache.json
 
 supabase/.temp/
 docs/kline/
+docs/kline.json
