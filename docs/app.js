@@ -49,7 +49,6 @@ let _artCurrentTicker = null;
 let _artCurrentName = '';
 let _artScopeContainer = null;      // DOM ref:來源 container,filter 變動時 re-scan 用
 let _artScopeObserver = null;       // MutationObserver:監聽 container 變化自動 refresh
-const _artDisabled = new Set();     // user 手動 disable 的 ticker(modal 範圍內)
 
 const _ART_SCOPE_SELECTORS = [
   '.cluster-focal-stocks',       // 熱門題材 cluster focal/sentinel pill
@@ -104,19 +103,14 @@ function _refreshArtScope() {
     }
   });
   _artScope = next.length ? next : [{ ticker: _artCurrentTicker, name: _artCurrentName }];
-  // 維持當前 ticker idx;若 current 被 filter 出去 → 改 idx 0
   const idx = _artScope.findIndex(it => it.ticker === _artCurrentTicker);
   _artScopeIdx = idx >= 0 ? idx : 0;
-  // 同步 modal 內 ticker bar(若 modal 開著)
-  const bar = document.getElementById('art-ticker-bar');
-  if (bar) bar.innerHTML = _buildTickerBarHtml();
   _updateArtCounter();
 }
 
 function showArtModal(ticker, name, evt) {
   _artCurrentTicker = ticker;
   _artCurrentName = name || '';
-  _artDisabled.clear();
   _artScopeContainer = _detectArtScope(evt);
   // dispose 上次 observer(若 modal 連續開不同 container)
   if (_artScopeObserver) { _artScopeObserver.disconnect(); _artScopeObserver = null; }
@@ -143,34 +137,12 @@ function showArtModal(ticker, name, evt) {
   document.getElementById('art-modal').showModal();
 }
 
-/* 建 ticker bar HTML:每檔一個 chip,current 高亮 + disabled 劃線 */
-function _buildTickerBarHtml() {
-  if (_artScope.length < 2) return '';   // 只 1 檔不顯 bar
-  return _artScope.map(it => {
-    const cls = ['art-ticker-chip'];
-    if (it.ticker === _artCurrentTicker) cls.push('current');
-    if (_artDisabled.has(it.ticker)) cls.push('disabled');
-    const nm = it.name ? ` <span class="art-tc-nm">${_escAttr(it.name)}</span>` : '';
-    return `<button class="${cls.join(' ')}" type="button" `
-         + `data-art-tk="${it.ticker}" onclick="artTickerToggle('${it.ticker}', event)">`
-         + `<span class="art-tc-tk">${_dispTk(it.ticker)}</span>${nm}</button>`;
-  }).join('');
-}
-
-/* 輕量 HTML attr escape(name 內可能含 &/" 等)*/
-function _escAttr(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
-                  .replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
 /* 重新渲染 modal body(切換 ticker 時 reuse,不關 modal)
-   2026-05-25:取消 tab,K 線 + ETF 直接上下排列(K 線在上);頂部加
-   ticker chips bar 允許 user toggle 個別 ticker enable/disable。 */
+   2026-05-25:取消 tab,K 線(上)+ ETF(下)直接排列 */
 function _renderArtModalBody(ticker, name) {
   document.getElementById('modal-title').textContent = _dispTk(ticker) + ' ' + (name || '');
   const etfHtml = artModalData[ticker] || '<p style="color:#7a8ba0">本檔目前無主動 ETF 持有</p>';
   document.getElementById('modal-body').innerHTML = (
-    '<div class="art-ticker-bar" id="art-ticker-bar">' + _buildTickerBarHtml() + '</div>' +
     '<div class="art-kline-section">' +
       '<div class="art-kline-period">' +
         '<button class="art-kline-chip" data-period="1m" type="button" onclick="setKlinePeriod(\'1m\')">1M</button>' +
@@ -184,61 +156,35 @@ function _renderArtModalBody(ticker, name) {
     '<div class="art-etf-section">' + etfHtml + '</div>'
   );
   _updateArtCounter();
-  // K 線 chart 永遠 visible,可立即 render(取代舊 lazy 路徑)
   _loadStockKline(ticker);
 }
 
-/* 更新 art-counter「N/M」(N = current 在「啟用」清單內的位次,M = 啟用總數)
-   + nav 箭頭 disable 條件(啟用 ≤ 1 時兩邊都 disable)。
-   disabled ticker 不算入 total —— 即使 _artScope 有 10 檔,user disable 3 檔
-   counter 顯 X/7。 */
+/* 更新 art-counter「N/total」+ nav 箭頭 disable 條件(總數 ≤ 1 時兩邊都 disable)*/
 function _updateArtCounter() {
-  const enabled = _artScope.filter(it => !_artDisabled.has(it.ticker));
-  const enIdx = enabled.findIndex(it => it.ticker === _artCurrentTicker);
   const counter = document.getElementById('art-counter');
   if (counter) {
-    counter.textContent = enabled.length
-      ? `${(enIdx >= 0 ? enIdx : 0) + 1}/${enabled.length}`
+    counter.textContent = _artScope.length
+      ? `${_artScopeIdx + 1}/${_artScope.length}`
       : '';
   }
   const prev = document.getElementById('art-nav-prev');
   const next = document.getElementById('art-nav-next');
-  const navDisabled = enabled.length < 2;
+  const navDisabled = _artScope.length < 2;
   if (prev) prev.disabled = navDisabled;
   if (next) next.disabled = navDisabled;
 }
 
-/* 左右導覽:環狀切到 prev/next ticker(跳過 _artDisabled 內的 ticker)*/
+/* 左右導覽:環狀切到 prev/next ticker(同 scope 內)*/
 function artNavTicker(dir) {
-  if (!_artScope.length) return;
+  if (_artScope.length < 2) return;
   const n = _artScope.length;
-  let idx = _artScopeIdx;
-  for (let i = 0; i < n; i++) {
-    idx = dir === 'next' ? (idx + 1) % n : (idx - 1 + n) % n;
-    if (!_artDisabled.has(_artScope[idx].ticker)) {
-      _artScopeIdx = idx;
-      const cur = _artScope[idx];
-      _artCurrentTicker = cur.ticker;
-      _artCurrentName = cur.name;
-      _renderArtModalBody(cur.ticker, cur.name);
-      return;
-    }
-  }
-  // 全部 disabled(理論上不會,因 current ticker 不應被 disable);no-op
-}
-
-/* 切 ticker enable/disable 狀態。current ticker 不能被 disable(否則 modal
-   就空了)—— 點 current 視為「立刻跳到下一啟用 ticker」較直覺?簡化先版:
-   current chip 點擊 no-op,只能 toggle 其他。 */
-function artTickerToggle(ticker, evt) {
-  if (evt) evt.stopPropagation();
-  if (ticker === _artCurrentTicker) return;   // current 不能 disable
-  if (_artDisabled.has(ticker)) _artDisabled.delete(ticker);
-  else _artDisabled.add(ticker);
-  // 只刷該 chip 樣式 + counter(不重 render 整個 modal)
-  const chip = document.querySelector(`.art-ticker-chip[data-art-tk="${ticker}"]`);
-  if (chip) chip.classList.toggle('disabled', _artDisabled.has(ticker));
-  _updateArtCounter();
+  _artScopeIdx = dir === 'next'
+    ? (_artScopeIdx + 1) % n
+    : (_artScopeIdx - 1 + n) % n;
+  const cur = _artScope[_artScopeIdx];
+  _artCurrentTicker = cur.ticker;
+  _artCurrentName = cur.name;
+  _renderArtModalBody(cur.ticker, cur.name);
 }
 
 /* ── 個股 modal 日 K 線(lazy fetch per-ticker JSON)─────────────────────── */
@@ -1472,7 +1418,6 @@ document.getElementById('art-modal').addEventListener('close', () => {
   _artScopeIdx = -1;
   _artCurrentTicker = null;
   _artScopeContainer = null;
-  _artDisabled.clear();
   if (_artScopeObserver) { _artScopeObserver.disconnect(); _artScopeObserver = null; }
 });
 
