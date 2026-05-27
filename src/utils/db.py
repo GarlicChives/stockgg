@@ -17,6 +17,7 @@ API surface is identical to asyncpg (kept for drop-in compatibility):
 Works on any network with HTTPS (port 443) — including company WiFi
 that blocks direct PostgreSQL port 5432.
 """
+import asyncio
 import os
 import re
 from datetime import date, datetime, timezone
@@ -25,6 +26,12 @@ from typing import Any
 import httpx
 
 EDGE_URL = "https://mnseyguxiiditaybpfup.supabase.co/functions/v1/db-proxy-public"
+
+# Supabase Edge Function 偶發 5xx(isolate cold start / CPU 上限 / 連線池),
+# 這些 retry 一次幾乎都會通 → 在 client 層攔下,免每個 caller 自己包 try/except。
+# 5xx + httpx.RequestError (timeout / DNS / connection reset) 都會觸發 retry。
+_RETRYABLE_HTTP_CODES = {500, 502, 503, 504, 522, 524, 546, 548}
+_RETRY_BACKOFF_S = (0.5, 1.5, 3.0)  # 3 次 retry,total 0.5 + 1.5 + 3 = 5s 上限
 
 # ISO datetime / date detection for auto-parsing JSON strings back to Python types
 _DT_RE  = re.compile(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}')
@@ -91,19 +98,44 @@ class AsyncConnection:
 
     async def _call(self, query: str, params: list) -> tuple[list[_Row], str]:
         serialized = [self._serialize_param(p) for p in params]
-        async with httpx.AsyncClient(timeout=120) as client:
-            r = await client.post(
-                EDGE_URL,
-                headers=self._headers,
-                json={"query": query, "params": serialized},
-            )
-            r.raise_for_status()
-            data = r.json()
-            if "error" in data:
-                raise RuntimeError(f"DB error: {data['error']}")
-            rows = [_Row(row) for row in data.get("rows", [])]
-            command = data.get("command", "")
-            return rows, command
+        last_exc: Exception | None = None
+        # 第 0 輪 = 首次嘗試;1/2/3 輪是 retry。
+        for attempt in range(len(_RETRY_BACKOFF_S) + 1):
+            try:
+                async with httpx.AsyncClient(timeout=120) as client:
+                    r = await client.post(
+                        EDGE_URL,
+                        headers=self._headers,
+                        json={"query": query, "params": serialized},
+                    )
+                    # 5xx → 進 retry(若還有額度);403/400/4xx 是 caller 真錯,
+                    # 不 retry,直接讓上層看見。
+                    if r.status_code in _RETRYABLE_HTTP_CODES:
+                        last_exc = httpx.HTTPStatusError(
+                            f"Edge {r.status_code} (retryable)", request=r.request, response=r,
+                        )
+                        if attempt < len(_RETRY_BACKOFF_S):
+                            await asyncio.sleep(_RETRY_BACKOFF_S[attempt])
+                            continue
+                        r.raise_for_status()  # exhausted retries
+                    r.raise_for_status()
+                    data = r.json()
+                    if "error" in data:
+                        raise RuntimeError(f"DB error: {data['error']}")
+                    rows = [_Row(row) for row in data.get("rows", [])]
+                    command = data.get("command", "")
+                    return rows, command
+            except (httpx.TimeoutException, httpx.NetworkError, httpx.RemoteProtocolError) as exc:
+                # 連線層問題也 retry —— DNS / TCP reset / TLS handshake fail。
+                last_exc = exc
+                if attempt < len(_RETRY_BACKOFF_S):
+                    await asyncio.sleep(_RETRY_BACKOFF_S[attempt])
+                    continue
+                raise
+        # 不會到這裡;保底。
+        if last_exc:
+            raise last_exc
+        raise RuntimeError("_call: unreachable")
 
     async def fetch(self, query: str, *args: Any) -> list[_Row]:
         rows, _ = await self._call(query, list(args))

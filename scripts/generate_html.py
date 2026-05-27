@@ -2247,6 +2247,8 @@ async def generate():
         # Q16 v2:focus_seed ticker list((rank ≤ 120 OR 近漲停) AND chg > 4.45%,
         # ingest 預計算)。給 detect_focus_clusters v2 反查題材字典累計 sub 種子計數。
         # 只需 ticker(其他資訊走 Q6 / Q15 抓)。
+        # 失敗 = 焦點 sub-tab 必空白 → 與 Q13 同等級 critical,db.py 已內建 5xx
+        # retry,這裡若仍 raise 就是真壞 → 直接中止 deploy,讓上次成功的版本留在線上。
         try:
             focus_seed_rows = await conn.fetch(
                 "SELECT ticker FROM trading_rankings WHERE rank_date=$1 "
@@ -2256,7 +2258,12 @@ async def generate():
             focus_seed_tickers = [r["ticker"] for r in focus_seed_rows]
             print(f"  focus_seed_tickers: {len(focus_seed_tickers)}")
         except Exception as exc:
-            print(f"  ⚠ focus_seed query failed (Q16 not deployed?): {exc}")
+            print(f"  ✗ focus_seed (Q16) query failed: {exc}", file=sys.stderr)
+            raise SystemExit(
+                "[fatal] Q16 focus_seed 全 retry 後仍失敗,中止 deploy。"
+                "焦點 sub-tab 沒 seed list 整片空白,留上次成功的 deploy 在線上,"
+                "等下個 cron 再試。"
+            )
 
     # PRIVATE data removed in repo-split Phase 3.6: articles.content,
     # articles.refined_content, and podcast refined_content are not read
