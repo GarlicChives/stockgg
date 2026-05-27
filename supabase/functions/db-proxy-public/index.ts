@@ -149,6 +149,11 @@ const ALLOWED: Set<string> = new Set([
   // 5000萬」算大戶持股比(= 籌碼鎖定率基礎),免固定股數級距對高 / 低價股
   // 失真。ingest 端 src/news/holder_dist.py 寫入。
   "select ticker, data_date, levels from ticker_holder_dist where ticker = any($1::text[]) and data_date >= current_date - interval '60 days' order by ticker, data_date",
+
+  // Q24 — main='近一年焦點' 的 sub_industry 半年上榜記錄(180 天),供:
+  // (1) hl_sub cluster header「連續上榜天數 / 近 20 日上榜率」
+  // (2)「📈 趨勢」menu 上圖「熱門題材數量 / 題材延續性」兩條序列
+  "select rank_date, sub_industry from theme_history where main_industry = '近一年焦點' and rank_date >= current_date - interval '180 days' order by rank_date, sub_industry",
 ])
 
 function normalize(q: string): string {

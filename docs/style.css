@@ -323,6 +323,17 @@ tr:last-child td{border-bottom:none}
                     transition:background .15s;opacity:.7}
 .cluster-info-btn:hover{background:rgba(124,138,242,.12);opacity:1}
 
+/* 焦點 cluster header 兩個小 chip:連續上榜天數 / 近 20 日上榜率(2026-05-27) */
+.fdyn-chip{flex-shrink:0;font-size:.66rem;font-weight:700;letter-spacing:.04em;
+            padding:.12rem .42rem;border-radius:4px;line-height:1.4;
+            white-space:nowrap;margin-left:.15rem}
+.fdyn-streak-strong{background:rgba(239,68,68,.18);color:#fca5a5}     /* ≥5 天 紅 */
+.fdyn-streak-mid   {background:rgba(245,158,11,.15);color:#fbbf24}    /* 2-4 天 橘 */
+.fdyn-streak-low   {background:rgba(148,160,168,.15);color:var(--muted)}/* 1 天 灰 */
+.fdyn-rate-high    {background:rgba(16,185,129,.15);color:#6ee7b7}     /* ≥70% 綠 */
+.fdyn-rate-mid     {background:rgba(96,165,250,.12);color:#93c5fd}     /* 40-69% 藍 */
+.fdyn-rate-low     {background:rgba(148,160,168,.12);color:var(--muted)}/* <40% 灰 */
+
 /* Merged cluster name (focal 完全相同的子產業聚合) — mobile/tablet 收合。
  * flex-wrap:nowrap 讓 cn-merged 內部不要自己 wrap,搭配 .cluster-name 的
  * ellipsis truncate 邏輯,讓長 merged name 也走「自動截尾 + 點擊展開」。 */
@@ -954,3 +965,23 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
                  cursor:pointer;transition:background .12s}
 .fs-theme-chip:hover{background:rgba(124,138,242,.25)}
 .fs-etf-held{font-size:.74rem;color:var(--text);font-weight:600}
+
+/* ── 📈 趨勢 tab(2026-05-27)─────────────────────────────────────────── */
+.trend-page{display:flex;flex-direction:column;gap:1.2rem}
+.trend-section{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);
+                border-radius:8px;padding:.9rem 1rem 1rem}
+.trend-title{display:flex;align-items:baseline;gap:.55rem;margin-bottom:.65rem}
+.trend-title h3{font-size:.95rem;font-weight:700;color:var(--accent);
+                letter-spacing:.04em;margin:0}
+.trend-title .muted{font-size:.72rem}
+.trend-chart-wrap{width:100%;height:280px;position:relative}
+.trend-loading{padding:1rem;text-align:center}
+.trend-legend{display:flex;flex-wrap:wrap;gap:.35rem 1.1rem;margin-top:.45rem;
+              font-size:.72rem;color:var(--muted)}
+.trend-leg-item{display:inline-flex;align-items:center;gap:.35rem;color:var(--text)}
+.trend-leg-item i{display:inline-block;width:.7rem;height:.18rem;border-radius:1px}
+.trend-note{font-size:.7rem;line-height:1.55;margin:.55rem 0 0;color:var(--muted)}
+.trend-note b{color:var(--text);font-weight:700}
+@media (max-width:600px){
+  .trend-chart-wrap{height:240px}
+}

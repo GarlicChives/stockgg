@@ -454,6 +454,131 @@ def _aggregate_ticker_net_inst(focal_tickers: list[str],
     return [daily[d] / 1e8 for d in sorted_days]
 
 
+# ── 焦點 cluster header「連續上榜天數 / 近 20 日上榜率」+ 趨勢圖序列 ────────
+# Q24 提供 main='近一年焦點' 過去 180 天每個交易日的 hl_sub list。
+
+def _cluster_streak_rate20(cluster_subs: list[str],
+                            sorted_dates: list[str],
+                            daily_subs: dict[str, set[str]],
+                            window: int = 20) -> tuple[int, float]:
+    """Merged cluster 視為「任一成員 sub 上榜 = cluster 上榜」。
+    回 (連續上榜天數含今日, 近 N 個交易日上榜率 0-1)。
+    sorted_dates 由舊到新;若 cluster 今日沒上榜,streak=0、rate20 仍計入過去 N 天。
+    """
+    if not cluster_subs or not sorted_dates:
+        return 0, 0.0
+    subset = set(cluster_subs)
+
+    streak = 0
+    for d in reversed(sorted_dates):
+        if subset & daily_subs.get(d, set()):
+            streak += 1
+        else:
+            break
+
+    wind = sorted_dates[-window:]
+    hits = sum(1 for d in wind if subset & daily_subs.get(d, set()))
+    rate20 = hits / len(wind) if wind else 0.0
+    return streak, rate20
+
+
+def _build_focus_trend(sorted_dates: list[str],
+                       daily_subs: dict[str, set[str]],
+                       window: int = 20) -> list[dict]:
+    """每個交易日:
+       hot   = 當日熱門 hl_sub 題材數量 (distinct sub_industry count)
+       cont  = 過去 N 個交易日內出現過的所有 sub 的「在這 N 天內的上榜比例」算術平均
+    """
+    trend = []
+    for i, d in enumerate(sorted_dates):
+        hot = len(daily_subs.get(d, set()))
+        start = max(0, i - window + 1)
+        wnd = sorted_dates[start:i + 1]
+        w_len = len(wnd)
+        sub_set: set[str] = set()
+        for w in wnd:
+            sub_set.update(daily_subs.get(w, set()))
+        if sub_set and w_len:
+            cont = sum(
+                sum(1 for w in wnd if sub in daily_subs.get(w, set())) / w_len
+                for sub in sub_set
+            ) / len(sub_set)
+        else:
+            cont = 0.0
+        trend.append({"d": d, "hot": hot, "cont": round(cont, 4)})
+    return trend
+
+
+def _focus_dynamics_chip(streak: int | None, rate20: float | None) -> str:
+    """cluster header 兩個小 chip:連續上榜天數 + 近 20 日上榜率。
+    streak / rate20 為 None 時 chip 不渲(該 cluster 半年內無 history)。"""
+    if streak is None and rate20 is None:
+        return ""
+    parts = []
+    if streak is not None and streak > 0:
+        # 顏色:≥5 強(實心)、2-4 中(框線)、1 灰
+        cls = "fdyn-streak-strong" if streak >= 5 else ("fdyn-streak-mid" if streak >= 2 else "fdyn-streak-low")
+        parts.append(
+            f'<span class="fdyn-chip {cls}" '
+            f'title="連續上榜天數(含今日)— 近 180 天 hl_sub history">連 {streak} 天</span>'
+        )
+    if rate20 is not None:
+        pct = round(rate20 * 100)
+        cls = "fdyn-rate-high" if pct >= 70 else ("fdyn-rate-mid" if pct >= 40 else "fdyn-rate-low")
+        parts.append(
+            f'<span class="fdyn-chip {cls}" '
+            f'title="近 20 個交易日上榜率 = 該題材出現天數 / 20">20 日 {pct}%</span>'
+        )
+    return "".join(parts)
+
+
+def build_trend_page(trend_series: list[dict], index_payload: dict) -> str:
+    """📈 趨勢 menu HTML — 兩個 chart container + inline payload script。
+    上圖:熱門題材數量 + 題材延續性(雙 Y 軸,分別 count vs %)
+    下圖:大盤 ^TWII / 櫃買 ^TWOII 半年收盤(同基期 rebase to 100)
+    實際 chart 由 docs/app.js `renderTrendCharts` 在 showTab('trend') 時 lazy render。"""
+    if not trend_series:
+        return '<p class="muted-note">尚無趨勢資料(等 Q24 theme_history 半年累積 — 通常隔日就補上)</p>'
+
+    payload = {
+        "trend": trend_series,           # [{d, hot, cont}, ...]
+        "index": index_payload,          # {"TWII": [{d, c}, ...], "TPEX": [...]}
+    }
+    payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    return (
+        '<div class="trend-page">'
+        '<div class="trend-section">'
+        '<div class="trend-title">'
+        '<h3>熱門題材動能</h3>'
+        '<span class="muted">'
+        f'近 {len(trend_series)} 個交易日'
+        '</span>'
+        '</div>'
+        '<div class="trend-chart-wrap" id="trend-chart-top">'
+        '<div class="trend-loading muted-note">載入圖表中…</div>'
+        '</div>'
+        '<div class="trend-legend trend-legend-top"></div>'
+        '<p class="trend-note muted">'
+        '<b>熱門題材數量</b> = 每日 hl_sub 入榜 distinct 題材數;'
+        '<b>題材延續性</b> = 過去 20 個交易日所有上過榜題材的「20 日上榜率」算術平均。'
+        '延續性高 = 題材重複出現、輪動慢;低 = 題材輪動快、熱錢遊走'
+        '</p>'
+        '</div>'
+        '<div class="trend-section">'
+        '<div class="trend-title">'
+        '<h3>大盤 / 櫃買</h3>'
+        '<span class="muted">同基期 rebase to 100</span>'
+        '</div>'
+        '<div class="trend-chart-wrap" id="trend-chart-bot">'
+        '<div class="trend-loading muted-note">載入圖表中…</div>'
+        '</div>'
+        '<div class="trend-legend trend-legend-bot"></div>'
+        '</div>'
+        f'<script>window.IIA_TREND={payload_json};</script>'
+        '</div>'
+    )
+
+
 def _industry_section_html(
     clusters: list[IndustryCluster],
     all_stocks: dict,
@@ -465,6 +590,7 @@ def _industry_section_html(
     topics_by_ticker: dict[str, str] | None = None,
     topics_by_focus_theme: dict[str, list] | None = None,
     topics_stocks_info: dict | None = None,
+    cluster_dynamics: dict[str, dict] | None = None,
 ) -> str:
     """Render industry cluster cards. level = "main" | "sub" | "hl_sub" | "pan_sub"。
     前哨觀察(watch)已從顯示移除(2026-05-16),只保留今日焦點。
@@ -864,10 +990,18 @@ def _industry_section_html(
                 f'title="點擊查看此題材關聯議題">ⓘ</button>'
             )
 
+        # 焦點 cluster header 兩個 chip(連續上榜 / 20 日上榜率)。
+        # cluster_dynamics keyed by cluster_id;merged cluster 在 outer 已合算 max.
+        dyn_chip_html = ""
+        if cluster_dynamics:
+            dyn = cluster_dynamics.get(c.cluster_id)
+            if dyn:
+                dyn_chip_html = _focus_dynamics_chip(dyn.get("streak"), dyn.get("rate20"))
+
         cards.append(f"""
 <div class="cluster-card" id="{card_id}">
   <div class="cluster-hdr">
-    <span class="cluster-name-wrap">{name_html}{info_btn_html}</span>
+    <span class="cluster-name-wrap">{name_html}{dyn_chip_html}{info_btn_html}</span>
     {metric_html}
     <span class="cluster-meta">{meta_text}</span>
     {spark_html}
@@ -1905,6 +2039,8 @@ def build_focus_html(
     ticker_net_inst: dict[str, dict[str, float]] | None = None,
     focus_hl_clusters: list | None = None,
     market_notes: dict | None = None,
+    focus_daily_subs: dict[str, set[str]] | None = None,
+    focus_sorted_dates: list[str] | None = None,
 ) -> tuple[str, dict]:
     """Build the 熱門題材 tab — 只渲染子產業 ranked list。
 
@@ -2006,6 +2142,18 @@ def build_focus_html(
     # 兩 tab 共用 cluster card 排行版型,level 拿來區分 IIA_CLUSTERS namespace
     # + sort chip data-level + container id;近一年焦點 tab 在 cluster card 內
     # 多渲一個前哨 section(同題材但今日沒進 top-50 的標的)
+    # 計算 hl_sub cluster 的「連續上榜天數 / 近 20 日上榜率」(來自 Q24)
+    cluster_dynamics: dict[str, dict] = {}
+    if focus_sorted_dates and focus_daily_subs and hl_clusters:
+        for c in hl_clusters:
+            # merged cluster.members 是 [(main, sub), ...];取 sub 列表
+            cluster_subs = [s for _m, s in (c.members or [])]
+            if not cluster_subs:
+                cluster_subs = [c.name]  # 保險
+            streak, rate20 = _cluster_streak_rate20(
+                cluster_subs, focus_sorted_dates, focus_daily_subs)
+            cluster_dynamics[c.cluster_id] = {"streak": streak, "rate20": rate20}
+
     hl_html = _industry_section_html(
         hl_clusters, all_stocks, "hl_sub", theme_history_payload,
         highlight_subs=highlight_subs, stock_meta=stock_meta,
@@ -2013,6 +2161,7 @@ def build_focus_html(
         topics_by_ticker=topics_by_ticker,
         topics_by_focus_theme=topics_by_focus_theme,
         topics_stocks_info=stocks_info,
+        cluster_dynamics=cluster_dynamics,
     ) if hl_clusters else '<p class="muted-note">今日「近一年焦點」題材無焦點股入榜</p>'
     pan_html = _industry_section_html(
         pan_clusters, all_stocks, "pan_sub", theme_history_payload,
@@ -2494,6 +2643,32 @@ async def generate():
         except Exception as exc:
             print(f"  ⚠ theme_history query failed (table not yet populated?): {exc}")
 
+    # Q24 — main='近一年焦點' sub 半年上榜記錄(180 天)。給:
+    # (1) hl_sub cluster header「連續上榜天數 / 近 20 日上榜率」chip
+    # (2)「📈 趨勢」menu 上圖 2 條序列(熱門題材數量 / 題材延續性)
+    focus_daily_subs: dict[str, set[str]] = {}
+    focus_sorted_dates: list[str] = []
+    try:
+        q24_rows = await conn.fetch(
+            "SELECT rank_date, sub_industry FROM theme_history "
+            "WHERE main_industry = '近一年焦點' "
+            "AND rank_date >= current_date - INTERVAL '180 days' "
+            "ORDER BY rank_date, sub_industry"
+        )
+        _ds: dict[str, set[str]] = collections.defaultdict(set)
+        for r in q24_rows:
+            _d = r["rank_date"]
+            d_str = _d.strftime("%Y-%m-%d") if hasattr(_d, "strftime") else str(_d)[:10]
+            sub = r["sub_industry"]
+            if sub:
+                _ds[d_str].add(sub)
+        focus_daily_subs = dict(_ds)
+        focus_sorted_dates = sorted(focus_daily_subs.keys())
+        print(f"  hl_sub theme_history (Q24): {len(q24_rows)} rows, "
+              f"{len(focus_sorted_dates)} trading days")
+    except Exception as exc:
+        print(f"  ⚠ Q24 hl_sub history query failed: {exc}")
+
     await conn.close()
 
     # market_notes 提到、但不在 top-N rankings 的 ticker:ingest 自 commit
@@ -2868,7 +3043,33 @@ async def generate():
         ticker_net_inst=ticker_net_inst,
         focus_hl_clusters=focus_hl_clusters,
         market_notes=market_notes,
+        focus_daily_subs=focus_daily_subs,
+        focus_sorted_dates=focus_sorted_dates,
     )
+
+    # ── 📈 趨勢 tab ─────────────────────────────────────────────────────────
+    # 上圖:熱門題材數量 + 題材延續性(來自 Q24 hl_sub history 半年)
+    # 下圖:大盤 ^TWII + 櫃買 ^TWOII(來自 Q21,trim 到同樣半年範圍)
+    focus_trend_series = (
+        _build_focus_trend(focus_sorted_dates, focus_daily_subs)
+        if focus_sorted_dates else []
+    )
+    # 大盤指數 trim 對齊半年範圍(focus_sorted_dates 的最早日 ≤ index 起始日)
+    _first_d = focus_sorted_dates[0] if focus_sorted_dates else None
+    def _trim_idx(rows):
+        if not _first_d:
+            return rows
+        out = []
+        for r in rows:
+            d = r.get("d")
+            if d and d >= _first_d:
+                out.append({"d": d, "c": r.get("c")})
+        return out
+    trend_index_payload = {
+        "TWII": _trim_idx(market_index_payload.get("TWII", []) if market_index_payload else []),
+        "TPEX": _trim_idx(market_index_payload.get("TPEX", []) if market_index_payload else []),
+    }
+    trend_html = build_trend_page(focus_trend_series, trend_index_payload)
     notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)
     catalyst_html = build_catalyst_html(catalyst_events, stocks_info)
 
@@ -3049,6 +3250,7 @@ async def generate():
   <button class="brand" onclick="showTab('focus');window.scrollTo(0,0);" title="回首頁">IIA 投資情報</button>
   <nav class="tabs">
     <button class="tab-btn active" data-tab="focus"    onclick="showTab('focus')">熱門題材</button>
+    <button class="tab-btn"        data-tab="trend"    onclick="showTab('trend')">📈 趨勢</button>
     <button class="tab-btn"        data-tab="fstock"   onclick="showTab('fstock')">選股雷達</button>
     <button class="tab-btn"        data-tab="aetf"     onclick="showTab('aetf')">主動式 ETF</button>
     <button class="tab-btn"        data-tab="notes"    onclick="showTab('notes')">市場話題</button>
@@ -3100,6 +3302,11 @@ async def generate():
   <!-- Tab 2: 熱門題材(預設首頁) -->
   <div id="tab-focus" class="tab-pane active">
     {focus_html}
+  </div>
+
+  <!-- Tab: 📈 趨勢(熱門題材動能 + 大盤櫃買;2026-05-27) -->
+  <div id="tab-trend" class="tab-pane">
+    {trend_html}
   </div>
 
   <!-- 焦點排行 tab 2026-05-19 移除 -->

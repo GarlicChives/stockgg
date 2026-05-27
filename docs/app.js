@@ -24,6 +24,10 @@ function showTab(name) {
     b.classList.toggle('active', b.dataset.tab === name));
   document.querySelectorAll('.tab-pane').forEach(p =>
     p.classList.toggle('active', p.id === 'tab-' + name));
+  // 📈 趨勢 tab:lazy-init lightweight-charts(只第一次切過去 init)
+  if (name === 'trend' && !window._trendRendered) {
+    _initTrendCharts();
+  }
 }
 
 function showSubTab(name) {
@@ -1766,3 +1770,139 @@ function toggleSentinelInline(btn) {
 }
 
 /* downloadRankCSV 隨焦點排行 tab 2026-05-19 移除 */
+
+/* ── 📈 趨勢 tab — lazy init 兩張 chart(showTab('trend') 第一次觸發)──── */
+let _trendCharts = null;  // {top, bot, series:{hot,cont,twii,tpex}}
+
+function _initTrendCharts() {
+  const data = window.IIA_TREND;
+  if (!data || !Array.isArray(data.trend) || !data.trend.length) {
+    return;
+  }
+  _loadLightweightCharts().then(() => _renderTrendCharts(data))
+    .catch(err => {
+      console.error('lightweight-charts load failed:', err);
+      const topEl = document.getElementById('trend-chart-top');
+      const botEl = document.getElementById('trend-chart-bot');
+      if (topEl) topEl.innerHTML = '<p class="muted-note">圖表載入失敗</p>';
+      if (botEl) botEl.innerHTML = '<p class="muted-note">圖表載入失敗</p>';
+    });
+}
+
+function _rebaseLineToHundred(series) {
+  // [{time, value}] → 同基期 rebase to 100,base = 第一筆 value。
+  if (!series.length) return series;
+  const base = series[0].value;
+  if (!base) return series;
+  return series.map(p => ({ time: p.time, value: (p.value / base) * 100 }));
+}
+
+function _renderTrendCharts(data) {
+  const topEl = document.getElementById('trend-chart-top');
+  const botEl = document.getElementById('trend-chart-bot');
+  if (!topEl || !botEl) return;
+  // 清掉「載入中」placeholder
+  topEl.innerHTML = '';
+  botEl.innerHTML = '';
+
+  // 文字 / 格線顏色取自 CSS var(深色 / 淺色 theme 自動跟)
+  const css = getComputedStyle(document.documentElement);
+  const textC = css.getPropertyValue('--text').trim() || '#e6e6e6';
+  const mutedC = css.getPropertyValue('--muted').trim() || '#9aa0a6';
+  const gridC = 'rgba(255,255,255,0.06)';
+  const chartOpts = {
+    layout: { background: { type: 'solid', color: 'transparent' }, textColor: textC },
+    grid: { vertLines: { color: gridC }, horzLines: { color: gridC } },
+    rightPriceScale: { borderColor: gridC },
+    leftPriceScale: { borderColor: gridC, visible: true },
+    timeScale: { borderColor: gridC, timeVisible: false, secondsVisible: false },
+    crosshair: { mode: 1 },
+    autoSize: true,
+    handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: true },
+    handleScale: { mouseWheel: false, axisPressedMouseMove: true, pinch: true },
+  };
+
+  // ── 上圖:熱門題材數量(左軸,count) + 題材延續性(右軸,%)─────
+  const topChart = LightweightCharts.createChart(topEl, chartOpts);
+  const hotSeries = topChart.addLineSeries({
+    color: '#f59e0b', lineWidth: 2, priceScaleId: 'left',
+    priceFormat: { type: 'custom', formatter: v => v.toFixed(0) + ' 個' },
+  });
+  const contSeries = topChart.addLineSeries({
+    color: '#60a5fa', lineWidth: 2, priceScaleId: 'right',
+    priceFormat: { type: 'custom', formatter: v => v.toFixed(1) + '%' },
+  });
+  hotSeries.setData(data.trend.map(p => ({ time: p.d, value: p.hot })));
+  contSeries.setData(data.trend.map(p => ({ time: p.d, value: p.cont * 100 })));
+  topChart.timeScale().fitContent();
+
+  // ── 下圖:大盤 ^TWII / 櫃買 ^TWOII(同基期 rebase 100)──────────────
+  const botChart = LightweightCharts.createChart(botEl, chartOpts);
+  const twiiRaw  = (data.index.TWII || []).filter(p => p.c != null).map(p => ({ time: p.d, value: p.c }));
+  const tpexRaw  = (data.index.TPEX || []).filter(p => p.c != null).map(p => ({ time: p.d, value: p.c }));
+  const twiiSeries = botChart.addLineSeries({
+    color: '#f59e0b', lineWidth: 2,
+    priceFormat: { type: 'custom', formatter: v => v.toFixed(1) },
+  });
+  const tpexSeries = botChart.addLineSeries({
+    color: '#94aef7', lineWidth: 2,
+    priceFormat: { type: 'custom', formatter: v => v.toFixed(1) },
+  });
+  twiiSeries.setData(_rebaseLineToHundred(twiiRaw));
+  tpexSeries.setData(_rebaseLineToHundred(tpexRaw));
+  botChart.timeScale().fitContent();
+
+  // ── 兩 chart timeScale sync(任一側拖 / 縮放,另一張對齊)────────────
+  let _syncBusy = false;
+  const sync = (src, dst) => {
+    src.timeScale().subscribeVisibleTimeRangeChange(r => {
+      if (_syncBusy || !r) return;
+      _syncBusy = true;
+      dst.timeScale().setVisibleRange(r);
+      _syncBusy = false;
+    });
+  };
+  sync(topChart, botChart);
+  sync(botChart, topChart);
+
+  // Crosshair sync — hover 上圖虛線同步顯示下圖,反之
+  const crossSync = (src, dst) => {
+    src.subscribeCrosshairMove(param => {
+      if (!param || !param.time) {
+        dst.clearCrosshairPosition();
+        return;
+      }
+      // 找下圖任一 series 對應 time 的 price
+      const series = dst.getSerieses ? dst.getSerieses()[0] : null;
+      // LWC 4.x: 用 setCrosshairPosition(price, time, series)
+      // series 必須是 dst 的某個 series。借用第一條即可。
+      if (series) dst.setCrosshairPosition(0, param.time, series);
+    });
+  };
+  // 注意:LightweightCharts 4.x chart 沒 getSerieses;另用 closure 內存的 series ref
+  topChart.subscribeCrosshairMove(p => {
+    if (!p || !p.time) { botChart.clearCrosshairPosition(); return; }
+    botChart.setCrosshairPosition(0, p.time, twiiSeries);
+  });
+  botChart.subscribeCrosshairMove(p => {
+    if (!p || !p.time) { topChart.clearCrosshairPosition(); return; }
+    topChart.setCrosshairPosition(0, p.time, hotSeries);
+  });
+
+  // Legend HTML(顯示在 chart 下方)
+  const topLeg = document.querySelector('.trend-legend-top');
+  if (topLeg) {
+    topLeg.innerHTML =
+      '<span class="trend-leg-item"><i style="background:#f59e0b"></i> 熱門題材數量(左軸)</span>'
+    + '<span class="trend-leg-item"><i style="background:#60a5fa"></i> 題材延續性 %(右軸)</span>';
+  }
+  const botLeg = document.querySelector('.trend-legend-bot');
+  if (botLeg) {
+    botLeg.innerHTML =
+      '<span class="trend-leg-item"><i style="background:#f59e0b"></i> 大盤 ^TWII</span>'
+    + '<span class="trend-leg-item"><i style="background:#94aef7"></i> 櫃買 ^TWOII</span>';
+  }
+
+  _trendCharts = { top: topChart, bot: botChart };
+  window._trendRendered = true;
+}
