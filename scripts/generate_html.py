@@ -567,13 +567,24 @@ def build_trend_page(trend_series: list[dict], index_payload: dict) -> str:
         '</div>'
         '<div class="trend-section">'
         '<div class="trend-title">'
-        '<h3>大盤 / 櫃買</h3>'
-        '<span class="muted">同基期 rebase to 100</span>'
+        '<h3>大盤 ^TWII 日 K</h3>'
+        '<span class="muted">含成交量</span>'
         '</div>'
-        '<div class="trend-chart-wrap" id="trend-chart-bot">'
+        '<div class="trend-chart-wrap trend-chart-k" id="trend-chart-twii">'
         '<div class="trend-loading muted-note">載入圖表中…</div>'
         '</div>'
-        '<div class="trend-legend trend-legend-bot"></div>'
+        '</div>'
+        '<div class="trend-section">'
+        '<div class="trend-title">'
+        '<h3>櫃買 ^TWOII 日 K</h3>'
+        '<span class="muted">含成交量</span>'
+        '</div>'
+        '<div class="trend-chart-wrap trend-chart-k" id="trend-chart-tpex">'
+        '<div class="trend-loading muted-note">載入圖表中…</div>'
+        '</div>'
+        '<p class="trend-note muted">'
+        'K 棒 紅漲綠跌(亞洲慣例);今天若 OHL 暫缺(ingest 過渡期)當日只顯成交量,K 棒從明天起齊全。'
+        '</p>'
         '</div>'
         f'<script>window.IIA_TREND={payload_json};</script>'
         '</div>'
@@ -3019,12 +3030,15 @@ async def generate():
     _idx_sym_map = {"^TWII": "TWII", "^TWOII": "TPEX"}
     try:
         _idx_rows = await conn.fetch(
-            "SELECT snapshot_date, symbol, close_price, change_pct FROM market_snapshots "
+            "SELECT snapshot_date, symbol, open, high, low, close_price, volume, change_pct "
+            "FROM market_snapshots "
             "WHERE symbol = ANY($1::text[]) "
             "AND snapshot_date >= current_date - INTERVAL '400 days' "
             "ORDER BY symbol, snapshot_date",
             ["^TWII", "^TWOII"],
         )
+        def _fnum(v):
+            return round(float(v), 2) if v is not None else None
         for r in _idx_rows:
             _k = _idx_sym_map.get(r["symbol"])
             if not _k or r["close_price"] is None:
@@ -3034,10 +3048,22 @@ async def generate():
             # strftime 取日期,不可用 isoformat()(會帶 T00:00:00+00:00)。
             _d = r["snapshot_date"]
             _d = _d.strftime("%Y-%m-%d") if hasattr(_d, "strftime") else str(_d)[:10]
-            market_index_payload[_k].append(
-                {"d": _d, "close": round(float(r["close_price"]), 2)})
+            # `close` 欄沿用舊名(cluster modal _computeIndexSeries 讀 p.close);
+            # 新增 open / high / low / volume 給趨勢 tab K 線用(ingest 76f6728
+            # 起 backfill 1 年 OHL,早期歷史與 today 暫無 OHL 的 row 三欄為 None)
+            market_index_payload[_k].append({
+                "d": _d,
+                "close":  _fnum(r["close_price"]),
+                "open":   _fnum(r.get("open")),
+                "high":   _fnum(r.get("high")),
+                "low":    _fnum(r.get("low")),
+                "volume": _fnum(r.get("volume")),
+            })
+        _twii_ohl = sum(1 for r in market_index_payload["TWII"] if r.get("open") is not None)
+        _tpex_ohl = sum(1 for r in market_index_payload["TPEX"] if r.get("open") is not None)
         print(f"  market_index (Q21): TWII={len(market_index_payload['TWII'])}d "
-              f"TPEX={len(market_index_payload['TPEX'])}d")
+              f"(OHL {_twii_ohl}d) "
+              f"TPEX={len(market_index_payload['TPEX'])}d (OHL {_tpex_ohl}d)")
     except Exception as exc:
         print(f"  ⚠ Q21 market index history failed: {exc}")
 
@@ -3065,20 +3091,13 @@ async def generate():
         _build_focus_trend(focus_sorted_dates, focus_daily_subs)
         if focus_sorted_dates else []
     )
-    # 大盤指數 trim 對齊半年範圍(focus_sorted_dates 的最早日 ≤ index 起始日)
-    _first_d = focus_sorted_dates[0] if focus_sorted_dates else None
-    def _trim_idx(rows):
-        if not _first_d:
-            return rows
-        out = []
-        for r in rows:
-            d = r.get("d")
-            if d and d >= _first_d:
-                out.append({"d": d, "c": r.get("c")})
-        return out
+    # 大盤 / 櫃買 K 線資料:給趨勢 tab 下圖用,直接用 Q21 原始 400 天範圍
+    # (不再 trim 對齊上圖窗口 —— 上圖只有 ~7 天 hl_sub history,但下圖 K 線有
+    # 完整一年資料價值,沒理由切到 7 天)。app.js 端 filter OHL is null 的 row
+    # (今天 5/27 OHL 暫 NULL — daily-briefing 7:30 用舊版 code 跑,明天起補上)
     trend_index_payload = {
-        "TWII": _trim_idx(market_index_payload.get("TWII", []) if market_index_payload else []),
-        "TPEX": _trim_idx(market_index_payload.get("TPEX", []) if market_index_payload else []),
+        "TWII": (market_index_payload.get("TWII") if market_index_payload else []) or [],
+        "TPEX": (market_index_payload.get("TPEX") if market_index_payload else []) or [],
     }
     trend_html = build_trend_page(focus_trend_series, trend_index_payload)
     notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)

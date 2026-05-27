@@ -1798,19 +1798,18 @@ function _rebaseLineToHundred(series) {
 }
 
 function _renderTrendCharts(data) {
-  const topEl = document.getElementById('trend-chart-top');
-  const botEl = document.getElementById('trend-chart-bot');
-  if (!topEl || !botEl) return;
-  // 清掉「載入中」placeholder
+  const topEl  = document.getElementById('trend-chart-top');
+  const twiiEl = document.getElementById('trend-chart-twii');
+  const tpexEl = document.getElementById('trend-chart-tpex');
+  if (!topEl || !twiiEl || !tpexEl) return;
   topEl.innerHTML = '';
-  botEl.innerHTML = '';
+  twiiEl.innerHTML = '';
+  tpexEl.innerHTML = '';
 
-  // 文字 / 格線顏色取自 CSS var(深色 / 淺色 theme 自動跟)
   const css = getComputedStyle(document.documentElement);
   const textC = css.getPropertyValue('--text').trim() || '#e6e6e6';
-  const mutedC = css.getPropertyValue('--muted').trim() || '#9aa0a6';
   const gridC = 'rgba(255,255,255,0.06)';
-  const chartOpts = {
+  const baseOpts = {
     layout: { background: { type: 'solid', color: 'transparent' }, textColor: textC },
     grid: { vertLines: { color: gridC }, horzLines: { color: gridC } },
     rightPriceScale: { borderColor: gridC },
@@ -1823,7 +1822,7 @@ function _renderTrendCharts(data) {
   };
 
   // ── 上圖:熱門題材數量(左軸,count) + 題材延續性(右軸,%)─────
-  const topChart = LightweightCharts.createChart(topEl, chartOpts);
+  const topChart = LightweightCharts.createChart(topEl, baseOpts);
   const hotSeries = topChart.addLineSeries({
     color: '#f59e0b', lineWidth: 2, priceScaleId: 'left',
     priceFormat: { type: 'custom', formatter: v => v.toFixed(0) + ' 個' },
@@ -1835,74 +1834,87 @@ function _renderTrendCharts(data) {
   hotSeries.setData(data.trend.map(p => ({ time: p.d, value: p.hot })));
   contSeries.setData(data.trend.map(p => ({ time: p.d, value: p.cont * 100 })));
   topChart.timeScale().fitContent();
-
-  // ── 下圖:大盤 ^TWII / 櫃買 ^TWOII(同基期 rebase 100)──────────────
-  const botChart = LightweightCharts.createChart(botEl, chartOpts);
-  const twiiRaw  = (data.index.TWII || []).filter(p => p.c != null).map(p => ({ time: p.d, value: p.c }));
-  const tpexRaw  = (data.index.TPEX || []).filter(p => p.c != null).map(p => ({ time: p.d, value: p.c }));
-  const twiiSeries = botChart.addLineSeries({
-    color: '#f59e0b', lineWidth: 2,
-    priceFormat: { type: 'custom', formatter: v => v.toFixed(1) },
-  });
-  const tpexSeries = botChart.addLineSeries({
-    color: '#94aef7', lineWidth: 2,
-    priceFormat: { type: 'custom', formatter: v => v.toFixed(1) },
-  });
-  twiiSeries.setData(_rebaseLineToHundred(twiiRaw));
-  tpexSeries.setData(_rebaseLineToHundred(tpexRaw));
-  botChart.timeScale().fitContent();
-
-  // ── 兩 chart timeScale sync(任一側拖 / 縮放,另一張對齊)────────────
-  let _syncBusy = false;
-  const sync = (src, dst) => {
-    src.timeScale().subscribeVisibleTimeRangeChange(r => {
-      if (_syncBusy || !r) return;
-      _syncBusy = true;
-      dst.timeScale().setVisibleRange(r);
-      _syncBusy = false;
-    });
-  };
-  sync(topChart, botChart);
-  sync(botChart, topChart);
-
-  // Crosshair sync — hover 上圖虛線同步顯示下圖,反之
-  const crossSync = (src, dst) => {
-    src.subscribeCrosshairMove(param => {
-      if (!param || !param.time) {
-        dst.clearCrosshairPosition();
-        return;
-      }
-      // 找下圖任一 series 對應 time 的 price
-      const series = dst.getSerieses ? dst.getSerieses()[0] : null;
-      // LWC 4.x: 用 setCrosshairPosition(price, time, series)
-      // series 必須是 dst 的某個 series。借用第一條即可。
-      if (series) dst.setCrosshairPosition(0, param.time, series);
-    });
-  };
-  // 注意:LightweightCharts 4.x chart 沒 getSerieses;另用 closure 內存的 series ref
-  topChart.subscribeCrosshairMove(p => {
-    if (!p || !p.time) { botChart.clearCrosshairPosition(); return; }
-    botChart.setCrosshairPosition(0, p.time, twiiSeries);
-  });
-  botChart.subscribeCrosshairMove(p => {
-    if (!p || !p.time) { topChart.clearCrosshairPosition(); return; }
-    topChart.setCrosshairPosition(0, p.time, hotSeries);
-  });
-
-  // Legend HTML(顯示在 chart 下方)
   const topLeg = document.querySelector('.trend-legend-top');
   if (topLeg) {
     topLeg.innerHTML =
       '<span class="trend-leg-item"><i style="background:#f59e0b"></i> 熱門題材數量(左軸)</span>'
     + '<span class="trend-leg-item"><i style="background:#60a5fa"></i> 題材延續性 %(右軸)</span>';
   }
-  const botLeg = document.querySelector('.trend-legend-bot');
-  if (botLeg) {
-    botLeg.innerHTML =
-      '<span class="trend-leg-item"><i style="background:#f59e0b"></i> 大盤 ^TWII</span>'
-    + '<span class="trend-leg-item"><i style="background:#94aef7"></i> 櫃買 ^TWOII</span>';
+
+  // ── 日 K + 成交量 helper —————————————————————————————————————
+  // 紅漲綠跌(亞洲慣例)。OHL 任一 NULL 該日不畫 K 棒(但 volume 仍可畫)。
+  // 成交量 priceScale 用 overlay 模式塞在主 pane 下緣 1/4。
+  const _RED = '#ef4444';   // 漲
+  const _GREEN = '#10b981'; // 跌
+  function _kvol(el, rows) {
+    const opts = JSON.parse(JSON.stringify(baseOpts));
+    opts.rightPriceScale.scaleMargins = { top: 0.08, bottom: 0.28 };
+    const ch = LightweightCharts.createChart(el, opts);
+    const candle = ch.addCandlestickSeries({
+      upColor: _RED, downColor: _GREEN,
+      borderUpColor: _RED, borderDownColor: _GREEN,
+      wickUpColor: _RED, wickDownColor: _GREEN,
+    });
+    const candleRows = rows.filter(p =>
+      p.open != null && p.high != null && p.low != null && p.close != null
+    ).map(p => ({ time: p.d, open: p.open, high: p.high, low: p.low, close: p.close }));
+    candle.setData(candleRows);
+
+    const vol = ch.addHistogramSeries({
+      priceFormat: { type: 'volume' },
+      priceScaleId: '',  // overlay,不獨立 axis label
+      color: 'rgba(124,138,242,0.45)',
+    });
+    ch.priceScale('').applyOptions({
+      scaleMargins: { top: 0.78, bottom: 0 },
+    });
+    const volRows = rows.filter(p => p.volume != null).map(p => {
+      // K 棒方向上色:close >= open 紅、< 綠;若 OHL 缺 → 中性灰
+      let color = 'rgba(124,138,242,0.45)';
+      if (p.open != null && p.close != null) {
+        color = p.close >= p.open ? 'rgba(239,68,68,0.45)' : 'rgba(16,185,129,0.45)';
+      }
+      return { time: p.d, value: p.volume, color };
+    });
+    vol.setData(volRows);
+    ch.timeScale().fitContent();
+    return { chart: ch, candle, vol };
   }
 
-  _trendCharts = { top: topChart, bot: botChart };
+  const twii = _kvol(twiiEl, data.index.TWII || []);
+  const tpex = _kvol(tpexEl, data.index.TPEX || []);
+
+  // ── 三張 chart timeScale sync ────────────────────────────────────
+  let _syncBusy = false;
+  const syncRange = (src, dsts) => {
+    src.timeScale().subscribeVisibleTimeRangeChange(r => {
+      if (_syncBusy || !r) return;
+      _syncBusy = true;
+      dsts.forEach(d => d.timeScale().setVisibleRange(r));
+      _syncBusy = false;
+    });
+  };
+  syncRange(topChart, [twii.chart, tpex.chart]);
+  syncRange(twii.chart, [topChart, tpex.chart]);
+  syncRange(tpex.chart, [topChart, twii.chart]);
+
+  // Crosshair sync(任一張 hover → 另兩張對齊;借第一條 series 當 anchor)
+  topChart.subscribeCrosshairMove(p => {
+    if (!p || !p.time) { twii.chart.clearCrosshairPosition(); tpex.chart.clearCrosshairPosition(); return; }
+    twii.chart.setCrosshairPosition(0, p.time, twii.candle);
+    tpex.chart.setCrosshairPosition(0, p.time, tpex.candle);
+  });
+  twii.chart.subscribeCrosshairMove(p => {
+    if (!p || !p.time) { topChart.clearCrosshairPosition(); tpex.chart.clearCrosshairPosition(); return; }
+    topChart.setCrosshairPosition(0, p.time, hotSeries);
+    tpex.chart.setCrosshairPosition(0, p.time, tpex.candle);
+  });
+  tpex.chart.subscribeCrosshairMove(p => {
+    if (!p || !p.time) { topChart.clearCrosshairPosition(); twii.chart.clearCrosshairPosition(); return; }
+    topChart.setCrosshairPosition(0, p.time, hotSeries);
+    twii.chart.setCrosshairPosition(0, p.time, twii.candle);
+  });
+
+  _trendCharts = { top: topChart, twii: twii.chart, tpex: tpex.chart };
   window._trendRendered = true;
 }
