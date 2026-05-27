@@ -865,7 +865,9 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 
 /* 個股 modal 內 ETF 表 — reuse 上述 .aetf-table 樣式 */
 .aetf-modal-hdr{font-size:.95rem;font-weight:700;color:var(--accent);
-                 letter-spacing:.04em;margin:0 0 .55rem}
+                 letter-spacing:.04em;margin:0 0 .25rem}
+.aetf-modal-date{font-size:.72rem;color:var(--text);margin:0 0 .55rem}
+.aetf-modal-date .muted{color:var(--muted);margin-right:.2rem}
 .aetf-stats{display:flex;flex-wrap:wrap;gap:.4rem 1.5rem;margin-bottom:.7rem;
               font-size:.78rem}
 .aetf-stats .muted{color:var(--muted);margin-right:.15rem}

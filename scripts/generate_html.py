@@ -1070,9 +1070,19 @@ def _aetf_render_modal_body(etf_rows: list, stock_meta_entry: dict | None) -> st
         if all_no_baseline else ""
     )
 
+    # 各 ETF 的 data_date 可能不同(極少數情況某 ETF 當日 cron 失敗,前日資料殘留)
+    # → 取 max。row 內 data_date 來自 Q19 latest CTE。
+    _dates = [d for d in (_aetf_date_fmt(r.get("data_date")) for r in etf_rows) if d]
+    latest_data_date = max(_dates) if _dates else None
+    date_line = (
+        f'<p class="aetf-modal-date"><span class="muted">持股更新</span> {latest_data_date}</p>'
+        if latest_data_date else ""
+    )
+
     return (
         '<div class="aetf-section">'
         '<h3 class="aetf-modal-hdr">持股主動式 ETF</h3>'
+        + date_line
         + baseline_warn +
         '<div class="aetf-stats">'
         f'<div><span class="muted">總檔數</span> <b>{total_count}</b> 檔</div>'
@@ -1096,6 +1106,18 @@ def _aetf_f(v):
         return float(v)
     except (TypeError, ValueError):
         return None
+
+
+def _aetf_date_fmt(v):
+    """db-proxy (npm:postgres) 把 DATE 序列化成 ISO datetime string
+    `2026-05-27T00:00:00.000Z`;切前 10 碼回 YYYY-MM-DD。同時兼容 date 物件。"""
+    if not v:
+        return None
+    if hasattr(v, "isoformat"):
+        s = v.isoformat()
+    else:
+        s = str(v)
+    return s[:10] if len(s) >= 10 else s
 
 
 def build_active_etf_page(etf_list: list, holdings_by_etf: dict[str, list]) -> str:
@@ -1138,12 +1160,14 @@ def build_active_etf_page(etf_list: list, holdings_by_etf: dict[str, list]) -> s
         listing = etf.get("listing_date")
         if listing and hasattr(listing, "isoformat"):
             listing = listing.isoformat()
+        data_date = _aetf_date_fmt(etf.get("data_date"))
         bar_html = (
             '<div class="aetf-info">'
             f'<span class="aetf-name">{html_lib.escape(etf.get("etf_name") or code)}</span>'
             f'<span class="aetf-meta"><span class="muted">AUM</span> <b>{aum_b:.0f} 億</b></span>'
             + (f'<span class="aetf-meta"><span class="muted">NAV</span> <b>{float(nav_per):.2f}</b></span>' if nav_per else '')
             + (f'<span class="aetf-meta"><span class="muted">上市</span> {listing}</span>' if listing else '')
+            + (f'<span class="aetf-meta aetf-data-date"><span class="muted">持股更新</span> <b>{data_date}</b></span>' if data_date else '')
             + '</div>'
         )
 
@@ -2835,6 +2859,7 @@ async def generate():
                     "THEN COALESCE(t.lots, 0) - COALESCE(y.lots, 0) "
                     "ELSE NULL END AS lots_chg, "
                     "(SELECT yes FROM has_baseline) AS has_baseline, "
+                    "(SELECT d FROM latest) AS data_date, "
                     "CASE WHEN NOT (SELECT yes FROM has_baseline) THEN NULL "
                     "WHEN t.lots IS NULL OR t.lots = 0 THEN 'exit' "
                     "WHEN y.lots IS NULL OR y.lots = 0 THEN 'new' "
@@ -2850,6 +2875,9 @@ async def generate():
                 )
                 holdings = [dict(r) for r in rows]
                 aetf_holdings_by_etf[etf["etf_code"]] = holdings
+                # 把該 ETF 最新 holdings 日期帶到 etf dict,讓 tab bar 能顯「更新日期」。
+                # holdings 每 row 都帶同樣的 data_date(latest CTE);空 list 視為 None。
+                etf["data_date"] = holdings[0].get("data_date") if holdings else None
                 # Reverse index for modal:per ticker
                 for h in holdings:
                     tk = h.get("ticker")
