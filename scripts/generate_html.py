@@ -2542,14 +2542,42 @@ async def generate():
     # ticker_close_payload 不含 volume,維持 modal chart payload 精簡)。
     ticker_close_full: dict[str, list[dict]] = {}
     _hist_tickers = list(set(_focal_tw) | set(highlight_tickers))
+
+    async def _fetch_ticker_batched(sql: str, tickers: list[str], *,
+                                     batch_size: int = 60, retries: int = 2,
+                                     label: str) -> list:
+        """分批 fetch 避免 Supabase Edge 單次 timeout / 6MB 上限(已踩過 546)。
+        每 batch 失敗 retry,全 retry 都掛才放棄該 batch 並 raise。"""
+        out = []
+        for i in range(0, len(tickers), batch_size):
+            chunk = tickers[i:i + batch_size]
+            last_exc = None
+            for attempt in range(retries + 1):
+                try:
+                    rows = await conn.fetch(sql, chunk)
+                    out.extend(rows)
+                    last_exc = None
+                    break
+                except Exception as exc:
+                    last_exc = exc
+                    if attempt < retries:
+                        await asyncio.sleep(0.8 * (attempt + 1))
+            if last_exc is not None:
+                raise RuntimeError(
+                    f"{label} batch {i // batch_size + 1} (size={len(chunk)}) "
+                    f"failed after {retries + 1} attempts: {last_exc}"
+                ) from last_exc
+        return out
+
     if _hist_tickers:
         try:
-            tch_rows = await conn.fetch(
+            tch_rows = await _fetch_ticker_batched(
                 "SELECT ticker, rank_date, close, shares_out, volume, high, open, low FROM ticker_close_history "
                 "WHERE ticker = ANY($1::text[]) "
                 "AND rank_date >= current_date - INTERVAL '400 days' "
                 "ORDER BY ticker, rank_date",
                 _hist_tickers,
+                label="Q13 ticker_close_history",
             )
             for r in tch_rows:
                 # rank_date 是 timestamp(asyncpg → datetime),取 YYYY-MM-DD
@@ -2612,7 +2640,15 @@ async def generate():
             if _old_kline_dir.exists():
                 shutil.rmtree(_old_kline_dir)
         except Exception as exc:
-            print(f"  ⚠ ticker_close_history query failed: {exc}")
+            # Q13 失敗 = kline.json 與 history.json 的 ticker_close section 都拿不到。
+            # 若繼續走完並 deploy,Cloudflare Workers Static Assets 會用「沒 kline.json」
+            # 的版本整批替換邊緣 manifest,把上一次好的版本也抹掉 → 用戶端 404 直到下次
+            # cron。直接 raise 中止 workflow,讓上次成功的 deploy 留在線上。
+            print(f"  ✗ ticker_close_history (Q13) query failed: {exc}", file=sys.stderr)
+            raise SystemExit(
+                "[fatal] Q13 ticker_close_history 全 batch retry 後仍失敗,中止 deploy。"
+                "讓上次成功的 kline.json 留在 CDN,等下個 cron 再試。"
+            )
 
     # MA20 乖離率(熱門題材 cluster 卡「平均乖離」metric 用)— 由 Q13 close
     # 歷史自算,不再呼叫 yfinance。bias = (今日收盤 − 20 日均) / 20 日均 × 100;
@@ -2643,12 +2679,13 @@ async def generate():
     ticker_net_inst: dict[str, dict[str, float]] = {}  # ticker -> {date_str: net_inst (NTD)}
     if _hist_tickers:
         try:
-            tni_rows = await conn.fetch(
+            tni_rows = await _fetch_ticker_batched(
                 "SELECT ticker, rank_date, net_inst FROM ticker_net_inst_history "
                 "WHERE ticker = ANY($1::text[]) "
                 "AND rank_date >= current_date - INTERVAL '400 days' "
                 "ORDER BY ticker, rank_date",
                 _hist_tickers,
+                label="Q17 ticker_net_inst_history",
             )
             for r in tni_rows:
                 _d = r["rank_date"]
