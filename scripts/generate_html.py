@@ -30,6 +30,7 @@ load_dotenv()
 from src.analysis.focus_themes import (
     detect_industry_clusters,
     detect_focus_clusters,
+    hot_subs_from_seeds,
     IndustryCluster,
 )
 from src.utils.config import RANKINGS_TOP_N
@@ -2643,31 +2644,41 @@ async def generate():
         except Exception as exc:
             print(f"  ⚠ theme_history query failed (table not yet populated?): {exc}")
 
-    # Q24 — main='近一年焦點' sub 半年上榜記錄(180 天)。給:
-    # (1) hl_sub cluster header「連續上榜天數 / 近 20 日上榜率」chip
-    # (2)「📈 趨勢」menu 上圖 2 條序列(熱門題材數量 / 題材延續性)
+    # Q25 — 半年內 trading_rankings 內 is_focus_seed='true' 的 ticker × rank_date。
+    # 對每天用 stockgg 本機 detect_focus_clusters 邏輯(hot_subs_from_seeds)重算
+    # daily hot_subs,給:
+    #   (1) hl_sub cluster header「連續上榜天數 / 近 20 日上榜率」chip
+    #   (2)「📈 趨勢」menu 上圖 2 條序列(熱門題材數量 / 題材延續性)
+    # 2026-05-28 取代 Q24:Q24 讀 ingest 寫的 theme_history sub_industry,但
+    # ingest 寫條件「字典成員 ∩ universe ≥ 2」≠ stockgg「is_focus_seed ≥ 2」
+    # → 數量差很多(84 vs 真實 8)。改讀 raw seed 在 stockgg 端重算,既正確、
+    # 又支援「detect_focus_clusters 邏輯異動後歷史自動重算」。
     focus_daily_subs: dict[str, set[str]] = {}
     focus_sorted_dates: list[str] = []
     try:
-        q24_rows = await conn.fetch(
-            "SELECT rank_date, sub_industry FROM theme_history "
-            "WHERE main_industry = '近一年焦點' "
+        q25_rows = await conn.fetch(
+            "SELECT rank_date, ticker FROM trading_rankings "
+            "WHERE market = 'TW' AND extra->>'is_focus_seed' = 'true' "
             "AND rank_date >= current_date - INTERVAL '180 days' "
-            "ORDER BY rank_date, sub_industry"
+            "ORDER BY rank_date, ticker"
         )
-        _ds: dict[str, set[str]] = collections.defaultdict(set)
-        for r in q24_rows:
+        _seeds_by_day: dict[str, list[str]] = collections.defaultdict(list)
+        for r in q25_rows:
             _d = r["rank_date"]
             d_str = _d.strftime("%Y-%m-%d") if hasattr(_d, "strftime") else str(_d)[:10]
-            sub = r["sub_industry"]
-            if sub:
-                _ds[d_str].add(sub)
-        focus_daily_subs = dict(_ds)
+            _seeds_by_day[d_str].append(r["ticker"])
+        # 對每天用當前 detect_focus_clusters step 1-2 邏輯算 hot_subs。
+        # 字典每天用同一份(stockgg 不存歷史字典)→ 預載一次,免每天重 IO。
+        from src.analysis.focus_themes import _load_dict as _focus_load_dict
+        _dict_data = _focus_load_dict()
+        for d_str, seeds in _seeds_by_day.items():
+            focus_daily_subs[d_str] = hot_subs_from_seeds(seeds, _dict_data)
         focus_sorted_dates = sorted(focus_daily_subs.keys())
-        print(f"  hl_sub theme_history (Q24): {len(q24_rows)} rows, "
-              f"{len(focus_sorted_dates)} trading days")
+        print(f"  is_focus_seed history (Q25): {len(q25_rows)} seed-rows, "
+              f"{len(focus_sorted_dates)} trading days, "
+              f"today hot_subs = {len(focus_daily_subs.get(focus_sorted_dates[-1], set())) if focus_sorted_dates else 0}")
     except Exception as exc:
-        print(f"  ⚠ Q24 hl_sub history query failed: {exc}")
+        print(f"  ⚠ Q25 is_focus_seed history query failed: {exc}")
 
     await conn.close()
 

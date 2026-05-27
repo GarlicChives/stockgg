@@ -317,6 +317,44 @@ def _merge_identical_focal(clusters: list[IndustryCluster]) -> list[IndustryClus
 # volume_universe / 上漲≥1 族群條件 / >0 切分 — 全部移除。
 
 
+def hot_subs_from_seeds(seeds: list[str] | set[str],
+                         dict_data: dict | None = None) -> set[str]:
+    """純 step 1-2 of detect_focus_clusters:從 seeds 反查 main='近一年焦點'
+    字典,sub 種子計數 ≥ FOCUS_MIN_SEEDS 即「熱門題材」。不需要 focus_members
+    (focus_members 是用來挑 focal/sentinel 的;只要算「該日 hot_subs 集合」
+    跳過即可)。
+
+    供 stockgg 端歷史趨勢圖重算:對每個歷史 date 拿 is_focus_seed='true' 的
+    ticker list → 用今天的 detect_focus_clusters 邏輯算出當日 hot_subs。
+    未來邏輯異動 → 改本函式或上游 FOCUS_MIN_SEEDS / 字典,所有歷史趨勢
+    自動跟著重算,不需要 ingest 端 backfill。
+    """
+    data = dict_data if dict_data is not None else _load_dict()
+    all_stocks = data.get("stocks", {})
+    if not all_stocks:
+        return set()
+    seed_set = {t for t in seeds if not _is_etf(t, (all_stocks.get(t) or {}).get("name", ""))}
+    if not seed_set:
+        return set()
+    sub_seed_count: dict[str, int] = defaultdict(int)
+    for seed in seed_set:
+        info = all_stocks.get(seed)
+        if not info:
+            continue
+        seen: set[str] = set()
+        for entry in info.get("industries", []):
+            if entry.get("disabled"):
+                continue
+            if (entry.get("main") or "").strip() != HIGHLIGHT_MAIN:
+                continue
+            for sub in entry.get("subs", []) or []:
+                sub = (sub or "").strip()
+                if sub and sub not in seen:
+                    sub_seed_count[sub] += 1
+                    seen.add(sub)
+    return {s for s, c in sub_seed_count.items() if c >= FOCUS_MIN_SEEDS}
+
+
 def detect_focus_clusters(
     seeds: list[str] | set[str],
     focus_members: dict[str, dict],

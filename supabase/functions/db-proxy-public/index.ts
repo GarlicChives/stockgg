@@ -150,10 +150,17 @@ const ALLOWED: Set<string> = new Set([
   // 失真。ingest 端 src/news/holder_dist.py 寫入。
   "select ticker, data_date, levels from ticker_holder_dist where ticker = any($1::text[]) and data_date >= current_date - interval '60 days' order by ticker, data_date",
 
-  // Q24 — main='近一年焦點' 的 sub_industry 半年上榜記錄(180 天),供:
-  // (1) hl_sub cluster header「連續上榜天數 / 近 20 日上榜率」
-  // (2)「📈 趨勢」menu 上圖「熱門題材數量 / 題材延續性」兩條序列
-  "select rank_date, sub_industry from theme_history where main_industry = '近一年焦點' and rank_date >= current_date - interval '180 days' order by rank_date, sub_industry",
+  // Q25 (v2) — 半年內 trading_rankings 內 is_focus_seed='true' 的 ticker × rank_date,
+  // 供 stockgg 端用當前 detect_focus_clusters 邏輯逐日重算 hot_subs(2026-05-28
+  // 取代 Q24 — 原本 Q24 讀 ingest 寫的 theme_history sub_industry,但 ingest 端
+  // 條件是「字典成員 ∩ universe ≥ 2」≠ stockgg 端「is_focus_seed ≥ 2」 → 數量
+  // 差很多;改讀 raw seed 在 stockgg 端重算,既正確、又支援「邏輯異動後歷史
+  // 自動重算」)
+  // 注意:allowlist 字串是「normalize 過的形式(已小寫)」,不要寫 'TW'
+  // (ALLOWED Set 存 raw 字串,跟 normalize(query) 比對 → allowlist 必須已小寫)。
+  // Code 端仍保持 'TW' 大寫,Edge 在 normalize 比對時會 toLowerCase 變一致;
+  // 真正 execute 時走原 SQL,'TW' 才能對到 trading_rankings.market 大寫值。
+  "select rank_date, ticker from trading_rankings where market = 'tw' and extra->>'is_focus_seed' = 'true' and rank_date >= current_date - interval '180 days' order by rank_date, ticker",
 ])
 
 function normalize(q: string): string {
