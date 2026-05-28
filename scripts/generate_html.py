@@ -692,19 +692,10 @@ def _industry_section_html(
             f"{html_lib.escape(t)}&nbsp;{html_lib.escape(n)}</button>"
             for t, n in universal.items()
         )
-        # univ-panel 加 toggle 結構(2026-05-28):desktop 上 wrapper 用 `display:contents`
-        # 視覺等效於原本(univ-label + chips 直接是 panel 的 flex item),toggle 隱藏。
-        # mobile @media 才啟動「折疊」UX:預設只顯 toggle,點才展開 chip list。
         univ_html = (
-            f'<div class="univ-panel" data-level="{level}">'
-            '<div class="univ-summary">'
+            '<div class="univ-panel">'
             '<span class="univ-label">多題材股:</span>'
-            f'<button class="univ-toggle" type="button" '
-            f'onclick="toggleUnivPanel(this)" aria-expanded="false">'
-            f'<span class="univ-toggle-count">{len(universal)} 檔</span>'
-            f'<span class="univ-toggle-arrow">▸</span></button>'
-            '</div>'
-            f'<div class="univ-chip-list">{chips}</div>'
+            f'{chips}'
             '</div>'
         )
 
@@ -1019,15 +1010,11 @@ def _industry_section_html(
             if dyn:
                 dyn_chip_html = _focus_dynamics_chip(dyn.get("streak"), dyn.get("rate20"))
 
-        # cluster-metric-bar 是 mobile 響應式 wrapper(2026-05-28):
-        # desktop CSS `display:contents` 讓 wrapper 視覺等效於沒有(metric badges 仍是
-        # cluster-hdr 的直接 flex item);mobile @media (max-width:640px) 才啟用
-        # overflow-x:auto + 第二行 layout,讓多 badges 可橫滑而非塞爆單行。
         cards.append(f"""
 <div class="cluster-card" id="{card_id}">
   <div class="cluster-hdr">
     <span class="cluster-name-wrap">{name_html}{dyn_chip_html}{info_btn_html}</span>
-    <div class="cluster-metric-bar">{metric_html}</div>
+    {metric_html}
     <span class="cluster-meta">{meta_text}</span>
     {spark_html}
   </div>
@@ -1930,26 +1917,25 @@ def build_focus_stock_page(
         tds = [
             # 標的 cell:用 _stk_pill(同熱門題材樣式,代號+名稱+股價(漲跌));
             # clickable=False — row 本身 onclick showArtModal 已 handle
-            # data-col 讓 mobile @media 可選擇性 hide/sticky 指定欄(對應 _columns 的 sk)
-            f'<td data-col="tk">{_stk_pill(tk, stocks_info, clickable=False)}</td>',
-            f'<td class="r" data-col="tv">{f"{tv/1e8:.0f} 億" if tv else "—"}</td>',
+            f'<td>{_stk_pill(tk, stocks_info, clickable=False)}</td>',
+            f'<td class="r">{f"{tv/1e8:.0f} 億" if tv else "—"}</td>',
         ]
         if mode == "volume":
-            tds.append(f'<td class="r" data-col="volmult"><b>{vm:.2f}×</b></td>' if vm else '<td class="r" data-col="volmult">—</td>')
+            tds.append(f'<td class="r"><b>{vm:.2f}×</b></td>' if vm else '<td class="r">—</td>')
         tds += [
-            f'<td class="r" data-col="bias">{_bias_cell(bias)}</td>',
-            f'<td class="r" data-col="pe">{pe_str}</td>',
-            f'<td class="r" data-col="peg">{_peg_cell(c)}</td>',
-            f'<td class="r" data-col="gm">{_margin_cell(gm, c["gm_dir"])}</td>',
-            f'<td class="r" data-col="om">{_margin_cell(om, c["om_dir"])}</td>',
-            f'<td class="r" data-col="nm">{_margin_cell(nm, c["nm_dir"])}</td>',
-            f'<td class="r" data-col="rmom">{_rev_cell(rmom)}</td>',
-            f'<td class="r" data-col="ryoy">{_rev_cell(ryoy)}</td>',
-            f'<td data-col="theme">{_cluster_cell(c["clusters"])}</td>',
-            f'<td data-col="etf">{_focus_stock_etf_cell(c["etf_rows"])}</td>',
+            f'<td class="r">{_bias_cell(bias)}</td>',
+            f'<td class="r">{pe_str}</td>',
+            f'<td class="r">{_peg_cell(c)}</td>',
+            f'<td class="r">{_margin_cell(gm, c["gm_dir"])}</td>',
+            f'<td class="r">{_margin_cell(om, c["om_dir"])}</td>',
+            f'<td class="r">{_margin_cell(nm, c["nm_dir"])}</td>',
+            f'<td class="r">{_rev_cell(rmom)}</td>',
+            f'<td class="r">{_rev_cell(ryoy)}</td>',
+            f'<td>{_cluster_cell(c["clusters"])}</td>',
+            f'<td>{_focus_stock_etf_cell(c["etf_rows"])}</td>',
         ]
         if mode == "intersect":
-            tds.append(f'<td data-col="match">{_match_cell(c["matched"])}</td>')
+            tds.append(f'<td>{_match_cell(c["matched"])}</td>')
         return f"<tr class=\"fs-row\" {attrs} onclick='{click}'>{''.join(tds)}</tr>"
 
     def _table(rows, mode, empty_msg):
@@ -1962,13 +1948,9 @@ def build_focus_stock_page(
             for label, sk, num, cls in _columns(mode)
         )
         body = "".join(_row(c, mode) for c in rows)
-        # 包 .fs-table-wrap 容器:mobile (≤640px) 才啟動 overflow-x:auto + sticky
-        # 第一欄;desktop 上 wrap 本身 overflow:visible 不影響原版面。
         return (
-            f'<div class="fs-table-wrap">'
             f'<table class="fs-table"><thead><tr>{ths}</tr></thead>'
             f'<tbody>{body}</tbody></table>'
-            f'</div>'
         )
 
     int_html = _table(intersect_stocks, "intersect",
@@ -3278,9 +3260,7 @@ async def generate():
 <meta name="description" content="{seo_description}">
 <meta name="theme-color" content="#0f1117">
 <link rel="canonical" href="{site_url}">
-<link rel="icon" type="image/svg+xml" href="icon.svg">
-<link rel="apple-touch-icon" href="icon.svg">
-<link rel="manifest" href="manifest.json">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
 <!-- Open Graph(Facebook / Line / 一般 social preview)-->
 <meta property="og:type" content="website">
 <meta property="og:locale" content="zh_TW">
@@ -3299,12 +3279,12 @@ async def generate():
 <header>
   <button class="brand" onclick="showTab('focus');window.scrollTo(0,0);" title="回首頁">IIA 投資情報</button>
   <nav class="tabs">
-    <button class="tab-btn active" data-tab="focus"  data-icon="🔥" onclick="showTab('focus')">熱門題材</button>
-    <button class="tab-btn"        data-tab="trend"  data-icon="📈" onclick="showTab('trend')">趨勢</button>
-    <button class="tab-btn"        data-tab="fstock" data-icon="🎯" onclick="showTab('fstock')">選股雷達</button>
-    <button class="tab-btn"        data-tab="aetf"   data-icon="💎" onclick="showTab('aetf')">主動式 ETF</button>
-    <button class="tab-btn"        data-tab="notes"  data-icon="📝" onclick="showTab('notes')">市場話題</button>
-    <button class="tab-btn"        data-tab="market" data-icon="🌍" onclick="showTab('market')">國際金融</button>
+    <button class="tab-btn active" data-tab="focus"    onclick="showTab('focus')">熱門題材</button>
+    <button class="tab-btn"        data-tab="trend"    onclick="showTab('trend')">📈 趨勢</button>
+    <button class="tab-btn"        data-tab="fstock"   onclick="showTab('fstock')">選股雷達</button>
+    <button class="tab-btn"        data-tab="aetf"     onclick="showTab('aetf')">主動式 ETF</button>
+    <button class="tab-btn"        data-tab="notes"    onclick="showTab('notes')">市場話題</button>
+    <button class="tab-btn"        data-tab="market"   onclick="showTab('market')">國際金融</button>
   </nav>
   <div class="search-box">
     <input type="search" id="site-search" placeholder="搜尋 ticker / 公司"
@@ -3380,8 +3360,6 @@ async def generate():
 <!-- Article modal (個股 modal,加大 + 左右導覽 + counter 比照 tc-modal,2026-05-25) -->
 <dialog id="art-modal">
   <div class="art-shell">
-    <!-- mobile 用 drag handle,點擊或下滑關閉(@media 640px 才顯) -->
-    <div class="modal-drag-handle" aria-hidden="true"></div>
     <div class="art-topbar">
       <span class="art-counter" id="art-counter" aria-live="polite"></span>
       <button class="art-close" type="button" aria-label="關閉"
@@ -3409,8 +3387,6 @@ async def generate():
 <!-- Theme chart modal (子產業 6 個月 TV / 平均漲跌 趨勢) -->
 <dialog id="theme-chart-dialog">
   <div class="tc-shell">
-  <!-- mobile drag handle(@media 640px 才顯) -->
-  <div class="modal-drag-handle" aria-hidden="true"></div>
   <div class="tc-topbar">
     <button class="tc-sort-chip" data-sort="tv" type="button" onclick="tcSetSort('tv')">成交金額</button>
     <button class="tc-sort-chip active" data-sort="chg" type="button" onclick="tcSetSort('chg')">平均漲跌</button>
