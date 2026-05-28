@@ -1,0 +1,22 @@
+{
+  "name": "IIA 投資情報",
+  "short_name": "IIA",
+  "description": "每日台股題材熱度、選股雷達、主動式 ETF 持股追蹤",
+  "lang": "zh-TW",
+  "dir": "ltr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f1117",
+  "theme_color": "#0f1117",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["finance", "news"]
+}

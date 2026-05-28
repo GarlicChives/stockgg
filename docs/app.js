@@ -1918,3 +1918,134 @@ function _renderTrendCharts(data) {
   _trendCharts = { top: topChart, twii: twii.chart, tpex: tpex.chart };
   window._trendRendered = true;
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+ * Mobile UX 增強(2026-05-28,Phase 1c/1b-extra)
+ * - 多題材股 univ-panel mobile 折疊 toggle
+ * - Modal drag handle 點擊 / 下滑關閉(art-modal + theme-chart-dialog)
+ * ════════════════════════════════════════════════════════════════════════ */
+
+/* univ-panel mobile 折疊切換(desktop 上 toggle 隱藏不會被點到) */
+function toggleUnivPanel(btn) {
+  const panel = btn.closest('.univ-panel');
+  if (!panel) return;
+  const isExpanded = panel.classList.toggle('expanded');
+  btn.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+  const arrow = btn.querySelector('.univ-toggle-arrow');
+  if (arrow) arrow.textContent = isExpanded ? '▾' : '▸';
+}
+
+/* Modal swipe-to-dismiss:
+ * 監聽 .modal-drag-handle 上的 touch event,只允許下滑(deltaY>0)。
+ * touchstart 記起點 → touchmove 跟手位移 → touchend 判斷:
+ *   deltaY > 80px 或 velocity > 0.6 px/ms → close
+ *   否則 .is-snapping 動畫回彈
+ * 同時支援 click handle 直接 close(滑鼠 / 桌面測試方便)。
+ * 在 viewport > 640px 不啟用任何 touch handler(CSS 已隱藏 handle,但 JS 也判定)。 */
+function _setupModalSwipeClose(dialogId, shellSelector) {
+  const dlg = document.getElementById(dialogId);
+  if (!dlg) return;
+  const handle = dlg.querySelector('.modal-drag-handle');
+  if (!handle) return;
+
+  // 點擊 handle 直接關
+  handle.addEventListener('click', () => dlg.close());
+
+  let startY = 0, startT = 0, dragging = false, shell = null;
+
+  const resetTransform = () => {
+    if (!shell) return;
+    shell.classList.remove('is-dragging');
+    shell.style.transform = '';
+  };
+
+  handle.addEventListener('touchstart', (e) => {
+    // 只在 mobile viewport 啟用(與 CSS 對齊)
+    if (window.innerWidth > 640) return;
+    shell = dlg.querySelector(shellSelector);
+    if (!shell) return;
+    dragging = true;
+    startY = e.touches[0].clientY;
+    startT = Date.now();
+    shell.classList.add('is-dragging');
+    shell.classList.remove('is-snapping');
+  }, { passive: true });
+
+  handle.addEventListener('touchmove', (e) => {
+    if (!dragging || !shell) return;
+    const dy = e.touches[0].clientY - startY;
+    if (dy < 0) {
+      // 上滑不跟手,固定 0
+      shell.style.transform = 'translateY(0)';
+    } else {
+      shell.style.transform = `translateY(${dy}px)`;
+    }
+  }, { passive: true });
+
+  handle.addEventListener('touchend', (e) => {
+    if (!dragging || !shell) return;
+    dragging = false;
+    const dy = (e.changedTouches[0]?.clientY ?? startY) - startY;
+    const dt = Math.max(1, Date.now() - startT);
+    const velocity = dy / dt;  // px/ms
+    if (dy > 80 || velocity > 0.6) {
+      // 觸發關閉:先讓 shell 滑出底,再 close(避免突兀)
+      shell.classList.remove('is-dragging');
+      shell.classList.add('is-snapping');
+      shell.style.transform = `translateY(${window.innerHeight}px)`;
+      setTimeout(() => {
+        dlg.close();
+        resetTransform();
+      }, 180);
+    } else {
+      // 回彈
+      shell.classList.remove('is-dragging');
+      shell.classList.add('is-snapping');
+      shell.style.transform = 'translateY(0)';
+      setTimeout(resetTransform, 220);
+    }
+  }, { passive: true });
+}
+
+// 兩 modal 都掛 swipe close;desktop 上 CSS 隱藏 handle,JS 不會被觸發
+_setupModalSwipeClose('art-modal', '.art-shell');
+_setupModalSwipeClose('theme-chart-dialog', '.tc-shell');
+
+/* ────────────────────────────────────────────────────────────────────────
+ * Service Worker 註冊(Phase 3a no-op,2026-05-28)
+ * - 預設註冊 sw.js,但 SW 內沒 fetch handler 不攔截網路,僅建立可更新 channel
+ * - Kill switch:url 帶 ?sw=off → unregister 所有 SW + 清 caches + reload 乾淨網址
+ * - 不支援 SW 的瀏覽器(navigator.serviceWorker undefined)直接 skip,不報錯
+ * ──────────────────────────────────────────────────────────────────────── */
+(function _initServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+
+  const params = new URLSearchParams(location.search);
+  const killSwitch = params.get('sw') === 'off';
+
+  window.addEventListener('load', () => {
+    if (killSwitch) {
+      // 卸載所有 SW + 清 caches + reload 不帶 query
+      navigator.serviceWorker.getRegistrations()
+        .then((rs) => Promise.all(rs.map((r) => r.unregister())))
+        .then(() => {
+          if (!('caches' in window)) return null;
+          return caches.keys().then((keys) =>
+            Promise.all(keys.map((k) => caches.delete(k)))
+          );
+        })
+        .then(() => {
+          // 移除 ?sw=off 並 reload
+          const url = new URL(location.href);
+          url.searchParams.delete('sw');
+          location.replace(url.pathname + url.search + url.hash);
+        })
+        .catch((err) => console.warn('SW kill switch failed:', err));
+      return;
+    }
+    // 正常註冊(scope './' = 站內全 path)
+    navigator.serviceWorker.register('sw.js', { scope: './' })
+      .catch((err) => console.warn('SW register failed:', err));
+  });
+})();
+

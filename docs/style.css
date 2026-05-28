@@ -987,3 +987,309 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
   .trend-chart-wrap{height:240px}
   .trend-chart-k{height:300px}
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   Mobile-first 響應式擴充(Phase 1b,2026-05-28)
+   所有規則嚴格包在 @media (max-width:640px) 內 → desktop 路徑零影響。
+   涵蓋:
+   1. fs-table(選股雷達):wrap overflow-x:auto + sticky 第一欄 + 隱藏 PE/PEG/營益率/淨利率
+   2. .ranks 排行表(國際金融頁 美股/台股前 N):table → card grid layout
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* fs-table-wrap:desktop 預設 overflow:visible(不影響原排版),
+   只在 mobile 啟動水平滾動。包外層 div 也讓 mobile 能用 sticky 第一欄 —
+   sticky 需要 scrolling ancestor,直接對 table 設 overflow-x 會干擾 td 上的 sticky。*/
+.fs-table-wrap{overflow:visible}
+
+/* Modal drag handle:desktop 預設 display:none(視覺上零存在感),
+   mobile 啟用 → 顯示 4px 灰條暗示「可下滑關閉」+ JS swipe-to-dismiss */
+.modal-drag-handle{display:none}
+
+/* cluster-metric-bar / univ-summary / univ-chip-list:mobile wrapper,
+   desktop 用 display:contents 讓 wrapper 視覺等效於不存在 → desktop 樣式 0 變動。
+   display:contents 不支援的舊瀏覽器 fallback 是 block,雖視覺不同但功能不壞。 */
+.cluster-metric-bar{display:contents}
+.univ-summary{display:contents}
+.univ-chip-list{display:contents}
+.univ-toggle{display:none}
+
+@media (max-width:640px){
+  /* ── fs-table mobile:橫滑 + sticky 第一欄 + 隱藏低優先欄 ── */
+  .fs-table-wrap{
+    overflow-x:auto;
+    overscroll-behavior-x:contain;
+    -webkit-overflow-scrolling:touch;
+    /* 右側陰影提示「右邊還有」;mask 漸出,純視覺 hint */
+    border-radius:8px;
+  }
+  /* 隱藏低優先欄(user 選擇:PE / PEG / 營益率 / 淨利率 在 mobile 不顯) */
+  .fs-table th[data-skey="pe"],
+  .fs-table td[data-col="pe"],
+  .fs-table th[data-skey="peg"],
+  .fs-table td[data-col="peg"],
+  .fs-table th[data-skey="om"],
+  .fs-table td[data-col="om"],
+  .fs-table th[data-skey="nm"],
+  .fs-table td[data-col="nm"]{display:none}
+  /* sticky 第一欄(標的):left:0,加陰影 hint 右邊還有內容。
+     bg 跟 .fs-table 同(#12151f)避免穿透;hover 時 row bg 變,sticky cell 也跟上。 */
+  .fs-table thead th:first-child,
+  .fs-table tbody td:first-child{
+    position:sticky;
+    left:0;
+    z-index:5;
+    background:#12151f;
+    box-shadow:2px 0 8px -2px rgba(0,0,0,.55);
+  }
+  /* thead 第一欄 sticky cell 用 thead 自身底色(略亮) */
+  .fs-table thead th:first-child{background:#1a1d26}
+  /* hover row 時第一欄 bg 跟上;:has 不支援的瀏覽器 fallback 是 sticky cell 略亮一點 */
+  .fs-table tr.fs-row:hover td:first-child{background:#1a1d2c}
+  /* 既有 1280px 縮 padding 規則在 640px 內繼承,table 本身 width 還是 100%
+     但 wrap overflow-x 讓內部 td 不被擠壓 — 設 min-width 確保各欄都有自然寬度 */
+  .fs-table{min-width:max-content}
+
+  /* ── 排行表(國際金融頁 .ranks 內 table)→ card layout ── */
+  /* 把 table semantic 攤平成 grid,每 tr 變一張 card。
+     thead 隱藏(欄頭資訊融入 card 視覺) */
+  .ranks .card table{display:block;background:transparent;border:none}
+  .ranks .card thead{display:none}
+  .ranks .card tbody{display:block}
+  .ranks .card tr{
+    display:grid;
+    grid-template-columns:auto auto 1fr auto;
+    grid-template-rows:auto auto;
+    gap:.15rem .55rem;
+    align-items:baseline;
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:.55rem .75rem;
+    margin-bottom:.5rem;
+    background:#12151f;
+  }
+  .ranks .card tr td{
+    display:block;
+    border:none;
+    padding:0;
+    font-size:.82rem;
+    line-height:1.5;
+  }
+  /* 第一行:# + 代號 + 名稱(含 board badge / flag chips) */
+  .ranks .card tr td.rank{
+    grid-column:1;grid-row:1;
+    font-weight:700;color:var(--muted);
+    font-variant-numeric:tabular-nums;min-width:1.5rem;
+  }
+  .ranks .card tr td.ticker{
+    grid-column:2;grid-row:1;
+    font-weight:800;color:var(--accent);
+    font-variant-numeric:tabular-nums;
+  }
+  .ranks .card tr td.name{
+    grid-column:3 / -1;grid-row:1;
+    color:var(--text);
+    display:flex;align-items:center;gap:.3rem;flex-wrap:wrap;
+    min-width:0;
+  }
+  /* 第二行:股價(漲跌%) 左、成交值 右 */
+  .ranks .card tr td.num:nth-of-type(4){
+    grid-column:1 / 3;grid-row:2;
+    font-weight:700;
+    font-variant-numeric:tabular-nums;
+  }
+  .ranks .card tr td.num:nth-of-type(5){
+    grid-column:3 / -1;grid-row:2;
+    color:var(--muted);text-align:right;
+    font-variant-numeric:tabular-nums;
+  }
+  /* empty state(colspan="5" 整列):打通全寬置中 */
+  .ranks .card tr td[colspan]{
+    grid-column:1 / -1;grid-row:1;
+    text-align:center;color:var(--muted);
+  }
+
+  /* ── Modal drag handle(@media 640px 才顯)── */
+  /* 上方 4px 灰條 → iOS 跟 Android bottom sheet 視覺慣例,
+     點擊或下滑(JS handler)關閉 modal */
+  .modal-drag-handle{
+    display:block;
+    flex-shrink:0;
+    width:38px;height:4px;
+    margin:.5rem auto .2rem;
+    border-radius:2px;
+    background:rgba(255,255,255,.22);
+    cursor:grab;
+    touch-action:none;  /* 讓 JS handler 完全接管 touch event,不要被 default scroll 偷走 */
+  }
+  .modal-drag-handle:active{cursor:grabbing;background:rgba(255,255,255,.4)}
+  /* modal 被拖曳時整體跟手(JS 加 .is-dragging class + style.transform) */
+  .tc-shell.is-dragging,.art-shell.is-dragging{
+    transition:none !important;
+  }
+  /* 拖曳釋放時的回彈動畫(JS 加 .is-snapping class) */
+  .tc-shell.is-snapping,.art-shell.is-snapping{
+    transition:transform .2s cubic-bezier(.2,.7,.25,1) !important;
+  }
+
+  /* ── 熱門題材 cluster-hdr 垂直化三層 ── */
+  /* 第一行(order:1):title + dyn chips + ⓘ(整個 cluster-name-wrap 佔滿)
+     第二行(order:2):metric badges,可橫滑
+     第三行(order:3):meta + sparkline 排尾 */
+  .cluster-hdr{
+    flex-wrap:wrap;
+    align-items:flex-start;
+    row-gap:.3rem;
+  }
+  .cluster-name-wrap{
+    flex:1 1 100%;
+    order:1;
+    min-width:0;
+    overflow:hidden;
+  }
+  .cluster-metric-bar{
+    display:flex;
+    flex:1 1 100%;
+    order:2;
+    flex-wrap:nowrap;
+    gap:.35rem;
+    overflow-x:auto;
+    overscroll-behavior-x:contain;
+    padding:.05rem 0 .1rem;
+    scrollbar-width:none;
+    /* 邊緣陰影暗示橫滑 */
+    -webkit-mask-image:linear-gradient(to right,#000 calc(100% - 24px),transparent);
+            mask-image:linear-gradient(to right,#000 calc(100% - 24px),transparent);
+  }
+  .cluster-metric-bar::-webkit-scrollbar{display:none}
+  .cluster-metric-bar .cluster-metric{flex-shrink:0}
+  .cluster-meta{
+    order:3;
+    margin-left:0;
+    flex:1 1 auto;
+    font-size:.7rem;
+  }
+  .cluster-hdr > .spark-btn{
+    order:3;
+    margin-left:auto;
+    flex-shrink:0;
+  }
+  /* dyn chip 跟 title 同行,維持 inline 在 cluster-name-wrap 內 — 不變 */
+
+  /* ── 多題材股 univ-panel:折疊式 ── */
+  .univ-panel{
+    flex-direction:column;
+    align-items:stretch;
+  }
+  .univ-summary{
+    display:flex;
+    align-items:center;
+    gap:.5rem;
+  }
+  .univ-toggle{
+    display:inline-flex;
+    align-items:center;
+    gap:.3rem;
+    margin-left:auto;
+    background:transparent;
+    border:none;
+    color:var(--accent);
+    font-family:inherit;
+    font-weight:600;
+    font-size:.75rem;
+    cursor:pointer;
+    padding:.15rem .4rem;
+    border-radius:5px;
+    transition:background .15s;
+  }
+  .univ-toggle:hover{background:rgba(124,138,242,.1)}
+  .univ-toggle-arrow{
+    font-size:.7rem;
+    transition:transform .2s ease;
+    display:inline-block;
+  }
+  .univ-panel.expanded .univ-toggle-arrow{transform:rotate(90deg)}
+  .univ-chip-list{
+    display:none;
+    flex-wrap:wrap;
+    gap:.4rem .5rem;
+    margin-top:.5rem;
+  }
+  .univ-panel.expanded .univ-chip-list{display:flex}
+
+  /* ── Bottom nav for main tabs ── */
+  /* header 內 .tabs nav 拉出 header,fix 在 viewport 底部成為 thumb-friendly 6 個 button。
+     icon 上 / label 下 stack;tab-btn 用 data-icon attribute 帶 emoji,::before 渲染。
+     desktop textNode 純文字(去 emoji),desktop 看到 6 個純文字 tab(含「趨勢」)。 */
+  header{padding:.45rem .8rem}
+  header .tabs{
+    position:fixed;
+    bottom:0;
+    left:0;
+    right:0;
+    z-index:100;
+    background:var(--card);
+    border-top:1px solid var(--border);
+    /* iOS 安全區(home indicator 區)*/
+    padding:.3rem .15rem max(.3rem, env(safe-area-inset-bottom));
+    display:flex;
+    justify-content:space-around;
+    gap:.05rem;
+    box-shadow:0 -2px 14px rgba(0,0,0,.4);
+  }
+  header .tabs .tab-btn{
+    flex:1 1 0;
+    min-width:0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:0;
+    padding:.32rem .15rem;
+    font-size:.58rem;
+    font-weight:600;
+    line-height:1.15;
+    color:var(--muted);
+    border-radius:7px;
+    white-space:nowrap;
+    overflow:hidden;
+    background:transparent;
+  }
+  header .tabs .tab-btn::before{
+    content:attr(data-icon);
+    display:block;
+    font-size:1.2rem;
+    line-height:1;
+    margin-bottom:.18rem;
+  }
+  header .tabs .tab-btn.active{
+    background:rgba(124,138,242,.16);
+    color:var(--accent);
+  }
+  header .tabs .tab-btn:hover{background:rgba(124,138,242,.08);color:var(--text)}
+  header .tabs .tab-btn.active:hover{background:rgba(124,138,242,.22);color:var(--accent)}
+  /* body 底部留 fixed nav 高度的 padding,避免內容被蓋 */
+  body{padding-bottom:calc(4.2rem + env(safe-area-inset-bottom))}
+  footer{margin-bottom:0}
+  /* 回到頂端 浮動 button 上移避開 bottom nav */
+  .scroll-top-btn{bottom:calc(4.7rem + env(safe-area-inset-bottom)) !important}
+
+  /* ── sub-tab 橫滑(原本 flex no-wrap + button 可 wrap text → 中文直書,
+     mobile 上極不可讀)── */
+  .sub-tabs{
+    overflow-x:auto;
+    overscroll-behavior-x:contain;
+    flex-wrap:nowrap;
+    scrollbar-width:none;
+    margin:0 -.5rem .8rem;
+    padding:0 .5rem .2rem;
+  }
+  .sub-tabs::-webkit-scrollbar{display:none}
+  .sub-tab-btn{
+    flex-shrink:0;
+    white-space:nowrap;
+  }
+  /* fs-filter-bar(交集股的「篩選符合條件」chip 列)wrap 多行可接受 */
+  .fs-filter-bar{flex-wrap:wrap}
+}
+
+
