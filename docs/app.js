@@ -1832,7 +1832,7 @@ function _renderTrendCharts(data) {
       attributionLogo: false,   // 移除右下角 TradingView icon
     },
     grid: { vertLines: { color: gridC }, horzLines: { color: gridC } },
-    rightPriceScale: { borderColor: gridC, minimumWidth: 64 },  // 統一寬度對齊 crosshair
+    rightPriceScale: { borderColor: gridC, minimumWidth: 76 },  // initial floor,measure 後會再套 max
     timeScale: { borderColor: gridC, timeVisible: false, secondsVisible: false },
     crosshair: { mode: 1 },
     autoSize: true,
@@ -1922,7 +1922,9 @@ function _renderTrendCharts(data) {
       priceFormat: { type: 'custom', formatter: opts.formatter || (v => v.toFixed(2)) },
     });
     line.setData(rows);
-    // reference lines
+    // reference lines:axisLabelVisible 關掉(label 比 axis tick 寬會擋到
+    // Y 軸數字 + 撐 priceScale 寬度導致跟其他 chart crosshair 不對齊)。
+    // 閾值文字改用 chart wrapper 上方既有的 .trend-chart-guide chip 說明。
     if (opts.refLines) {
       for (const ref of opts.refLines) {
         line.createPriceLine({
@@ -1930,8 +1932,7 @@ function _renderTrendCharts(data) {
           color: ref.color,
           lineWidth: 1,
           lineStyle: ref.dashed ? 2 : 0,
-          axisLabelVisible: true,
-          title: ref.title,
+          axisLabelVisible: false,
         });
       }
     }
@@ -2014,16 +2015,19 @@ function _renderTrendCharts(data) {
   // 同 time 落在不同 X pixel)。修法:render 完 measure 各邊實際寬度,取
   // max 套 minimumWidth(只會多撐不會 truncate)。requestAnimationFrame 確保
   // DOM layout 完成才 measure。cluster modal _tcCharts 也用同樣技巧。
-  requestAnimationFrame(() => {
+  // requestAnimationFrame x2 雙保險:第一次讓 chart 初次 layout 完成,第二次再
+  // measure(實測單次 RAF 偶有 timing 問題 measure 拿到 still-shrinking width)。
+  // 套完 minimumWidth 後 chart 自動 reflow。
+  requestAnimationFrame(() => requestAnimationFrame(() => {
     try {
       const widths = allCharts.map(c => c.priceScale('right').width()).filter(w => w > 0);
       if (!widths.length) return;
-      const maxW = Math.max(...widths, 64);
+      const maxW = Math.max(...widths, 76);
       for (const c of allCharts) {
         c.priceScale('right').applyOptions({ minimumWidth: maxW });
       }
     } catch (e) { console.warn('trend priceScale align failed', e); }
-  });
+  }));
 
   // crosshair sync(anchor series 用各 chart 的第一條)
   const anchors = [

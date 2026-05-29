@@ -3543,11 +3543,11 @@ async def generate():
   <button class="brand" onclick="showTab('focus');window.scrollTo(0,0);" title="回首頁">IIA 投資情報</button>
   <nav class="tabs">
     <button class="tab-btn active" data-tab="focus"    onclick="showTab('focus')">熱門題材</button>
-    <button class="tab-btn"        data-tab="trend"    onclick="showTab('trend')">📈 趨勢</button>
     <button class="tab-btn"        data-tab="fstock"   onclick="showTab('fstock')">選股雷達</button>
     <button class="tab-btn"        data-tab="aetf"     onclick="showTab('aetf')">主動式 ETF</button>
     <button class="tab-btn"        data-tab="notes"    onclick="showTab('notes')">市場話題</button>
     <button class="tab-btn"        data-tab="market"   onclick="showTab('market')">國際金融</button>
+    <button class="tab-btn"        data-tab="trend"    onclick="showTab('trend')">📈 趨勢</button>
   </nav>
   <div class="search-box">
     <input type="search" id="site-search" placeholder="搜尋 ticker / 公司"
@@ -3597,11 +3597,6 @@ async def generate():
     {focus_html}
   </div>
 
-  <!-- Tab: 📈 趨勢(熱門題材動能 + 大盤櫃買;2026-05-27) -->
-  <div id="tab-trend" class="tab-pane">
-    {trend_html}
-  </div>
-
   <!-- 焦點排行 tab 2026-05-19 移除 -->
 
   <!-- Tab: 選股雷達(原「焦點股」;出量股 / 潛力股 / 交集股 / 新高股 / 成長股) -->
@@ -3617,6 +3612,11 @@ async def generate():
   <!-- Tab 4: 市場話題(原「股市筆記」) -->
   <div id="tab-notes" class="tab-pane">
     {notes_html}
+  </div>
+
+  <!-- Tab: 📈 趨勢(V3.2 動能 / 風險指標板,2026-05-29 移到 menu 最後) -->
+  <div id="tab-trend" class="tab-pane">
+    {trend_html}
   </div>
 </div>
 
