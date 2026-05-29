@@ -533,59 +533,180 @@ def _focus_dynamics_chip(streak: int | None, rate20: float | None) -> str:
     return "".join(parts)
 
 
-def build_trend_page(trend_series: list[dict], index_payload: dict) -> str:
-    """📈 趨勢 menu HTML — 兩個 chart container + inline payload script。
-    上圖:熱門題材數量 + 題材延續性(雙 Y 軸,分別 count vs %)
-    下圖:大盤 ^TWII / 櫃買 ^TWOII 半年收盤(同基期 rebase to 100)
-    實際 chart 由 docs/app.js `renderTrendCharts` 在 showTab('trend') 時 lazy render。"""
-    if not trend_series:
-        return '<p class="muted-note">尚無趨勢資料(等 Q24 theme_history 半年累積 — 通常隔日就補上)</p>'
+def _compute_risk_today(twii_rows: list[dict], radar_series: list[dict]) -> dict:
+    """Risk composite(V3.2):z(TWII_60d_ROC, 20d 窗口) + z(nh_count, 20d 窗口)。
+    回 {composite, level('safe'/'warn'/'danger'), twii_60d_roc, nh_z, label}。
+    其中 z = (latest_value - mean(last 20d)) / std(last 20d)。"""
+    if not twii_rows or not radar_series:
+        return {"composite": None, "level": "unknown", "label": "資料不足"}
+
+    # latest TWII close + close 60 day ago
+    twii_closes = [r["close"] for r in twii_rows if r.get("close") is not None]
+    if len(twii_closes) < 80:
+        return {"composite": None, "level": "unknown", "label": "TWII 歷史 < 80d"}
+
+    # 60d ROC time series — 對每 d:(close[d] / close[d-60] - 1) * 100
+    rocs = []
+    for i in range(60, len(twii_closes)):
+        rocs.append((twii_closes[i] / twii_closes[i - 60] - 1) * 100)
+    if len(rocs) < 20:
+        return {"composite": None, "level": "unknown", "label": "ROC 序列 < 20d"}
+    # 取最後 20 個 ROC 算 mean / std
+    last20_roc = rocs[-20:]
+    m_roc = sum(last20_roc) / len(last20_roc)
+    sd_roc = (sum((x - m_roc) ** 2 for x in last20_roc) / len(last20_roc)) ** 0.5
+    z_roc = (rocs[-1] - m_roc) / sd_roc if sd_roc > 0 else 0
+
+    # nh_count z(20d)
+    nh_arr = [r["nh"] for r in radar_series]
+    if len(nh_arr) < 20:
+        return {"composite": None, "level": "unknown", "label": "nh_count 序列 < 20d"}
+    last20_nh = nh_arr[-20:]
+    m_nh = sum(last20_nh) / len(last20_nh)
+    sd_nh = (sum((x - m_nh) ** 2 for x in last20_nh) / len(last20_nh)) ** 0.5
+    z_nh = (nh_arr[-1] - m_nh) / sd_nh if sd_nh > 0 else 0
+
+    composite = z_roc + z_nh
+    if composite >= 1.5:
+        level = "danger"
+        label = "🔥 過熱危險"
+    elif composite >= 0:
+        level = "warn"
+        label = "⚠ 警戒"
+    else:
+        level = "safe"
+        label = "☀ 安全"
+    return {
+        "composite": round(composite, 2),
+        "level": level,
+        "label": label,
+        "twii_60d_roc": round(rocs[-1], 2),
+        "nh_z": round(z_nh, 2),
+        "roc_z": round(z_roc, 2),
+    }
+
+
+def build_trend_page(
+    twii_rows: list[dict],
+    tpex_rows: list[dict],
+    radar_series: list[dict],
+) -> str:
+    """📈 趨勢 menu HTML(V3.2 重構)— 主圖大盤/櫃買 K 線 + 風險 chip,
+    副圖 3 個動能指標(nh / chip / TWII 距 MA60 偏離%)。
+
+    payload 結構(window.IIA_TREND):
+      - index: {TWII, TPEX} OHLCV 1y
+      - radar: [{d, nh, chip, growth, vol, intersect, universe}, ...] 半年聚合
+      - risk_today: V3.2 composite signal + level
+    """
+    if not twii_rows or not radar_series:
+        return ('<p class="muted-note">趨勢資料載入失敗(Q21 或 Q26 缺資料,'
+                '檢查 ingest focus_radar_history daily writer 與 market_snapshots)</p>')
+
+    risk_today = _compute_risk_today(twii_rows, radar_series)
+    risk_chip_color = {
+        "safe":    "trend-risk-safe",
+        "warn":    "trend-risk-warn",
+        "danger":  "trend-risk-danger",
+        "unknown": "trend-risk-unknown",
+    }.get(risk_today.get("level", "unknown"), "trend-risk-unknown")
 
     payload = {
-        "trend": trend_series,           # [{d, hot, cont}, ...]
-        "index": index_payload,          # {"TWII": [{d, c}, ...], "TPEX": [...]}
+        "index": {
+            "TWII": twii_rows,
+            "TPEX": tpex_rows,
+        },
+        "radar": radar_series,
+        "risk_today": risk_today,
     }
     payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+
+    risk_value = (f"{risk_today['composite']:+.2f}" if risk_today.get("composite") is not None
+                  else "—")
+    risk_detail = ""
+    if risk_today.get("composite") is not None:
+        risk_detail = (f' <span class="trend-risk-detail">'
+                       f'(TWII 60d ROC z={risk_today.get("roc_z", 0):+.1f} + '
+                       f'nh_count z={risk_today.get("nh_z", 0):+.1f})</span>')
+
     return (
         '<div class="trend-page">'
+
+        # 主圖 1:大盤 ^TWII K 線 + risk chip
         '<div class="trend-section">'
         '<div class="trend-title">'
-        '<h3>熱門題材動能</h3>'
-        '<span class="muted">'
-        f'近 {len(trend_series)} 個交易日'
+        '<h3>大盤 ^TWII 日 K + MA</h3>'
+        '<span class="muted">含成交量、MA10/60/200</span>'
+        f'<span class="trend-risk-chip {risk_chip_color}" '
+        f'title="V3.2 composite signal = z(TWII 60d ROC, 20d) + z(nh_count, 20d)。'
+        f'≥+1.5 危險 / 0~+1.5 警戒 / &lt;0 安全。in-sample AUC 0.949(對應 60d/-15% 回檔)。'
+        f'2024-06 yen carry trade 大跌前夕命中過。">'
+        f'<b>{risk_today.get("label", "—")}</b> {risk_value}{risk_detail}'
         '</span>'
-        '</div>'
-        '<div class="trend-chart-wrap" id="trend-chart-top">'
-        '<div class="trend-loading muted-note">載入圖表中…</div>'
-        '</div>'
-        '<div class="trend-legend trend-legend-top"></div>'
-        '<p class="trend-note muted">'
-        '<b>熱門題材數量</b> = 每日 hl_sub 入榜 distinct 題材數;'
-        '<b>題材延續性</b> = 過去 20 個交易日所有上過榜題材的「20 日上榜率」算術平均。'
-        '延續性高 = 題材重複出現、輪動慢;低 = 題材輪動快、熱錢遊走'
-        '</p>'
-        '</div>'
-        '<div class="trend-section">'
-        '<div class="trend-title">'
-        '<h3>大盤 ^TWII 日 K</h3>'
-        '<span class="muted">含成交量</span>'
         '</div>'
         '<div class="trend-chart-wrap trend-chart-k" id="trend-chart-twii">'
         '<div class="trend-loading muted-note">載入圖表中…</div>'
         '</div>'
         '</div>'
+
+        # 主圖 2:櫃買 ^TWOII K 線
         '<div class="trend-section">'
         '<div class="trend-title">'
-        '<h3>櫃買 ^TWOII 日 K</h3>'
+        '<h3>櫃買 ^TWOII 日 K + MA</h3>'
         '<span class="muted">含成交量</span>'
         '</div>'
         '<div class="trend-chart-wrap trend-chart-k" id="trend-chart-tpex">'
         '<div class="trend-loading muted-note">載入圖表中…</div>'
         '</div>'
+        '</div>'
+
+        # 副圖:三個動能指標
+        '<div class="trend-section">'
+        '<div class="trend-title">'
+        '<h3>動能 / 風險指標</h3>'
+        '<span class="muted">V3.2 backtest 驗證有 robust 訊號的 3 條指標</span>'
+        '</div>'
+
+        # subplot 1: nh_count(新高股,Q5≥12 警示)
+        '<div class="trend-mini-section">'
+        '<div class="trend-mini-title">'
+        '<b>新高股 nh_count</b> '
+        '<span class="muted">— Q5 ≥ 12 = 過熱警示(AUC 0.838 for BEAR 60d/-15%)</span>'
+        '</div>'
+        '<div class="trend-chart-wrap trend-chart-mini" id="trend-chart-nh">'
+        '<div class="trend-loading muted-note">載入中…</div>'
+        '</div>'
+        '</div>'
+
+        # subplot 2: chip_count(籌碼股,+1σ trigger)
+        '<div class="trend-mini-section">'
+        '<div class="trend-mini-title">'
+        '<b>籌碼股 chip_count</b> '
+        '<span class="muted">— 個股動能進場 trigger(V3 backtest expectancy +2.62%/trade,40% 勝率)</span>'
+        '</div>'
+        '<div class="trend-chart-wrap trend-chart-mini" id="trend-chart-chip">'
+        '<div class="trend-loading muted-note">載入中…</div>'
+        '</div>'
+        '</div>'
+
+        # subplot 3: TWII 距 MA60 偏離%
+        '<div class="trend-mini-section">'
+        '<div class="trend-mini-title">'
+        '<b>大盤距 MA60 偏離 (%)</b> '
+        '<span class="muted">— +8% 以上 = Q5 過熱危險區(AUC 0.897 for BEAR 60d/-15%)</span>'
+        '</div>'
+        '<div class="trend-chart-wrap trend-chart-mini" id="trend-chart-ma60dist">'
+        '<div class="trend-loading muted-note">載入中…</div>'
+        '</div>'
+        '</div>'
+
         '<p class="trend-note muted">'
-        'K 棒 紅漲綠跌(亞洲慣例);今天若 OHL 暫缺(ingest 過渡期)當日只顯成交量,K 棒從明天起齊全。'
+        '指標來自 V3.2 全空間 factor sweep(59 factor × 35 target):chip_count = 動能交易進場 '
+        'trigger;nh_count + TWII MA60 偏離 = 風控警示。詳細回測見 commit msg / ingest '
+        'focus_radar_history table。'
         '</p>'
         '</div>'
+
         f'<script>window.IIA_TREND={payload_json};</script>'
         '</div>'
     )
@@ -2691,6 +2812,68 @@ async def generate():
     except Exception as exc:
         print(f"  ⚠ Q25 is_focus_seed history query failed: {exc}")
 
+    # Q26 — focus_radar_history 半年聚合(給 📈 趨勢 tab 副圖 + risk composite)
+    # ingest 2026-05-29 起寫入 focus_radar_history 3y backfill,Q26 撈 1095d
+    # 但 stockgg 只用最近 ~250 day(對齊大盤 K 線視野)。stockgg render 不重算
+    # 5 條件,完全讀 ingest 寫入的 breakdown。
+    radar_series: list[dict] = []
+    try:
+        _r26 = await conn.fetch(
+            "select rank_date, intersect_count, breakdown, universe_size "
+            "from focus_radar_history "
+            "where rank_date >= current_date - interval '1095 days' "
+            "order by rank_date"
+        )
+        for row in _r26:
+            _d = row["rank_date"]
+            d_str = _d.strftime("%Y-%m-%d") if hasattr(_d, "strftime") else str(_d)[:10]
+            bd = row["breakdown"] if isinstance(row["breakdown"], dict) else json.loads(row["breakdown"] or "{}")
+            radar_series.append({
+                "d": d_str,
+                "intersect": int(row["intersect_count"]),
+                "universe":  int(row["universe_size"]),
+                "vol":    int(bd.get("vol", 0)),
+                "nh":     int(bd.get("nh", 0)),
+                "growth": int(bd.get("growth", 0)),
+                "chip":   int(bd.get("chip", 0)),
+                "pot":    int(bd.get("pot", 0)),
+                "potA":   int(bd.get("potA", 0)),
+                "potB":   int(bd.get("potB", 0)),
+                "potC":   int(bd.get("potC", 0)),
+            })
+        print(f"  focus_radar_history (Q26): {len(radar_series)} day, "
+              f"latest intersect={radar_series[-1]['intersect'] if radar_series else 0}")
+    except Exception as exc:
+        print(f"  ⚠ Q26 focus_radar_history query failed: {exc}")
+
+    # Q27 — focus_radar_history 最新 row,給選股雷達 sub-tab status block 用
+    radar_today: dict | None = None
+    try:
+        _r27 = await conn.fetch(
+            "select rank_date, intersect_tickers, per_ticker_conds, pot_subtype, "
+            "breakdown, universe_size from focus_radar_history "
+            "where rank_date = (select max(rank_date) from focus_radar_history)"
+        )
+        if _r27:
+            row = _r27[0]
+            _d = row["rank_date"]
+            d_str = _d.strftime("%Y-%m-%d") if hasattr(_d, "strftime") else str(_d)[:10]
+            ti = row["intersect_tickers"] or []
+            ptc = row["per_ticker_conds"]
+            if isinstance(ptc, str):
+                ptc = json.loads(ptc) if ptc else {}
+            bd = row["breakdown"] if isinstance(row["breakdown"], dict) else json.loads(row["breakdown"] or "{}")
+            radar_today = {
+                "d": d_str,
+                "intersect_tickers": list(ti) if isinstance(ti, list) else [],
+                "per_ticker_conds": ptc or {},
+                "breakdown": bd,
+                "universe_size": int(row["universe_size"]),
+            }
+            print(f"  focus_radar today (Q27): {d_str}, intersect={len(radar_today['intersect_tickers'])}")
+    except Exception as exc:
+        print(f"  ⚠ Q27 focus_radar today query failed: {exc}")
+
     await conn.close()
 
     # market_notes 提到、但不在 top-N rankings 的 ticker:ingest 自 commit
@@ -3033,7 +3216,7 @@ async def generate():
             "SELECT snapshot_date, symbol, open, high, low, close_price, volume, change_pct "
             "FROM market_snapshots "
             "WHERE symbol = ANY($1::text[]) "
-            "AND snapshot_date >= current_date - INTERVAL '400 days' "
+            "AND snapshot_date >= current_date - INTERVAL '1095 days' "
             "ORDER BY symbol, snapshot_date",
             ["^TWII", "^TWOII"],
         )
@@ -3084,22 +3267,21 @@ async def generate():
         focus_sorted_dates=focus_sorted_dates,
     )
 
-    # ── 📈 趨勢 tab ─────────────────────────────────────────────────────────
-    # 上圖:熱門題材數量 + 題材延續性(來自 Q24 hl_sub history 半年)
-    # 下圖:大盤 ^TWII + 櫃買 ^TWOII(來自 Q21,trim 到同樣半年範圍)
-    focus_trend_series = (
-        _build_focus_trend(focus_sorted_dates, focus_daily_subs)
-        if focus_sorted_dates else []
+    # ── 📈 趨勢 tab(V3.2 重構)─────────────────────────────────────────
+    # 主圖:^TWII / ^TWOII K + MA10/60/200 + 右上 risk chip
+    # 副圖 1:nh_count(新高股,Q5 ≥ 12 警示)
+    # 副圖 2:chip_count(籌碼股,+1σ 進場 trigger)
+    # 副圖 3:大盤距 MA60 偏離 % (+8% 危險區)
+    # risk composite = z(TWII_60d_ROC, 20d 窗口) + z(nh_count, 20d 窗口)
+    #   composite ≥ +1.5 → 🔥 危險;0~+1.5 → ⚠ 警戒;< 0 → ☀ 安全
+    # (V3.2 backtest AUC 0.949,2024-06 yen carry trade 大跌前夕命中)
+    twii_index_for_trend = (market_index_payload.get("TWII") if market_index_payload else []) or []
+    tpex_index_for_trend = (market_index_payload.get("TPEX") if market_index_payload else []) or []
+    trend_html = build_trend_page(
+        twii_rows=twii_index_for_trend,
+        tpex_rows=tpex_index_for_trend,
+        radar_series=radar_series,
     )
-    # 大盤 / 櫃買 K 線資料:給趨勢 tab 下圖用,直接用 Q21 原始 400 天範圍
-    # (不再 trim 對齊上圖窗口 —— 上圖只有 ~7 天 hl_sub history,但下圖 K 線有
-    # 完整一年資料價值,沒理由切到 7 天)。app.js 端 filter OHL is null 的 row
-    # (今天 5/27 OHL 暫 NULL — daily-briefing 7:30 用舊版 code 跑,明天起補上)
-    trend_index_payload = {
-        "TWII": (market_index_payload.get("TWII") if market_index_payload else []) or [],
-        "TPEX": (market_index_payload.get("TPEX") if market_index_payload else []) or [],
-    }
-    trend_html = build_trend_page(focus_trend_series, trend_index_payload)
     notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)
     catalyst_html = build_catalyst_html(catalyst_events, stocks_info)
 

@@ -138,7 +138,7 @@ const ALLOWED: Set<string> = new Set([
   // (1) cluster chart modal 大盤 / 櫃買 overlay 線(用 close)
   // (2)「📈 趨勢」menu 下圖 ^TWII / ^TWOII 日 K 線 + 成交量(2026-05-28 起,
   //     對應 ingest 76f6728 加 open/high/low 三欄)
-  "select snapshot_date, symbol, open, high, low, close_price, volume, change_pct from market_snapshots where symbol = any($1::text[]) and snapshot_date >= current_date - interval '400 days' order by symbol, snapshot_date",
+  "select snapshot_date, symbol, open, high, low, close_price, volume, change_pct from market_snapshots where symbol = any($1::text[]) and snapshot_date >= current_date - interval '1095 days' order by symbol, snapshot_date",
 
   // Q22 — ticker_chip_history 近期 daily 三大法人分項買賣超「股數」,供
   // 「選股雷達 > 籌碼股」算近 3 交易日外資 / 投信買賣超佔成交量%。
@@ -163,6 +163,23 @@ const ALLOWED: Set<string> = new Set([
   // Code 端仍保持 'TW' 大寫,Edge 在 normalize 比對時會 toLowerCase 變一致;
   // 真正 execute 時走原 SQL,'TW' 才能對到 trading_rankings.market 大寫值。
   "select rank_date, ticker from trading_rankings where market = 'tw' and extra->>'is_focus_seed' = 'true' and rank_date >= current_date - interval '180 days' order by rank_date, ticker",
+
+  // Q26 — focus_radar_history 3y 聚合(intersect_count + breakdown),給趨勢副圖
+  // + V3 backtest(2026-05-29 ingest 024e4d2 完成 3y backfill 起 retention 改 1095d;
+  //  payload ~66KB 安全。stockgg render-time 自己 trim 視野到 6 個月即可)
+  "select rank_date, intersect_count, breakdown, universe_size from focus_radar_history where rank_date >= current_date - interval '1095 days' order by rank_date",
+
+  // Q27 — focus_radar_history 最新 row(today 完整 snapshot),給選股雷達 sub-tab
+  "select rank_date, intersect_tickers, per_ticker_conds, pot_subtype, breakdown, universe_size from focus_radar_history where rank_date = (select max(rank_date) from focus_radar_history)",
+
+  // Q28 — focus_radar_history per_ticker_conds 日期區間(date range params $1 / $2),
+  // 給 V3 backtest 分批拉(避免一次 3y 撈爆 6MB)。stockgg backtest script 用
+  "select rank_date, per_ticker_conds, intersect_tickers from focus_radar_history where rank_date >= $1 and rank_date <= $2 order by rank_date",
+
+  // Q30 — ticker_close_history 日期區間版(3 個 params:tickers array + from / to date),
+  // 給 V3 backtest 用 3y 歷史(現有 Q13 400d 不夠 backtest entry-前 60d pre-history)。
+  // payload 每 chunk(60 ticker × 90 day)~540KB,安全
+  "select ticker, rank_date, close, shares_out, volume, high, open, low from ticker_close_history where ticker = any($1::text[]) and rank_date >= $2 and rank_date <= $3 order by ticker, rank_date",
 ])
 
 function normalize(q: string): string {
