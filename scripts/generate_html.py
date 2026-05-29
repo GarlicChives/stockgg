@@ -533,16 +533,105 @@ def _focus_dynamics_chip(streak: int | None, rate20: float | None) -> str:
     return "".join(parts)
 
 
-def _compute_trend_summary(twii_rows: list[dict], radar_series: list[dict]) -> dict:
-    """V3.2 趨勢頁綜合判斷 — 5 級 state(全力做多 / 適度做多 / 觀望 / 警戒 / 危險)。
+def _judge_index_trend(closes: list[float], name: str) -> dict:
+    """單一指數的趨勢判定(close vs MA60 vs MA200 兩線結構)。回 indicator dict。"""
+    if len(closes) < 210:
+        return {"scope": "大盤", "name": name, "level": "unknown",
+                "label": "資料不足", "detail": "歷史 < 210d 無法算 MA200"}
+    c = closes[-1]
+    ma60 = sum(closes[-60:]) / 60
+    ma200 = sum(closes[-200:]) / 200
+    above_60 = c > ma60
+    above_200 = c > ma200
+    d60 = (c / ma60 - 1) * 100
+    if above_60 and above_200:
+        st = {"level": "go", "label": "🚀 強多頭",
+              "detail": f"close > MA60(+{d60:.1f}%)且 > MA200"}
+    elif above_60 and not above_200:
+        st = {"level": "warn-up", "label": "📈 中多頭",
+              "detail": f"close > MA60(+{d60:.1f}%)但 < MA200"}
+    elif not above_60 and above_200:
+        st = {"level": "warn", "label": "⚠ 弱勢回檔",
+              "detail": f"close < MA60({d60:+.1f}%)但仍 > MA200"}
+    else:
+        st = {"level": "danger", "label": "🛑 空頭",
+              "detail": f"close < MA60({d60:+.1f}%)且 < MA200"}
+    return {"scope": "大盤", "name": name, **st}
 
-    指標(對應 V3.2 全空間 sweep 結論):
+
+def _judge_nh(nh_count: int, z_nh: float) -> dict:
+    """nh_count 過熱判定(大盤層)— Q5 ≥ 12 警示"""
+    if nh_count >= 12:
+        return {"scope": "大盤", "name": "新高股 nh_count", "level": "danger",
+                "label": "🔥 過熱警示",
+                "detail": f"今日 {nh_count} 檔(Q5 ≥12 警示區,z={z_nh:+.1f})"}
+    elif nh_count >= 6:
+        return {"scope": "大盤", "name": "新高股 nh_count", "level": "warn",
+                "label": "↗ 偏熱",
+                "detail": f"今日 {nh_count} 檔(Q4 區段,z={z_nh:+.1f})"}
+    else:
+        return {"scope": "大盤", "name": "新高股 nh_count", "level": "neutral",
+                "label": "😐 正常",
+                "detail": f"今日 {nh_count} 檔(z={z_nh:+.1f})"}
+
+
+def _judge_chip(chip_count: int, z_chip: float) -> dict:
+    """chip_count 動能 trigger 判定(個股層)— +1σ 以上 = 進場 trigger"""
+    if z_chip >= 1.5:
+        return {"scope": "個股", "name": "籌碼股 chip_count", "level": "go",
+                "label": "🚀 強進場 trigger",
+                "detail": f"今日 {chip_count} 檔(z={z_chip:+.1f} ≥+1.5σ)"}
+    elif z_chip >= 1.0:
+        return {"scope": "個股", "name": "籌碼股 chip_count", "level": "warn-up",
+                "label": "📈 進場 trigger",
+                "detail": f"今日 {chip_count} 檔(z={z_chip:+.1f} ≥+1σ)"}
+    elif z_chip >= 0:
+        return {"scope": "個股", "name": "籌碼股 chip_count", "level": "neutral",
+                "label": "↗ 偏多",
+                "detail": f"今日 {chip_count} 檔(z={z_chip:+.1f})"}
+    elif z_chip >= -1.0:
+        return {"scope": "個股", "name": "籌碼股 chip_count", "level": "neutral",
+                "label": "↘ 偏弱",
+                "detail": f"今日 {chip_count} 檔(z={z_chip:+.1f})"}
+    else:
+        return {"scope": "個股", "name": "籌碼股 chip_count", "level": "warn",
+                "label": "🛑 動能弱",
+                "detail": f"今日 {chip_count} 檔(z={z_chip:+.1f} ≤-1σ)"}
+
+
+def _judge_ma60_dist(dist_pct: float) -> dict:
+    """大盤距 MA60 偏離 區段判定(大盤層)— ±8% 是 Q5 邊界"""
+    if dist_pct >= 8:
+        return {"scope": "大盤", "name": "大盤距 MA60", "level": "danger",
+                "label": "🔥 危險過熱",
+                "detail": f"{dist_pct:+.1f}% ≥+8%(Q5 危險區,AUC 0.897 for BEAR 60d/-15%)"}
+    elif dist_pct >= 3:
+        return {"scope": "大盤", "name": "大盤距 MA60", "level": "warn",
+                "label": "⚠ 警戒",
+                "detail": f"{dist_pct:+.1f}%(中性偏熱)"}
+    elif dist_pct >= -3:
+        return {"scope": "大盤", "name": "大盤距 MA60", "level": "neutral",
+                "label": "😐 中性",
+                "detail": f"{dist_pct:+.1f}%(MA60 附近,趨勢中性)"}
+    elif dist_pct >= -8:
+        return {"scope": "大盤", "name": "大盤距 MA60", "level": "warn-up",
+                "label": "↘ 偏弱",
+                "detail": f"{dist_pct:+.1f}%(中性偏弱)"}
+    else:
+        return {"scope": "大盤", "name": "大盤距 MA60", "level": "go",
+                "label": "🚀 超賣可分批進場",
+                "detail": f"{dist_pct:+.1f}% ≤-8%(Q5 超賣區)"}
+
+
+def _compute_trend_summary(twii_rows: list[dict], tpex_rows: list[dict],
+                            radar_series: list[dict]) -> dict:
+    """V3.2 趨勢頁綜合判斷 — 5 級 state + per-indicator judgments。
+
+    決策矩陣(對應 V3.2 全空間 sweep):
       bear_score = z(TWII_60d_ROC, 20d 窗口) + z(nh_count, 20d 窗口)
-                   ≥+1.5 → 危險(in-sample AUC 0.949 for BEAR_60d_-15%)
-                   ≥+0.5 → 警戒
       bull_score = z(chip_count, 20d 窗口)
-                   ≥+1.0 → 動能進場 trigger(V3 B1 大盤 chip≥+1.5σ +1.9% expectancy)
-      trend_dir  = TWII close vs MA60(> MA60 = 多頭、< = 空頭)
+      trend_dir  = TWII close vs MA60
+    indicators[] = per-chart 個別判斷(大盤 / 個股 scope tag)
     """
     out = {
         "state":     "UNKNOWN",
@@ -556,11 +645,13 @@ def _compute_trend_summary(twii_rows: list[dict], radar_series: list[dict]) -> d
         "z_chip":    None,
         "trend_dir": None,
         "ma60_dist": None,
+        "indicators": [],
     }
     if not twii_rows or not radar_series:
         return out
 
     twii_closes = [r["close"] for r in twii_rows if r.get("close") is not None]
+    tpex_closes = [r["close"] for r in (tpex_rows or []) if r.get("close") is not None]
     if len(twii_closes) < 80:
         out["label"] = "TWII 歷史 < 80d"
         return out
@@ -596,6 +687,18 @@ def _compute_trend_summary(twii_rows: list[dict], radar_series: list[dict]) -> d
     bear = z_roc + z_nh
     bull = z_chip
 
+    # ── per-indicator 個別判斷(對應趨勢頁 5 個 chart 順序)─────────
+    indicators = [
+        _judge_index_trend(twii_closes, "大盤 ^TWII 趨勢"),
+        (_judge_index_trend(tpex_closes, "櫃買 ^TWOII 趨勢") if tpex_closes else
+         {"scope": "大盤", "name": "櫃買 ^TWOII 趨勢", "level": "unknown",
+          "label": "資料不足", "detail": "TPEX 缺資料"}),
+        _judge_nh(nh_arr[-1], z_nh),
+        _judge_chip(chip_arr[-1], z_chip),
+        _judge_ma60_dist(ma60_dist),
+    ]
+
+    # ── 綜合 state 決策(基於 bear / bull / trend_dir)─────────────
     if bear >= 1.5:
         state, level, label = "DANGER", "danger", "🔥 危險"
         advice = ("V3.2 BEAR composite 高警報(in-sample AUC 0.949 for 60d/-15% drawdown)。"
@@ -630,6 +733,7 @@ def _compute_trend_summary(twii_rows: list[dict], radar_series: list[dict]) -> d
         "z_chip":    round(z_chip, 2),
         "trend_dir": trend_dir,
         "ma60_dist": round(ma60_dist, 2),
+        "indicators": indicators,
     })
     return out
 
@@ -651,7 +755,7 @@ def build_trend_page(
         return ('<p class="muted-note">趨勢資料載入失敗(Q21 或 Q26 缺資料,'
                 '檢查 ingest focus_radar_history daily writer 與 market_snapshots)</p>')
 
-    summary = _compute_trend_summary(twii_rows, radar_series)
+    summary = _compute_trend_summary(twii_rows, tpex_rows, radar_series)
     panel_class = {
         "go":       "trend-sum-go",
         "warn-up":  "trend-sum-warnup",
@@ -668,16 +772,52 @@ def build_trend_page(
     }
     payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
-    # 綜合判斷 panel
+    # 各 indicator pill style class
+    ind_class = {
+        "go":       "ind-go",
+        "warn-up":  "ind-warnup",
+        "neutral":  "ind-neutral",
+        "warn":     "ind-warn",
+        "danger":   "ind-danger",
+        "unknown":  "ind-unknown",
+    }
+    indicators = summary.get("indicators") or []
+    ind_rows_html = []
+    for ind in indicators:
+        cls = ind_class.get(ind.get("level", "unknown"), "ind-unknown")
+        scope = ind.get("scope", "")
+        scope_class = "scope-market" if scope == "大盤" else "scope-stock"
+        ind_rows_html.append(
+            f'<div class="trend-ind-item">'
+            f'<span class="trend-ind-scope {scope_class}">{html_lib.escape(scope)}</span>'
+            f'<span class="trend-ind-name">{html_lib.escape(ind.get("name", "—"))}</span>'
+            f'<span class="trend-ind-state {cls}">{html_lib.escape(ind.get("label", "—"))}</span>'
+            f'<span class="trend-ind-detail">{html_lib.escape(ind.get("detail", ""))}</span>'
+            f'</div>'
+        )
+    ind_list_html = '<div class="trend-ind-list">' + ''.join(ind_rows_html) + '</div>' if ind_rows_html else ''
+
+    # 綜合判斷 panel(含 per-indicator list)
     bear_str = f"{summary['bear']:+.2f}" if summary.get("bear") is not None else "—"
     bull_str = f"{summary['bull']:+.2f}" if summary.get("bull") is not None else "—"
     ma60_str = f"{summary['ma60_dist']:+.1f}%" if summary.get("ma60_dist") is not None else "—"
     summary_panel = (
         f'<div class="trend-summary {panel_class}">'
+
+        # 1. 各指標個別判斷(per-chart breakdown,大盤 / 個股 scope tag)
+        '<div class="trend-summary-section">'
+        '<div class="trend-summary-sec-head">各指標個別判斷 '
+        '<span class="muted">— 對應下方 5 個圖表,大盤 / 個股 scope 已標註</span></div>'
+        + ind_list_html +
+        '</div>'
+
+        # 2. 綜合 state + advice(最終決策)
+        '<div class="trend-summary-section trend-summary-final">'
+        '<div class="trend-summary-sec-head">綜合多空判斷</div>'
         '<div class="trend-summary-head">'
         f'<span class="trend-summary-state">{summary.get("label", "—")}</span>'
-        '<span class="trend-summary-rule">綜合判斷 — '
-        '根據下方所有指標(大盤 K + MA、nh_count、chip_count、MA60 偏離)V3.2 backtest 結論'
+        '<span class="trend-summary-rule">'
+        '基於上方所有指標 + V3.2 backtest 決策矩陣(bear / bull / trend_dir)'
         '</span>'
         '</div>'
         f'<div class="trend-summary-advice">{summary.get("advice", "")}</div>'
@@ -689,6 +829,8 @@ def build_trend_page(
         f'<span><b>大盤距 MA60</b> {ma60_str} '
         '<span class="muted">+8% 危險區 / -8% 超賣</span></span>'
         '</div>'
+        '</div>'
+
         '</div>'
     )
 

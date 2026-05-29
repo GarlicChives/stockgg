@@ -1832,7 +1832,13 @@ function _renderTrendCharts(data) {
       attributionLogo: false,   // 移除右下角 TradingView icon
     },
     grid: { vertLines: { color: gridC }, horzLines: { color: gridC } },
-    rightPriceScale: { borderColor: gridC, minimumWidth: 76 },  // initial floor,measure 後會再套 max
+    // 5 chart 對齊核心:
+    //   leftPriceScale 顯式關掉(默認 invisible 仍占內部 layout 計算寬度)
+    //   rightPriceScale minimumWidth 96(顯著大於 K 線「228.79」與 mini chart
+    //     「150 檔」/「+19.6%」實際內容,確保所有 chart axis 同寬,plot area
+    //     左緣對齊 → crosshair 同 time 落在同 X pixel)
+    leftPriceScale:  { visible: false },
+    rightPriceScale: { borderColor: gridC, minimumWidth: 96 },
     timeScale: { borderColor: gridC, timeVisible: false, secondsVisible: false },
     crosshair: { mode: 1 },
     autoSize: true,
@@ -2015,19 +2021,33 @@ function _renderTrendCharts(data) {
   // 同 time 落在不同 X pixel)。修法:render 完 measure 各邊實際寬度,取
   // max 套 minimumWidth(只會多撐不會 truncate)。requestAnimationFrame 確保
   // DOM layout 完成才 measure。cluster modal _tcCharts 也用同樣技巧。
-  // requestAnimationFrame x2 雙保險:第一次讓 chart 初次 layout 完成,第二次再
-  // measure(實測單次 RAF 偶有 timing 問題 measure 拿到 still-shrinking width)。
-  // 套完 minimumWidth 後 chart 自動 reflow。
-  requestAnimationFrame(() => requestAnimationFrame(() => {
+  // 對齊 priceScale 寬度 — RAF triple + 套完後第二輪 measure 確認落定。
+  // measure 第一輪可能拿到 still-rendering width(autoSize 仍在 settle),三層
+  // RAF 後 stable。也補加 ResizeObserver 在 viewport resize 時重 apply。
+  function alignPriceScales() {
     try {
       const widths = allCharts.map(c => c.priceScale('right').width()).filter(w => w > 0);
       if (!widths.length) return;
-      const maxW = Math.max(...widths, 76);
+      const maxW = Math.max(...widths, 96);
       for (const c of allCharts) {
         c.priceScale('right').applyOptions({ minimumWidth: maxW });
       }
     } catch (e) { console.warn('trend priceScale align failed', e); }
-  }));
+  }
+  requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => {
+    alignPriceScales();
+    // 再 measure 一次確認套完真的對齊
+    requestAnimationFrame(alignPriceScales);
+  })));
+  // viewport resize 觸發重 align(chart 內 axis 寬度可能因 font scaling 變化)
+  if (window.ResizeObserver && allCharts.length) {
+    const ro = new ResizeObserver(() => {
+      requestAnimationFrame(alignPriceScales);
+    });
+    // 觀察任一 chart container,trigger 一次重算就好(各 chart 寬同步)
+    const firstEl = document.getElementById('trend-chart-twii');
+    if (firstEl) ro.observe(firstEl);
+  }
 
   // crosshair sync(anchor series 用各 chart 的第一條)
   const anchors = [
