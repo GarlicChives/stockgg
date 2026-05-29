@@ -1012,10 +1012,59 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .trend-mini-title .muted{font-size:.68rem}
 .trend-chart-mini{height:160px}
 
+/* V3.2 綜合判斷 panel(趨勢頁最上方)─────────────────────────── */
+.trend-summary{border-radius:10px;padding:1rem 1.1rem;margin-bottom:1.1rem;
+                border:1px solid rgba(255,255,255,.08)}
+.trend-summary-head{display:flex;align-items:baseline;gap:.7rem;flex-wrap:wrap;
+                     margin-bottom:.5rem}
+.trend-summary-state{font-size:1.35rem;font-weight:800;letter-spacing:.02em;line-height:1.2}
+.trend-summary-rule{font-size:.7rem;color:var(--muted)}
+.trend-summary-advice{font-size:.85rem;color:var(--text);line-height:1.55;
+                       margin-bottom:.6rem}
+.trend-summary-meta{display:flex;flex-wrap:wrap;gap:.4rem 1.4rem;
+                     font-size:.74rem;color:var(--text);padding-top:.5rem;
+                     border-top:1px solid rgba(255,255,255,.06)}
+.trend-summary-meta b{font-weight:700;color:var(--accent);margin-right:.2rem}
+.trend-summary-meta .muted{font-size:.66rem;margin-left:.2rem}
+
+.trend-sum-go{background:linear-gradient(135deg,rgba(16,185,129,.18),rgba(16,185,129,.06));
+               border-color:rgba(16,185,129,.45)}
+.trend-sum-go .trend-summary-state{color:#34d399}
+.trend-sum-warnup{background:linear-gradient(135deg,rgba(96,165,250,.16),rgba(96,165,250,.05));
+                   border-color:rgba(96,165,250,.4)}
+.trend-sum-warnup .trend-summary-state{color:#93c5fd}
+.trend-sum-neutral{background:rgba(148,160,168,.08);
+                    border-color:rgba(148,160,168,.25)}
+.trend-sum-neutral .trend-summary-state{color:var(--text)}
+.trend-sum-warn{background:linear-gradient(135deg,rgba(245,158,11,.16),rgba(245,158,11,.05));
+                 border-color:rgba(245,158,11,.4)}
+.trend-sum-warn .trend-summary-state{color:#fbbf24}
+.trend-sum-danger{background:linear-gradient(135deg,rgba(239,68,68,.22),rgba(239,68,68,.08));
+                   border-color:rgba(239,68,68,.5);
+                   animation:trend-risk-pulse 2.5s ease-in-out infinite}
+.trend-sum-danger .trend-summary-state{color:#fca5a5}
+.trend-sum-unknown{background:rgba(148,160,168,.05);border-color:rgba(148,160,168,.2);
+                    opacity:.65}
+.trend-sum-unknown .trend-summary-state{color:var(--muted)}
+
+/* 各 chart 上方「使用指南」chip ─────────────────────────────────── */
+.trend-chart-guide{display:block;font-size:.72rem;line-height:1.5;
+                    padding:.35rem .65rem;border-radius:5px;margin-bottom:.5rem}
+.guide-info{background:rgba(96,165,250,.1);color:var(--text);
+             border-left:3px solid #60a5fa}
+.guide-go{background:rgba(16,185,129,.12);color:var(--text);
+           border-left:3px solid #10b981}
+.guide-warn{background:rgba(239,68,68,.1);color:var(--text);
+             border-left:3px solid #ef4444}
+
 @media (max-width:600px){
   .trend-chart-wrap{height:240px}
   .trend-chart-k{height:300px}
   .trend-chart-mini{height:140px}
   .trend-risk-chip{font-size:.68rem;padding:.2rem .55rem}
   .trend-risk-detail{display:none}
+  .trend-summary{padding:.85rem .8rem}
+  .trend-summary-state{font-size:1.15rem}
+  .trend-summary-meta{font-size:.7rem;gap:.3rem .8rem}
+  .trend-chart-guide{font-size:.68rem;padding:.3rem .55rem}
 }

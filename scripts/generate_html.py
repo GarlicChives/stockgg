@@ -533,57 +533,105 @@ def _focus_dynamics_chip(streak: int | None, rate20: float | None) -> str:
     return "".join(parts)
 
 
-def _compute_risk_today(twii_rows: list[dict], radar_series: list[dict]) -> dict:
-    """Risk composite(V3.2):z(TWII_60d_ROC, 20d 窗口) + z(nh_count, 20d 窗口)。
-    回 {composite, level('safe'/'warn'/'danger'), twii_60d_roc, nh_z, label}。
-    其中 z = (latest_value - mean(last 20d)) / std(last 20d)。"""
-    if not twii_rows or not radar_series:
-        return {"composite": None, "level": "unknown", "label": "資料不足"}
+def _compute_trend_summary(twii_rows: list[dict], radar_series: list[dict]) -> dict:
+    """V3.2 趨勢頁綜合判斷 — 5 級 state(全力做多 / 適度做多 / 觀望 / 警戒 / 危險)。
 
-    # latest TWII close + close 60 day ago
+    指標(對應 V3.2 全空間 sweep 結論):
+      bear_score = z(TWII_60d_ROC, 20d 窗口) + z(nh_count, 20d 窗口)
+                   ≥+1.5 → 危險(in-sample AUC 0.949 for BEAR_60d_-15%)
+                   ≥+0.5 → 警戒
+      bull_score = z(chip_count, 20d 窗口)
+                   ≥+1.0 → 動能進場 trigger(V3 B1 大盤 chip≥+1.5σ +1.9% expectancy)
+      trend_dir  = TWII close vs MA60(> MA60 = 多頭、< = 空頭)
+    """
+    out = {
+        "state":     "UNKNOWN",
+        "level":     "unknown",
+        "label":     "資料不足",
+        "advice":    "",
+        "bear":      None,
+        "bull":      None,
+        "z_roc":     None,
+        "z_nh":      None,
+        "z_chip":    None,
+        "trend_dir": None,
+        "ma60_dist": None,
+    }
+    if not twii_rows or not radar_series:
+        return out
+
     twii_closes = [r["close"] for r in twii_rows if r.get("close") is not None]
     if len(twii_closes) < 80:
-        return {"composite": None, "level": "unknown", "label": "TWII 歷史 < 80d"}
+        out["label"] = "TWII 歷史 < 80d"
+        return out
 
-    # 60d ROC time series — 對每 d:(close[d] / close[d-60] - 1) * 100
-    rocs = []
-    for i in range(60, len(twii_closes)):
-        rocs.append((twii_closes[i] / twii_closes[i - 60] - 1) * 100)
+    ma60 = sum(twii_closes[-60:]) / 60
+    last_close = twii_closes[-1]
+    ma60_dist = (last_close / ma60 - 1) * 100
+    trend_dir = "multi" if last_close > ma60 else "bear"
+
+    rocs = [(twii_closes[i] / twii_closes[i - 60] - 1) * 100
+            for i in range(60, len(twii_closes))]
     if len(rocs) < 20:
-        return {"composite": None, "level": "unknown", "label": "ROC 序列 < 20d"}
-    # 取最後 20 個 ROC 算 mean / std
+        out["label"] = "ROC 序列 < 20d"
+        return out
     last20_roc = rocs[-20:]
-    m_roc = sum(last20_roc) / len(last20_roc)
-    sd_roc = (sum((x - m_roc) ** 2 for x in last20_roc) / len(last20_roc)) ** 0.5
+    m_roc = sum(last20_roc) / 20
+    sd_roc = (sum((x - m_roc) ** 2 for x in last20_roc) / 20) ** 0.5
     z_roc = (rocs[-1] - m_roc) / sd_roc if sd_roc > 0 else 0
 
-    # nh_count z(20d)
     nh_arr = [r["nh"] for r in radar_series]
-    if len(nh_arr) < 20:
-        return {"composite": None, "level": "unknown", "label": "nh_count 序列 < 20d"}
-    last20_nh = nh_arr[-20:]
-    m_nh = sum(last20_nh) / len(last20_nh)
-    sd_nh = (sum((x - m_nh) ** 2 for x in last20_nh) / len(last20_nh)) ** 0.5
-    z_nh = (nh_arr[-1] - m_nh) / sd_nh if sd_nh > 0 else 0
+    chip_arr = [r["chip"] for r in radar_series]
+    if len(nh_arr) < 20 or len(chip_arr) < 20:
+        out["label"] = "radar 序列 < 20d"
+        return out
+    def _z(arr):
+        last20 = arr[-20:]
+        m = sum(last20) / 20
+        sd = (sum((x - m) ** 2 for x in last20) / 20) ** 0.5
+        return (arr[-1] - m) / sd if sd > 0 else 0
+    z_nh = _z(nh_arr)
+    z_chip = _z(chip_arr)
 
-    composite = z_roc + z_nh
-    if composite >= 1.5:
-        level = "danger"
-        label = "🔥 過熱危險"
-    elif composite >= 0:
-        level = "warn"
-        label = "⚠ 警戒"
+    bear = z_roc + z_nh
+    bull = z_chip
+
+    if bear >= 1.5:
+        state, level, label = "DANGER", "danger", "🔥 危險"
+        advice = ("V3.2 BEAR composite 高警報(in-sample AUC 0.949 for 60d/-15% drawdown)。"
+                  "建議:全力觀望、已部位減半、暫停所有新進場")
+    elif bear >= 0.5 and bull < 1.0:
+        state, level, label = "WARN", "warn", "⚠ 警戒"
+        advice = ("過熱跡象(BEAR composite 進入警戒區但動能 trigger 弱)。"
+                  "建議:新部位再三確認、留意 nh_count 是否進 Q5(≥12)")
+    elif bull >= 1.0 and bear < 0 and trend_dir == "multi":
+        state, level, label = "STRONG_BULL", "go", "🚀 全力做多"
+        advice = ("最佳進場時機:籌碼湧入(chip_count +1σ 以上)+ 大盤過 MA60 + 無過熱訊號。"
+                  "V3 backtest 個股 chip trigger 期望值 +2.62% / trade、大盤 chip≥+1.5σ +1.9% / trade")
+    elif bull >= 1.0:
+        state, level, label = "MILD_BULL", "warn-up", "📈 適度做多"
+        advice = ("進場 trigger 觸發但同時有過熱跡象。建議:減半倉位、嚴守 MA10 停損")
+    elif trend_dir == "bear":
+        state, level, label = "BEAR", "danger", "🛑 空頭"
+        advice = "大盤跌破 MA60 季線,動能交易暫停。等收復 MA60 再評估"
     else:
-        level = "safe"
-        label = "☀ 安全"
-    return {
-        "composite": round(composite, 2),
-        "level": level,
-        "label": label,
-        "twii_60d_roc": round(rocs[-1], 2),
-        "nh_z": round(z_nh, 2),
-        "roc_z": round(z_roc, 2),
-    }
+        state, level, label = "NEUTRAL", "neutral", "😐 觀望"
+        advice = "無強訊號,大盤趨勢中性。靜待 chip_count +1σ 進場機會 或 nh_count Q5 警示"
+
+    out.update({
+        "state":     state,
+        "level":     level,
+        "label":     label,
+        "advice":    advice,
+        "bear":      round(bear, 2),
+        "bull":      round(bull, 2),
+        "z_roc":     round(z_roc, 2),
+        "z_nh":      round(z_nh, 2),
+        "z_chip":    round(z_chip, 2),
+        "trend_dir": trend_dir,
+        "ma60_dist": round(ma60_dist, 2),
+    })
+    return out
 
 
 def build_trend_page(
@@ -603,47 +651,76 @@ def build_trend_page(
         return ('<p class="muted-note">趨勢資料載入失敗(Q21 或 Q26 缺資料,'
                 '檢查 ingest focus_radar_history daily writer 與 market_snapshots)</p>')
 
-    risk_today = _compute_risk_today(twii_rows, radar_series)
-    risk_chip_color = {
-        "safe":    "trend-risk-safe",
-        "warn":    "trend-risk-warn",
-        "danger":  "trend-risk-danger",
-        "unknown": "trend-risk-unknown",
-    }.get(risk_today.get("level", "unknown"), "trend-risk-unknown")
+    summary = _compute_trend_summary(twii_rows, radar_series)
+    panel_class = {
+        "go":       "trend-sum-go",
+        "warn-up":  "trend-sum-warnup",
+        "neutral":  "trend-sum-neutral",
+        "warn":     "trend-sum-warn",
+        "danger":   "trend-sum-danger",
+        "unknown":  "trend-sum-unknown",
+    }.get(summary.get("level", "unknown"), "trend-sum-unknown")
 
     payload = {
-        "index": {
-            "TWII": twii_rows,
-            "TPEX": tpex_rows,
-        },
+        "index": {"TWII": twii_rows, "TPEX": tpex_rows},
         "radar": radar_series,
-        "risk_today": risk_today,
+        "summary": summary,
     }
     payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
-    risk_value = (f"{risk_today['composite']:+.2f}" if risk_today.get("composite") is not None
-                  else "—")
-    risk_detail = ""
-    if risk_today.get("composite") is not None:
-        risk_detail = (f' <span class="trend-risk-detail">'
-                       f'(TWII 60d ROC z={risk_today.get("roc_z", 0):+.1f} + '
-                       f'nh_count z={risk_today.get("nh_z", 0):+.1f})</span>')
+    # 綜合判斷 panel
+    bear_str = f"{summary['bear']:+.2f}" if summary.get("bear") is not None else "—"
+    bull_str = f"{summary['bull']:+.2f}" if summary.get("bull") is not None else "—"
+    ma60_str = f"{summary['ma60_dist']:+.1f}%" if summary.get("ma60_dist") is not None else "—"
+    summary_panel = (
+        f'<div class="trend-summary {panel_class}">'
+        '<div class="trend-summary-head">'
+        f'<span class="trend-summary-state">{summary.get("label", "—")}</span>'
+        '<span class="trend-summary-rule">綜合判斷 — '
+        '根據下方所有指標(大盤 K + MA、nh_count、chip_count、MA60 偏離)V3.2 backtest 結論'
+        '</span>'
+        '</div>'
+        f'<div class="trend-summary-advice">{summary.get("advice", "")}</div>'
+        '<div class="trend-summary-meta">'
+        f'<span><b>BEAR 風險</b> {bear_str} '
+        '<span class="muted">= z(TWII 60d ROC) + z(nh_count) ≥+1.5 危險</span></span>'
+        f'<span><b>BULL 動能</b> {bull_str} '
+        '<span class="muted">= z(chip_count) ≥+1.0 進場 trigger</span></span>'
+        f'<span><b>大盤距 MA60</b> {ma60_str} '
+        '<span class="muted">+8% 危險區 / -8% 超賣</span></span>'
+        '</div>'
+        '</div>'
+    )
+
+    # 各 chart「使用指南」chip 文案
+    twii_guide = ('<span class="trend-chart-guide guide-info">'
+                  '判讀:close > MA60 = 多頭(可進場池);close < MA60 = 動能交易暫停。'
+                  '個股 MA10 是停損線(本圖 MA10 同概念但對大盤指數)</span>')
+    tpex_guide = ('<span class="trend-chart-guide guide-info">'
+                  '判讀同上 — 中小型股動能比大盤更敏感,若櫃買先跌破 MA60 而大盤未跌,是領先警示</span>')
+    nh_guide   = ('<span class="trend-chart-guide guide-warn">'
+                  '🚨 Q5(≥12)= 過熱警示區,新高股過多 → 60d 內回檔機率 9% (AUC 0.838)。'
+                  '建議:暫停進場 / 已部位減半</span>')
+    chip_guide = ('<span class="trend-chart-guide guide-go">'
+                  '✅ +1σ 以上 = 個股動能進場 trigger 區。對應 V3 backtest expectancy '
+                  '+2.62% / trade(40% 勝率,跌破 MA10 停損)</span>')
+    ma60_guide = ('<span class="trend-chart-guide guide-warn">'
+                  '🚨 +8% 以上 = 大盤距季線過遠的危險區(AUC 0.897);-8% 以下 = 超賣可分批進場;'
+                  '0 上下 = 趨勢中性</span>')
 
     return (
         '<div class="trend-page">'
 
-        # 主圖 1:大盤 ^TWII K 線 + risk chip
+        # 頁面頂部:綜合判斷 panel
+        + summary_panel +
+
+        # 主圖 1:大盤 ^TWII K 線
         '<div class="trend-section">'
         '<div class="trend-title">'
         '<h3>大盤 ^TWII 日 K + MA</h3>'
         '<span class="muted">含成交量、MA10/60/200</span>'
-        f'<span class="trend-risk-chip {risk_chip_color}" '
-        f'title="V3.2 composite signal = z(TWII 60d ROC, 20d) + z(nh_count, 20d)。'
-        f'≥+1.5 危險 / 0~+1.5 警戒 / &lt;0 安全。in-sample AUC 0.949(對應 60d/-15% 回檔)。'
-        f'2024-06 yen carry trade 大跌前夕命中過。">'
-        f'<b>{risk_today.get("label", "—")}</b> {risk_value}{risk_detail}'
-        '</span>'
         '</div>'
+        + twii_guide +
         '<div class="trend-chart-wrap trend-chart-k" id="trend-chart-twii">'
         '<div class="trend-loading muted-note">載入圖表中…</div>'
         '</div>'
@@ -655,6 +732,7 @@ def build_trend_page(
         '<h3>櫃買 ^TWOII 日 K + MA</h3>'
         '<span class="muted">含成交量</span>'
         '</div>'
+        + tpex_guide +
         '<div class="trend-chart-wrap trend-chart-k" id="trend-chart-tpex">'
         '<div class="trend-loading muted-note">載入圖表中…</div>'
         '</div>'
@@ -673,6 +751,7 @@ def build_trend_page(
         '<b>新高股 nh_count</b> '
         '<span class="muted">— Q5 ≥ 12 = 過熱警示(AUC 0.838 for BEAR 60d/-15%)</span>'
         '</div>'
+        + nh_guide +
         '<div class="trend-chart-wrap trend-chart-mini" id="trend-chart-nh">'
         '<div class="trend-loading muted-note">載入中…</div>'
         '</div>'
@@ -684,6 +763,7 @@ def build_trend_page(
         '<b>籌碼股 chip_count</b> '
         '<span class="muted">— 個股動能進場 trigger(V3 backtest expectancy +2.62%/trade,40% 勝率)</span>'
         '</div>'
+        + chip_guide +
         '<div class="trend-chart-wrap trend-chart-mini" id="trend-chart-chip">'
         '<div class="trend-loading muted-note">載入中…</div>'
         '</div>'
@@ -695,6 +775,7 @@ def build_trend_page(
         '<b>大盤距 MA60 偏離 (%)</b> '
         '<span class="muted">— +8% 以上 = Q5 過熱危險區(AUC 0.897 for BEAR 60d/-15%)</span>'
         '</div>'
+        + ma60_guide +
         '<div class="trend-chart-wrap trend-chart-mini" id="trend-chart-ma60dist">'
         '<div class="trend-loading muted-note">載入中…</div>'
         '</div>'

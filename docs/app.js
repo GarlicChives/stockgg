@@ -1826,9 +1826,13 @@ function _renderTrendCharts(data) {
   const textC = css.getPropertyValue('--text').trim() || '#e6e6e6';
   const gridC = 'rgba(255,255,255,0.06)';
   const baseOpts = {
-    layout: { background: { type: 'solid', color: 'transparent' }, textColor: textC },
+    layout: {
+      background: { type: 'solid', color: 'transparent' },
+      textColor: textC,
+      attributionLogo: false,   // 移除右下角 TradingView icon
+    },
     grid: { vertLines: { color: gridC }, horzLines: { color: gridC } },
-    rightPriceScale: { borderColor: gridC },
+    rightPriceScale: { borderColor: gridC, minimumWidth: 64 },  // 統一寬度對齊 crosshair
     timeScale: { borderColor: gridC, timeVisible: false, secondsVisible: false },
     crosshair: { mode: 1 },
     autoSize: true,
@@ -1839,7 +1843,7 @@ function _renderTrendCharts(data) {
   const _RED = '#ef4444';
   const _GREEN = '#10b981';
 
-  // 日 K + MA10/60/200 + volume overlay
+  // 日 K + MA10/60/200 + volume overlay。lastValueVisible 全關避 badge 擋 Y 軸
   function _kvolMA(el, rows) {
     if (!rows || !rows.length) {
       el.innerHTML = '<p class="muted-note">無資料</p>';
@@ -1849,18 +1853,17 @@ function _renderTrendCharts(data) {
     opts.rightPriceScale.scaleMargins = { top: 0.08, bottom: 0.28 };
     const ch = LightweightCharts.createChart(el, opts);
 
-    // candlestick
     const candle = ch.addCandlestickSeries({
       upColor: _RED, downColor: _GREEN,
       borderUpColor: _RED, borderDownColor: _GREEN,
       wickUpColor: _RED, wickDownColor: _GREEN,
+      lastValueVisible: false, priceLineVisible: false,
     });
     const candleRows = rows.filter(p =>
       p.open != null && p.high != null && p.low != null && p.close != null
     ).map(p => ({ time: p.d, open: p.open, high: p.high, low: p.low, close: p.close }));
     candle.setData(candleRows);
 
-    // MA10 / MA60 / MA200(line overlay,同 priceScale)
     const ma10Data = _computeMA(rows, 10);
     const ma60Data = _computeMA(rows, 60);
     const ma200Data = _computeMA(rows, 200);
@@ -1877,16 +1880,16 @@ function _renderTrendCharts(data) {
     });
     ma60.setData(ma60Data);
     const ma200 = ch.addLineSeries({
-      color: '#a78bfa', lineWidth: 1, lineStyle: 2, // dashed
+      color: '#a78bfa', lineWidth: 1, lineStyle: 2,
       priceLineVisible: false, lastValueVisible: false,
       title: 'MA200',
     });
     ma200.setData(ma200Data);
 
-    // volume overlay 在 pane 下緣 1/4
     const vol = ch.addHistogramSeries({
       priceFormat: { type: 'volume' },
       priceScaleId: '',
+      lastValueVisible: false, priceLineVisible: false,
     });
     ch.priceScale('').applyOptions({ scaleMargins: { top: 0.78, bottom: 0 } });
     const volRows = rows.filter(p => p.volume != null).map(p => {
@@ -1902,7 +1905,7 @@ function _renderTrendCharts(data) {
     return { chart: ch, candle, ma10, ma60, ma200, vol };
   }
 
-  // mini chart:單一 line + 可選 reference line(area shading 用 series price line)
+  // mini chart:單一 line + 可選 reference line。lastValueVisible 關掉(badge 擋 Y 軸)
   function _miniLine(el, rows, opts) {
     if (!rows || !rows.length) {
       el.innerHTML = '<p class="muted-note">無資料</p>';
@@ -1915,7 +1918,7 @@ function _renderTrendCharts(data) {
       color: opts.color || '#60a5fa',
       lineWidth: 2,
       priceLineVisible: false,
-      lastValueVisible: true,
+      lastValueVisible: false,
       priceFormat: { type: 'custom', formatter: opts.formatter || (v => v.toFixed(2)) },
     });
     line.setData(rows);
@@ -2005,6 +2008,22 @@ function _renderTrendCharts(data) {
     const others = allCharts.filter(x => x !== c);
     syncRange(c, others);
   }
+
+  // ── crosshair 對齊:5 chart 的 right priceScale 寬度依內容自動撐(K 線
+  // "10000.00" 比 mini chart "12 檔" 寬幾 px → plot area 起點錯位 → 垂直虛線
+  // 同 time 落在不同 X pixel)。修法:render 完 measure 各邊實際寬度,取
+  // max 套 minimumWidth(只會多撐不會 truncate)。requestAnimationFrame 確保
+  // DOM layout 完成才 measure。cluster modal _tcCharts 也用同樣技巧。
+  requestAnimationFrame(() => {
+    try {
+      const widths = allCharts.map(c => c.priceScale('right').width()).filter(w => w > 0);
+      if (!widths.length) return;
+      const maxW = Math.max(...widths, 64);
+      for (const c of allCharts) {
+        c.priceScale('right').applyOptions({ minimumWidth: maxW });
+      }
+    } catch (e) { console.warn('trend priceScale align failed', e); }
+  });
 
   // crosshair sync(anchor series 用各 chart 的第一條)
   const anchors = [
