@@ -27,10 +27,12 @@ transcripts — all of that lives in a separate private system.
 ## How it's served
 
 ```
-Supabase DB ──[anon key, 12-pattern allowlist]──▶ Cloudflare Workers
+Supabase DB ──[anon key, 23-pattern allowlist]──▶ Cloudflare Workers
                                                   (public site)
-                                                  ├ docs/index.html (~500KB,inline state)
-                                                  └ docs/history.json (~800KB,lazy fetch)
+                                                  ├ docs/index.html (inline state + per-render payload)
+                                                  ├ docs/style.css / docs/app.js (static, content-hash cache-bust)
+                                                  ├ docs/history.json (chart modal, lazy fetch)
+                                                  └ docs/kline.json (個股 K 線, ~8MB, lazy fetch)
 ```
 
 1. A separate private system runs daily/hourly: crawl public sources,
@@ -42,19 +44,20 @@ Supabase DB ──[anon key, 12-pattern allowlist]──▶ Cloudflare Workers
 3. GitHub Actions rebuilds + redeploys when the private system
    webhooks the workflow, plus on cron 07:30 / 18:15 / 23:15 TW.
 
-The Edge Function enforces a hard allowlist of 12 SELECT shapes — even
+The Edge Function enforces a hard allowlist of 23 SELECT shapes — even
 if the anon key in this repo leaks, raw article bodies and podcast
 transcripts are not reachable. The allowlist source is
 `supabase/functions/db-proxy-public/index.ts`.
 
 ## Code
 
-- `scripts/generate_html.py` — single-file HTML renderer (~2600 lines, all CSS/JS inline)
+- `scripts/generate_html.py` — HTML renderer (~2700 lines, page structure + data payload; CSS/JS extracted to standalone files since 2026-05)
+- `docs/style.css`, `docs/app.js` — static CSS/JS, edited directly; generate_html.py content-hash cache-busts the `?v=` query
 - `src/analysis/focus_themes.py` — theme dictionary clustering
 - `src/utils/db.py` — async DB client over the restricted Edge Function
 - `data/theme_dictionary.json` — main/sub industry hierarchy (ticker-centric, TW only)
-- `supabase/functions/db-proxy-public/` — Edge Function source (12-pattern allowlist)
-- `docs/index.html`, `docs/history.json` — generated artifacts served by Workers
+- `supabase/functions/db-proxy-public/` — Edge Function source (23-pattern allowlist)
+- `docs/index.html`, `docs/history.json`, `docs/kline.json` — generated artifacts served by Workers
 - `wrangler.jsonc` — Workers config (assets.directory: docs)
 
 ## Local development
