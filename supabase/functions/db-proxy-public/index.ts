@@ -180,6 +180,20 @@ const ALLOWED: Set<string> = new Set([
   // 給 V3 backtest 用 3y 歷史(現有 Q13 400d 不夠 backtest entry-前 60d pre-history)。
   // payload 每 chunk(60 ticker × 90 day)~540KB,安全
   "select ticker, rank_date, close, shares_out, volume, high, open, low from ticker_close_history where ticker = any($1::text[]) and rank_date >= $2 and rank_date <= $3 order by ticker, rank_date",
+
+  // Q31-Q35 — 各頁「資料最後更新時間」badge 用:回各資料源表的最新寫入
+  // timestamptz(stockgg 端轉台北時間顯示 YYYY/MM/DD HH:MM:SS)。
+  //   Q31 熱門題材 / 選股雷達(籌碼以外)→ trading_rankings.created_at(~17:30 cron)
+  //   Q32 選股雷達 > 籌碼 sub-tab        → ticker_chip_history.updated_at(21:10 cron)
+  //   Q33 主動式 ETF                     → active_etf_holdings.updated_at(17:35 cron)
+  //   Q34 市場話題 / 國際金融            → analysis_reports.created_at(分析後)
+  //   Q35 趨勢                           → market_snapshots.created_at(07:30 / 17:30)
+  // 注意 market='tw':allowlist 存 normalize(小寫)形式,code 端送 'TW' 大寫對資料。
+  "select max(created_at) from trading_rankings where market='tw'",
+  "select max(updated_at) from ticker_chip_history",
+  "select max(updated_at) from active_etf_holdings",
+  "select max(created_at) from analysis_reports",
+  "select max(created_at) from market_snapshots",
 ])
 
 function normalize(q: string): string {

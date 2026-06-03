@@ -94,6 +94,14 @@ header{position:sticky;top:0;z-index:200;
 
 .wrap{width:90%;max-width:90%;margin:0 auto;padding:1.25rem 1.1rem}
 
+/* ── 各頁右上「資料最後更新時間」badge ── */
+.data-stamp{display:flex;justify-content:flex-end;align-items:baseline;
+            gap:.4rem;margin:-.15rem 0 .75rem;color:var(--muted);
+            font-size:.72rem;font-variant-numeric:tabular-nums;line-height:1.3}
+.data-stamp .ds-label{opacity:.78}
+.data-stamp time{font-weight:600;letter-spacing:.01em}
+#fstab-chip .data-stamp{margin-top:0;margin-bottom:.55rem}
+
 /* ── Sub-tabs (焦點股) ── */
 .sub-tabs{display:flex;gap:.35rem;margin-bottom:.9rem}
 .sub-tab-btn{background:var(--card);color:var(--muted);
