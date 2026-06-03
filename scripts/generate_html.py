@@ -2372,7 +2372,7 @@ def build_focus_stock_page(
                 f'<span class="fs-sep">/</span>{hint_text}</p>')
 
     panes_html = (
-        '<div class="fs-tab-pane active" id="fstab-int">'
+        f'<div class="fs-tab-pane active" id="fstab-int">{chip_stamp_html}'
         + _pane_head('同時符合 2 項(含)以上條件的焦點股,依符合條件數由多至少排序。',
                      intersect_stocks, True)
         + _int_filter_bar + int_html + '</div>'
