@@ -966,8 +966,12 @@ def _industry_section_html(
         return f'<p class="muted-note">今日尚無{label}熱門產業</p>'
 
     # 廣泛概念股(sub-only):同 ticker 在 N 個 sub-cluster 出現 → 變成可濾除 chip。
-    # threshold 動態:cluster 數多(>20)用 >3;少(hl_sub 通常 12 上下)放寬到 >1,
-    # 避免人工編彙的 cluster 集合內幾乎沒人達 >3 門檻 → universal panel 永遠空
+    # threshold 綁「層級語意」而非原始 cluster 數:
+    #   hl_sub(焦點,人工編彙、focal 小 1-4 檔)→ >1(≥2 題材)
+    #   pan_sub / sub(statementdog 稠密分類)→ >3(≥4 題材)避免 noise
+    # 舊版用 `len(clusters) > 20` 當「是否稠密層」的代理,但焦點在廣度大的日子
+    # 也會超過 20(2026-06-03 焦點 23 條),代理失準把門檻頂成 >3 → 焦點當天
+    # 跨題材最多僅 3 → universal 空 → 多題材股 panel 消失。改綁 level 根治。
     universal: dict[str, str] = {}
     if level in ("sub", "hl_sub", "pan_sub"):
         from collections import Counter
@@ -975,7 +979,7 @@ def _industry_section_html(
         for c in clusters:
             for s in c.focal:
                 counts[s.ticker] += 1
-        threshold = 3 if len(clusters) > 20 else 1
+        threshold = 1 if level == "hl_sub" else 3
         for t, n in counts.items():
             if n > threshold:
                 info = all_stocks.get(t, {})
