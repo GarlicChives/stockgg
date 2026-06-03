@@ -675,6 +675,13 @@ function toggleMultiTheme(ticker, level) {
     b.classList.toggle('mt-active', next !== null && b.dataset.ticker === next);
   });
   const clusters = (window.IIA_CLUSTERS || {})[level] || [];
+  // 先清掉本 level 內既有的 pill 高亮(切換 ticker / 取消篩選時)
+  const _container = document.getElementById('cluster-container-' + level);
+  (_container || document).querySelectorAll('.stk-pill.pill-flash')
+    .forEach(p => p.classList.remove('pill-flash'));
+  const _pillSel = next == null ? null :
+    '.stk-pill[data-cluster-ticker="' +
+    (window.CSS && CSS.escape ? CSS.escape(next) : next) + '"]';
   clusters.forEach(c => {
     const el = document.getElementById(c.cardId);
     if (!el) return;
@@ -682,6 +689,14 @@ function toggleMultiTheme(ticker, level) {
       (c.focal || []).some(f => f.ticker === next);
     if (shouldShow) _expandCard(el);
     else _collapseCard(el);
+    // 留下的題材內,把該個股的 pill 閃爍高亮(同全站搜尋效果)
+    if (shouldShow && _pillSel) {
+      el.querySelectorAll(_pillSel).forEach(pill => {
+        pill.classList.remove('pill-flash');
+        void pill.offsetWidth;  // restart animation
+        pill.classList.add('pill-flash');
+      });
+    }
   });
 }
 
