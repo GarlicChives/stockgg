@@ -189,8 +189,13 @@ const ALLOWED: Set<string> = new Set([
   //   Q34 市場話題 / 國際金融            → analysis_reports.created_at(分析後)
   //   Q35 趨勢                           → market_snapshots.created_at(07:30 / 17:30)
   // 注意 market='tw':allowlist 存 normalize(小寫)形式,code 端送 'TW' 大寫對資料。
-  "select max(created_at) from trading_rankings where market='tw'",
-  "select max(updated_at) from ticker_chip_history",
+  // Q31 / Q32 帶日期(+ chip 帶 ticker array)filter 是刻意的:純 MAX() 全表掃描
+  // 在大表(trading_rankings ~20萬列 / chip ~14萬列)冷啟動或 cron 寫入尖峰會撞
+  // Edge isolate CPU 上限 → 5xx → badge 抓不到(2026-06-03 首版 CI 踩過)。加 filter
+  // 後 Q31 走 (rank_date DESC, market) 索引 range、Q32 走 PK (ticker, rank_date) 索引,
+  // 成本確定性低,不再 timeout。
+  "select max(created_at) from trading_rankings where market='tw' and rank_date >= current_date - interval '5 days'",
+  "select max(updated_at) from ticker_chip_history where ticker = any($1::text[]) and rank_date >= current_date - interval '14 days'",
   "select max(updated_at) from active_etf_holdings",
   "select max(created_at) from analysis_reports",
   "select max(created_at) from market_snapshots",

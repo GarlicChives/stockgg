@@ -3608,14 +3608,21 @@ async def generate():
     # ── 各頁「資料最後更新時間」(Q31-Q35)──────────────────────────────────
     # 取各資料源表最新寫入 timestamptz,轉台北時間。單條失敗(403 / 空表)只是
     # 該頁不顯 badge,不影響整體 render。
-    async def _max_ts(query: str) -> str | None:
+    async def _max_ts(query: str, *params) -> str | None:
         try:
-            return _fmt_data_stamp(await conn.fetchval(query))
+            return _fmt_data_stamp(await conn.fetchval(query, *params))
         except Exception as exc:
             print(f"  ⚠ data-stamp query failed ({query[:48]}...): {exc}")
             return None
-    ts_rankings = await _max_ts("SELECT MAX(created_at) FROM trading_rankings WHERE market='TW'")
-    ts_chip     = await _max_ts("SELECT MAX(updated_at) FROM ticker_chip_history")
+    # Q31/Q32 帶 filter 走索引(見 db-proxy allowlist 註解):純 MAX 全表掃描在大表
+    # 冷啟動 / cron 寫入尖峰會撞 Edge CPU 上限 timeout。
+    ts_rankings = await _max_ts(
+        "SELECT MAX(created_at) FROM trading_rankings "
+        "WHERE market='TW' AND rank_date >= current_date - INTERVAL '5 days'")
+    ts_chip     = await _max_ts(
+        "SELECT MAX(updated_at) FROM ticker_chip_history "
+        "WHERE ticker = ANY($1::text[]) AND rank_date >= current_date - INTERVAL '14 days'",
+        _hist_tickers) if _hist_tickers else None
     ts_etf      = await _max_ts("SELECT MAX(updated_at) FROM active_etf_holdings")
     ts_reports  = await _max_ts("SELECT MAX(created_at) FROM analysis_reports")
     ts_market   = await _max_ts("SELECT MAX(created_at) FROM market_snapshots")
