@@ -87,9 +87,11 @@ Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
   - chart modal:左欄 ticker 列表 (vertical, by tv desc, 可 disable),右欄兩 chart 對齊(共用 priceScale minimumWidth) + 雙向 crosshair sync + 開啟動畫 + 三大法人 daily/cumulative 切換
   - chart modal 排序長條(`.tc-topbar`):排序 chip 左緣靠 `padding-left:56px`(= `.tc-nav` 寬)切齊中段 `.tc-panel`;chip 右側 `#tc-counter` 顯題材編號 `N/total`(N = `_tcSortedClusters` 位次,同左右導覽順序;`_tcUpdateCounter` 在 `_renderThemeChart` 內更新);關閉 X 在長條右端(`.tc-close` `margin-left:auto`,非 `.tc-hdr`)
   - 個股 modal(持股主動式 ETF 表)、CSV 下載、site search、share button
+- **看高做低股**(選股雷達 sub-tab,2026-06-04 新增;`_is_bowl_breakout`)= 碗型底帶量突破:近 120 日收盤二次擬合開口向上(a>0)+ 底部落中段 30~70% + R²≥0.35(平滑像碗)+ 碗深(左緣-谷底)/左緣 ≥0.13 + 今日收盤由左緣頸線下翻上 + 今日成交金額 > 視窗(不含今日)均成交金額 ×3.0。資料源 = ticker_close_full(Q13)+ 今日 stocks_info,**無新 DB query**。參數來自 1336 組密格交叉、近一年事件驅動回測(進場次日開盤、停損頸線、停利月線)的全場最佳(Sharpe 0.39、大賺小賠 R≈11)。**碗型底突破是單日事件 → 多數交易日該 sub-tab 為空**。W底因回測太弱(PF~2)不納入。量 gate 用成交金額(close×volume)非股數,對齊出量股定義
+- **2026-06-04 回測調參**(既有條件):出量股門檻 ×3→**×5**(前5日均成交金額);新高股 252日→**150日**;潛力B 糾結 2.5%→**3.5%**、量 ×2→**×1.5**。皆為近一年回測最佳(註:這些是「篩選門檻」;回測另含 +8% 追價進場 / 紅K低停損,屬 user 個人下單交易管理,**不在篩選器內**)
 - **潛力股**(選股雷達 sub-tab,2026-05-23 更新)三條件 OR(均過全站季線 gate):
   - A(多頭排列):MA5 > MA10 > MA20 且 close < MA20 × 1.15
-  - B(糾結突破):MA5/10/20 三線糾結((max-min)/mean < 2.5%) + close > all MAs + close ≤ MA20 × 1.05 + 近 5 日均成交金額 > 近 30 日均 × 2
+  - B(糾結突破):MA5/10/20 三線糾結((max-min)/mean < **3.5%**) + close > all MAs + close ≤ MA20 × 1.05 + 近 5 日均成交金額 > 近 30 日均 × **1.5**
   - C(回踩股,sentinel-only):前一交易日入選交集股 + 今日跌 > 3.5% + 仍高於月線(close > MA20) + 今日成交金額 < 前一交易日 × 0.25
   - `_was_intersect_stock`(計算「前一交易日入選交集股」名單)同步用新 A or B(不含 C,C 恆 sentinel)且不含 chip → 是 actual intersect 的下界
 - **chip 系統**(2026-05-18 ingest 5a172be 起):

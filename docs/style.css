@@ -919,6 +919,7 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 /* 交集股「符合條件」chip */
 .fs-match-chip{display:inline-block;font-size:.66rem;font-weight:700;
                  padding:.1rem .4rem;border-radius:4px;margin:.1rem .12rem .1rem 0}
+.fs-match-chip.fs-mc-kgzd{background:rgba(186,104,200,.18);color:#cf8fdd}
 .fs-match-chip.fs-mc-vol{background:rgba(124,138,242,.16);color:#9aa8f5}
 .fs-match-chip.fs-mc-pot{background:rgba(38,166,154,.16);color:#5dc4b9}
 .fs-match-chip.fs-mc-nh{background:rgba(239,83,80,.16);color:#f47471}
@@ -940,6 +941,7 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
                border-radius:5px;cursor:pointer;background:transparent;
                color:var(--muted);border:1px solid var(--border);transition:.12s}
 .fs-filter-btn:hover{border-color:var(--accent);color:var(--text)}
+.fs-filter-btn.active[data-cond="kgzd"]{background:rgba(186,104,200,.18);color:#cf8fdd;border-color:rgba(186,104,200,.5)}
 .fs-filter-btn.active[data-cond="vol"]{background:rgba(124,138,242,.16);color:#9aa8f5;border-color:rgba(124,138,242,.5)}
 .fs-filter-btn.active[data-cond="pot"]{background:rgba(38,166,154,.16);color:#5dc4b9;border-color:rgba(38,166,154,.5)}
 .fs-filter-btn.active[data-cond="nh"]{background:rgba(239,83,80,.16);color:#f47471;border-color:rgba(239,83,80,.5)}

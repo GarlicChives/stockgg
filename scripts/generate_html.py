@@ -1942,6 +1942,61 @@ async def _compute_yesterday_intersect(
         return set()
 
 
+def _is_bowl_breakout(hist, today_str, today_close, today_tv,
+                      win=120, r2min=0.35, depth_min=0.13, volx=3.0) -> bool:
+    """看高做低股(碗型底)— 回測最佳參數 win120·R²≥0.35·深≥0.13·量×3.0
+    (Sharpe 0.39 全場最佳、大賺小賠 R≈11,1336 組密格交叉回測)。
+    判定「今日」是否帶量突破碗型底頸線(左緣阻力):
+      近 win 日收盤(今日在末根)二次擬合開口向上(a>0)、底部落在中段 30~70%、
+      R²≥r2min(夠平滑像碗)、碗深(左緣-谷底)/左緣 ≥ depth_min;今日收盤由左緣
+      下翻上,且今日成交金額 > 視窗內(不含今日)均成交金額 × volx。
+    量 gate 用「成交金額」(close×volume)而非股數量 —— 對齊站上 出量股 定義、
+    且回測 share-volume 版差異甚微。資料源 = ticker_close_full(Q13)+ 今日 stocks_info。
+    """
+    if not today_close or not today_tv:
+        return False
+    prev = [h for h in hist if h.get("d") != today_str
+            and h.get("c") is not None and h.get("v") is not None]
+    if len(prev) < win - 1:
+        return False
+    pw = prev[-(win - 1):]
+    closes = [h["c"] for h in pw] + [today_close]
+    n = len(closes)
+    prev_close = closes[-2]
+    xs = list(range(n))
+    sx = sum(xs); sx2 = sum(x * x for x in xs); sx3 = sum(x ** 3 for x in xs); sx4 = sum(x ** 4 for x in xs)
+    sy = sum(closes); sxy = sum(x * y for x, y in zip(xs, closes)); sx2y = sum(x * x * y for x, y in zip(xs, closes))
+    A = [[sx4, sx3, sx2, sx2y], [sx3, sx2, sx, sxy], [sx2, sx, n, sy]]
+    for ci in range(3):
+        piv = A[ci][ci]
+        if abs(piv) < 1e-9:
+            return False
+        A[ci] = [val / piv for val in A[ci]]
+        for r in range(3):
+            if r != ci:
+                f = A[r][ci]; A[r] = [A[r][k] - f * A[ci][k] for k in range(4)]
+    a, b, c0 = A[0][3], A[1][3], A[2][3]
+    if a <= 0:
+        return False
+    vtx = -b / (2 * a)
+    if not (n * 0.30 <= vtx <= n * 0.70):
+        return False
+    my = sy / n
+    sst = sum((y - my) ** 2 for y in closes)
+    ssr = sum((y - (a * x * x + b * x + c0)) ** 2 for x, y in zip(xs, closes))
+    if (1 - ssr / sst if sst else 0) < r2min:
+        return False
+    rim = max(closes[:max(2, int(n * 0.2))]); bottom = min(closes)
+    if (rim - bottom) / rim < depth_min:
+        return False
+    if not (prev_close <= rim < today_close):
+        return False
+    win_tv = [h["c"] * h["v"] for h in pw]
+    if not win_tv:
+        return False
+    return today_tv > (sum(win_tv) / len(win_tv)) * volx
+
+
 def build_focus_stock_page(
     focus_hl_clusters: list,
     stocks_info: dict,
@@ -2031,9 +2086,9 @@ def build_focus_stock_page(
         # (max-min 相對均值 < 2.5%) + 股價站上所有均線但距離不太遠
         # (close ≤ MA20 × 1.05) + 近 5 日均成交金額 > 近 30 日均 × 2
         # (吸籌啟動 setup)。
-        _MA_CONVERGE_PCT = 0.025
+        _MA_CONVERGE_PCT = 0.035   # 回測最佳(2026-06-04 從 0.025 放寬)
         _CLOSE_TIGHT_RATIO = 1.05
-        _VOL_HEATING_MULT = 2
+        _VOL_HEATING_MULT = 1.5    # 回測最佳(2026-06-04 從 2 放寬)
         _ma_set = [m for m in (ma5, ma10, ma20) if m is not None]
         _ma_converged = (
             len(_ma_set) == 3
@@ -2067,14 +2122,18 @@ def build_focus_stock_page(
 
         # 潛力:A 多頭排列 OR B 糾結突破 OR C 回踩股。C 自然只對 sentinel 發生。
         is_potential = is_potential_a or is_potential_b or is_potential_c
-        is_volume = bool(vol_mult and vol_mult > 3)
+        # 出量股:今日成交金額 > 前 5 交易日均 × 5(回測最佳,2026-06-04 從 ×3 調整)
+        is_volume = bool(vol_mult and vol_mult > 5)
+        # 看高做低股(碗型底)—— 新條件,2026-06-04 回測上線
+        is_kgzd = _is_bowl_breakout(hist, today_str, today_close, today_tv)
         # 新高股:今日盤中觸及 52 週(~252 交易日)新高 — 今日盤中最高價
         # ≥ 過去 52 週(不含今日)最高盤中價。今日盤中高來自 trading_rankings
         # (stocks_info.high),baseline 來自 ticker_close_history.high。
         # high 缺值的列不計入(NULL 安全);歷史不足 252 筆則用掛牌以來最高。
         today_high = _f(info.get("high"))
+        # 新高定義 2026-06-04 從 252 日(52週)調為 150 日(回測最佳)
         _past52_high = [h["high"] for h in hist
-                        if h.get("d") != today_str and h.get("high") is not None][-252:]
+                        if h.get("d") != today_str and h.get("high") is not None][-150:]
         is_new_high = bool(today_high and _past52_high
                            and today_high >= max(_past52_high))
         # 成長股:月營收連 3 月 + 近一季 4 損益科目金額 YoY 皆 > 0
@@ -2106,6 +2165,8 @@ def build_focus_stock_page(
         # 前後,日 OHLC 近似版誤判太多,user 決定移除整個 sub-tab + chip + 條件。
 
         matched: list[str] = []
+        if is_kgzd:
+            matched.append("看高做低")
         if is_volume:
             matched.append("出量")
         if is_potential:
@@ -2142,6 +2203,7 @@ def build_focus_stock_page(
             "is_volume": is_volume, "is_potential": is_potential,
             "is_new_high": is_new_high, "is_growth": is_growth,
             "is_chip": is_chip, "chip_big_chg": chip_big_chg,
+            "is_kgzd": is_kgzd,
             "matched": matched,
         })
 
@@ -2151,6 +2213,7 @@ def build_focus_stock_page(
         [c for c in cands if len(c["matched"]) >= 2],
         key=lambda c: (-len(c["matched"]), _by_bias(c)),
     )
+    kgzd_stocks      = sorted([c for c in cands if c["is_kgzd"]], key=_by_bias)
     volume_stocks    = sorted([c for c in cands if c["is_volume"]],
                               key=lambda c: -c["vol_mult"])
     potential_stocks = sorted([c for c in cands if c["is_potential"]], key=_by_bias)
@@ -2222,10 +2285,10 @@ def build_focus_stock_page(
         arrow = " ▲" if val > 0 else (" ▼" if val < 0 else "")
         return f'<span class="{cls}">{sign}{val:.2f}%{arrow}</span>'
 
-    _MATCH_CHIP_CLS = {"出量": "fs-mc-vol", "潛力": "fs-mc-pot",
+    _MATCH_CHIP_CLS = {"看高做低": "fs-mc-kgzd", "出量": "fs-mc-vol", "潛力": "fs-mc-pot",
                        "新高": "fs-mc-nh", "成長": "fs-mc-gr", "籌碼": "fs-mc-chip"}
     # 條件 → 短 key(交集股篩選列 data-cond / row data-matched 用)
-    _MATCH_KEY = {"出量": "vol", "潛力": "pot", "新高": "nh", "成長": "gr",
+    _MATCH_KEY = {"看高做低": "kgzd", "出量": "vol", "潛力": "pot", "新高": "nh", "成長": "gr",
                   "籌碼": "chip"}
 
     def _match_cell(matched):
@@ -2326,12 +2389,14 @@ def build_focus_stock_page(
 
     int_html = _table(intersect_stocks, "intersect",
                       "今日無焦點股同時符合 2 項以上條件")
+    kgzd_html = _table(kgzd_stocks, "kgzd",
+                       "今日無焦點股形成碗型底並帶量突破頸線")
     vol_html = _table(volume_stocks, "volume",
-                      "今日無焦點股出量(成交金額 > 前 5 日均 × 3)")
+                      "今日無焦點股出量(成交金額 > 前 5 日均 × 5)")
     pot_html = _table(potential_stocks, "potential",
                       "今日無焦點股符合潛力條件")
     nh_html  = _table(new_high_stocks, "newhigh",
-                      "今日無焦點股盤中觸及 52 週新高")
+                      "今日無焦點股盤中觸及 150 日新高")
     gr_html  = _table(growth_stocks, "growth",
                       "今日無焦點股符合成長條件(月營收連 3 月 + 4 損益科目金額 YoY 皆正)")
     chip_html = _table(chip_stocks, "chip", "今日無焦點股符合籌碼條件")
@@ -2340,6 +2405,8 @@ def build_focus_stock_page(
         '<div class="sub-tabs">'
         '<button class="sub-tab-btn active" data-fstab="int" type="button" '
         'onclick="showFocusStockTab(\'int\')">🎯 交集股</button>'
+        '<button class="sub-tab-btn" data-fstab="kgzd" type="button" '
+        'onclick="showFocusStockTab(\'kgzd\')">🥣 看高做低股</button>'
         '<button class="sub-tab-btn" data-fstab="vol" type="button" '
         'onclick="showFocusStockTab(\'vol\')">📊 出量股</button>'
         '<button class="sub-tab-btn" data-fstab="pot" type="button" '
@@ -2353,7 +2420,7 @@ def build_focus_stock_page(
         '</div>'
     )
     # 交集股條件篩選列(預設全 disabled;多選 AND;順序同 sub-tab;有交集股才顯示)
-    _filter_conds = [("vol", "出量"), ("pot", "潛力"), ("nh", "新高"), ("gr", "成長"), ("chip", "籌碼")]
+    _filter_conds = [("kgzd", "看高做低"), ("vol", "出量"), ("pot", "潛力"), ("nh", "新高"), ("gr", "成長"), ("chip", "籌碼")]
     _int_filter_bar = ((
         '<div class="fs-filter-bar">'
         '<span class="fs-filter-label">篩選符合條件</span>'
@@ -2380,8 +2447,14 @@ def build_focus_stock_page(
         + _pane_head('同時符合 2 項(含)以上條件的焦點股,依符合條件數由多至少排序。',
                      intersect_stocks, True)
         + _int_filter_bar + int_html + '</div>'
+        + '<div class="fs-tab-pane" id="fstab-kgzd">'
+        + _pane_head('近 120 日收盤形成碗型底(平滑 U 形、碗深 ≥13%),'
+                     '今日帶量(成交金額 &gt; 視窗均量 × 3)收盤突破左緣頸線。'
+                     '回測一年大賺小賠(Sharpe 全場最佳);依月線乖離率排序。',
+                     kgzd_stocks)
+        + kgzd_html + '</div>'
         + '<div class="fs-tab-pane" id="fstab-vol">'
-        + _pane_head('今日成交金額 &gt; 前 5 交易日均(不含今日)× 3,依出量倍數排序。',
+        + _pane_head('今日成交金額 &gt; 前 5 交易日均(不含今日)× 5,依出量倍數排序。',
                      volume_stocks)
         + vol_html + '</div>'
         + '<div class="fs-tab-pane" id="fstab-pot">'
@@ -2393,7 +2466,7 @@ def build_focus_stock_page(
                      potential_stocks)
         + pot_html + '</div>'
         + '<div class="fs-tab-pane" id="fstab-nh">'
-        + _pane_head('今日盤中最高價觸及 52 週新高(≥ 過去 52 週最高價)的焦點股,'
+        + _pane_head('今日盤中最高價觸及 150 日新高(≥ 過去 150 日最高價)的焦點股,'
                      '依月線乖離率排序。', new_high_stocks)
         + nh_html + '</div>'
         + '<div class="fs-tab-pane" id="fstab-gr">'
