@@ -2405,8 +2405,6 @@ def build_focus_stock_page(
         '<div class="sub-tabs">'
         '<button class="sub-tab-btn active" data-fstab="int" type="button" '
         'onclick="showFocusStockTab(\'int\')">🎯 交集股</button>'
-        '<button class="sub-tab-btn" data-fstab="kgzd" type="button" '
-        'onclick="showFocusStockTab(\'kgzd\')">🥣 看高做低股</button>'
         '<button class="sub-tab-btn" data-fstab="vol" type="button" '
         'onclick="showFocusStockTab(\'vol\')">📊 出量股</button>'
         '<button class="sub-tab-btn" data-fstab="pot" type="button" '
@@ -2417,10 +2415,12 @@ def build_focus_stock_page(
         'onclick="showFocusStockTab(\'gr\')">🌱 成長股</button>'
         '<button class="sub-tab-btn" data-fstab="chip" type="button" '
         'onclick="showFocusStockTab(\'chip\')">🔒 籌碼股</button>'
+        '<button class="sub-tab-btn" data-fstab="kgzd" type="button" '
+        'onclick="showFocusStockTab(\'kgzd\')">🥣 看高做低股</button>'
         '</div>'
     )
     # 交集股條件篩選列(預設全 disabled;多選 AND;順序同 sub-tab;有交集股才顯示)
-    _filter_conds = [("kgzd", "看高做低"), ("vol", "出量"), ("pot", "潛力"), ("nh", "新高"), ("gr", "成長"), ("chip", "籌碼")]
+    _filter_conds = [("vol", "出量"), ("pot", "潛力"), ("nh", "新高"), ("gr", "成長"), ("chip", "籌碼"), ("kgzd", "看高做低")]
     _int_filter_bar = ((
         '<div class="fs-filter-bar">'
         '<span class="fs-filter-label">篩選符合條件</span>'
@@ -2447,12 +2447,6 @@ def build_focus_stock_page(
         + _pane_head('同時符合 2 項(含)以上條件的焦點股,依符合條件數由多至少排序。',
                      intersect_stocks, True)
         + _int_filter_bar + int_html + '</div>'
-        + '<div class="fs-tab-pane" id="fstab-kgzd">'
-        + _pane_head('近 120 日收盤形成碗型底(平滑 U 形、碗深 ≥13%),'
-                     '今日帶量(成交金額 &gt; 視窗均量 × 3)收盤突破左緣頸線。'
-                     '回測一年大賺小賠(Sharpe 全場最佳);依月線乖離率排序。',
-                     kgzd_stocks)
-        + kgzd_html + '</div>'
         + '<div class="fs-tab-pane" id="fstab-vol">'
         + _pane_head('今日成交金額 &gt; 前 5 交易日均(不含今日)× 5,依出量倍數排序。',
                      volume_stocks)
@@ -2480,6 +2474,12 @@ def build_focus_stock_page(
                      'TDCC 集保週資料近似運算,週減幅 ≤ 0.3 個百分點視為噪音不計',
                      chip_stocks)
         + chip_html + '</div>'
+        + '<div class="fs-tab-pane" id="fstab-kgzd">'
+        + _pane_head('近 120 日收盤形成碗型底(平滑 U 形、碗深 ≥13%),'
+                     '今日帶量(成交金額 &gt; 視窗均量 × 3)收盤突破左緣頸線。'
+                     '回測一年大賺小賠(Sharpe 全場最佳);依月線乖離率排序。',
+                     kgzd_stocks)
+        + kgzd_html + '</div>'
     )
     return nav_html + panes_html
 
