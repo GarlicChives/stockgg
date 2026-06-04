@@ -808,6 +808,24 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 
 /* ── 主動式 ETF 頁(2026-05-20)+ 個股 modal 內 ETF 表 ────────────── */
 /* ETF 切換從 23 個 tab button 改為下拉 select(2026-05-20,排序 AUM desc) */
+/* 近期加減碼趨勢(server-render CSS 長條圖)*/
+.aetf-trend{margin-bottom:.4rem}
+.atr-bars{display:flex;align-items:stretch;gap:.25rem;overflow-x:auto;
+          background:#12151f;border:1px solid var(--border);border-radius:8px;
+          padding:.6rem .7rem}
+.atr-col{flex:1 0 1.6rem;min-width:1.6rem;display:flex;flex-direction:column;align-items:center}
+.atr-up,.atr-dn{width:100%;height:46px;display:flex;justify-content:center}
+.atr-up{align-items:flex-end;border-bottom:1px solid var(--border)}
+.atr-dn{align-items:flex-start}
+.atr-up i{width:62%;background:#ef5350;border-radius:2px 2px 0 0;min-height:1px}
+.atr-dn i{width:62%;background:#26a69a;border-radius:0 0 2px 2px;min-height:1px}
+.atr-d{font-size:.6rem;color:var(--muted);margin-top:.25rem;font-variant-numeric:tabular-nums}
+.atr-themes{display:flex;flex-wrap:wrap;gap:.35rem}
+.atr-theme{font-size:.74rem;padding:.18rem .5rem;border-radius:5px;cursor:pointer;
+           border:1px solid var(--border);background:rgba(255,255,255,.02)}
+.atr-theme b{font-variant-numeric:tabular-nums}
+.atr-theme.add b{color:#f47471} .atr-theme.reduce b{color:#5dc4b9}
+
 /* 橫排 ETF sub-tab(取代下拉選單)*/
 .aetf-tabs{display:flex;flex-wrap:wrap;gap:.4rem;margin:.2rem 0 1rem}
 .aetf-tab-btn{font-family:inherit;font-size:.8rem;font-weight:600;

@@ -200,6 +200,9 @@ const ALLOWED: Set<string> = new Set([
   "select max(created_at) from market_snapshots",
   // 主動式 ETF 各家公布時間不同 → 每檔自己的最新寫入時間(per-ETF,非單一頁面值)。
   "select etf_code, max(updated_at) as t from active_etf_holdings group by etf_code",
+  // 主動式 ETF 近 35 天多日持股 → stockgg 端 diff 逐日加減碼金額趨勢(retention
+  // 目前 14 天,延長後才會累積到一個月;見跨 repo prompt)。
+  "select etf_code, holding_date, ticker, lots, market_value_ntd from active_etf_holdings where etf_code = any($1::text[]) and holding_date >= current_date - interval '35 days' order by etf_code, ticker, holding_date",
 ])
 
 function normalize(q: string): string {
