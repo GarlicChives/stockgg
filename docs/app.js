@@ -342,6 +342,49 @@ function showAetfTab(code) {
     p.classList.toggle('active', p.dataset.aetfPane === code));
 }
 
+/* 台股休市日(YYYY-MM-DD)— 用於「資料已更新 n/total」判定交易日。
+   每交易日 13:30 收盤後該計數歸零、隨各家 ETF 公布回補;週末 / 休市日不歸零。
+   ⚠ 每年需更新一次。以下 2026 為推估,請以 TWSE 官方「有價證券集中交易市場
+   開（休）市日期」公告為準(尤其農曆春節休市天數與補假)。 */
+const IIA_TW_HOLIDAYS = new Set([
+  // 2026(待 TWSE 官方核對)
+  '2026-01-01',                                           // 元旦
+  '2026-02-13', '2026-02-16', '2026-02-17', '2026-02-18',
+  '2026-02-19', '2026-02-20',                             // 農曆春節
+  '2026-02-27',                                           // 和平紀念日(2/28 週六)補假
+  '2026-04-03', '2026-04-06',                             // 兒童節 / 清明連假
+  '2026-05-01',                                           // 勞動節
+  '2026-06-19',                                           // 端午節
+  '2026-09-25',                                           // 中秋節
+  '2026-10-09',                                           // 國慶日(10/10 週六)補假
+]);
+
+/* 台北現在時間(UTC+8):回 {date:'YYYY-MM-DD', dow:0-6, mins:當日分鐘數} */
+function _twNowParts() {
+  const tw = new Date(Date.now() + new Date().getTimezoneOffset() * 60000 + 8 * 3600000);
+  return { date: tw.toISOString().slice(0, 10), dow: tw.getUTCDay(),
+           mins: tw.getUTCHours() * 60 + tw.getUTCMinutes() };
+}
+
+/* 「資料已更新 n/total」即時計算:交易日(平日且非休市日)13:30 收盤後 →
+   目標日 = 今日(尚無資料 → 歸零,隨各家公布回補);其餘 → 目標日 = 最新資料日。 */
+function aetfUpdateBadge() {
+  const P = window.IIA_AETF_UPDATE, el = document.getElementById('aetf-update-badge');
+  if (!P || !el) return;
+  const t = _twNowParts();
+  const tradingDay = t.dow >= 1 && t.dow <= 5 && !IIA_TW_HOLIDAYS.has(t.date);
+  const afterClose = t.mins >= 13 * 60 + 30;
+  const target = (tradingDay && afterClose) ? t.date : P.latest;
+  const n = (P.dates || []).filter(d => d === target).length;
+  const total = P.total, full = n >= total;
+  el.className = 'aetf-update-badge ' + (full ? 'aetf-done-full' : 'aetf-done-partial');
+  el.innerHTML = '資料已更新 <b>' + n + '/' + total + '</b>'
+    + (full ? '' : ' · 尚有 ' + (total - n) + ' 檔待今日資料');
+}
+window.aetfUpdateBadge = aetfUpdateBadge;
+aetfUpdateBadge();
+setInterval(aetfUpdateBadge, 60000);
+
 /* showFocusStockTab: 焦點股頁 sub-tab 切換(交集股 int / 出量股 vol / 潛力股 pot) */
 function showFocusStockTab(name) {
   document.querySelectorAll('.sub-tab-btn[data-fstab]').forEach(b =>

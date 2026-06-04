@@ -1815,21 +1815,24 @@ def build_active_etf_page(etf_list: list, holdings_by_etf: dict[str, list],
             + '</div>'
         )
 
-    # 最上方「資料已更新 n/total」:n = 持股日期 = 最新日期的 ETF 數(今日資料是否
-    # 全數統計完畢);各家公布時間不同,未到的會落後一日。
-    _dd_list = [_aetf_date_fmt(e.get("data_date")) for e in etf_list]
-    _dd_list = [d for d in _dd_list if d]
+    # 「資料已更新 n/total」:client-side 即時算(每交易日 13:30 收盤後歸零,
+    # 假日 / 週末不歸零 —— 見 app.js aetfUpdateBadge + IIA_TW_HOLIDAYS)。
+    # server 端嵌每檔 data_date payload + 初始值(JS 載入後依台北現在時間覆寫)。
+    _dd_list = [d for d in (_aetf_date_fmt(e.get("data_date")) for e in etf_list) if d]
     _total = len(etf_list)
     if _dd_list:
         _latest = max(_dd_list)
         _n_done = sum(1 for d in _dd_list if d == _latest)
         _done_cls = "aetf-done-full" if _n_done >= _total else "aetf-done-partial"
+        _payload = json.dumps({"dates": _dd_list, "total": _total, "latest": _latest})
         update_badge = (
-            f'<span class="aetf-update-badge {_done_cls}" '
-            f'title="持股日期已達最新交易日 {_latest} 的 ETF 檔數;各家官方公布時間不同">'
+            f'<span class="aetf-update-badge {_done_cls}" id="aetf-update-badge" '
+            f'title="持股日達當前交易日的 ETF 檔數;每交易日 13:30 收盤後歸零、隨各家公布回補">'
             f'資料已更新 <b>{_n_done}/{_total}</b>'
             + ("" if _n_done >= _total else f' · 尚有 {_total - _n_done} 檔待今日資料')
-            + '</span>')
+            + '</span>'
+            + f'<script>window.IIA_AETF_UPDATE={_payload};'
+            'if(window.aetfUpdateBadge)window.aetfUpdateBadge();</script>')
     else:
         update_badge = ""
 
