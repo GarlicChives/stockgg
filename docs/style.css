@@ -820,11 +820,16 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .atr-up i{width:62%;background:#ef5350;border-radius:2px 2px 0 0;min-height:1px}
 .atr-dn i{width:62%;background:#26a69a;border-radius:0 0 2px 2px;min-height:1px}
 .atr-d{font-size:.6rem;color:var(--muted);margin-top:.25rem;font-variant-numeric:tabular-nums}
-.atr-themes{display:flex;flex-wrap:wrap;gap:.35rem}
-.atr-theme{font-size:.74rem;padding:.18rem .5rem;border-radius:5px;cursor:pointer;
-           border:1px solid var(--border);background:rgba(255,255,255,.02)}
-.atr-theme b{font-variant-numeric:tabular-nums}
-.atr-theme.add b{color:#f47471} .atr-theme.reduce b{color:#5dc4b9}
+
+/* 最上方「資料已更新 n/total」*/
+.aetf-update-badge{display:inline-block;font-size:.76rem;font-weight:600;
+                   padding:.28rem .65rem;border-radius:6px;margin-bottom:.8rem;
+                   border:1px solid var(--border)}
+.aetf-update-badge b{font-variant-numeric:tabular-nums}
+.aetf-update-badge.aetf-done-full{color:#5dc4b9;border-color:rgba(38,166,154,.4);
+                                   background:rgba(38,166,154,.1)}
+.aetf-update-badge.aetf-done-partial{color:#e0922e;border-color:rgba(245,158,11,.4);
+                                      background:rgba(245,158,11,.1)}
 
 /* 橫排 ETF sub-tab(取代下拉選單)*/
 .aetf-tabs{display:flex;flex-wrap:wrap;gap:.4rem;margin:.2rem 0 1rem}

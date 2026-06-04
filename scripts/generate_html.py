@@ -1655,11 +1655,11 @@ def _aetf_money(v) -> str:
     return f"{sign}{a:.0f}"
 
 
-def _build_aetf_trend(trend: list[dict], trend_themes: list) -> str:
-    """近期(逐日)跨 ETF 加減碼金額趨勢:server-render CSS 長條圖(上紅=加碼、
-    下綠=減碼)+ 期間題材淨流向。retention 目前 ~14 天,延長後累積到一個月。"""
+def _build_aetf_trend(trend: list[dict]) -> str:
+    """每日跨 ETF 加減碼金額趨勢:server-render CSS 長條圖(上紅=加碼、下綠=減碼)。
+    retention 目前 ~14 天,延長後累積到一個月。"""
     if not trend:
-        return ('<div class="aetf-trend"><div class="aetf-section-hdr">近期加減碼趨勢</div>'
+        return ('<div class="aetf-trend"><div class="aetf-section-hdr">每日加減碼趨勢</div>'
                 '<p class="muted-note">尚無足夠多日持股資料(需 ≥2 個交易日 baseline)。</p></div>')
     _mx = max((max(abs(d["add"]), abs(d["red"])) for d in trend), default=1) or 1
     cols = []
@@ -1673,18 +1673,11 @@ def _build_aetf_trend(trend: list[dict], trend_themes: list) -> str:
             f'<div class="atr-up"><i style="height:{up:.1f}%"></i></div>'
             f'<div class="atr-dn"><i style="height:{dn:.1f}%"></i></div>'
             f'<div class="atr-d">{mmdd}</div></div>')
-    theme_chips = "".join(
-        f'<span class="atr-theme {"add" if v > 0 else "reduce"}" '
-        f"role=\"button\" tabindex=\"0\" onclick='openThemeByName({json.dumps(s)})'>"
-        f'{html_lib.escape(s)} <b>{_aetf_money(v)}</b></span>'
-        for s, v in trend_themes)
     return (
         '<div class="aetf-trend">'
-        '<div class="aetf-section-hdr">近期加減碼趨勢(逐日 · 上紅加碼 / 下綠減碼)</div>'
+        '<div class="aetf-section-hdr">每日加減碼趨勢(上紅加碼 / 下綠減碼)</div>'
         f'<div class="atr-bars">{"".join(cols)}</div>'
-        + (f'<div class="aetf-section-hdr">期間題材淨流向(近一年焦點)</div>'
-           f'<div class="atr-themes">{theme_chips}</div>' if theme_chips else '')
-        + '</div>'
+        '</div>'
     )
 
 
@@ -1750,9 +1743,9 @@ def _build_aetf_consensus(consensus: dict) -> str:
                 '<p class="muted-note">今日各 ETF 無持股異動可彙總(或無前日 baseline)。</p></div>')
     return (
         '<div class="aetf-consensus">'
-        '<div class="aetf-section-hdr">跨 ETF 共識動向 · 個股(依淨金額排序)</div>'
+        '<div class="aetf-section-hdr">今日共識股(依淨金額排序)</div>'
         f'<div class="aco-group">{stock_block or "<p class=\'muted-note\'>無</p>"}</div>'
-        '<div class="aetf-section-hdr">跨 ETF 共識動向 · 題材(近一年焦點)</div>'
+        '<div class="aetf-section-hdr">今日共識題材(點擊看熱門題材)</div>'
         f'<div class="aco-group">{theme_block or "<p class=\'muted-note\'>無對應焦點題材</p>"}</div>'
         '</div>'
     )
@@ -1760,8 +1753,7 @@ def _build_aetf_consensus(consensus: dict) -> str:
 
 def build_active_etf_page(etf_list: list, holdings_by_etf: dict[str, list],
                           consensus: dict | None = None,
-                          trend: list[dict] | None = None,
-                          trend_themes: list | None = None) -> str:
+                          trend: list[dict] | None = None) -> str:
     """主動式 ETF 頁:近期加減碼趨勢圖 → 跨 ETF 共識動向(個股 / 題材)→ 橫排
     sub-tab(按 AUM desc 一檔一 tab)+ 各 tab content:ETF 資訊 bar / 今日異動 / 全持股。
     """
@@ -1893,6 +1885,24 @@ def build_active_etf_page(etf_list: list, holdings_by_etf: dict[str, list],
             + '</div>'
         )
 
+    # 最上方「資料已更新 n/total」:n = 持股日期 = 最新日期的 ETF 數(今日資料是否
+    # 全數統計完畢);各家公布時間不同,未到的會落後一日。
+    _dd_list = [_aetf_date_fmt(e.get("data_date")) for e in etf_list]
+    _dd_list = [d for d in _dd_list if d]
+    _total = len(etf_list)
+    if _dd_list:
+        _latest = max(_dd_list)
+        _n_done = sum(1 for d in _dd_list if d == _latest)
+        _done_cls = "aetf-done-full" if _n_done >= _total else "aetf-done-partial"
+        update_badge = (
+            f'<div class="aetf-update-badge {_done_cls}" '
+            f'title="持股日期已達最新交易日 {_latest} 的 ETF 檔數;各家官方公布時間不同">'
+            f'資料已更新 <b>{_n_done}/{_total}</b>'
+            + ("" if _n_done >= _total else f' · 尚有 {_total - _n_done} 檔待今日資料')
+            + '</div>')
+    else:
+        update_badge = ""
+
     # 橫排 sub-tab(取代下拉選單;JS showAetfTab 已支援 .aetf-tab-btn[data-aetf])
     tab_btns = "".join(
         f'<button class="aetf-tab-btn{" active" if i == 0 else ""}" type="button" '
@@ -1901,7 +1911,8 @@ def build_active_etf_page(etf_list: list, holdings_by_etf: dict[str, list],
         for i, e in enumerate(etf_list)
     )
     return (
-        _build_aetf_trend(trend or [], trend_themes or [])
+        update_badge
+        + _build_aetf_trend(trend or [])
         + _build_aetf_consensus(consensus or {})
         + '<div class="aetf-section-hdr">各 ETF 持股明細</div>'
         + f'<div class="aetf-tabs">{tab_btns}</div>'
@@ -3889,7 +3900,6 @@ async def generate():
     # 多日持股 diff:同 (etf,ticker) 連續持股日 lots 差 × 每張價 → 當日加 / 減碼金額。
     # 注意:全清倉(該日整筆消失)不在連續列差內,故 flow 略低估清倉量(清倉另見共識區)。
     aetf_trend: list[dict] = []
-    aetf_trend_themes: list[tuple[str, float]] = []
     if _keep_codes:
         try:
             _tr = await conn.fetch(
@@ -3904,7 +3914,6 @@ async def generate():
                     (_aetf_date_fmt(r["holding_date"]), _aetf_f(r["lots"]), _aetf_f(r["market_value_ntd"])))
             _day_add: dict[str, float] = _dd(float)
             _day_red: dict[str, float] = _dd(float)
-            _twin_theme: dict[str, float] = _dd(float)
             for (_etf, _tk), _s in _seq.items():
                 _s.sort()
                 for _i in range(1, len(_s)):
@@ -3917,18 +3926,15 @@ async def generate():
                     _price = (_m1 / _l1) if (_l1 and _m1 is not None) else 0
                     _val = _lc * _price
                     (_day_add if _val > 0 else _day_red)[_d1] += _val
-                    for _sub in _tk2subs.get(_tk, []):
-                        _twin_theme[_sub] += _val
             _dates = sorted(set(_day_add) | set(_day_red))
             aetf_trend = [{"d": d, "add": round(_day_add.get(d, 0)), "red": round(_day_red.get(d, 0))}
                           for d in _dates]
-            aetf_trend_themes = sorted(_twin_theme.items(), key=lambda kv: -abs(kv[1]))[:8]
             print(f"  主動式 ETF 趨勢: {len(aetf_trend)} 交易日 diff")
         except Exception as exc:
             print(f"  ⚠ active_etf 多日趨勢 query 失敗: {exc}")
 
     aetf_html = build_active_etf_page(aetf_list, aetf_holdings_by_etf, aetf_consensus,
-                                      aetf_trend, aetf_trend_themes)
+                                      aetf_trend)
 
     # ── 各頁「資料最後更新時間」(Q31-Q35)──────────────────────────────────
     # 取各資料源表最新寫入 timestamptz,轉台北時間。單條失敗(403 / 空表)只是
