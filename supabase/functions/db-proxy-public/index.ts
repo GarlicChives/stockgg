@@ -196,9 +196,10 @@ const ALLOWED: Set<string> = new Set([
   // 成本確定性低,不再 timeout。
   "select max(created_at) from trading_rankings where market='tw' and rank_date >= current_date - interval '5 days'",
   "select max(updated_at) from ticker_chip_history where ticker = any($1::text[]) and rank_date >= current_date - interval '14 days'",
-  "select max(updated_at) from active_etf_holdings",
   "select max(created_at) from analysis_reports",
   "select max(created_at) from market_snapshots",
+  // 主動式 ETF 各家公布時間不同 → 每檔自己的最新寫入時間(per-ETF,非單一頁面值)。
+  "select etf_code, max(updated_at) as t from active_etf_holdings group by etf_code",
 ])
 
 function normalize(q: string): string {

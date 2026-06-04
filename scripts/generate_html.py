@@ -1676,14 +1676,18 @@ def build_active_etf_page(etf_list: list, holdings_by_etf: dict[str, list]) -> s
         listing = etf.get("listing_date")
         if listing and hasattr(listing, "isoformat"):
             listing = listing.isoformat()
+        # 持股更新時間:優先用該 ETF 自己的 updated_at 時間戳(各家公布時間不同),
+        # 無則回退持股日期。
+        updated_ts = etf.get("updated_ts")
         data_date = _aetf_date_fmt(etf.get("data_date"))
+        _upd = updated_ts or data_date
         bar_html = (
             '<div class="aetf-info">'
             f'<span class="aetf-name">{html_lib.escape(etf.get("etf_name") or code)}</span>'
             f'<span class="aetf-meta"><span class="muted">AUM</span> <b>{aum_b:.0f} 億</b></span>'
             + (f'<span class="aetf-meta"><span class="muted">NAV</span> <b>{float(nav_per):.2f}</b></span>' if nav_per else '')
             + (f'<span class="aetf-meta"><span class="muted">上市</span> {listing}</span>' if listing else '')
-            + (f'<span class="aetf-meta aetf-data-date"><span class="muted">持股更新</span> <b>{data_date}</b></span>' if data_date else '')
+            + (f'<span class="aetf-meta aetf-data-date"><span class="muted">持股更新</span> <b>{_upd}</b></span>' if _upd else '')
             + '</div>'
         )
 
@@ -3680,6 +3684,17 @@ async def generate():
     for tk, lst in aetf_holdings_by_ticker.items():
         lst.sort(key=lambda h: -(float(h.get("aum_ntd") or 0)))
 
+    # 各家主動式 ETF 官方公布時間不同 → 每檔取自己最新 updated_at(台北時間),
+    # 顯示在該 ETF tab 頂部「持股更新」。單一頁面 MAX 會誤導故不用。
+    try:
+        _etf_ts = {r["etf_code"]: _fmt_data_stamp(r["t"]) for r in await conn.fetch(
+            "SELECT etf_code, MAX(updated_at) AS t FROM active_etf_holdings GROUP BY etf_code")}
+    except Exception as exc:
+        print(f"  ⚠ active_etf per-ETF updated_at query failed: {exc}")
+        _etf_ts = {}
+    for _etf in aetf_list:
+        _etf["updated_ts"] = _etf_ts.get(_etf.get("etf_code"))
+
     aetf_html = build_active_etf_page(aetf_list, aetf_holdings_by_etf)
 
     # ── 各頁「資料最後更新時間」(Q31-Q35)──────────────────────────────────
@@ -3700,12 +3715,10 @@ async def generate():
         "SELECT MAX(updated_at) FROM ticker_chip_history "
         "WHERE ticker = ANY($1::text[]) AND rank_date >= current_date - INTERVAL '14 days'",
         _hist_tickers) if _hist_tickers else None
-    ts_etf      = await _max_ts("SELECT MAX(updated_at) FROM active_etf_holdings")
     ts_reports  = await _max_ts("SELECT MAX(created_at) FROM analysis_reports")
     ts_market   = await _max_ts("SELECT MAX(created_at) FROM market_snapshots")
     focus_stamp_html  = _stamp_badge(ts_rankings)
     fstock_stamp_html = _stamp_badge(ts_rankings)
-    aetf_stamp_html   = _stamp_badge(ts_etf)
     notes_stamp_html  = _stamp_badge(ts_reports)
     market_stamp_html = _stamp_badge(ts_reports)
     trend_stamp_html  = _stamp_badge(ts_market)
@@ -3878,9 +3891,8 @@ async def generate():
     {focus_stock_html}
   </div>
 
-  <!-- Tab: 主動式 ETF -->
+  <!-- Tab: 主動式 ETF(更新時間 per-ETF 顯示於各檔頂部,各家公布時間不同) -->
   <div id="tab-aetf" class="tab-pane">
-    {aetf_stamp_html}
     {aetf_html}
   </div>
 
