@@ -1655,12 +1655,14 @@ def _aetf_money(v) -> str:
     return f"{sign}{a:.0f}"
 
 
-def _build_aetf_trend(trend: list[dict]) -> str:
+def _build_aetf_trend(trend: list[dict], update_badge: str = "") -> str:
     """每日跨 ETF 加減碼金額趨勢:server-render CSS 長條圖(上紅=加碼、下綠=減碼)。
-    retention 目前 ~14 天,延長後累積到一個月。"""
+    標題行右側內嵌「資料已更新 n/total」badge。retention ~14 天,延長後累積到一個月。"""
+    hdr = (f'<div class="aetf-section-hdr aetf-trend-hdr">'
+           f'<span>每日加減碼趨勢(上紅加碼 / 下綠減碼)</span>{update_badge}</div>')
     if not trend:
-        return ('<div class="aetf-trend"><div class="aetf-section-hdr">每日加減碼趨勢</div>'
-                '<p class="muted-note">尚無足夠多日持股資料(需 ≥2 個交易日 baseline)。</p></div>')
+        return ('<div class="aetf-trend">' + hdr
+                + '<p class="muted-note">尚無足夠多日持股資料(需 ≥2 個交易日 baseline)。</p></div>')
     _mx = max((max(abs(d["add"]), abs(d["red"])) for d in trend), default=1) or 1
     cols = []
     for d in trend:
@@ -1674,9 +1676,8 @@ def _build_aetf_trend(trend: list[dict]) -> str:
             f'<div class="atr-dn"><i style="height:{dn:.1f}%"></i></div>'
             f'<div class="atr-d">{mmdd}</div></div>')
     return (
-        '<div class="aetf-trend">'
-        '<div class="aetf-section-hdr">每日加減碼趨勢(上紅加碼 / 下綠減碼)</div>'
-        f'<div class="atr-bars">{"".join(cols)}</div>'
+        '<div class="aetf-trend">' + hdr
+        + f'<div class="atr-bars">{"".join(cols)}</div>'
         '</div>'
     )
 
@@ -1743,10 +1744,8 @@ def _build_aetf_consensus(consensus: dict) -> str:
                 '<p class="muted-note">今日各 ETF 無持股異動可彙總(或無前日 baseline)。</p></div>')
     return (
         '<div class="aetf-consensus">'
-        '<div class="aetf-section-hdr">今日共識股(依淨金額排序)</div>'
         f'<div class="aco-group">{stock_block or "<p class=\'muted-note\'>無</p>"}</div>'
-        '<div class="aetf-section-hdr">今日共識題材(點擊看熱門題材)</div>'
-        f'<div class="aco-group">{theme_block or "<p class=\'muted-note\'>無對應焦點題材</p>"}</div>'
+        f'<div class="aco-group aco-group-themes">{theme_block or "<p class=\'muted-note\'>無對應焦點題材</p>"}</div>'
         '</div>'
     )
 
@@ -1895,11 +1894,11 @@ def build_active_etf_page(etf_list: list, holdings_by_etf: dict[str, list],
         _n_done = sum(1 for d in _dd_list if d == _latest)
         _done_cls = "aetf-done-full" if _n_done >= _total else "aetf-done-partial"
         update_badge = (
-            f'<div class="aetf-update-badge {_done_cls}" '
+            f'<span class="aetf-update-badge {_done_cls}" '
             f'title="持股日期已達最新交易日 {_latest} 的 ETF 檔數;各家官方公布時間不同">'
             f'資料已更新 <b>{_n_done}/{_total}</b>'
             + ("" if _n_done >= _total else f' · 尚有 {_total - _n_done} 檔待今日資料')
-            + '</div>')
+            + '</span>')
     else:
         update_badge = ""
 
@@ -1911,8 +1910,7 @@ def build_active_etf_page(etf_list: list, holdings_by_etf: dict[str, list],
         for i, e in enumerate(etf_list)
     )
     return (
-        update_badge
-        + _build_aetf_trend(trend or [])
+        _build_aetf_trend(trend or [], update_badge)
         + _build_aetf_consensus(consensus or {})
         + '<div class="aetf-section-hdr">各 ETF 持股明細</div>'
         + f'<div class="aetf-tabs">{tab_btns}</div>'
