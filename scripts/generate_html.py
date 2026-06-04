@@ -1642,24 +1642,102 @@ def _stamp_badge_multi(pairs: list[tuple[str, str | None]]) -> str:
     return f'<div class="data-stamp" title="資料寫入時間（台北時間）">{inner}</div>'
 
 
-def build_active_etf_page(etf_list: list, holdings_by_etf: dict[str, list]) -> str:
-    """主動式 ETF 頁:tab nav(按 AUM desc 一檔一 tab)+ 各 tab content:
-    頂部 ETF 資訊 bar / 今日異動 4 區 / 全持股 list(weight_pct desc)。
+def _aetf_money(v) -> str:
+    """NTD 金額簡記:≥1億 顯 X.X億、≥1萬 顯 X 萬、否則整數。帶正負號。"""
+    if not v:
+        return "0"
+    sign = "+" if v > 0 else "−"
+    a = abs(v)
+    if a >= 1e8:
+        return f"{sign}{a/1e8:.1f}億"
+    if a >= 1e4:
+        return f"{sign}{a/1e4:.0f}萬"
+    return f"{sign}{a:.0f}"
+
+
+def _build_aetf_consensus(consensus: dict) -> str:
+    """共識加碼 / 減碼 / 清倉(股 + 題材)區塊。依淨金額排序、不設門檻。"""
+    if not consensus:
+        return ""
+    net = consensus["net"]; name = consensus["name"]
+    add_etfs = consensus["add_etfs"]; red_etfs = consensus["red_etfs"]; exit_etfs = consensus["exit_etfs"]
+    theme_net = consensus["theme_net"]; theme_exit = consensus["theme_exit"]; tk2subs = consensus["tk2subs"]
+
+    def _stk_chip(tk, val_txt, n_etf):
+        nm = name.get(tk, "")
+        click = f"showArtModal({json.dumps(tk)},{json.dumps(nm)},event)"
+        return (f'<span class="aco-chip" role="button" tabindex="0" onclick=\'{click}\'>'
+                f'<span class="aco-tk">{html_lib.escape(_disp_ticker(tk))}</span>'
+                f'<span class="aco-nm">{html_lib.escape(nm)}</span>'
+                f'<span class="aco-val">{val_txt}</span>'
+                f'<span class="aco-n">{n_etf} 檔</span></span>')
+
+    def _theme_chip(sub, val_txt, n):
+        click = f"openThemeByName({json.dumps(sub)})"
+        return (f'<span class="aco-chip aco-theme" role="button" tabindex="0" '
+                f"onclick='event.stopPropagation();{click}'>"
+                f'<span class="aco-nm">{html_lib.escape(sub)}</span>'
+                f'<span class="aco-val">{val_txt}</span>'
+                f'<span class="aco-n">{n}</span></span>')
+
+    def _stk_row(title, codes, css, valfn, nfn):
+        if not codes:
+            return ""
+        chips = "".join(_stk_chip(t, valfn(t), nfn(t)) for t in codes[:20])
+        return (f'<div class="aco-row {css}"><span class="aco-label">{title}'
+                f'<b>{len(codes)}</b></span>{chips}</div>')
+
+    def _theme_row(title, subs, css, valfn, nfn):
+        if not subs:
+            return ""
+        chips = "".join(_theme_chip(s, valfn(s), nfn(s)) for s in subs[:20])
+        return (f'<div class="aco-row {css}"><span class="aco-label">{title}'
+                f'<b>{len(subs)}</b></span>{chips}</div>')
+
+    _nstk = lambda t: len(add_etfs.get(t, set()) | red_etfs.get(t, set()) | exit_etfs.get(t, set()))
+    stock_block = (
+        _stk_row("🔼 共識加碼股", consensus["add_stocks"], "add",
+                 lambda t: _aetf_money(net[t]), _nstk)
+        + _stk_row("🔽 共識減碼股", consensus["reduce_stocks"], "reduce",
+                   lambda t: _aetf_money(net[t]), _nstk)
+        + _stk_row("🚪 共識清倉股", consensus["exit_stocks"], "exit",
+                   lambda t: f"{len(exit_etfs[t])} 檔清倉", lambda t: _nstk(t))
+    )
+    _nth = lambda s: sum(1 for t in net if s in tk2subs.get(t, []))
+    theme_block = (
+        _theme_row("🔼 共識加碼題材", consensus["add_themes"], "add",
+                   lambda s: _aetf_money(theme_net[s]), _nth)
+        + _theme_row("🔽 共識減碼題材", consensus["reduce_themes"], "reduce",
+                     lambda s: _aetf_money(theme_net[s]), _nth)
+        + _theme_row("🚪 共識清倉題材", consensus["exit_themes"], "exit",
+                     lambda s: f"{len(theme_exit[s])} 檔", _nth)
+    )
+    if not (stock_block or theme_block):
+        return ('<div class="aetf-consensus"><div class="aetf-section-hdr">跨 ETF 共識動向</div>'
+                '<p class="muted-note">今日各 ETF 無持股異動可彙總(或無前日 baseline)。</p></div>')
+    return (
+        '<div class="aetf-consensus">'
+        '<div class="aetf-section-hdr">跨 ETF 共識動向 · 個股(依淨金額排序)</div>'
+        f'<div class="aco-group">{stock_block or "<p class=\'muted-note\'>無</p>"}</div>'
+        '<div class="aetf-section-hdr">跨 ETF 共識動向 · 題材(近一年焦點)</div>'
+        f'<div class="aco-group">{theme_block or "<p class=\'muted-note\'>無對應焦點題材</p>"}</div>'
+        '</div>'
+    )
+
+
+def build_active_etf_page(etf_list: list, holdings_by_etf: dict[str, list],
+                          consensus: dict | None = None) -> str:
+    """主動式 ETF 頁:跨 ETF 共識動向(個股 / 題材)+ 橫排 sub-tab(按 AUM desc
+    一檔一 tab)+ 各 tab content:頂部 ETF 資訊 bar / 今日異動 4 區 / 全持股 list。
     """
     if not etf_list:
         return '<p class="muted-note">尚無主動式 ETF 資料</p>'
 
-    nav_opts = []
     panes = []
     for i, etf in enumerate(etf_list):
         code = etf["etf_code"]
         active = " active" if i == 0 else ""
-        label = etf.get("short_name") or code
         aum_b = float(etf.get("aum_ntd") or 0) / 1e8
-        selected = " selected" if i == 0 else ""
-        nav_opts.append(
-            f'<option value="{code}"{selected}>{html_lib.escape(str(label))}</option>'
-        )
 
         holdings = holdings_by_etf.get(code, [])
         # Normalize Decimal/str → float once (DB NUMERIC 經 JSON 變 str)
@@ -1780,13 +1858,17 @@ def build_active_etf_page(etf_list: list, holdings_by_etf: dict[str, list]) -> s
             + '</div>'
         )
 
+    # 橫排 sub-tab(取代下拉選單;JS showAetfTab 已支援 .aetf-tab-btn[data-aetf])
+    tab_btns = "".join(
+        f'<button class="aetf-tab-btn{" active" if i == 0 else ""}" type="button" '
+        f'data-aetf="{e["etf_code"]}" onclick="showAetfTab(\'{e["etf_code"]}\')">'
+        f'{html_lib.escape(str(e.get("short_name") or e["etf_code"]))}</button>'
+        for i, e in enumerate(etf_list)
+    )
     return (
-        '<div class="aetf-select-row">'
-        '<label class="aetf-select-label" for="aetf-select">選 ETF</label>'
-        '<select id="aetf-select" class="aetf-select" onchange="showAetfTab(this.value)">'
-        + "".join(nav_opts)
-        + '</select>'
-        '</div>'
+        _build_aetf_consensus(consensus or {})
+        + '<div class="aetf-section-hdr">各 ETF 持股明細</div>'
+        + f'<div class="aetf-tabs">{tab_btns}</div>'
         + "".join(panes)
     )
 
@@ -3718,7 +3800,56 @@ async def generate():
     for _etf in aetf_list:
         _etf["updated_ts"] = _etf_ts.get(_etf.get("etf_code"))
 
-    aetf_html = build_active_etf_page(aetf_list, aetf_holdings_by_etf)
+    # ── 共識加減碼 / 清倉(跨保留 ETF 今日 diff 彙總,依淨金額排序、不設門檻)──
+    # 每檔股票:net $ = Σ_ETF (lots_chg × 每張價);記錄加碼 / 減碼 / 清倉的 ETF 集合。
+    # 題材:用近一年焦點字典把 ticker 映到 sub,彙總 net $。
+    from collections import defaultdict as _dd
+    _tk_net: dict[str, float] = _dd(float)
+    _tk_name: dict[str, str] = {}
+    _tk_add: dict[str, set] = _dd(set)
+    _tk_red: dict[str, set] = _dd(set)
+    _tk_exit: dict[str, set] = _dd(set)
+    for _code, _hs in aetf_holdings_by_etf.items():
+        for _h in _hs:
+            _tk = _h.get("ticker")
+            if not _tk:
+                continue
+            _lots = _aetf_f(_h.get("lots")); _mv = _aetf_f(_h.get("market_value_ntd"))
+            _lc = _aetf_f(_h.get("lots_chg"))
+            _price = (_mv / _lots) if (_lots and _mv is not None) else 0
+            _tk_net[_tk] += (_lc or 0) * _price
+            _tk_name[_tk] = (_h.get("name") or "")[:12]
+            _act = _h.get("action")
+            if _act in ("add", "new"):
+                _tk_add[_tk].add(_code)
+            elif _act == "reduce":
+                _tk_red[_tk].add(_code)
+            elif _act == "exit":
+                _tk_exit[_tk].add(_code)
+    _tk2subs: dict[str, list[str]] = _dd(list)
+    for _sub, _members in (highlight_subs or {}).items():
+        for _t, _n in _members:
+            _tk2subs[_t].append(_sub)
+    _theme_net: dict[str, float] = _dd(float)
+    _theme_exit: dict[str, set] = _dd(set)
+    for _tk, _v in _tk_net.items():
+        for _sub in _tk2subs.get(_tk, []):
+            _theme_net[_sub] += _v
+    for _tk, _etfs in _tk_exit.items():
+        for _sub in _tk2subs.get(_tk, []):
+            _theme_exit[_sub] |= _etfs
+    aetf_consensus = {
+        "net": _tk_net, "name": _tk_name,
+        "add_etfs": _tk_add, "red_etfs": _tk_red, "exit_etfs": _tk_exit,
+        "theme_net": _theme_net, "theme_exit": _theme_exit, "tk2subs": _tk2subs,
+        "add_stocks": sorted((t for t, v in _tk_net.items() if v > 0), key=lambda t: -_tk_net[t]),
+        "reduce_stocks": sorted((t for t, v in _tk_net.items() if v < 0), key=lambda t: _tk_net[t]),
+        "exit_stocks": sorted(_tk_exit, key=lambda t: -len(_tk_exit[t])),
+        "add_themes": sorted((s for s, v in _theme_net.items() if v > 0), key=lambda s: -_theme_net[s]),
+        "reduce_themes": sorted((s for s, v in _theme_net.items() if v < 0), key=lambda s: _theme_net[s]),
+        "exit_themes": sorted(_theme_exit, key=lambda s: -len(_theme_exit[s])),
+    }
+    aetf_html = build_active_etf_page(aetf_list, aetf_holdings_by_etf, aetf_consensus)
 
     # ── 各頁「資料最後更新時間」(Q31-Q35)──────────────────────────────────
     # 取各資料源表最新寫入 timestamptz,轉台北時間。單條失敗(403 / 空表)只是
