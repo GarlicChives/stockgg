@@ -1683,69 +1683,40 @@ def _build_aetf_trend(trend: list[dict], update_badge: str = "") -> str:
 
 
 def _build_aetf_consensus(consensus: dict) -> str:
-    """共識加碼 / 減碼 / 清倉(股 + 題材)區塊。依淨金額排序、不設門檻。"""
+    """今日共識股淨流(加減碼合併,依淨金額排序、chip 依正負上色)+ 清倉股。不設門檻。"""
     if not consensus:
         return ""
     net = consensus["net"]; name = consensus["name"]
     add_etfs = consensus["add_etfs"]; red_etfs = consensus["red_etfs"]; exit_etfs = consensus["exit_etfs"]
-    theme_net = consensus["theme_net"]; theme_exit = consensus["theme_exit"]; tk2subs = consensus["tk2subs"]
 
-    def _stk_chip(tk, val_txt, n_etf):
+    def _stk_chip(tk, val_txt, n_etf, cls=""):
         nm = name.get(tk, "")
         click = f"showArtModal({json.dumps(tk)},{json.dumps(nm)},event)"
-        return (f'<span class="aco-chip" role="button" tabindex="0" onclick=\'{click}\'>'
+        return (f'<span class="aco-chip {cls}" role="button" tabindex="0" onclick=\'{click}\'>'
                 f'<span class="aco-tk">{html_lib.escape(_disp_ticker(tk))}</span>'
                 f'<span class="aco-nm">{html_lib.escape(nm)}</span>'
                 f'<span class="aco-val">{val_txt}</span>'
                 f'<span class="aco-n">{n_etf} 檔</span></span>')
 
-    def _theme_chip(sub, val_txt, n):
-        click = f"openThemeByName({json.dumps(sub)})"
-        return (f'<span class="aco-chip aco-theme" role="button" tabindex="0" '
-                f"onclick='event.stopPropagation();{click}'>"
-                f'<span class="aco-nm">{html_lib.escape(sub)}</span>'
-                f'<span class="aco-val">{val_txt}</span>'
-                f'<span class="aco-n">{n}</span></span>')
-
-    def _stk_row(title, codes, css, valfn, nfn):
-        if not codes:
-            return ""
-        chips = "".join(_stk_chip(t, valfn(t), nfn(t)) for t in codes[:20])
-        return (f'<div class="aco-row {css}"><span class="aco-label">{title}'
-                f'<b>{len(codes)}</b></span>{chips}</div>')
-
-    def _theme_row(title, subs, css, valfn, nfn):
-        if not subs:
-            return ""
-        chips = "".join(_theme_chip(s, valfn(s), nfn(s)) for s in subs[:20])
-        return (f'<div class="aco-row {css}"><span class="aco-label">{title}'
-                f'<b>{len(subs)}</b></span>{chips}</div>')
-
     _nstk = lambda t: len(add_etfs.get(t, set()) | red_etfs.get(t, set()) | exit_etfs.get(t, set()))
-    stock_block = (
-        _stk_row("🔼 共識加碼股", consensus["add_stocks"], "add",
-                 lambda t: _aetf_money(net[t]), _nstk)
-        + _stk_row("🔽 共識減碼股", consensus["reduce_stocks"], "reduce",
-                   lambda t: _aetf_money(net[t]), _nstk)
-        + _stk_row("🚪 共識清倉股", consensus["exit_stocks"], "exit",
-                   lambda t: f"{len(exit_etfs[t])} 檔清倉", lambda t: _nstk(t))
-    )
-    _nth = lambda s: sum(1 for t in net if s in tk2subs.get(t, []))
-    theme_block = (
-        _theme_row("🔼 共識加碼題材", consensus["add_themes"], "add",
-                   lambda s: _aetf_money(theme_net[s]), _nth)
-        + _theme_row("🔽 共識減碼題材", consensus["reduce_themes"], "reduce",
-                     lambda s: _aetf_money(theme_net[s]), _nth)
-        + _theme_row("🚪 共識清倉題材", consensus["exit_themes"], "exit",
-                     lambda s: f"{len(theme_exit[s])} 檔", _nth)
-    )
-    if not (stock_block or theme_block):
+    # 加 + 減合併,依淨額 desc(加碼在前紅、減碼在後綠);chip 依正負各自上色
+    flow = sorted((t for t in net if net[t]), key=lambda t: -net[t])[:30]
+    flow_chips = "".join(
+        _stk_chip(t, _aetf_money(net[t]), _nstk(t), "aco-pos" if net[t] > 0 else "aco-neg")
+        for t in flow)
+    flow_row = (f'<div class="aco-row"><span class="aco-label">📊 今日共識股淨流'
+                f'<b>{len(flow)}</b></span>{flow_chips}</div>') if flow else ""
+    exit_codes = consensus["exit_stocks"][:20]
+    exit_chips = "".join(
+        _stk_chip(t, f"{len(exit_etfs[t])} 檔清倉", _nstk(t)) for t in exit_codes)
+    exit_row = (f'<div class="aco-row exit"><span class="aco-label">🚪 共識清倉股'
+                f'<b>{len(consensus["exit_stocks"])}</b></span>{exit_chips}</div>') if exit_codes else ""
+    if not (flow_row or exit_row):
         return ('<div class="aetf-consensus"><div class="aetf-section-hdr">跨 ETF 共識動向</div>'
                 '<p class="muted-note">今日各 ETF 無持股異動可彙總(或無前日 baseline)。</p></div>')
     return (
         '<div class="aetf-consensus">'
-        f'<div class="aco-group">{stock_block or "<p class=\'muted-note\'>無</p>"}</div>'
-        f'<div class="aco-group aco-group-themes">{theme_block or "<p class=\'muted-note\'>無對應焦點題材</p>"}</div>'
+        f'<div class="aco-group">{flow_row}{exit_row}</div>'
         '</div>'
     )
 
@@ -3871,28 +3842,10 @@ async def generate():
                 _tk_red[_tk].add(_code)
             elif _act == "exit":
                 _tk_exit[_tk].add(_code)
-    _tk2subs: dict[str, list[str]] = _dd(list)
-    for _sub, _members in (highlight_subs or {}).items():
-        for _t, _n in _members:
-            _tk2subs[_t].append(_sub)
-    _theme_net: dict[str, float] = _dd(float)
-    _theme_exit: dict[str, set] = _dd(set)
-    for _tk, _v in _tk_net.items():
-        for _sub in _tk2subs.get(_tk, []):
-            _theme_net[_sub] += _v
-    for _tk, _etfs in _tk_exit.items():
-        for _sub in _tk2subs.get(_tk, []):
-            _theme_exit[_sub] |= _etfs
     aetf_consensus = {
         "net": _tk_net, "name": _tk_name,
         "add_etfs": _tk_add, "red_etfs": _tk_red, "exit_etfs": _tk_exit,
-        "theme_net": _theme_net, "theme_exit": _theme_exit, "tk2subs": _tk2subs,
-        "add_stocks": sorted((t for t, v in _tk_net.items() if v > 0), key=lambda t: -_tk_net[t]),
-        "reduce_stocks": sorted((t for t, v in _tk_net.items() if v < 0), key=lambda t: _tk_net[t]),
         "exit_stocks": sorted(_tk_exit, key=lambda t: -len(_tk_exit[t])),
-        "add_themes": sorted((s for s, v in _theme_net.items() if v > 0), key=lambda s: -_theme_net[s]),
-        "reduce_themes": sorted((s for s, v in _theme_net.items() if v < 0), key=lambda s: _theme_net[s]),
-        "exit_themes": sorted(_theme_exit, key=lambda s: -len(_theme_exit[s])),
     }
     # ── 近期加減碼趨勢(逐日,跨保留 ETF;retention 目前 ~14 天,延長後到一個月)──
     # 多日持股 diff:同 (etf,ticker) 連續持股日 lots 差 × 每張價 → 當日加 / 減碼金額。

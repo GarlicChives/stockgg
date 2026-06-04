@@ -862,9 +862,10 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .aco-nm{color:var(--muted)}
 .aco-val{font-weight:700;font-variant-numeric:tabular-nums}
 .aco-n{font-size:.66rem;color:var(--muted);opacity:.8}
-.aco-row.add .aco-chip{border-color:rgba(239,83,80,.4)} .aco-row.add .aco-val{color:#f47471}
-.aco-row.reduce .aco-chip{border-color:rgba(38,166,154,.4)} .aco-row.reduce .aco-val{color:#5dc4b9}
 .aco-row.exit .aco-chip{border-color:rgba(122,139,160,.4)} .aco-row.exit .aco-val{color:var(--muted)}
+/* 今日共識股淨流:chip 依正負各自上色(加碼紅 / 減碼綠)*/
+.aco-chip.aco-pos{border-color:rgba(239,83,80,.4)} .aco-chip.aco-pos .aco-val{color:#f47471}
+.aco-chip.aco-neg{border-color:rgba(38,166,154,.4)} .aco-chip.aco-neg .aco-val{color:#5dc4b9}
 
 .aetf-info{display:flex;flex-wrap:wrap;align-items:baseline;gap:.4rem 1.2rem;
             padding:.7rem 1rem;background:#12151f;border-radius:8px;
