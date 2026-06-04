@@ -845,28 +845,6 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .aetf-pane{display:none}
 .aetf-pane.active{display:block}
 
-/* 跨 ETF 共識動向 */
-.aetf-consensus{margin-bottom:.4rem}
-.aco-group{display:flex;flex-direction:column;gap:.55rem;
-           background:#12151f;border:1px solid var(--border);
-           border-radius:8px;padding:.7rem .8rem}
-.aco-row{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem}
-.aco-label{font-size:.76rem;font-weight:700;color:var(--muted);
-           margin-right:.3rem;white-space:nowrap}
-.aco-label b{margin-left:.25rem;color:var(--text)}
-.aco-chip{display:inline-flex;align-items:baseline;gap:.3rem;cursor:pointer;
-          font-size:.74rem;padding:.18rem .45rem;border-radius:5px;
-          border:1px solid var(--border);background:rgba(255,255,255,.02);transition:.12s}
-.aco-chip:hover{transform:translateY(-1px);filter:brightness(1.12)}
-.aco-tk{font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
-.aco-nm{color:var(--muted)}
-.aco-val{font-weight:700;font-variant-numeric:tabular-nums}
-.aco-n{font-size:.66rem;color:var(--muted);opacity:.8}
-.aco-row.exit .aco-chip{border-color:rgba(122,139,160,.4)} .aco-row.exit .aco-val{color:var(--muted)}
-/* 今日共識股淨流:chip 依正負各自上色(加碼紅 / 減碼綠)*/
-.aco-chip.aco-pos{border-color:rgba(239,83,80,.4)} .aco-chip.aco-pos .aco-val{color:#f47471}
-.aco-chip.aco-neg{border-color:rgba(38,166,154,.4)} .aco-chip.aco-neg .aco-val{color:#5dc4b9}
-
 .aetf-info{display:flex;flex-wrap:wrap;align-items:baseline;gap:.4rem 1.2rem;
             padding:.7rem 1rem;background:#12151f;border-radius:8px;
             border:1px solid var(--border);margin-bottom:1rem}

@@ -1682,50 +1682,10 @@ def _build_aetf_trend(trend: list[dict], update_badge: str = "") -> str:
     )
 
 
-def _build_aetf_consensus(consensus: dict) -> str:
-    """今日共識股淨流(加減碼合併,依淨金額排序、chip 依正負上色)+ 清倉股。不設門檻。"""
-    if not consensus:
-        return ""
-    net = consensus["net"]; name = consensus["name"]
-    add_etfs = consensus["add_etfs"]; red_etfs = consensus["red_etfs"]; exit_etfs = consensus["exit_etfs"]
-
-    def _stk_chip(tk, val_txt, n_etf, cls=""):
-        nm = name.get(tk, "")
-        click = f"showArtModal({json.dumps(tk)},{json.dumps(nm)},event)"
-        return (f'<span class="aco-chip {cls}" role="button" tabindex="0" onclick=\'{click}\'>'
-                f'<span class="aco-tk">{html_lib.escape(_disp_ticker(tk))}</span>'
-                f'<span class="aco-nm">{html_lib.escape(nm)}</span>'
-                f'<span class="aco-val">{val_txt}</span>'
-                f'<span class="aco-n">{n_etf} 檔</span></span>')
-
-    _nstk = lambda t: len(add_etfs.get(t, set()) | red_etfs.get(t, set()) | exit_etfs.get(t, set()))
-    # 加 + 減合併,依淨額 desc(加碼在前紅、減碼在後綠);chip 依正負各自上色
-    flow = sorted((t for t in net if net[t]), key=lambda t: -net[t])[:30]
-    flow_chips = "".join(
-        _stk_chip(t, _aetf_money(net[t]), _nstk(t), "aco-pos" if net[t] > 0 else "aco-neg")
-        for t in flow)
-    flow_row = (f'<div class="aco-row"><span class="aco-label">📊 今日共識股淨流'
-                f'<b>{len(flow)}</b></span>{flow_chips}</div>') if flow else ""
-    exit_codes = consensus["exit_stocks"][:20]
-    exit_chips = "".join(
-        _stk_chip(t, f"{len(exit_etfs[t])} 檔清倉", _nstk(t)) for t in exit_codes)
-    exit_row = (f'<div class="aco-row exit"><span class="aco-label">🚪 共識清倉股'
-                f'<b>{len(consensus["exit_stocks"])}</b></span>{exit_chips}</div>') if exit_codes else ""
-    if not (flow_row or exit_row):
-        return ('<div class="aetf-consensus"><div class="aetf-section-hdr">跨 ETF 共識動向</div>'
-                '<p class="muted-note">今日各 ETF 無持股異動可彙總(或無前日 baseline)。</p></div>')
-    return (
-        '<div class="aetf-consensus">'
-        f'<div class="aco-group">{flow_row}{exit_row}</div>'
-        '</div>'
-    )
-
-
 def build_active_etf_page(etf_list: list, holdings_by_etf: dict[str, list],
-                          consensus: dict | None = None,
                           trend: list[dict] | None = None) -> str:
-    """主動式 ETF 頁:近期加減碼趨勢圖 → 跨 ETF 共識動向(個股 / 題材)→ 橫排
-    sub-tab(按 AUM desc 一檔一 tab)+ 各 tab content:ETF 資訊 bar / 今日異動 / 全持股。
+    """主動式 ETF 頁:每日加減碼趨勢圖(含資料已更新 badge)→ 橫排 sub-tab(按 AUM
+    desc 一檔一 tab)+ 各 tab content:ETF 資訊 bar / 今日異動 / 全持股。
     """
     if not etf_list:
         return '<p class="muted-note">尚無主動式 ETF 資料</p>'
@@ -1882,7 +1842,6 @@ def build_active_etf_page(etf_list: list, holdings_by_etf: dict[str, list],
     )
     return (
         _build_aetf_trend(trend or [], update_badge)
-        + _build_aetf_consensus(consensus or {})
         + '<div class="aetf-section-hdr">各 ETF 持股明細</div>'
         + f'<div class="aetf-tabs">{tab_btns}</div>'
         + "".join(panes)
@@ -3815,38 +3774,7 @@ async def generate():
         _etf_ts = {}
     for _etf in aetf_list:
         _etf["updated_ts"] = _etf_ts.get(_etf.get("etf_code"))
-
-    # ── 共識加減碼 / 清倉(跨保留 ETF 今日 diff 彙總,依淨金額排序、不設門檻)──
-    # 每檔股票:net $ = Σ_ETF (lots_chg × 每張價);記錄加碼 / 減碼 / 清倉的 ETF 集合。
-    # 題材:用近一年焦點字典把 ticker 映到 sub,彙總 net $。
     from collections import defaultdict as _dd
-    _tk_net: dict[str, float] = _dd(float)
-    _tk_name: dict[str, str] = {}
-    _tk_add: dict[str, set] = _dd(set)
-    _tk_red: dict[str, set] = _dd(set)
-    _tk_exit: dict[str, set] = _dd(set)
-    for _code, _hs in aetf_holdings_by_etf.items():
-        for _h in _hs:
-            _tk = _h.get("ticker")
-            if not _tk:
-                continue
-            _lots = _aetf_f(_h.get("lots")); _mv = _aetf_f(_h.get("market_value_ntd"))
-            _lc = _aetf_f(_h.get("lots_chg"))
-            _price = (_mv / _lots) if (_lots and _mv is not None) else 0
-            _tk_net[_tk] += (_lc or 0) * _price
-            _tk_name[_tk] = (_h.get("name") or "")[:12]
-            _act = _h.get("action")
-            if _act in ("add", "new"):
-                _tk_add[_tk].add(_code)
-            elif _act == "reduce":
-                _tk_red[_tk].add(_code)
-            elif _act == "exit":
-                _tk_exit[_tk].add(_code)
-    aetf_consensus = {
-        "net": _tk_net, "name": _tk_name,
-        "add_etfs": _tk_add, "red_etfs": _tk_red, "exit_etfs": _tk_exit,
-        "exit_stocks": sorted(_tk_exit, key=lambda t: -len(_tk_exit[t])),
-    }
     # ── 近期加減碼趨勢(逐日,跨保留 ETF;retention 目前 ~14 天,延長後到一個月)──
     # 多日持股 diff:同 (etf,ticker) 連續持股日 lots 差 × 每張價 → 當日加 / 減碼金額。
     # 注意:全清倉(該日整筆消失)不在連續列差內,故 flow 略低估清倉量(清倉另見共識區)。
@@ -3884,8 +3812,7 @@ async def generate():
         except Exception as exc:
             print(f"  ⚠ active_etf 多日趨勢 query 失敗: {exc}")
 
-    aetf_html = build_active_etf_page(aetf_list, aetf_holdings_by_etf, aetf_consensus,
-                                      aetf_trend)
+    aetf_html = build_active_etf_page(aetf_list, aetf_holdings_by_etf, aetf_trend)
 
     # ── 各頁「資料最後更新時間」(Q31-Q35)──────────────────────────────────
     # 取各資料源表最新寫入 timestamptz,轉台北時間。單條失敗(403 / 空表)只是
