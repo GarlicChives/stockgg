@@ -3679,6 +3679,24 @@ async def generate():
     except Exception as exc:
         print(f"  ⚠ active_etf_meta Q18 failed: {exc}")
 
+    # 公開頁只列「純台股 AUM 前 10 大」主動式 ETF:
+    #   排除指定碼(非純台股 / 無持股,user 2026-06-04 指定)+ 需有持股資料,
+    #   aetf_list 已按 AUM desc(Q18 ORDER BY)→ 取前 10。
+    #   全球 / 美國型(如 00990A AI新經濟、00997A 美國增長)與無持股者(00400A)移除。
+    #   ingest 端對應停掉非保留檔的爬蟲排程(見 commit 附 prompt)。
+    _AETF_EXCLUDE = {"00990A", "00400A", "00997A"}
+    _AETF_TOP_N = 10
+    aetf_list = [e for e in aetf_list
+                 if e["etf_code"] not in _AETF_EXCLUDE
+                 and aetf_holdings_by_etf.get(e["etf_code"])][:_AETF_TOP_N]
+    _keep_codes = {e["etf_code"] for e in aetf_list}
+    aetf_holdings_by_etf = {k: v for k, v in aetf_holdings_by_etf.items() if k in _keep_codes}
+    aetf_holdings_by_ticker = {
+        tk: kept for tk, lst in aetf_holdings_by_ticker.items()
+        if (kept := [h for h in lst if h.get("etf_code") in _keep_codes])
+    }
+    print(f"  主動式 ETF 公開保留(純台股 AUM 前 {_AETF_TOP_N}): {sorted(_keep_codes)}")
+
     # 對每個 ticker 內 ETF 列表按 AUM desc 排序(Q19 個別 fetch 沒帶 ETF aum,
     # 反向 index 時各 ETF 順序不一定)
     for tk, lst in aetf_holdings_by_ticker.items():
