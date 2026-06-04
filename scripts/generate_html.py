@@ -1629,11 +1629,17 @@ def _fmt_data_stamp(dt) -> str | None:
 
 def _stamp_badge(ts_str: str | None, label: str = "資料更新") -> str:
     """各頁右上「資料最後更新時間」badge。ts_str 為 None(查不到 / 空表)時不渲染。"""
-    if not ts_str:
+    return _stamp_badge_multi([(label, ts_str)])
+
+
+def _stamp_badge_multi(pairs: list[tuple[str, str | None]]) -> str:
+    """多組 (label, 時間) 併成同一行右上 badge(用 · 分隔);全空則不渲染。"""
+    items = [(lbl, ts) for lbl, ts in pairs if ts]
+    if not items:
         return ""
-    return (f'<div class="data-stamp" title="資料寫入時間（台北時間）">'
-            f'<span class="ds-label">{label}</span>'
-            f'<time>{ts_str}</time></div>')
+    inner = '<span class="ds-sep">·</span>'.join(
+        f'<span class="ds-label">{lbl}</span><time>{ts}</time>' for lbl, ts in items)
+    return f'<div class="data-stamp" title="資料寫入時間（台北時間）">{inner}</div>'
 
 
 def build_active_etf_page(etf_list: list, holdings_by_etf: dict[str, list]) -> str:
@@ -2010,7 +2016,6 @@ def build_focus_stock_page(
     today_str: str,
     yest_intersect_set: set[str],
     chip_signals: dict[str, dict] | None = None,
-    chip_stamp_html: str = "",
 ) -> str:
     """焦點股 tab:來源 = 熱門題材「焦點」(hl_sub)的 focal union。
     3 sub-tab(順序:交集股 / 出量股 / 潛力股):
@@ -2447,7 +2452,7 @@ def build_focus_stock_page(
                 f'<span class="fs-sep">/</span>{hint_text}</p>')
 
     panes_html = (
-        f'<div class="fs-tab-pane active" id="fstab-int">{chip_stamp_html}'
+        '<div class="fs-tab-pane active" id="fstab-int">'
         + _pane_head('同時符合 2 項(含)以上條件的焦點股,依符合條件數由多至少排序。',
                      intersect_stocks, True)
         + _int_filter_bar + int_html + '</div>'
@@ -2471,7 +2476,7 @@ def build_focus_stock_page(
         + _pane_head('月營收連 3 月 YoY &gt; 0,且近一季毛利 / 營業利益 / 稅前淨利 / '
                      '稅後淨利金額年增率皆 &gt; 0,依月線乖離率排序。', growth_stocks)
         + gr_html + '</div>'
-        + f'<div class="fs-tab-pane" id="fstab-chip">{chip_stamp_html}'
+        + '<div class="fs-tab-pane" id="fstab-chip">'
         + _pane_head('散戶持股比週減(必須),且【投信買超 ≥ 5%量 / 外資買超 ≥ 10%量 / '
                      '大戶持股比週增 ≥ 1.5】至少一項,並排除外資賣超 ≥ 10%量 / 投信賣超 '
                      '≥ 5%量 / 大戶持股比週減;依大戶持股比週增排序。散戶 / 大戶持股比採 '
@@ -3736,11 +3741,11 @@ async def generate():
     ts_reports  = await _max_ts("SELECT MAX(created_at) FROM analysis_reports")
     ts_market   = await _max_ts("SELECT MAX(created_at) FROM market_snapshots")
     focus_stamp_html  = _stamp_badge(ts_rankings)
-    fstock_stamp_html = _stamp_badge(ts_rankings)
+    # 選股雷達:rankings 與籌碼更新時間併同一行右上(籌碼不另佔一列)
+    fstock_stamp_html = _stamp_badge_multi([("資料更新", ts_rankings), ("籌碼資料更新", ts_chip)])
     notes_stamp_html  = _stamp_badge(ts_reports)
     market_stamp_html = _stamp_badge(ts_reports)
     trend_stamp_html  = _stamp_badge(ts_market)
-    chip_stamp_html   = _stamp_badge(ts_chip, "籌碼資料更新")
 
     # ── 焦點股 tab(2026-05-20):出量股 / 潛力股,來源 = hl_sub focal union ──
     _today_str = tw_rank_date.strftime("%Y-%m-%d") if tw_rank_date else ""
@@ -3750,7 +3755,7 @@ async def generate():
     focus_stock_html = build_focus_stock_page(
         focus_hl_clusters, stocks_info, ticker_close_full,
         stock_meta, aetf_holdings_by_ticker, _today_str, _yest_intersect,
-        chip_signals, chip_stamp_html,
+        chip_signals,
     )
 
     # ── 個股 modal data:2026-05-20 取代「intro + analyst」為「持股主動式 ETF」表 ──
