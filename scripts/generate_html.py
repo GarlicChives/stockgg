@@ -14,7 +14,6 @@ import collections
 import hashlib
 import html as html_lib
 import json
-import os
 import re
 import sys
 from datetime import date, datetime, timedelta, timezone
@@ -481,33 +480,6 @@ def _cluster_streak_rate20(cluster_subs: list[str],
     hits = sum(1 for d in wind if subset & daily_subs.get(d, set()))
     rate20 = hits / len(wind) if wind else 0.0
     return streak, rate20
-
-
-def _build_focus_trend(sorted_dates: list[str],
-                       daily_subs: dict[str, set[str]],
-                       window: int = 20) -> list[dict]:
-    """每個交易日:
-       hot   = 當日熱門 hl_sub 題材數量 (distinct sub_industry count)
-       cont  = 過去 N 個交易日內出現過的所有 sub 的「在這 N 天內的上榜比例」算術平均
-    """
-    trend = []
-    for i, d in enumerate(sorted_dates):
-        hot = len(daily_subs.get(d, set()))
-        start = max(0, i - window + 1)
-        wnd = sorted_dates[start:i + 1]
-        w_len = len(wnd)
-        sub_set: set[str] = set()
-        for w in wnd:
-            sub_set.update(daily_subs.get(w, set()))
-        if sub_set and w_len:
-            cont = sum(
-                sum(1 for w in wnd if sub in daily_subs.get(w, set())) / w_len
-                for sub in sub_set
-            ) / len(sub_set)
-        else:
-            cont = 0.0
-        trend.append({"d": d, "hot": hot, "cont": round(cont, 4)})
-    return trend
 
 
 def _focus_dynamics_chip(streak: int | None, rate20: float | None) -> str:

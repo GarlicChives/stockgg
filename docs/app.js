@@ -642,22 +642,6 @@ function setClusterSort(mode, level) {
   _refreshSortUi(level);
   _recalcClusters(level);
 }
-function toggleUniv(ticker) {
-  if (_univDis.has(ticker)) _univDis.delete(ticker);
-  else _univDis.add(ticker);
-  document.querySelectorAll('.univ-chip[data-ticker="' + ticker + '"]').forEach(b => {
-    b.classList.toggle('disabled', _univDis.has(ticker));
-  });
-  // 兩 sub-tab 的 cluster 都受影響(_univDis 是全域 state),都重算
-  const C = window.IIA_CLUSTERS || {};
-  ['hl_sub', 'pan_sub', 'sub'].forEach(lv => { if (C[lv]) _recalcClusters(lv); });
-  // 若 theme chart modal 開著,連動重算
-  const dlg = document.getElementById('theme-chart-dialog');
-  if (dlg && dlg.open && _openThemeCardId) {
-    _renderThemeChart(_openThemeCardId);
-  }
-}
-
 /* ── 多題材股篩選(2026-05-20)──────────────────────────────────────────────
  * 點 univ-chip → 該 sub-tab 內只留含此 ticker 的 cluster,其餘 collapse
  * 動畫隱藏;再點同 chip → 全部 expand 恢復。single-select per level。 */
@@ -1583,14 +1567,6 @@ function _tcUpdateCounter(cardId) {
     }
   }, {passive: false});
 })();
-
-function toggleEl(id) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  const nowHidden = el.classList.toggle('hidden');
-  const arrow = document.getElementById('arrow-' + id);
-  if (arrow) arrow.textContent = nowHidden ? '▶' : '▼';
-}
 
 // Close modal on backdrop click
 document.getElementById('art-modal').addEventListener('click', function(e) {
