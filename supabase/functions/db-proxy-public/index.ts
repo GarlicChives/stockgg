@@ -172,14 +172,8 @@ const ALLOWED: Set<string> = new Set([
   // Q27 — focus_radar_history 最新 row(today 完整 snapshot),給選股雷達 sub-tab
   "select rank_date, intersect_tickers, per_ticker_conds, pot_subtype, breakdown, universe_size from focus_radar_history where rank_date = (select max(rank_date) from focus_radar_history)",
 
-  // Q28 — focus_radar_history per_ticker_conds 日期區間(date range params $1 / $2),
-  // 給 V3 backtest 分批拉(避免一次 3y 撈爆 6MB)。stockgg backtest script 用
-  "select rank_date, per_ticker_conds, intersect_tickers from focus_radar_history where rank_date >= $1 and rank_date <= $2 order by rank_date",
-
-  // Q30 — ticker_close_history 日期區間版(3 個 params:tickers array + from / to date),
-  // 給 V3 backtest 用 3y 歷史(現有 Q13 400d 不夠 backtest entry-前 60d pre-history)。
-  // payload 每 chunk(60 ticker × 90 day)~540KB,安全
-  "select ticker, rank_date, close, shares_out, volume, high, open, low from ticker_close_history where ticker = any($1::text[]) and rank_date >= $2 and rank_date <= $3 order by ticker, rank_date",
+  // (Q28 / Q30 已於 2026-06-05 移除:早期 backtest 日期區間 query,render 與 repo
+  //  皆未使用;現行 backtest 走 kline.json 離線。未來需要可參考 git 歷史加回。)
 
   // Q31-Q35 — 各頁「資料最後更新時間」badge 用:回各資料源表的最新寫入
   // timestamptz(stockgg 端轉台北時間顯示 YYYY/MM/DD HH:MM:SS)。
