@@ -505,406 +505,6 @@ def _focus_dynamics_chip(streak: int | None, rate20: float | None) -> str:
     return "".join(parts)
 
 
-def _judge_index_trend(closes: list[float], name: str) -> dict:
-    """單一指數的趨勢判定(close vs MA60 vs MA200 兩線結構)。回 indicator dict。"""
-    if len(closes) < 210:
-        return {"scope": "大盤", "name": name, "level": "unknown",
-                "label": "資料不足", "detail": "歷史 < 210d 無法算 MA200"}
-    c = closes[-1]
-    ma60 = sum(closes[-60:]) / 60
-    ma200 = sum(closes[-200:]) / 200
-    above_60 = c > ma60
-    above_200 = c > ma200
-    d60 = (c / ma60 - 1) * 100
-    if above_60 and above_200:
-        st = {"level": "go", "label": "🚀 強多頭",
-              "detail": f"close > MA60(+{d60:.1f}%)且 > MA200"}
-    elif above_60 and not above_200:
-        st = {"level": "warn-up", "label": "📈 中多頭",
-              "detail": f"close > MA60(+{d60:.1f}%)但 < MA200"}
-    elif not above_60 and above_200:
-        st = {"level": "warn", "label": "⚠ 弱勢回檔",
-              "detail": f"close < MA60({d60:+.1f}%)但仍 > MA200"}
-    else:
-        st = {"level": "danger", "label": "🛑 空頭",
-              "detail": f"close < MA60({d60:+.1f}%)且 < MA200"}
-    return {"scope": "大盤", "name": name, **st}
-
-
-def _judge_nh(nh_count: int, z_nh: float) -> dict:
-    """nh_count 過熱判定(大盤層)— Q5 ≥ 12 警示"""
-    if nh_count >= 12:
-        return {"scope": "大盤", "name": "新高股 nh_count", "level": "danger",
-                "label": "🔥 過熱警示",
-                "detail": f"今日 {nh_count} 檔(Q5 ≥12 警示區,z={z_nh:+.1f})"}
-    elif nh_count >= 6:
-        return {"scope": "大盤", "name": "新高股 nh_count", "level": "warn",
-                "label": "↗ 偏熱",
-                "detail": f"今日 {nh_count} 檔(Q4 區段,z={z_nh:+.1f})"}
-    else:
-        return {"scope": "大盤", "name": "新高股 nh_count", "level": "neutral",
-                "label": "😐 正常",
-                "detail": f"今日 {nh_count} 檔(z={z_nh:+.1f})"}
-
-
-def _judge_chip(chip_count: int, z_chip: float) -> dict:
-    """chip_count 動能 trigger 判定(個股層)— +1σ 以上 = 進場 trigger"""
-    if z_chip >= 1.5:
-        return {"scope": "個股", "name": "籌碼股 chip_count", "level": "go",
-                "label": "🚀 強進場 trigger",
-                "detail": f"今日 {chip_count} 檔(z={z_chip:+.1f} ≥+1.5σ)"}
-    elif z_chip >= 1.0:
-        return {"scope": "個股", "name": "籌碼股 chip_count", "level": "warn-up",
-                "label": "📈 進場 trigger",
-                "detail": f"今日 {chip_count} 檔(z={z_chip:+.1f} ≥+1σ)"}
-    elif z_chip >= 0:
-        return {"scope": "個股", "name": "籌碼股 chip_count", "level": "neutral",
-                "label": "↗ 偏多",
-                "detail": f"今日 {chip_count} 檔(z={z_chip:+.1f})"}
-    elif z_chip >= -1.0:
-        return {"scope": "個股", "name": "籌碼股 chip_count", "level": "neutral",
-                "label": "↘ 偏弱",
-                "detail": f"今日 {chip_count} 檔(z={z_chip:+.1f})"}
-    else:
-        return {"scope": "個股", "name": "籌碼股 chip_count", "level": "warn",
-                "label": "🛑 動能弱",
-                "detail": f"今日 {chip_count} 檔(z={z_chip:+.1f} ≤-1σ)"}
-
-
-def _judge_ma60_dist(dist_pct: float) -> dict:
-    """大盤距 MA60 偏離 區段判定(大盤層)— ±8% 是 Q5 邊界"""
-    if dist_pct >= 8:
-        return {"scope": "大盤", "name": "大盤距 MA60", "level": "danger",
-                "label": "🔥 危險過熱",
-                "detail": f"{dist_pct:+.1f}% ≥+8%(Q5 危險區,AUC 0.897 for BEAR 60d/-15%)"}
-    elif dist_pct >= 3:
-        return {"scope": "大盤", "name": "大盤距 MA60", "level": "warn",
-                "label": "⚠ 警戒",
-                "detail": f"{dist_pct:+.1f}%(中性偏熱)"}
-    elif dist_pct >= -3:
-        return {"scope": "大盤", "name": "大盤距 MA60", "level": "neutral",
-                "label": "😐 中性",
-                "detail": f"{dist_pct:+.1f}%(MA60 附近,趨勢中性)"}
-    elif dist_pct >= -8:
-        return {"scope": "大盤", "name": "大盤距 MA60", "level": "warn-up",
-                "label": "↘ 偏弱",
-                "detail": f"{dist_pct:+.1f}%(中性偏弱)"}
-    else:
-        return {"scope": "大盤", "name": "大盤距 MA60", "level": "go",
-                "label": "🚀 超賣可分批進場",
-                "detail": f"{dist_pct:+.1f}% ≤-8%(Q5 超賣區)"}
-
-
-def _compute_trend_summary(twii_rows: list[dict], tpex_rows: list[dict],
-                            radar_series: list[dict]) -> dict:
-    """V3.2 趨勢頁綜合判斷 — 5 級 state + per-indicator judgments。
-
-    決策矩陣(對應 V3.2 全空間 sweep):
-      bear_score = z(TWII_60d_ROC, 20d 窗口) + z(nh_count, 20d 窗口)
-      bull_score = z(chip_count, 20d 窗口)
-      trend_dir  = TWII close vs MA60
-    indicators[] = per-chart 個別判斷(大盤 / 個股 scope tag)
-    """
-    out = {
-        "state":     "UNKNOWN",
-        "level":     "unknown",
-        "label":     "資料不足",
-        "advice":    "",
-        "bear":      None,
-        "bull":      None,
-        "z_roc":     None,
-        "z_nh":      None,
-        "z_chip":    None,
-        "trend_dir": None,
-        "ma60_dist": None,
-        "indicators": [],
-    }
-    if not twii_rows or not radar_series:
-        return out
-
-    twii_closes = [r["close"] for r in twii_rows if r.get("close") is not None]
-    tpex_closes = [r["close"] for r in (tpex_rows or []) if r.get("close") is not None]
-    if len(twii_closes) < 80:
-        out["label"] = "TWII 歷史 < 80d"
-        return out
-
-    ma60 = sum(twii_closes[-60:]) / 60
-    last_close = twii_closes[-1]
-    ma60_dist = (last_close / ma60 - 1) * 100
-    trend_dir = "multi" if last_close > ma60 else "bear"
-
-    rocs = [(twii_closes[i] / twii_closes[i - 60] - 1) * 100
-            for i in range(60, len(twii_closes))]
-    if len(rocs) < 20:
-        out["label"] = "ROC 序列 < 20d"
-        return out
-    last20_roc = rocs[-20:]
-    m_roc = sum(last20_roc) / 20
-    sd_roc = (sum((x - m_roc) ** 2 for x in last20_roc) / 20) ** 0.5
-    z_roc = (rocs[-1] - m_roc) / sd_roc if sd_roc > 0 else 0
-
-    nh_arr = [r["nh"] for r in radar_series]
-    chip_arr = [r["chip"] for r in radar_series]
-    if len(nh_arr) < 20 or len(chip_arr) < 20:
-        out["label"] = "radar 序列 < 20d"
-        return out
-    def _z(arr):
-        last20 = arr[-20:]
-        m = sum(last20) / 20
-        sd = (sum((x - m) ** 2 for x in last20) / 20) ** 0.5
-        return (arr[-1] - m) / sd if sd > 0 else 0
-    z_nh = _z(nh_arr)
-    z_chip = _z(chip_arr)
-
-    bear = z_roc + z_nh
-    bull = z_chip
-
-    # ── per-indicator 個別判斷(對應趨勢頁 5 個 chart 順序)─────────
-    indicators = [
-        _judge_index_trend(twii_closes, "大盤 ^TWII 趨勢"),
-        (_judge_index_trend(tpex_closes, "櫃買 ^TWOII 趨勢") if tpex_closes else
-         {"scope": "大盤", "name": "櫃買 ^TWOII 趨勢", "level": "unknown",
-          "label": "資料不足", "detail": "TPEX 缺資料"}),
-        _judge_nh(nh_arr[-1], z_nh),
-        _judge_chip(chip_arr[-1], z_chip),
-        _judge_ma60_dist(ma60_dist),
-    ]
-
-    # ── 綜合 state 決策(基於 bear / bull / trend_dir)─────────────
-    if bear >= 1.5:
-        state, level, label = "DANGER", "danger", "🔥 危險"
-        advice = ("V3.2 BEAR composite 高警報(in-sample AUC 0.949 for 60d/-15% drawdown)。"
-                  "建議:全力觀望、已部位減半、暫停所有新進場")
-    elif bear >= 0.5 and bull < 1.0:
-        state, level, label = "WARN", "warn", "⚠ 警戒"
-        advice = ("過熱跡象(BEAR composite 進入警戒區但動能 trigger 弱)。"
-                  "建議:新部位再三確認、留意 nh_count 是否進 Q5(≥12)")
-    elif bull >= 1.0 and bear < 0 and trend_dir == "multi":
-        state, level, label = "STRONG_BULL", "go", "🚀 全力做多"
-        advice = ("最佳進場時機:籌碼湧入(chip_count +1σ 以上)+ 大盤過 MA60 + 無過熱訊號。"
-                  "V3 backtest 個股 chip trigger 期望值 +2.62% / trade、大盤 chip≥+1.5σ +1.9% / trade")
-    elif bull >= 1.0:
-        state, level, label = "MILD_BULL", "warn-up", "📈 適度做多"
-        advice = ("進場 trigger 觸發但同時有過熱跡象。建議:減半倉位、嚴守 MA10 停損")
-    elif trend_dir == "bear":
-        state, level, label = "BEAR", "danger", "🛑 空頭"
-        advice = "大盤跌破 MA60 季線,動能交易暫停。等收復 MA60 再評估"
-    else:
-        state, level, label = "NEUTRAL", "neutral", "😐 觀望"
-        advice = "無強訊號,大盤趨勢中性。靜待 chip_count +1σ 進場機會 或 nh_count Q5 警示"
-
-    out.update({
-        "state":     state,
-        "level":     level,
-        "label":     label,
-        "advice":    advice,
-        "bear":      round(bear, 2),
-        "bull":      round(bull, 2),
-        "z_roc":     round(z_roc, 2),
-        "z_nh":      round(z_nh, 2),
-        "z_chip":    round(z_chip, 2),
-        "trend_dir": trend_dir,
-        "ma60_dist": round(ma60_dist, 2),
-        "indicators": indicators,
-    })
-    return out
-
-
-def build_trend_page(
-    twii_rows: list[dict],
-    tpex_rows: list[dict],
-    radar_series: list[dict],
-) -> str:
-    """📈 趨勢 menu HTML(V3.2 重構)— 主圖大盤/櫃買 K 線 + 風險 chip,
-    副圖 3 個動能指標(nh / chip / TWII 距 MA60 偏離%)。
-
-    payload 結構(window.IIA_TREND):
-      - index: {TWII, TPEX} OHLCV 1y
-      - radar: [{d, nh, chip, growth, vol, intersect, universe}, ...] 半年聚合
-      - risk_today: V3.2 composite signal + level
-    """
-    if not twii_rows or not radar_series:
-        return ('<p class="muted-note">趨勢資料載入失敗(Q21 或 Q26 缺資料,'
-                '檢查 ingest focus_radar_history daily writer 與 market_snapshots)</p>')
-
-    summary = _compute_trend_summary(twii_rows, tpex_rows, radar_series)
-    panel_class = {
-        "go":       "trend-sum-go",
-        "warn-up":  "trend-sum-warnup",
-        "neutral":  "trend-sum-neutral",
-        "warn":     "trend-sum-warn",
-        "danger":   "trend-sum-danger",
-        "unknown":  "trend-sum-unknown",
-    }.get(summary.get("level", "unknown"), "trend-sum-unknown")
-
-    payload = {
-        "index": {"TWII": twii_rows, "TPEX": tpex_rows},
-        "radar": radar_series,
-        "summary": summary,
-    }
-    payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-
-    # 各 indicator pill style class
-    ind_class = {
-        "go":       "ind-go",
-        "warn-up":  "ind-warnup",
-        "neutral":  "ind-neutral",
-        "warn":     "ind-warn",
-        "danger":   "ind-danger",
-        "unknown":  "ind-unknown",
-    }
-    indicators = summary.get("indicators") or []
-    ind_rows_html = []
-    for ind in indicators:
-        cls = ind_class.get(ind.get("level", "unknown"), "ind-unknown")
-        scope = ind.get("scope", "")
-        scope_class = "scope-market" if scope == "大盤" else "scope-stock"
-        ind_rows_html.append(
-            f'<div class="trend-ind-item">'
-            f'<span class="trend-ind-scope {scope_class}">{html_lib.escape(scope)}</span>'
-            f'<span class="trend-ind-name">{html_lib.escape(ind.get("name", "—"))}</span>'
-            f'<span class="trend-ind-state {cls}">{html_lib.escape(ind.get("label", "—"))}</span>'
-            f'<span class="trend-ind-detail">{html_lib.escape(ind.get("detail", ""))}</span>'
-            f'</div>'
-        )
-    ind_list_html = '<div class="trend-ind-list">' + ''.join(ind_rows_html) + '</div>' if ind_rows_html else ''
-
-    # 綜合判斷 panel(含 per-indicator list)
-    bear_str = f"{summary['bear']:+.2f}" if summary.get("bear") is not None else "—"
-    bull_str = f"{summary['bull']:+.2f}" if summary.get("bull") is not None else "—"
-    ma60_str = f"{summary['ma60_dist']:+.1f}%" if summary.get("ma60_dist") is not None else "—"
-    summary_panel = (
-        f'<div class="trend-summary {panel_class}">'
-
-        # 1. 各指標個別判斷(per-chart breakdown,大盤 / 個股 scope tag)
-        '<div class="trend-summary-section">'
-        '<div class="trend-summary-sec-head">各指標個別判斷 '
-        '<span class="muted">— 對應下方 5 個圖表,大盤 / 個股 scope 已標註</span></div>'
-        + ind_list_html +
-        '</div>'
-
-        # 2. 綜合 state + advice(最終決策)
-        '<div class="trend-summary-section trend-summary-final">'
-        '<div class="trend-summary-sec-head">綜合多空判斷</div>'
-        '<div class="trend-summary-head">'
-        f'<span class="trend-summary-state">{summary.get("label", "—")}</span>'
-        '<span class="trend-summary-rule">'
-        '基於上方所有指標 + V3.2 backtest 決策矩陣(bear / bull / trend_dir)'
-        '</span>'
-        '</div>'
-        f'<div class="trend-summary-advice">{summary.get("advice", "")}</div>'
-        '<div class="trend-summary-meta">'
-        f'<span><b>BEAR 風險</b> {bear_str} '
-        '<span class="muted">= z(TWII 60d ROC) + z(nh_count) ≥+1.5 危險</span></span>'
-        f'<span><b>BULL 動能</b> {bull_str} '
-        '<span class="muted">= z(chip_count) ≥+1.0 進場 trigger</span></span>'
-        f'<span><b>大盤距 MA60</b> {ma60_str} '
-        '<span class="muted">+8% 危險區 / -8% 超賣</span></span>'
-        '</div>'
-        '</div>'
-
-        '</div>'
-    )
-
-    # 各 chart「使用指南」chip 文案
-    twii_guide = ('<span class="trend-chart-guide guide-info">'
-                  '判讀:close > MA60 = 多頭(可進場池);close < MA60 = 動能交易暫停。'
-                  '個股 MA10 是停損線(本圖 MA10 同概念但對大盤指數)</span>')
-    tpex_guide = ('<span class="trend-chart-guide guide-info">'
-                  '判讀同上 — 中小型股動能比大盤更敏感,若櫃買先跌破 MA60 而大盤未跌,是領先警示</span>')
-    nh_guide   = ('<span class="trend-chart-guide guide-warn">'
-                  '🚨 Q5(≥12)= 過熱警示區,新高股過多 → 60d 內回檔機率 9% (AUC 0.838)。'
-                  '建議:暫停進場 / 已部位減半</span>')
-    chip_guide = ('<span class="trend-chart-guide guide-go">'
-                  '✅ +1σ 以上 = 個股動能進場 trigger 區。對應 V3 backtest expectancy '
-                  '+2.62% / trade(40% 勝率,跌破 MA10 停損)</span>')
-    ma60_guide = ('<span class="trend-chart-guide guide-warn">'
-                  '🚨 +8% 以上 = 大盤距季線過遠的危險區(AUC 0.897);-8% 以下 = 超賣可分批進場;'
-                  '0 上下 = 趨勢中性</span>')
-
-    return (
-        '<div class="trend-page">'
-
-        # 頁面頂部:綜合判斷 panel
-        + summary_panel +
-
-        # 主圖 1:大盤 ^TWII K 線
-        '<div class="trend-section">'
-        '<div class="trend-title">'
-        '<h3>大盤 ^TWII 日 K + MA</h3>'
-        '<span class="muted">含成交量、MA10/60/200</span>'
-        '</div>'
-        + twii_guide +
-        '<div class="trend-chart-wrap trend-chart-k" id="trend-chart-twii">'
-        '<div class="trend-loading muted-note">載入圖表中…</div>'
-        '</div>'
-        '</div>'
-
-        # 主圖 2:櫃買 ^TWOII K 線
-        '<div class="trend-section">'
-        '<div class="trend-title">'
-        '<h3>櫃買 ^TWOII 日 K + MA</h3>'
-        '<span class="muted">含成交量</span>'
-        '</div>'
-        + tpex_guide +
-        '<div class="trend-chart-wrap trend-chart-k" id="trend-chart-tpex">'
-        '<div class="trend-loading muted-note">載入圖表中…</div>'
-        '</div>'
-        '</div>'
-
-        # 副圖:三個動能指標
-        '<div class="trend-section">'
-        '<div class="trend-title">'
-        '<h3>動能 / 風險指標</h3>'
-        '<span class="muted">V3.2 backtest 驗證有 robust 訊號的 3 條指標</span>'
-        '</div>'
-
-        # subplot 1: nh_count(新高股,Q5≥12 警示)
-        '<div class="trend-mini-section">'
-        '<div class="trend-mini-title">'
-        '<b>新高股 nh_count</b> '
-        '<span class="muted">— Q5 ≥ 12 = 過熱警示(AUC 0.838 for BEAR 60d/-15%)</span>'
-        '</div>'
-        + nh_guide +
-        '<div class="trend-chart-wrap trend-chart-mini" id="trend-chart-nh">'
-        '<div class="trend-loading muted-note">載入中…</div>'
-        '</div>'
-        '</div>'
-
-        # subplot 2: chip_count(籌碼股,+1σ trigger)
-        '<div class="trend-mini-section">'
-        '<div class="trend-mini-title">'
-        '<b>籌碼股 chip_count</b> '
-        '<span class="muted">— 個股動能進場 trigger(V3 backtest expectancy +2.62%/trade,40% 勝率)</span>'
-        '</div>'
-        + chip_guide +
-        '<div class="trend-chart-wrap trend-chart-mini" id="trend-chart-chip">'
-        '<div class="trend-loading muted-note">載入中…</div>'
-        '</div>'
-        '</div>'
-
-        # subplot 3: TWII 距 MA60 偏離%
-        '<div class="trend-mini-section">'
-        '<div class="trend-mini-title">'
-        '<b>大盤距 MA60 偏離 (%)</b> '
-        '<span class="muted">— +8% 以上 = Q5 過熱危險區(AUC 0.897 for BEAR 60d/-15%)</span>'
-        '</div>'
-        + ma60_guide +
-        '<div class="trend-chart-wrap trend-chart-mini" id="trend-chart-ma60dist">'
-        '<div class="trend-loading muted-note">載入中…</div>'
-        '</div>'
-        '</div>'
-
-        '<p class="trend-note muted">'
-        '指標來自 V3.2 全空間 factor sweep(59 factor × 35 target):chip_count = 動能交易進場 '
-        'trigger;nh_count + TWII MA60 偏離 = 風控警示。詳細回測見 commit msg / ingest '
-        'focus_radar_history table。'
-        '</p>'
-        '</div>'
-
-        f'<script>window.IIA_TREND={payload_json};</script>'
-        '</div>'
-    )
 
 
 def _industry_section_html(
@@ -1362,6 +962,167 @@ def _industry_section_html(
 
 
 _WEEKDAY_TW = ["週一", "週二", "週三", "週四", "週五", "週六", "週日"]
+
+
+# ── 🛡️ 風控儀錶板組別 / 觸發訊號 / 燈號中文對照 ──────────────────────
+_RISK_GROUP = {
+    "G1": ("價量趨勢", "大盤 K 線結構 / 60 日漲速 / 已實現波動"),
+    "G2": ("籌碼槓桿", "台指 VIX / 融資餘額 / 三大法人台指期 / Put-Call"),
+    "G3": ("題材輪動", "熱門題材每日換手速度(churn)"),
+    "G4": ("高檔倒貨", "焦點股忽漲忽跌 / 大戶減碼 / 量價背離"),
+}
+_RISK_TRIG = {
+    "roc60": "60 日漲速過高", "intersect_hi": "焦點交集股偏高",
+    "put_call": "Put/Call 比偏高", "ma200_dev": "距年線乖離過大",
+    "ma60_slope": "季線轉折", "realized_vol": "已實現波動放大",
+    "vix": "VIX 升高", "vix_hi": "VIX 升高", "margin": "融資餘額過熱",
+    "margin_hi": "融資餘額過熱", "futures_oi": "法人台指期轉空",
+    "churn": "題材輪動加速", "churn_hi": "題材輪動加速",
+    "reversal": "熱門股反轉率高", "holder_dist": "大戶持股比週減",
+    "breadth_div": "量價/breadth 背離", "nh_count": "新高股萎縮",
+}
+_RISK_LEVEL = {
+    "safe": ("安全", "risk-safe", "☀"),
+    "warn": ("警戒", "risk-warn", "⚠"),
+    "danger": ("危險", "risk-danger", "🔥"),
+}
+
+
+def build_risk_page(snapshot: dict | None, history: list[dict]) -> str:
+    """🛡️ 風控儀錶板(取代舊趨勢頁)— 建議曝險部位 % + 4 組訊號拆解 + 回測誠實背書。
+    資料全來自 ingest 寫入的 risk_dashboard_snapshot / _history(Q36/Q37),stockgg
+    端不重算。誠實定位:OOS 未打贏 buy&hold(僅 3 次崩跌樣本),明確標註為風險監控參考。"""
+    if not snapshot:
+        return ('<p class="muted-note">風控資料載入失敗(Q36 無資料,'
+                'ingest 風控 cron 可能尚未跑)。</p>')
+
+    pos = snapshot["position"]
+    score = snapshot["score"]
+    level = snapshot["level"]
+    lbl, lvl_cls, icon = _RISK_LEVEL.get(level, ("未知", "risk-unknown", "—"))
+    comp = snapshot["components"]
+    trig = snapshot["triggers"]
+    meta = snapshot["meta"]
+    oos = meta.get("oos", {})
+    caveat = meta.get("caveat", "")
+
+    def _pct(x):
+        return f"{x * 100:+.1f}%" if isinstance(x, (int, float)) else "—"
+
+    def _num(x, n=2):
+        return f"{x:.{n}f}" if isinstance(x, (int, float)) else "—"
+
+    H = []
+    # ── 頂部誠實 banner ──
+    H.append(
+        '<div class="risk-caveat">'
+        '<b>⚠ 這是「風險監控訊號」,不是穩賺策略。</b>'
+        '回測樣本內僅 3 次崩跌事件(統計上偏弱),樣本外(OOS)並未打敗買進持有。'
+        '請當作「目前該謹慎或可進取」的溫度計,而非進出場保證。'
+        + (f'<span class="risk-caveat-src">{caveat}</span>' if caveat else '')
+        + '</div>'
+    )
+
+    # ── 主儀錶:建議部位 + 燈號 ──
+    H.append(
+        f'<div class="risk-gauge risk-gauge-{lvl_cls}">'
+        f'<div class="risk-gauge-pos"><span class="risk-gauge-num">{pos}</span>'
+        f'<span class="risk-gauge-unit">%</span>'
+        f'<span class="risk-gauge-cap">建議曝險部位</span></div>'
+        f'<div class="risk-gauge-state">'
+        f'<span class="risk-state-badge {lvl_cls}">{icon} {lbl}</span>'
+        f'<span class="risk-gauge-score">風險分數 {_num(score)}</span>'
+        f'<span class="risk-gauge-date">資料日 {snapshot["d"]}</span>'
+        f'</div></div>'
+    )
+
+    # ── 4 組訊號貢獻長條 ──
+    rows = []
+    for g in ("G1", "G2", "G3", "G4"):
+        gi = comp.get(g) or {}
+        z = gi.get("z")
+        w = gi.get("w")
+        c = gi.get("contribution")
+        name, desc = _RISK_GROUP[g]
+        cval = c if isinstance(c, (int, float)) else 0.0
+        barw = min(abs(cval) / 3.0 * 100, 100)  # 對 |contribution|=3 normalize
+        bar_cls = "risk-bar-pos" if cval >= 0 else "risk-bar-neg"
+        if isinstance(w, (int, float)) and w > 0:
+            wtag = f'<span class="risk-grp-w">權重 {_num(w, 1)}</span>'
+        else:
+            wtag = '<span class="risk-grp-w risk-grp-off">回測未納入(權重 0)</span>'
+        rows.append(
+            f'<div class="risk-grp">'
+            f'<div class="risk-grp-head"><b>{name}</b>{wtag}'
+            f'<span class="risk-grp-z">z={_num(z)}</span></div>'
+            f'<div class="risk-grp-desc">{desc}</div>'
+            f'<div class="risk-bar-track"><div class="risk-bar {bar_cls}" '
+            f'style="width:{barw:.0f}%"></div></div>'
+            f'<div class="risk-grp-contrib">對風險分數貢獻 {_num(cval)}</div>'
+            f'</div>'
+        )
+    H.append(
+        '<div class="risk-grp-list"><h3 class="risk-sec-h">訊號拆解'
+        '<span class="risk-sec-sub">(回測選出的最佳權重組合,你重視的「題材輪動」'
+        'G3 被選為權重最高)</span></h3>' + "".join(rows) + '</div>'
+    )
+
+    # ── triggers 過熱燈列 ──
+    if trig:
+        tl = []
+        for t in trig:
+            nm = _RISK_TRIG.get(t.get("name"), t.get("name", "?"))
+            st = t.get("status", "warn")
+            gname = _RISK_GROUP.get(t.get("group"), ("", ""))[0]
+            tl.append(
+                f'<span class="risk-trig risk-trig-{st}">'
+                f'<b>{nm}</b><span class="risk-trig-meta">{gname} · {_num(t.get("value"))}</span>'
+                f'</span>'
+            )
+        H.append(
+            '<div class="risk-trig-box"><h3 class="risk-sec-h">⚡ 目前亮燈的過熱訊號</h3>'
+            '<div class="risk-trig-list">' + "".join(tl) + '</div></div>'
+        )
+    else:
+        H.append(
+            '<div class="risk-trig-box"><h3 class="risk-sec-h">⚡ 過熱訊號</h3>'
+            '<p class="muted-note">目前無單一訊號進入警戒區。</p></div>'
+        )
+
+    # ── 回測背書(誠實對照表)──
+    H.append(
+        '<div class="risk-bt"><h3 class="risk-sec-h">3 年樣本外(OOS)回測 — 誠實對照</h3>'
+        '<table class="risk-bt-tbl"><thead><tr><th>指標</th>'
+        '<th>依建議部位調倉</th><th>買進持有</th></tr></thead><tbody>'
+        f'<tr><td>總報酬</td><td>{_pct(oos.get("strat_return"))}</td>'
+        f'<td>{_pct(oos.get("bh_return"))}</td></tr>'
+        f'<tr><td>最大回撤(MDD)</td><td>{_pct(oos.get("strat_mdd"))}</td>'
+        f'<td>{_pct(oos.get("bh_mdd"))}</td></tr>'
+        f'<tr><td>Calmar(報酬/回撤)</td><td>{_num(oos.get("strat_calmar"))}</td>'
+        f'<td>{_num(oos.get("bh_calmar"))}</td></tr>'
+        f'<tr><td>Sharpe</td><td>{_num(oos.get("strat_sharpe"))}</td>'
+        f'<td>{_num(oos.get("bh_sharpe"))}</td></tr>'
+        '</tbody></table>'
+        f'<p class="risk-bt-note">崩跌預警 AUC <b>{_num(oos.get("auc"))}</b>'
+        f'(0.5 = 無預測力)、警報精確率 {_pct(oos.get("precision_at_theta"))}、'
+        f'OOS 樣本 {oos.get("oos_days", "—")} 日。'
+        '<b>策略小幅輸給買進持有</b> —— 它的價值在「壓低回撤、提醒高檔減碼」,'
+        '不在拉高報酬。</p></div>'
+    )
+
+    # ── 淨值雙線圖(app.js _initRiskChart lazy render)──
+    H.append(
+        '<div class="risk-chart-box"><h3 class="risk-sec-h">淨值走勢:依建議部位 vs 買進持有</h3>'
+        '<div id="risk-nav-chart" class="risk-chart"></div>'
+        '<div class="risk-chart-legend">'
+        '<span><i style="background:#60a5fa"></i>依建議部位調倉</span>'
+        '<span><i style="background:#9aa4ad"></i>買進持有</span></div></div>'
+    )
+
+    payload = json.dumps({"history": history}, ensure_ascii=False, separators=(",", ":"))
+    H.append(f'<script>window.IIA_RISK={payload};</script>')
+
+    return '<div class="risk-page">' + "".join(H) + '</div>'
 
 
 def build_catalyst_html(events: list[dict], stocks_info: dict | None = None) -> str:
@@ -3176,39 +2937,6 @@ async def generate():
     except Exception as exc:
         print(f"  ⚠ Q25 is_focus_seed history query failed: {exc}")
 
-    # Q26 — focus_radar_history 半年聚合(給 📈 趨勢 tab 副圖 + risk composite)
-    # ingest 2026-05-29 起寫入 focus_radar_history 3y backfill,Q26 撈 1095d
-    # 但 stockgg 只用最近 ~250 day(對齊大盤 K 線視野)。stockgg render 不重算
-    # 5 條件,完全讀 ingest 寫入的 breakdown。
-    radar_series: list[dict] = []
-    try:
-        _r26 = await conn.fetch(
-            "select rank_date, intersect_count, breakdown, universe_size "
-            "from focus_radar_history "
-            "where rank_date >= current_date - interval '1095 days' "
-            "order by rank_date"
-        )
-        for row in _r26:
-            _d = row["rank_date"]
-            d_str = _d.strftime("%Y-%m-%d") if hasattr(_d, "strftime") else str(_d)[:10]
-            bd = row["breakdown"] if isinstance(row["breakdown"], dict) else json.loads(row["breakdown"] or "{}")
-            radar_series.append({
-                "d": d_str,
-                "intersect": int(row["intersect_count"]),
-                "universe":  int(row["universe_size"]),
-                "vol":    int(bd.get("vol", 0)),
-                "nh":     int(bd.get("nh", 0)),
-                "growth": int(bd.get("growth", 0)),
-                "chip":   int(bd.get("chip", 0)),
-                "pot":    int(bd.get("pot", 0)),
-                "potA":   int(bd.get("potA", 0)),
-                "potB":   int(bd.get("potB", 0)),
-                "potC":   int(bd.get("potC", 0)),
-            })
-        print(f"  focus_radar_history (Q26): {len(radar_series)} day, "
-              f"latest intersect={radar_series[-1]['intersect'] if radar_series else 0}")
-    except Exception as exc:
-        print(f"  ⚠ Q26 focus_radar_history query failed: {exc}")
 
     # Q27 — focus_radar_history 最新 row,給選股雷達 sub-tab status block 用
     radar_today: dict | None = None
@@ -3614,6 +3342,58 @@ async def generate():
     except Exception as exc:
         print(f"  ⚠ Q21 market index history failed: {exc}")
 
+    # ── Q36 / Q37 風控儀錶板(🛡️ 風控 tab,取代舊趨勢頁;ingest b67fa04)────
+    # Q36 = snapshot 最新一筆(今日建議部位 + 4 組訊號 + 回測背書 meta);
+    # Q37 = history 近 ~3y(畫「依建議部位調倉淨值 vs 買進持有」雙線)。
+    # 誠實定位:OOS 未打贏 buy&hold(僅 3 次崩跌樣本),caveat 直接 render。
+    risk_snapshot: dict | None = None
+    risk_history: list[dict] = []
+
+    def _risk_obj(v):
+        return v if isinstance(v, (dict, list)) else (json.loads(v) if v else None)
+
+    def _risk_f(v):
+        return round(float(v), 4) if v is not None else None
+
+    try:
+        _r36 = await conn.fetchrow(
+            "select snapshot_date, risk_score, position_pct, level, components, "
+            "triggers, backtest_meta from risk_dashboard_snapshot "
+            "order by snapshot_date desc limit 1"
+        )
+        if _r36:
+            _sd = _r36["snapshot_date"]
+            _sd = _sd.strftime("%Y-%m-%d") if hasattr(_sd, "strftime") else str(_sd)[:10]
+            risk_snapshot = {
+                "d": _sd,
+                "score": round(float(_r36["risk_score"]), 3),
+                "position": int(_r36["position_pct"]),
+                "level": _r36["level"],
+                "components": _risk_obj(_r36["components"]) or {},
+                "triggers": _risk_obj(_r36["triggers"]) or [],
+                "meta": _risk_obj(_r36["backtest_meta"]) or {},
+            }
+        _r37 = await conn.fetch(
+            "select snapshot_date, risk_score, position_pct, twii_close, tpex_close, "
+            "label_realized, strat_nav, bh_nav from risk_dashboard_history "
+            "where snapshot_date >= (current_date - $1::int) order by snapshot_date asc",
+            1100,
+        )
+        for r in _r37:
+            _d = r["snapshot_date"]
+            _d = _d.strftime("%Y-%m-%d") if hasattr(_d, "strftime") else str(_d)[:10]
+            risk_history.append({
+                "d": _d,
+                "strat": _risk_f(r["strat_nav"]),
+                "bh": _risk_f(r["bh_nav"]),
+                "pos": int(r["position_pct"]) if r["position_pct"] is not None else None,
+            })
+        print(f"  risk_dashboard (Q36/Q37): snapshot={'yes' if risk_snapshot else 'no'}, "
+              f"history={len(risk_history)} day, today_pos="
+              f"{risk_snapshot['position'] if risk_snapshot else 'n/a'}")
+    except Exception as exc:
+        print(f"  ⚠ Q36/Q37 risk_dashboard query failed: {exc}")
+
     # 「市場行情」ranking table 只顯前 N (RANKINGS_TOP_N=50),過濾 Q14 special
     # 與 Q15 focus_member 的 rank=NULL row(它們是 cluster detection universe,
     # 不該出現在 ranking 表)。cluster detection / stocks_info path 仍走完整
@@ -3631,23 +3411,9 @@ async def generate():
         focus_sorted_dates=focus_sorted_dates,
     )
 
-    # ── 📈 趨勢 tab(V3.2 重構)─────────────────────────────────────────
-    # 主圖:^TWII / ^TWOII K + MA10/60/200 + 右上 risk chip
-    # 副圖 1:nh_count(新高股,Q5 ≥ 12 警示)
-    # 副圖 2:chip_count(籌碼股,+1σ 進場 trigger)
-    # 副圖 3:大盤距 MA60 偏離 % (+8% 危險區)
-    # risk composite = z(TWII_60d_ROC, 20d 窗口) + z(nh_count, 20d 窗口)
-    #   composite ≥ +1.5 → 🔥 危險;0~+1.5 → ⚠ 警戒;< 0 → ☀ 安全
-    # (V3.2 backtest AUC 0.949,2024-06 yen carry trade 大跌前夕命中)
-    twii_index_for_trend = (market_index_payload.get("TWII") if market_index_payload else []) or []
-    tpex_index_for_trend = (market_index_payload.get("TPEX") if market_index_payload else []) or []
-    trend_html = build_trend_page(
-        twii_rows=twii_index_for_trend,
-        tpex_rows=tpex_index_for_trend,
-        radar_series=radar_series,
-    )
     notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)
     catalyst_html = build_catalyst_html(catalyst_events, stocks_info)
+    risk_html   = build_risk_page(risk_snapshot, risk_history)
 
     # ── 主動式 ETF(2026-05-20 對應 ingest f5faa21)──
     # Q18 拿全 23 檔 ETF master(按 AUM desc);Q19 對每 ETF 抓 latest holdings + diff;
@@ -3808,13 +3574,11 @@ async def generate():
         "WHERE ticker = ANY($1::text[]) AND rank_date >= current_date - INTERVAL '14 days'",
         _hist_tickers) if _hist_tickers else None
     ts_reports  = await _max_ts("SELECT MAX(created_at) FROM analysis_reports")
-    ts_market   = await _max_ts("SELECT MAX(created_at) FROM market_snapshots")
     focus_stamp_html  = _stamp_badge(ts_rankings)
     # 選股雷達:rankings 與籌碼更新時間併同一行右上(籌碼不另佔一列)
     fstock_stamp_html = _stamp_badge_multi([("資料更新", ts_rankings), ("籌碼資料更新", ts_chip)])
     notes_stamp_html  = _stamp_badge(ts_reports)
     market_stamp_html = _stamp_badge(ts_reports)
-    trend_stamp_html  = _stamp_badge(ts_market)
 
     # ── 焦點股 tab(2026-05-20):出量股 / 潛力股,來源 = hl_sub focal union ──
     _today_str = tw_rank_date.strftime("%Y-%m-%d") if tw_rank_date else ""
@@ -3923,7 +3687,7 @@ async def generate():
     <button class="tab-btn"        data-tab="aetf"     onclick="showTab('aetf')">主動式 ETF</button>
     <button class="tab-btn"        data-tab="notes"    onclick="showTab('notes')">市場話題</button>
     <button class="tab-btn"        data-tab="market"   onclick="showTab('market')">國際金融</button>
-    <button class="tab-btn"        data-tab="trend"    onclick="showTab('trend')">📈 趨勢</button>
+    <button class="tab-btn"        data-tab="risk"     onclick="showTab('risk')">🛡️ 風控</button>
   </nav>
   <div class="search-box">
     <input type="search" id="site-search" placeholder="搜尋 ticker / 公司"
@@ -3994,11 +3758,11 @@ async def generate():
     {notes_html}
   </div>
 
-  <!-- Tab: 📈 趨勢(V3.2 動能 / 風險指標板,2026-05-29 移到 menu 最後) -->
-  <div id="tab-trend" class="tab-pane">
-    {trend_stamp_html}
-    {trend_html}
+  <!-- Tab: 🛡️ 風控儀錶板(取代舊趨勢頁,2026-06-06;資料 = ingest Q36/Q37) -->
+  <div id="tab-risk" class="tab-pane">
+    {risk_html}
   </div>
+
 </div>
 
 <!-- Article modal (個股 modal,加大 + 左右導覽 + counter 比照 tc-modal,2026-05-25) -->

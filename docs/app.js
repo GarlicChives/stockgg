@@ -24,10 +24,38 @@ function showTab(name) {
     b.classList.toggle('active', b.dataset.tab === name));
   document.querySelectorAll('.tab-pane').forEach(p =>
     p.classList.toggle('active', p.id === 'tab-' + name));
-  // 📈 趨勢 tab:lazy-init lightweight-charts(只第一次切過去 init)
-  if (name === 'trend' && !window._trendRendered) {
-    _initTrendCharts();
-  }
+  // 🛡️ 風控 tab:lazy-init 淨值雙線圖(只第一次切過去 init)
+  if (name === 'risk' && !_riskRendered) _initRiskChart();
+}
+
+/* ── 🛡️ 風控 tab — lazy-init「依建議部位 vs 買進持有」淨值雙線圖 ──────
+ * payload window.IIA_RISK = { history: [{d, strat, bh, pos}, ...] }
+ * 資料由 ingest 風控回測寫入,stockgg 只畫圖。strat 多數時候貼著或略低於
+ * bh(誠實:OOS 未打贏買進持有,價值在壓低回撤)。 */
+let _riskRendered = false;
+
+function _initRiskChart() {
+  const data = window.IIA_RISK;
+  if (!data || !data.history || !data.history.length) return;
+  _loadLightweightCharts().then(() => {
+    const el = document.getElementById('risk-nav-chart');
+    if (!el) return;
+    const chart = LightweightCharts.createChart(el, {
+      layout: { background: { type: 'solid', color: 'transparent' },
+                textColor: '#7c8290', attributionLogo: false },
+      grid: { vertLines: { color: 'rgba(255,255,255,.04)' },
+              horzLines: { color: 'rgba(255,255,255,.04)' } },
+      rightPriceScale: { borderColor: 'rgba(255,255,255,.08)' },
+      timeScale: { borderColor: 'rgba(255,255,255,.08)', timeVisible: false },
+      crosshair: { mode: 1 }, autoSize: true,
+    });
+    const stratSeries = chart.addLineSeries({ color: '#60a5fa', lineWidth: 2, priceLineVisible: false });
+    const bhSeries = chart.addLineSeries({ color: '#9aa4ad', lineWidth: 2, priceLineVisible: false });
+    stratSeries.setData(data.history.filter(r => r.strat != null).map(r => ({ time: r.d, value: r.strat })));
+    bhSeries.setData(data.history.filter(r => r.bh != null).map(r => ({ time: r.d, value: r.bh })));
+    chart.timeScale().fitContent();
+    _riskRendered = true;
+  }).catch(e => console.error('risk chart load failed', e));
 }
 
 function showSubTab(name) {
@@ -1805,305 +1833,3 @@ function toggleSentinelInline(btn) {
 
 /* downloadRankCSV 隨焦點排行 tab 2026-05-19 移除 */
 
-/* ── 📈 趨勢 tab — lazy init 兩張 chart(showTab('trend') 第一次觸發)──── */
-/* ── 📈 趨勢 tab V3.2 重構(2026-05-29)──────────────────────────────────
- * 5 個 chart pane:
- *   1. trend-chart-twii    — 大盤 ^TWII K + MA10/60/200 + volume
- *   2. trend-chart-tpex    — 櫃買 ^TWOII K + MA10/60/200 + volume
- *   3. trend-chart-nh      — nh_count line + Q5(≥12)警示帶
- *   4. trend-chart-chip    — chip_count line + +1σ 進場 trigger 線
- *   5. trend-chart-ma60dist — 大盤 close / MA60 偏離 % + +8% 紅線
- * payload (window.IIA_TREND):
- *   index: {TWII, TPEX} OHLCV 1y+
- *   radar: [{d, nh, chip, growth, vol, intersect, universe}, ...] 半年聚合
- *   risk_today: V3.2 composite signal + level(顯示在 chip,JS 端不用算)
- */
-let _trendCharts = null;
-
-function _initTrendCharts() {
-  const data = window.IIA_TREND;
-  if (!data || !data.index || !data.index.TWII || !data.index.TWII.length) return;
-  _loadLightweightCharts().then(() => _renderTrendCharts(data))
-    .catch(err => {
-      console.error('lightweight-charts load failed:', err);
-      ['twii', 'tpex', 'nh', 'chip', 'ma60dist'].forEach(id => {
-        const el = document.getElementById(`trend-chart-${id}`);
-        if (el) el.innerHTML = '<p class="muted-note">圖表載入失敗</p>';
-      });
-    });
-}
-
-function _computeMA(rows, n, key = 'close') {
-  // 回 [{time, value}],前 n-1 個 None。rows 須按時間 asc 排序。
-  const out = [];
-  for (let i = 0; i < rows.length; i++) {
-    if (i + 1 < n) continue;
-    let sum = 0, count = 0;
-    for (let j = i - n + 1; j <= i; j++) {
-      if (rows[j][key] != null) { sum += rows[j][key]; count++; }
-    }
-    if (count === n) out.push({ time: rows[i].d, value: sum / n });
-  }
-  return out;
-}
-
-function _renderTrendCharts(data) {
-  const ids = ['twii', 'tpex', 'nh', 'chip', 'ma60dist'];
-  const els = {};
-  for (const id of ids) {
-    els[id] = document.getElementById(`trend-chart-${id}`);
-    if (!els[id]) return;
-    els[id].innerHTML = '';
-  }
-
-  const css = getComputedStyle(document.documentElement);
-  const textC = css.getPropertyValue('--text').trim() || '#e6e6e6';
-  const gridC = 'rgba(255,255,255,0.06)';
-  const baseOpts = {
-    layout: {
-      background: { type: 'solid', color: 'transparent' },
-      textColor: textC,
-      attributionLogo: false,   // 移除右下角 TradingView icon
-    },
-    grid: { vertLines: { color: gridC }, horzLines: { color: gridC } },
-    // 5 chart 對齊核心:
-    //   leftPriceScale 顯式關掉(默認 invisible 仍占內部 layout 計算寬度)
-    //   rightPriceScale minimumWidth 96(顯著大於 K 線「228.79」與 mini chart
-    //     「150 檔」/「+19.6%」實際內容,確保所有 chart axis 同寬,plot area
-    //     左緣對齊 → crosshair 同 time 落在同 X pixel)
-    leftPriceScale:  { visible: false },
-    rightPriceScale: { borderColor: gridC, minimumWidth: 96 },
-    timeScale: { borderColor: gridC, timeVisible: false, secondsVisible: false },
-    crosshair: { mode: 1 },
-    autoSize: true,
-    handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: true },
-    handleScale: { mouseWheel: false, axisPressedMouseMove: true, pinch: true },
-  };
-
-  const _RED = '#ef4444';
-  const _GREEN = '#10b981';
-
-  // 日 K + MA10/60/200 + volume overlay。lastValueVisible 全關避 badge 擋 Y 軸
-  function _kvolMA(el, rows) {
-    if (!rows || !rows.length) {
-      el.innerHTML = '<p class="muted-note">無資料</p>';
-      return null;
-    }
-    const opts = JSON.parse(JSON.stringify(baseOpts));
-    opts.rightPriceScale.scaleMargins = { top: 0.08, bottom: 0.28 };
-    const ch = LightweightCharts.createChart(el, opts);
-
-    const candle = ch.addCandlestickSeries({
-      upColor: _RED, downColor: _GREEN,
-      borderUpColor: _RED, borderDownColor: _GREEN,
-      wickUpColor: _RED, wickDownColor: _GREEN,
-      lastValueVisible: false, priceLineVisible: false,
-    });
-    const candleRows = rows.filter(p =>
-      p.open != null && p.high != null && p.low != null && p.close != null
-    ).map(p => ({ time: p.d, open: p.open, high: p.high, low: p.low, close: p.close }));
-    candle.setData(candleRows);
-
-    const ma10Data = _computeMA(rows, 10);
-    const ma60Data = _computeMA(rows, 60);
-    const ma200Data = _computeMA(rows, 200);
-    const ma10 = ch.addLineSeries({
-      color: '#fbbf24', lineWidth: 1, lineStyle: 0,
-      priceLineVisible: false, lastValueVisible: false,
-      title: 'MA10',
-    });
-    ma10.setData(ma10Data);
-    const ma60 = ch.addLineSeries({
-      color: '#60a5fa', lineWidth: 1, lineStyle: 0,
-      priceLineVisible: false, lastValueVisible: false,
-      title: 'MA60',
-    });
-    ma60.setData(ma60Data);
-    const ma200 = ch.addLineSeries({
-      color: '#a78bfa', lineWidth: 1, lineStyle: 2,
-      priceLineVisible: false, lastValueVisible: false,
-      title: 'MA200',
-    });
-    ma200.setData(ma200Data);
-
-    const vol = ch.addHistogramSeries({
-      priceFormat: { type: 'volume' },
-      priceScaleId: '',
-      lastValueVisible: false, priceLineVisible: false,
-    });
-    ch.priceScale('').applyOptions({ scaleMargins: { top: 0.78, bottom: 0 } });
-    const volRows = rows.filter(p => p.volume != null).map(p => {
-      let color = 'rgba(124,138,242,0.45)';
-      if (p.open != null && p.close != null) {
-        color = p.close >= p.open ? 'rgba(239,68,68,0.45)' : 'rgba(16,185,129,0.45)';
-      }
-      return { time: p.d, value: p.volume, color };
-    });
-    vol.setData(volRows);
-
-    ch.timeScale().fitContent();
-    return { chart: ch, candle, ma10, ma60, ma200, vol };
-  }
-
-  // mini chart:單一 line + 可選 reference line。lastValueVisible 關掉(badge 擋 Y 軸)
-  function _miniLine(el, rows, opts) {
-    if (!rows || !rows.length) {
-      el.innerHTML = '<p class="muted-note">無資料</p>';
-      return null;
-    }
-    const chartOpts = JSON.parse(JSON.stringify(baseOpts));
-    chartOpts.rightPriceScale.scaleMargins = { top: 0.1, bottom: 0.1 };
-    const ch = LightweightCharts.createChart(el, chartOpts);
-    const line = ch.addLineSeries({
-      color: opts.color || '#60a5fa',
-      lineWidth: 2,
-      priceLineVisible: false,
-      lastValueVisible: false,
-      priceFormat: { type: 'custom', formatter: opts.formatter || (v => v.toFixed(2)) },
-    });
-    line.setData(rows);
-    // reference lines:axisLabelVisible 關掉(label 比 axis tick 寬會擋到
-    // Y 軸數字 + 撐 priceScale 寬度導致跟其他 chart crosshair 不對齊)。
-    // 閾值文字改用 chart wrapper 上方既有的 .trend-chart-guide chip 說明。
-    if (opts.refLines) {
-      for (const ref of opts.refLines) {
-        line.createPriceLine({
-          price: ref.value,
-          color: ref.color,
-          lineWidth: 1,
-          lineStyle: ref.dashed ? 2 : 0,
-          axisLabelVisible: false,
-        });
-      }
-    }
-    ch.timeScale().fitContent();
-    return { chart: ch, series: line };
-  }
-
-  // ── chart 1: ^TWII K + MA + volume ─────────────────────────────
-  const twii = _kvolMA(els.twii, data.index.TWII || []);
-  // ── chart 2: ^TWOII K + MA + volume ────────────────────────────
-  const tpex = _kvolMA(els.tpex, data.index.TPEX || []);
-
-  // ── chart 3: nh_count + Q5(>=12)警示線 ───────────────────────
-  const nhRows = (data.radar || []).map(p => ({ time: p.d, value: p.nh }));
-  const nhChart = _miniLine(els.nh, nhRows, {
-    color: '#ef4444',
-    formatter: v => v.toFixed(0) + ' 檔',
-    refLines: [
-      { value: 12, color: 'rgba(239,68,68,0.55)', title: '+12(Q5 警示)', dashed: false },
-    ],
-  });
-
-  // ── chart 4: chip_count + 動態 +1σ trigger 線 ─────────────────
-  // 計算 chip_count 全期間 mean+std,取整體均值±1σ 當 reference
-  const chipVals = (data.radar || []).map(p => p.chip).filter(v => v != null);
-  let chipMean = 0, chipSD = 0;
-  if (chipVals.length) {
-    chipMean = chipVals.reduce((a, b) => a + b, 0) / chipVals.length;
-    chipSD = Math.sqrt(chipVals.reduce((a, b) => a + (b - chipMean) ** 2, 0) / chipVals.length);
-  }
-  const chipTrigger = chipMean + chipSD;
-  const chipRows = (data.radar || []).map(p => ({ time: p.d, value: p.chip }));
-  const chipChart = _miniLine(els.chip, chipRows, {
-    color: '#10b981',
-    formatter: v => v.toFixed(0) + ' 檔',
-    refLines: [
-      { value: chipTrigger, color: 'rgba(16,185,129,0.55)',
-        title: `+1σ trigger(≈${chipTrigger.toFixed(1)})`, dashed: false },
-    ],
-  });
-
-  // ── chart 5: TWII close / MA60 偏離 (%) + +8% 紅線 ─────────────
-  const twiiClose = (data.index.TWII || []).map(p => ({ d: p.d, close: p.close }));
-  const ma60Series = _computeMA(twiiClose, 60);
-  const ma60ByDate = new Map(ma60Series.map(p => [p.time, p.value]));
-  const ma60DistRows = twiiClose
-    .filter(p => p.close != null && ma60ByDate.has(p.d))
-    .map(p => ({
-      time: p.d,
-      value: (p.close / ma60ByDate.get(p.d) - 1) * 100,
-    }));
-  const ma60Chart = _miniLine(els.ma60dist, ma60DistRows, {
-    color: '#fbbf24',
-    formatter: v => v.toFixed(1) + '%',
-    refLines: [
-      { value: 8, color: 'rgba(239,68,68,0.55)', title: '+8%(Q5 危險)', dashed: false },
-      { value: 0, color: 'rgba(255,255,255,0.25)', title: '0', dashed: true },
-      { value: -8, color: 'rgba(16,185,129,0.55)', title: '-8%(超賣)', dashed: false },
-    ],
-  });
-
-  // ── timeScale sync(5 個 chart 全 sync)─────────────────────────
-  const allCharts = [twii, tpex, nhChart, chipChart, ma60Chart].filter(x => x).map(x => x.chart);
-  let _syncBusy = false;
-  const syncRange = (src, dsts) => {
-    src.timeScale().subscribeVisibleTimeRangeChange(r => {
-      if (_syncBusy || !r) return;
-      _syncBusy = true;
-      dsts.forEach(d => { try { d.timeScale().setVisibleRange(r); } catch (e) {} });
-      _syncBusy = false;
-    });
-  };
-  for (const c of allCharts) {
-    const others = allCharts.filter(x => x !== c);
-    syncRange(c, others);
-  }
-
-  // ── crosshair 對齊:5 chart 的 right priceScale 寬度依內容自動撐(K 線
-  // "10000.00" 比 mini chart "12 檔" 寬幾 px → plot area 起點錯位 → 垂直虛線
-  // 同 time 落在不同 X pixel)。修法:render 完 measure 各邊實際寬度,取
-  // max 套 minimumWidth(只會多撐不會 truncate)。requestAnimationFrame 確保
-  // DOM layout 完成才 measure。cluster modal _tcCharts 也用同樣技巧。
-  // 對齊 priceScale 寬度 — RAF triple + 套完後第二輪 measure 確認落定。
-  // measure 第一輪可能拿到 still-rendering width(autoSize 仍在 settle),三層
-  // RAF 後 stable。也補加 ResizeObserver 在 viewport resize 時重 apply。
-  function alignPriceScales() {
-    try {
-      const widths = allCharts.map(c => c.priceScale('right').width()).filter(w => w > 0);
-      if (!widths.length) return;
-      const maxW = Math.max(...widths, 96);
-      for (const c of allCharts) {
-        c.priceScale('right').applyOptions({ minimumWidth: maxW });
-      }
-    } catch (e) { console.warn('trend priceScale align failed', e); }
-  }
-  requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => {
-    alignPriceScales();
-    // 再 measure 一次確認套完真的對齊
-    requestAnimationFrame(alignPriceScales);
-  })));
-  // viewport resize 觸發重 align(chart 內 axis 寬度可能因 font scaling 變化)
-  if (window.ResizeObserver && allCharts.length) {
-    const ro = new ResizeObserver(() => {
-      requestAnimationFrame(alignPriceScales);
-    });
-    // 觀察任一 chart container,trigger 一次重算就好(各 chart 寬同步)
-    const firstEl = document.getElementById('trend-chart-twii');
-    if (firstEl) ro.observe(firstEl);
-  }
-
-  // crosshair sync(anchor series 用各 chart 的第一條)
-  const anchors = [
-    twii && twii.candle, tpex && tpex.candle,
-    nhChart && nhChart.series, chipChart && chipChart.series, ma60Chart && ma60Chart.series,
-  ];
-  for (let i = 0; i < allCharts.length; i++) {
-    const src = allCharts[i];
-    src.subscribeCrosshairMove(p => {
-      for (let j = 0; j < allCharts.length; j++) {
-        if (i === j) continue;
-        if (!p || !p.time) {
-          try { allCharts[j].clearCrosshairPosition(); } catch (e) {}
-        } else {
-          try { allCharts[j].setCrosshairPosition(0, p.time, anchors[j]); } catch (e) {}
-        }
-      }
-    });
-  }
-
-  _trendCharts = { twii: twii && twii.chart, tpex: tpex && tpex.chart,
-                    nh: nhChart && nhChart.chart, chip: chipChart && chipChart.chart,
-                    ma60dist: ma60Chart && ma60Chart.chart };
-  window._trendRendered = true;
-}

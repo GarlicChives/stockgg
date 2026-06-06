@@ -197,6 +197,13 @@ const ALLOWED: Set<string> = new Set([
   // 主動式 ETF 近 35 天多日持股 → stockgg 端 diff 逐日加減碼金額趨勢(retention
   // 目前 14 天,延長後才會累積到一個月;見跨 repo prompt)。
   "select etf_code, holding_date, ticker, lots, market_value_ntd from active_etf_holdings where etf_code = any($1::text[]) and holding_date >= current_date - interval '35 days' order by etf_code, ticker, holding_date",
+
+  // Q36 / Q37 — 風控儀錶板(🛡️ 風控 tab,取代舊趨勢頁;ingest b67fa04 起每日
+  // 21:50 cron 寫入)。Q36 = snapshot 最新一筆(今日建議部位 + 4 組訊號 + 回測背書);
+  // Q37 = history 近 N 天(畫「依建議部位調倉 vs 買進持有」雙線)。誠實定位:OOS
+  // 未打贏 buy&hold(僅 3 次崩跌樣本),頁面讀 backtest_meta.caveat 明示為風險監控參考。
+  "select snapshot_date, risk_score, position_pct, level, components, triggers, backtest_meta from risk_dashboard_snapshot order by snapshot_date desc limit 1",
+  "select snapshot_date, risk_score, position_pct, twii_close, tpex_close, label_realized, strat_nav, bh_nav from risk_dashboard_history where snapshot_date >= (current_date - $1::int) order by snapshot_date asc",
 ])
 
 function normalize(q: string): string {

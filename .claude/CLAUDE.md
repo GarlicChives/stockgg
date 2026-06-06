@@ -31,7 +31,7 @@ Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
   - `detect_focus_clusters(seeds, focus_members)` — **v2**(hl_sub 用,2026-05-19,對齊 ingest `8f27ede`);seeds = is_focus_seed((rank≤120 OR 近漲停 chg≥9.5%) AND chg>4.45%, Q16),focus_members = is_focus_member rows(Q15)。算法:同 sub 種子數 ≥ `FOCUS_MIN_SEEDS`(2) 才算熱門題材,題材成員 today 有交易者 chg > `FOCUS_SENTINEL_THRESHOLD`(-3) 入 `focal`、< 入 `sentinel`。**v1 廢**(2026-05-18 `bd85f1d` → 次日 `8f27ede` 撤,hot_seed / limit_hot_seed / volume_universe 機制完全移除)
 - `src/utils/db.py` — async DB client(用 `SUPABASE_ANON_KEY` + `db-proxy-public`)。**2026-05-27** `_call` 內建 5xx retry(500/502/503/504/522/524/546/548 + 連線層 timeout/network/protocol error → 0.5s/1.5s/3s backoff 共 3 次 retry,total ≤ 5s)。從此 caller 端不必再對 transient Edge 5xx 自己包 try/except,只要該 query 真的壞才會 raise 上來
 - `data/theme_dictionary.json` — statementdog 主產業 / 子產業階層字典(2026-05 改 schema:ticker-centric `stocks` 物件,純台股;由 ingest 端 `scrape_statementdog_industries.py` 產生再 sync 到本 repo)。**main='近一年焦點'** 是 ingest 端人工編彙的長線觀察題材(62 sub / 230 ticker;sub 名稱「前綴·後綴」可用 「·」 split 群組),公開站「熱門題材」頁有獨立 sub-tab「🌟 焦點」,跟「📊 泛分類」(原 statementdog 47 main) 並陳
-- `supabase/functions/db-proxy-public/index.ts` — Edge Function 含 SQL allowlist(目前 **32 條**):
+- `supabase/functions/db-proxy-public/index.ts` — Edge Function 含 SQL allowlist(目前 **34 條**):
   - Q1-Q8 日報基本資料、**Q9 v2** catalyst_events ±14/21d + `visible = TRUE` filter(ingest `4d5e7cc` 起;遠期 events visible=false 不出,daily cron 隨日期 flip true)、Q10 market_notes
   - **Q3 / Q4** rank_date 必帶 `AND rank IS NOT NULL` — `trading_rankings` 內除真實排名列(rank 1..N)還有 rank=NULL 雜列(special / focus_member / market_notes_ref),後者 rank_date 可能領先真實排名日。盲取 `MAX(rank_date)` 會選到幽靈日期 → 公開站整頁空。加 filter 確保永遠回退「已完整抓到 top-N 的最新交易日」(公開站鐵則:永遠不空、永遠呈現最新完整交易日)
   - Q11 theme_history 180→**400 days** retention
@@ -72,7 +72,7 @@ Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
 ## 前端架構速覽
 
 - **單頁 SPA + main tab + sub tab**:
-  - main tab(top nav):熱門題材(首頁)/ 選股雷達(原「焦點股」)/ 主動式 ETF / 市場話題 / 國際金融
+  - main tab(top nav):熱門題材(首頁)/ 選股雷達(原「焦點股」)/ 主動式 ETF / 市場話題 / 國際金融 / 🛡️ 風控
   - 熱門題材內 sub-tab:🌟 焦點(`hl_sub` level,展示 main='近一年焦點' cluster + 前哨 section)/ 📊 泛分類(`pan_sub` level,原 statementdog 47 main)
   - 兩 sub-tab 共用 cluster card 排行版型,各自獨立 sort state(`_clusterSort[level]`)
 - **inline payload**(HTML script tag 內):
