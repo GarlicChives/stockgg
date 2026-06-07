@@ -1039,25 +1039,40 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .risk-grp:first-of-type{border-top:none}
 .risk-grp-head{display:flex;align-items:baseline;gap:.55rem;flex-wrap:wrap}
 .risk-grp-head b{font-size:.86rem;font-weight:700;color:var(--text)}
-.risk-grp-w{font-size:.68rem;font-weight:600;color:#93c5fd;background:rgba(96,165,250,.14);
-            padding:.08rem .4rem;border-radius:4px}
-.risk-grp-w.risk-grp-off{color:var(--muted);background:rgba(148,160,168,.1)}
-.risk-grp-z{font-size:.7rem;color:var(--muted);margin-left:auto}
-.risk-grp-desc{font-size:.72rem;color:var(--muted);margin:.2rem 0 .35rem}
+.risk-grp-state{font-size:.7rem;font-weight:600;margin-left:auto;padding:.1rem .45rem;border-radius:4px}
+.risk-st-hot{color:#fca5a5;background:rgba(239,68,68,.16)}
+.risk-st-cold{color:#6ee7b7;background:rgba(16,185,129,.16)}
+.risk-st-neutral{color:var(--muted);background:rgba(148,160,168,.12)}
+.risk-grp-desc{font-size:.72rem;color:var(--muted);margin:.2rem 0 .4rem}
 .risk-bar-track{height:9px;background:rgba(255,255,255,.05);border-radius:5px;overflow:hidden}
 .risk-bar{height:100%;border-radius:5px;transition:width .4s ease}
 .risk-bar-pos{background:linear-gradient(90deg,rgba(239,68,68,.5),#ef4444)}
 .risk-bar-neg{background:linear-gradient(90deg,rgba(16,185,129,.5),#10b981)}
-.risk-grp-contrib{font-size:.68rem;color:var(--muted);margin-top:.25rem;text-align:right}
+.risk-bar-mid{background:linear-gradient(90deg,rgba(148,160,168,.4),rgba(148,160,168,.7))}
+.risk-grp-foot{font-size:.72rem;line-height:1.6;color:var(--muted);margin:.7rem 0 0;
+               padding-top:.55rem;border-top:1px solid rgba(255,255,255,.06)}
 
-/* 過熱燈 */
-.risk-trig-list{display:flex;flex-wrap:wrap;gap:.45rem}
-.risk-trig{display:inline-flex;flex-direction:column;gap:.1rem;padding:.35rem .6rem;
-           border-radius:7px;font-size:.76rem}
-.risk-trig b{font-weight:700}
-.risk-trig-meta{font-size:.64rem;opacity:.8}
-.risk-trig-warn{background:rgba(245,158,11,.16);color:#fbbf24}
-.risk-trig-danger{background:rgba(239,68,68,.2);color:#fca5a5}
+/* 過熱訊號 — 卡片式:標題+程度 / 白話含意 / 刻度條(含警戒線) / 基準說明 */
+.risk-trig-list{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+.risk-trig{padding:.6rem .7rem;border-radius:9px;border:1px solid transparent}
+.risk-trig-warn{background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.25)}
+.risk-trig-danger{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.3)}
+.risk-trig-top{display:flex;align-items:baseline;justify-content:space-between;gap:.5rem}
+.risk-trig-top b{font-size:.82rem;font-weight:700;color:var(--text)}
+.risk-trig-deg{font-size:.68rem;font-weight:700;white-space:nowrap}
+.risk-trig-warn .risk-trig-deg{color:#fbbf24}
+.risk-trig-danger .risk-trig-deg{color:#fca5a5}
+.risk-trig-mean{font-size:.7rem;line-height:1.5;color:var(--muted);margin:.25rem 0 .5rem}
+.risk-trig-scale{position:relative;height:7px;background:rgba(255,255,255,.06);
+                 border-radius:4px;margin-bottom:.35rem}
+.risk-trig-fill{position:absolute;left:0;top:0;height:100%;border-radius:4px;
+                background:linear-gradient(90deg,rgba(245,158,11,.6),#f59e0b)}
+.risk-trig-danger .risk-trig-fill{background:linear-gradient(90deg,rgba(239,68,68,.6),#ef4444)}
+.risk-trig-gate{position:absolute;top:-2px;width:2px;height:11px;background:var(--muted);
+                opacity:.75;border-radius:1px}
+.risk-trig-foot{font-size:.62rem;line-height:1.45;color:var(--muted);opacity:.85}
+
+@media (max-width:600px){.risk-trig-list{grid-template-columns:1fr}}
 
 /* 回測對照表 */
 .risk-bt-tbl{width:100%;border-collapse:collapse;font-size:.8rem;margin-bottom:.5rem}
