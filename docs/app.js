@@ -26,6 +26,8 @@ function showTab(name) {
     p.classList.toggle('active', p.id === 'tab-' + name));
   // 🛡️ 風控 tab:lazy-init 淨值雙線圖(只第一次切過去 init)
   if (name === 'risk' && !_riskRendered) _initRiskChart();
+  // 🗺️ 產業地圖 tab:lazy-init 蜘蛛網關聯圖(只第一次切過去 init)
+  if (name === 'indmap' && !_indmapRendered) _initIndmapGraph();
 }
 
 /* ── 🛡️ 風控 tab — lazy-init「依建議部位 vs 買進持有」淨值雙線圖 ──────
@@ -58,15 +60,21 @@ function _initRiskChart() {
   }).catch(e => console.error('risk chart load failed', e));
 }
 
-/* ── 🗺️ 產業地圖 ────────────────────────────────────────────────
- * window.IIA_INDMAP_CROSS = { ticker: { n: 名稱, h: [{f: 焦點產業, s: 子產業}] } }
- * imShowCross(tk) → modal 列出該 ticker 出現的所有焦點(同股橫跨多焦點 = 投資聯想)。
- * imJump(id)      → 平滑捲動到該焦點 section(扣掉 sticky header 高度)。 */
+/* ── 🗺️ 產業地圖 — 焦點產業關聯「蜘蛛網」圖 ────────────────────────
+ * window.IIA_INDMAP_GRAPH = { nodes:[{i,name,kind,chg,cov,tv,n,mv:[{t,n,c}]}],
+ *                             edges:[[a,b,w]], hot: 門檻 }
+ * window.IIA_INDMAP_CROSS = { ticker: { n: 名稱, h: [{f,s}] } }
+ * 節點 = 焦點產業;邊 = 共享個股;發亮 = 今日成交值加權漲跌幅。手刻力導向布局
+ * (Fruchterman-Reingold)+ 原生 SVG,不引入外部圖庫。點節點 → imOpenFocus 展開階層。*/
+const SVGNS = 'http://www.w3.org/2000/svg';
+let _indmapRendered = false;
+
 function _imEsc(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+/* 跨產業關聯 modal:點個股 → 列出它出現的所有焦點 */
 function imShowCross(ticker) {
   const map = window.IIA_INDMAP_CROSS || {};
   const e = map[ticker];
@@ -94,13 +102,239 @@ function imShowCross(ticker) {
   document.getElementById('im-modal').showModal();
 }
 
-function imJump(id) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  const hdr = document.querySelector('header');
-  const off = (hdr ? hdr.offsetHeight : 0) + 12;
-  const y = el.getBoundingClientRect().top + window.scrollY - off;
-  window.scrollTo({ top: y, behavior: 'smooth' });
+/* 點節點 → 取隱藏 detail store 的該焦點階層 HTML,塞進放大版 im-modal */
+function imOpenFocus(i, name) {
+  const src = document.getElementById('imf-' + i);
+  const body = document.getElementById('im-modal-body');
+  const title = document.getElementById('im-modal-title');
+  if (!src || !body || !title) return;
+  title.innerHTML = '🗺️ ' + _imEsc(name || src.dataset.name || '焦點產業');
+  body.innerHTML = '<div class="im-modal-focus">' + src.innerHTML + '</div>';
+  document.getElementById('im-modal').showModal();
+}
+
+/* hex lerp */
+function _imMix(c1, c2, t) {
+  const a = parseInt(c1.slice(1), 16), b = parseInt(c2.slice(1), 16);
+  const ar = a >> 16, ag = (a >> 8) & 255, ab = a & 255;
+  const br = b >> 16, bg = (b >> 8) & 255, bb = b & 255;
+  const r = Math.round(ar + (br - ar) * t);
+  const g = Math.round(ag + (bg - ag) * t);
+  const bl = Math.round(ab + (bb - ab) * t);
+  return 'rgb(' + r + ',' + g + ',' + bl + ')';
+}
+
+/* 色溫:chg null → 空心灰;chg≥0 → 灰→紅(今日強);chg<0 → 灰→綠(今日弱) */
+function _imHeatColor(chg) {
+  if (chg == null) return { fill: '#252a35', stroke: '#4a5364', txt: '#8893a3', na: true, a: 0 };
+  const a = Math.min(Math.abs(chg) / 4, 1);
+  if (chg >= 0) return { fill: _imMix('#39414f', '#ff5252', a), stroke: _imMix('#5a6576', '#ff9a9a', a), txt: '#fff', na: false, a: a };
+  return { fill: _imMix('#39414f', '#23b277', a), stroke: _imMix('#5a6576', '#5fe0a8', a), txt: '#fff', na: false, a: a };
+}
+
+/* Fruchterman-Reingold 力導向布局 → 寫回 node.x / node.y(布局座標系 0..W,0..H) */
+function _imLayout(nodes, edges, W, H) {
+  const n = nodes.length;
+  if (!n) return;
+  const area = W * H, k = 0.82 * Math.sqrt(area / n);
+  // 環狀初始化(避免全疊在一點 → 退化)
+  nodes.forEach((nd, idx) => {
+    const ang = (idx / n) * Math.PI * 2;
+    nd.x = W / 2 + Math.cos(ang) * W * 0.32 + (Math.random() - 0.5) * 20;
+    nd.y = H / 2 + Math.sin(ang) * H * 0.32 + (Math.random() - 0.5) * 20;
+  });
+  const ITER = 260;
+  let t = W * 0.12;
+  const cool = t / (ITER + 1);
+  for (let it = 0; it < ITER; it++) {
+    const dx = new Float64Array(n), dy = new Float64Array(n);
+    // 斥力(全對)
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        let ex = nodes[i].x - nodes[j].x, ey = nodes[i].y - nodes[j].y;
+        let d = Math.hypot(ex, ey) || 0.01;
+        const f = (k * k) / d;
+        ex /= d; ey /= d;
+        dx[i] += ex * f; dy[i] += ey * f;
+        dx[j] -= ex * f; dy[j] -= ey * f;
+      }
+    }
+    // 引力(邊;共享愈多愈強 → 愈近)
+    for (const e of edges) {
+      const u = e[0], v = e[1], w = e[2];
+      let ex = nodes[u].x - nodes[v].x, ey = nodes[u].y - nodes[v].y;
+      let d = Math.hypot(ex, ey) || 0.01;
+      const f = (d * d) / k * (1 + 0.35 * Math.log(w + 1));
+      ex /= d; ey /= d;
+      dx[u] -= ex * f; dy[u] -= ey * f;
+      dx[v] += ex * f; dy[v] += ey * f;
+    }
+    // 向心(弱)+ 位移限速 + 邊界
+    for (let i = 0; i < n; i++) {
+      dx[i] += (W / 2 - nodes[i].x) * 0.012;
+      dy[i] += (H / 2 - nodes[i].y) * 0.012;
+      const dd = Math.hypot(dx[i], dy[i]) || 0.01;
+      nodes[i].x += (dx[i] / dd) * Math.min(dd, t);
+      nodes[i].y += (dy[i] / dd) * Math.min(dd, t);
+      nodes[i].x = Math.max(30, Math.min(W - 30, nodes[i].x));
+      nodes[i].y = Math.max(30, Math.min(H - 30, nodes[i].y));
+    }
+    t = Math.max(t - cool, W * 0.004);
+  }
+}
+
+function _initIndmapGraph() {
+  const g = window.IIA_INDMAP_GRAPH;
+  const host = document.getElementById('im-graph');
+  if (!host || !g || !g.nodes || !g.nodes.length) return;
+  _indmapRendered = true;
+  host.innerHTML = '';
+
+  const W = 1000, H = 680, nodes = g.nodes, edges = g.edges || [], hot = g.hot || 2.0;
+  _imLayout(nodes, edges, W, H);
+
+  // 節點半徑:成交熱度(tv 億)sqrt 縮放
+  nodes.forEach(nd => { nd.r = 10 + Math.min(24, Math.sqrt(Math.max(nd.tv, 0)) * 1.05); });
+
+  // 解重疊:力導向會把點推到邊界堆疊 → 幾輪依半徑把太近的點推開
+  for (let pass = 0; pass < 70; pass++) {
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i], b = nodes[j];
+        let dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 0.01;
+        const min = a.r + b.r + 12;
+        if (d < min) {
+          const push = (min - d) / 2; dx /= d; dy /= d;
+          a.x -= dx * push; a.y -= dy * push; b.x += dx * push; b.y += dy * push;
+        }
+      }
+    }
+    nodes.forEach(n => {
+      n.x = Math.max(n.r + 4, Math.min(W - n.r - 4, n.x));
+      n.y = Math.max(n.r + 4, Math.min(H - n.r - 4, n.y));
+    });
+  }
+
+  const svg = document.createElementNS(SVGNS, 'svg');
+  svg.setAttribute('class', 'im-svg');
+  const vb = { x: 0, y: 0, w: W, h: H };
+  const setVB = () => svg.setAttribute('viewBox', vb.x + ' ' + vb.y + ' ' + vb.w + ' ' + vb.h);
+  setVB();
+
+  // glow filter
+  const defs = document.createElementNS(SVGNS, 'defs');
+  defs.innerHTML = '<filter id="im-glow" x="-60%" y="-60%" width="220%" height="220%">' +
+    '<feGaussianBlur stdDeviation="5" result="b"/>' +
+    '<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
+  svg.appendChild(defs);
+
+  // edges
+  const gEdges = document.createElementNS(SVGNS, 'g');
+  for (const e of edges) {
+    const a = nodes[e[0]], b = nodes[e[1]], w = e[2];
+    const ln = document.createElementNS(SVGNS, 'line');
+    ln.setAttribute('x1', a.x); ln.setAttribute('y1', a.y);
+    ln.setAttribute('x2', b.x); ln.setAttribute('y2', b.y);
+    ln.setAttribute('class', 'im-edge');
+    ln.setAttribute('stroke-width', Math.min(0.6 + w * 0.35, 3));
+    ln.style.opacity = Math.min(0.08 + w * 0.07, 0.42);
+    gEdges.appendChild(ln);
+  }
+  svg.appendChild(gEdges);
+
+  // tooltip
+  let tip = document.getElementById('im-tooltip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'im-tooltip'; tip.className = 'im-tooltip'; tip.hidden = true;
+    host.appendChild(tip);
+  }
+  const showTip = (nd, evt) => {
+    const hc = _imHeatColor(nd.chg);
+    let s = '<div class="im-tip-name">' + _imEsc(nd.name) + '</div>';
+    if (hc.na) {
+      s += '<div class="im-tip-row im-tip-na">今日成分股無成交資料</div>';
+    } else {
+      const sign = nd.chg >= 0 ? '+' : '';
+      s += '<div class="im-tip-row">今日加權漲跌 <b class="' +
+        (nd.chg >= 0 ? 'im-up' : 'im-down') + '">' + sign + nd.chg.toFixed(2) + '%</b></div>';
+    }
+    s += '<div class="im-tip-row im-tip-sub">成交熱度 ' + nd.tv + ' 億 · 覆蓋 ' +
+      Math.round(nd.cov * 100) + '%（' + nd.n + ' 檔）</div>';
+    if (nd.mv && nd.mv.length) {
+      s += '<div class="im-tip-mv">' + nd.mv.map(m =>
+        '<span>' + _imEsc(m.t) + ' ' + _imEsc(m.n) + ' <b class="' +
+        (m.c >= 0 ? 'im-up' : 'im-down') + '">' + (m.c >= 0 ? '+' : '') + m.c + '%</b></span>'
+      ).join('') + '</div>';
+    }
+    s += '<div class="im-tip-hint">點擊展開成分股</div>';
+    tip.innerHTML = s; tip.hidden = false;
+    const hb = host.getBoundingClientRect();
+    let x = evt.clientX - hb.left + 14, y = evt.clientY - hb.top + 14;
+    x = Math.min(x, hb.width - tip.offsetWidth - 8);
+    tip.style.left = x + 'px'; tip.style.top = y + 'px';
+  };
+
+  // nodes
+  const gNodes = document.createElementNS(SVGNS, 'g');
+  for (const nd of nodes) {
+    const hc = _imHeatColor(nd.chg);
+    const grp = document.createElementNS(SVGNS, 'g');
+    const isHot = !hc.na && nd.chg >= hot && nd.cov >= 0.2;
+    grp.setAttribute('class', 'im-node' + (isHot ? ' im-node-hot' : '') + (hc.na ? ' im-node-na' : ''));
+    grp.setAttribute('transform', 'translate(' + nd.x.toFixed(1) + ',' + nd.y.toFixed(1) + ')');
+
+    const c = document.createElementNS(SVGNS, 'circle');
+    c.setAttribute('r', nd.r.toFixed(1));
+    c.setAttribute('fill', hc.fill);
+    c.setAttribute('stroke', hc.stroke);
+    c.setAttribute('stroke-width', hc.na ? 1.5 : 2);
+    if (hc.na) c.setAttribute('fill-opacity', '0.25');
+    grp.appendChild(c);
+
+    const label = (nd.name || '').length > 9 ? nd.name.slice(0, 8) + '…' : nd.name;
+    const txt = document.createElementNS(SVGNS, 'text');
+    txt.setAttribute('class', 'im-label');
+    txt.setAttribute('y', (nd.r + 13).toFixed(1));
+    txt.setAttribute('text-anchor', 'middle');
+    txt.setAttribute('fill', hc.na ? '#7a8696' : '#cdd6e2');
+    txt.textContent = label;
+    grp.appendChild(txt);
+
+    grp.addEventListener('mouseenter', e => showTip(nd, e));
+    grp.addEventListener('mousemove', e => showTip(nd, e));
+    grp.addEventListener('mouseleave', () => { tip.hidden = true; });
+    grp.addEventListener('click', () => { tip.hidden = true; imOpenFocus(nd.i, nd.name); });
+    gNodes.appendChild(grp);
+  }
+  svg.appendChild(gNodes);
+  host.appendChild(svg);
+
+  // pan(拖背景)+ zoom(滾輪)via viewBox
+  let dragging = false, lx = 0, ly = 0;
+  svg.addEventListener('mousedown', e => {
+    if (e.target.closest('.im-node')) return;
+    dragging = true; lx = e.clientX; ly = e.clientY; svg.classList.add('im-grab');
+  });
+  window.addEventListener('mouseup', () => { dragging = false; svg.classList.remove('im-grab'); });
+  window.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const sc = vb.w / svg.clientWidth;
+    vb.x -= (e.clientX - lx) * sc; vb.y -= (e.clientY - ly) * sc;
+    lx = e.clientX; ly = e.clientY; setVB();
+  });
+  svg.addEventListener('wheel', e => {
+    e.preventDefault();
+    const f = e.deltaY < 0 ? 0.88 : 1.14;
+    const r = svg.getBoundingClientRect();
+    const mx = vb.x + ((e.clientX - r.left) / r.width) * vb.w;
+    const my = vb.y + ((e.clientY - r.top) / r.height) * vb.h;
+    const nw = Math.max(W * 0.25, Math.min(W * 2.2, vb.w * f));
+    const nh = nw * (H / W);
+    vb.x = mx - (mx - vb.x) * (nw / vb.w);
+    vb.y = my - (my - vb.y) * (nh / vb.h);
+    vb.w = nw; vb.h = nh; setVB();
+  }, { passive: false });
 }
 
 function showSubTab(name) {

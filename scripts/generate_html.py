@@ -1166,24 +1166,30 @@ def build_risk_page(snapshot: dict | None, history: list[dict]) -> str:
     return '<div class="risk-page">' + "".join(H) + '</div>'
 
 
-def build_industry_map_page(rows: list[dict]) -> str:
-    """🗺️ 產業地圖(Q38)— 財報狗焦點產業階層:焦點產業 → 軸(上中下游 / 受惠層 /
-    技術核心)→ 子產業 → 個股。兩條投資線:
-      (1) 同產業上下游:supply_chain 軸用上中下游分欄、benefit 軸用受惠層分欄。
-      (2) 跨產業關聯:點個股 → 列出它出現的「其他」焦點產業(同股橫跨多焦點 = 聯想)。
-    純讀 ingest 寫入的 industry_focus_map,stockgg 端只 group + render,不重算。"""
+def build_industry_map_page(rows: list[dict],
+                            stocks_info: dict | None = None) -> str:
+    """🗺️ 產業地圖(Q38)— 焦點產業關聯「蜘蛛網」圖。
+      - 節點 = 焦點產業;連線 = 兩焦點共享個股(共享愈多愈靠近 = 跨產業聯想)。
+      - 節點發亮 = 該焦點今日成分股的「成交值加權平均漲跌幅」(紅=今日強 / 綠=弱 /
+        灰空心=今日無成交資料);加權漲幅 ≥ hot_threshold 的焦點脈動光暈。
+      - 點節點 → modal 展開該焦點完整階層(上中下游 / 受惠層 → 子產業 → 個股 + 星級)。
+    當日漲跌來自記憶體 `stocks_info`(已 fetch 的 trading_rankings),用 ticker join,
+    不另查 DB。純讀 ingest 的 industry_focus_map,stockgg 端只 group + 聚合 + render。"""
     if not rows:
         return ('<p class="muted-note">產業地圖資料載入失敗(Q38 無資料,'
                 'ingest 產業地圖 cron 可能尚未跑)。</p>')
 
     esc = html_lib.escape
+    si = stocks_info or {}
+    HOT_THRESHOLD = 2.0          # 加權漲幅 ≥ 此值(且覆蓋足夠)→ 脈動「熱門」
+    EDGE_MIN_SHARED = 2          # 兩焦點共享個股 ≥ 此數才考慮建邊
+    EDGE_TOPK = 4                # 每焦點只保留最強 top-K 條連結(去 hairball)
 
     # ── 1. group rows → focus → axis(欄)→ sub_industry → companies ──
     # rows 已由 SQL 排好序(focus_name, axis_order, sub_order, rating_rank desc, ticker)。
     focuses: list[dict] = []
     fidx: dict[str, dict] = {}          # focus_tag → focus dict
-    # 跨產業關聯索引:ticker → {name, hits:[{tag, focus_name, sub_industry}]}
-    cross: dict[str, dict] = {}
+    cross: dict[str, dict] = {}         # ticker → {name, hits:[{f, s}]}(跨產業 modal)
 
     for r in rows:
         ftag = r.get("focus_tag") or ""
@@ -1209,7 +1215,7 @@ def build_industry_map_page(rows: list[dict]) -> str:
         f = fidx.get(ftag)
         if f is None:
             f = {"tag": ftag, "name": fname, "kind": axis_kind,
-                 "cols": [], "_colidx": {}}
+                 "cols": [], "_colidx": {}, "tks": {}}   # tks: ticker→market(去重)
             fidx[ftag] = f
             focuses.append(f)
         col = f["_colidx"].get(axis_order)
@@ -1225,7 +1231,7 @@ def build_industry_map_page(rows: list[dict]) -> str:
             col["subs"].append(srow)
         if ticker:
             srow["cos"].append({"t": ticker, "n": name, "m": market, "rr": rr})
-            # 跨產業關聯:同 (ticker, focus) 只記一次(取第一個 sub_industry)
+            f["tks"][ticker] = market
             ce = cross.get(ticker)
             if ce is None:
                 ce = {"n": name, "hits": [], "_seen": set()}
@@ -1234,15 +1240,78 @@ def build_industry_map_page(rows: list[dict]) -> str:
                 ce["_seen"].add(ftag)
                 ce["hits"].append({"f": fname, "s": sub})
 
-    # 焦點產業依「橫跨檔數熱度」無從排（編輯型）→ 維持 SQL 的 focus_name 字典序,
-    # 但把「跨最多焦點的明星股」彙整到頁首導覽,方便聯想入口。
-    # axis 欄依 axis_order 排;軸顏色 class ax-1..ax-9（與後台一致語意:上游/受惠最高=暖綠）。
     for f in focuses:
         f["cols"].sort(key=lambda c: c["order"])
 
-    # ── 2. 跨產業關聯 payload(給前端 modal:點股顯示所有焦點)──
+    # ── 2. per-focus 當日聚合(join stocks_info)──
+    # chg_w = 成交值加權平均漲跌;cov = 有當日資料的成分股比例;tv = 總成交值;
+    # movers = 今日漲幅前 3(tooltip)。沒對到任何今日資料 → chg=None(UI 顯空心灰,
+    # 不假裝是冷區/下跌 —— 中性≠無資料)。
+    def _focus_agg(f: dict):
+        num = den = tv_sum = 0.0
+        matched = 0
+        movers = []
+        for tk in f["tks"]:
+            s = si.get(tk)
+            if not s:
+                continue
+            chg = s.get("change_pct")
+            if chg is None:
+                continue
+            tv = float(s.get("trading_value") or 0)
+            matched += 1
+            tv_sum += tv
+            if tv > 0:
+                num += chg * tv
+                den += tv
+            movers.append((tk, s.get("name") or tk, chg))
+        total = len(f["tks"])
+        if den > 0:
+            chg_w = num / den
+        elif matched:
+            chg_w = sum(m[2] for m in movers) / matched
+        else:
+            chg_w = None
+        movers.sort(key=lambda x: -x[2])
+        return chg_w, (matched / total if total else 0.0), tv_sum, total, movers[:3]
+
+    nodes = []
+    for i, f in enumerate(focuses):
+        chg_w, cov, tv_sum, total, movers = _focus_agg(f)
+        nodes.append({
+            "i": i,
+            "name": f["name"],
+            "kind": f["kind"],
+            "chg": round(chg_w, 2) if chg_w is not None else None,
+            "cov": round(cov, 2),
+            "tv": round(tv_sum / 1e8, 1),     # 億元
+            "n": total,
+            "mv": [{"t": t, "n": n, "c": round(c, 1)} for t, n, c in movers],
+        })
+
+    # ── 3. 邊:焦點兩兩共享個股數 ≥ EDGE_MIN_SHARED,再做「每節點留最強 top-K」去 hairball ──
+    # 半導體 / 被動元件等焦點彼此共享大量個股,全保留會是亂線團(50 點 462 邊)。
+    # 對每個焦點只留它最強的 top-K 條連結(取聯集),保住最有意義的關聯又不糊成一團。
+    sets = [set(f["tks"].keys()) for f in focuses]
+    pair_w: dict[tuple, int] = {}
+    inc: dict[int, list] = {}
+    for a in range(len(focuses)):
+        for b in range(a + 1, len(focuses)):
+            w = len(sets[a] & sets[b])
+            if w >= EDGE_MIN_SHARED:
+                pair_w[(a, b)] = w
+                inc.setdefault(a, []).append((w, a, b))
+                inc.setdefault(b, []).append((w, a, b))
+    keep = set()
+    for _node, lst in inc.items():
+        for w, a, b in sorted(lst, key=lambda x: -x[0])[:EDGE_TOPK]:
+            keep.add((a, b))
+    edges = [[a, b, pair_w[(a, b)]] for (a, b) in keep]
+    edges.sort(key=lambda e: e[2])   # 弱邊先畫,強邊壓上(視覺層次)
+
+    # ── 4. 跨產業關聯 payload + 明星股清單 ──
     cross_payload = {}
-    multi = []   # 橫跨 ≥2 焦點的股(頁首明星股清單)
+    multi = []
     for tk, ce in cross.items():
         cross_payload[tk] = {"n": ce["n"], "h": ce["hits"]}
         if len(ce["hits"]) >= 2:
@@ -1252,48 +1321,13 @@ def build_industry_map_page(rows: list[dict]) -> str:
     n_focus = len(focuses)
     n_rows = len(rows)
     n_multi = len(multi)
+    n_hot = sum(1 for nd in nodes
+                if nd["chg"] is not None and nd["chg"] >= HOT_THRESHOLD
+                and nd["cov"] >= 0.2)
 
-    H = []
-
-    # ── 說明 banner ──
-    H.append(
-        '<div class="im-intro">'
-        '<b>🗺️ 產業地圖</b>'
-        f'<span class="im-intro-meta">{n_focus} 個焦點產業 · {n_rows} 個個股標記 · '
-        f'{n_multi} 檔橫跨多個焦點</span>'
-        '<p class="im-intro-desc">由財報狗焦點產業彙整:每個焦點往下展開「上中下游 / '
-        '受惠層」與子產業,星級代表受惠程度。<b>點任一個股</b>可看它還出現在哪些其他焦點 '
-        '——「同一檔橫跨多個焦點」往往是投資聯想的起點。</p>'
-        '</div>'
-    )
-
-    # ── 頁首:橫跨最多焦點的明星股(聯想入口)──
-    if multi:
-        chips = []
-        for tk, nm, cnt in multi[:30]:
-            chips.append(
-                f'<button type="button" class="im-star-chip" '
-                f'onclick="imShowCross(\'{esc(tk)}\')">'
-                f'<span class="im-tk">{esc(tk)}</span> {esc(nm)}'
-                f'<span class="im-star-cnt">{cnt} 個焦點</span></button>'
-            )
-        H.append(
-            '<div class="im-multi"><h3 class="im-sec-h">🔗 橫跨多個焦點的個股'
-            '<span class="im-sec-sub">同一檔出現在愈多焦點,代表它是愈多題材的交集</span></h3>'
-            '<div class="im-star-chips">' + "".join(chips) + '</div></div>'
-        )
-
-    # ── 焦點產業導覽 jump bar ──
-    jumps = []
-    for i, f in enumerate(focuses):
-        jumps.append(
-            f'<button type="button" class="im-jump" '
-            f'onclick="imJump(\'imf-{i}\')">{esc(f["name"])}</button>'
-        )
-    H.append('<div class="im-jumpbar">' + "".join(jumps) + '</div>')
-
-    # ── 各焦點階層 ──
+    # ── 5. 每焦點階層 HTML → 隱藏 detail store(點節點才進 modal)──
     KIND_LABEL = {"supply_chain": "上下游", "benefit": "受惠層", "other": ""}
+    detail_blocks = []
     for i, f in enumerate(focuses):
         kind_lbl = KIND_LABEL.get(f["kind"], "")
         kind_html = (f'<span class="im-kind">{kind_lbl}</span>' if kind_lbl else "")
@@ -1327,14 +1361,67 @@ def build_industry_map_page(rows: list[dict]) -> str:
                 f'<div class="im-axiscol"><span class="im-axislabel {ax_cls}">'
                 f'{esc(col["axis"])}</span>{"".join(subs_html)}</div>'
             )
-        H.append(
-            f'<section class="im-focus" id="imf-{i}">'
-            f'<h2 class="im-focus-h">{esc(f["name"])}{kind_html}</h2>'
-            f'<div class="im-axes">' + "".join(cols_html) + '</div></section>'
+        kind_head = (f'<div class="im-focus-meta">{kind_html}</div>'
+                     if kind_html else "")
+        detail_blocks.append(
+            f'<div class="im-focus" id="imf-{i}" data-name="{esc(f["name"])}">'
+            f'{kind_head}<div class="im-axes">' + "".join(cols_html) + '</div></div>'
         )
 
-    payload = json.dumps(cross_payload, ensure_ascii=False, separators=(",", ":"))
-    H.append(f'<script>window.IIA_INDMAP_CROSS={payload};</script>')
+    H = []
+    # ── 說明 banner ──
+    H.append(
+        '<div class="im-intro">'
+        '<b>🗺️ 產業地圖</b>'
+        f'<span class="im-intro-meta">{n_focus} 個焦點產業 · {n_multi} 檔橫跨多個焦點 · '
+        f'今日 <b>{n_hot}</b> 個焦點明顯走強</span>'
+        '<p class="im-intro-desc">每個圓點是一個焦點產業,圓點之間有線 = 兩者<b>共享個股</b>'
+        '(愈多共享愈靠近,就是跨產業聯想)。圓點<b>今天愈紅愈亮 = 該題材今日資金愈強</b>'
+        '(成交值加權漲跌幅);灰色空心 = 今日成分股無成交資料。<b>點圓點</b>展開該焦點的'
+        '上中下游 / 受惠層與成分股。</p>'
+        '</div>'
+    )
+    # ── 圖例(標尺,不 dump 裸值)──
+    H.append(
+        '<div class="im-legend">'
+        '<span class="im-leg-item"><i class="im-leg-dot im-leg-up"></i>今日走強(愈紅愈亮)</span>'
+        '<span class="im-leg-item"><i class="im-leg-dot im-leg-flat"></i>今日持平</span>'
+        '<span class="im-leg-item"><i class="im-leg-dot im-leg-down"></i>今日走弱(綠)</span>'
+        '<span class="im-leg-item"><i class="im-leg-dot im-leg-na"></i>今日無成交資料</span>'
+        '<span class="im-leg-item im-leg-size">圓點大小 = 成交熱度</span>'
+        f'<span class="im-leg-item im-leg-hot">脈動光暈 = 加權漲幅 ≥ {HOT_THRESHOLD:.0f}%</span>'
+        '</div>'
+    )
+    # ── 蜘蛛網圖容器(app.js _initIndmapGraph lazy render)──
+    H.append('<div id="im-graph" class="im-graph"><div class="im-graph-hint">'
+             '載入關聯圖中…</div></div>')
+
+    # ── 橫跨多個焦點的明星股(聯想入口,保留)──
+    if multi:
+        chips = []
+        for tk, nm, cnt in multi[:24]:
+            chips.append(
+                f'<button type="button" class="im-star-chip" '
+                f'onclick="imShowCross(\'{esc(tk)}\')">'
+                f'<span class="im-tk">{esc(tk)}</span> {esc(nm)}'
+                f'<span class="im-star-cnt">{cnt} 個焦點</span></button>'
+            )
+        H.append(
+            '<div class="im-multi"><h3 class="im-sec-h">🔗 橫跨多個焦點的個股'
+            '<span class="im-sec-sub">同一檔出現在愈多焦點,代表它是愈多題材的交集 ——'
+            ' 點它看橫跨哪些焦點</span></h3>'
+            '<div class="im-star-chips">' + "".join(chips) + '</div></div>'
+        )
+
+    # ── 隱藏 detail store(點節點 → imOpenFocus 取 innerHTML 進 modal)──
+    H.append('<div id="im-detail-store" hidden>' + "".join(detail_blocks) + '</div>')
+
+    graph_payload = json.dumps(
+        {"nodes": nodes, "edges": edges, "hot": HOT_THRESHOLD},
+        ensure_ascii=False, separators=(",", ":"))
+    cross_json = json.dumps(cross_payload, ensure_ascii=False, separators=(",", ":"))
+    H.append(f'<script>window.IIA_INDMAP_GRAPH={graph_payload};'
+             f'window.IIA_INDMAP_CROSS={cross_json};</script>')
 
     return '<div class="im-page">' + "".join(H) + '</div>'
 
@@ -3645,7 +3732,7 @@ async def generate():
     notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)
     catalyst_html = build_catalyst_html(catalyst_events, stocks_info)
     risk_html   = build_risk_page(risk_snapshot, risk_history)
-    indmap_html = build_industry_map_page(indmap_rows)
+    indmap_html = build_industry_map_page(indmap_rows, stocks_info)
 
     # ── 主動式 ETF(2026-05-20 對應 ingest f5faa21)──
     # Q18 拿全 23 檔 ETF master(按 AUM desc);Q19 對每 ETF 抓 latest holdings + diff;
