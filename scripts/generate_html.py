@@ -1166,6 +1166,179 @@ def build_risk_page(snapshot: dict | None, history: list[dict]) -> str:
     return '<div class="risk-page">' + "".join(H) + '</div>'
 
 
+def build_industry_map_page(rows: list[dict]) -> str:
+    """🗺️ 產業地圖(Q38)— 財報狗焦點產業階層:焦點產業 → 軸(上中下游 / 受惠層 /
+    技術核心)→ 子產業 → 個股。兩條投資線:
+      (1) 同產業上下游:supply_chain 軸用上中下游分欄、benefit 軸用受惠層分欄。
+      (2) 跨產業關聯:點個股 → 列出它出現的「其他」焦點產業(同股橫跨多焦點 = 聯想)。
+    純讀 ingest 寫入的 industry_focus_map,stockgg 端只 group + render,不重算。"""
+    if not rows:
+        return ('<p class="muted-note">產業地圖資料載入失敗(Q38 無資料,'
+                'ingest 產業地圖 cron 可能尚未跑)。</p>')
+
+    esc = html_lib.escape
+
+    # ── 1. group rows → focus → axis(欄)→ sub_industry → companies ──
+    # rows 已由 SQL 排好序(focus_name, axis_order, sub_order, rating_rank desc, ticker)。
+    focuses: list[dict] = []
+    fidx: dict[str, dict] = {}          # focus_tag → focus dict
+    # 跨產業關聯索引:ticker → {name, hits:[{tag, focus_name, sub_industry}]}
+    cross: dict[str, dict] = {}
+
+    for r in rows:
+        ftag = r.get("focus_tag") or ""
+        fname = r.get("focus_name") or ftag or "（未命名焦點）"
+        axis = (r.get("axis") or "").strip() or "其他"
+        axis_order = r.get("axis_order")
+        try:
+            axis_order = int(axis_order) if axis_order is not None else 9
+        except (TypeError, ValueError):
+            axis_order = 9
+        axis_kind = r.get("axis_kind") or "other"
+        sub = (r.get("sub_industry") or "").strip()
+        desc = (r.get("description") or "").strip()
+        ticker = (r.get("ticker") or "").strip()
+        name = (r.get("stock_name") or "").strip()
+        market = (r.get("market") or "TW").strip().upper()
+        rr = r.get("rating_rank")
+        try:
+            rr = int(rr) if rr is not None else None
+        except (TypeError, ValueError):
+            rr = None
+
+        f = fidx.get(ftag)
+        if f is None:
+            f = {"tag": ftag, "name": fname, "kind": axis_kind,
+                 "cols": [], "_colidx": {}}
+            fidx[ftag] = f
+            focuses.append(f)
+        col = f["_colidx"].get(axis_order)
+        if col is None:
+            col = {"axis": axis, "order": axis_order, "kind": axis_kind,
+                   "subs": [], "_subidx": {}}
+            f["_colidx"][axis_order] = col
+            f["cols"].append(col)
+        srow = col["_subidx"].get(sub)
+        if srow is None:
+            srow = {"sub": sub, "desc": desc, "cos": []}
+            col["_subidx"][sub] = srow
+            col["subs"].append(srow)
+        if ticker:
+            srow["cos"].append({"t": ticker, "n": name, "m": market, "rr": rr})
+            # 跨產業關聯:同 (ticker, focus) 只記一次(取第一個 sub_industry)
+            ce = cross.get(ticker)
+            if ce is None:
+                ce = {"n": name, "hits": [], "_seen": set()}
+                cross[ticker] = ce
+            if ftag not in ce["_seen"]:
+                ce["_seen"].add(ftag)
+                ce["hits"].append({"f": fname, "s": sub})
+
+    # 焦點產業依「橫跨檔數熱度」無從排（編輯型）→ 維持 SQL 的 focus_name 字典序,
+    # 但把「跨最多焦點的明星股」彙整到頁首導覽,方便聯想入口。
+    # axis 欄依 axis_order 排;軸顏色 class ax-1..ax-9（與後台一致語意:上游/受惠最高=暖綠）。
+    for f in focuses:
+        f["cols"].sort(key=lambda c: c["order"])
+
+    # ── 2. 跨產業關聯 payload(給前端 modal:點股顯示所有焦點)──
+    cross_payload = {}
+    multi = []   # 橫跨 ≥2 焦點的股(頁首明星股清單)
+    for tk, ce in cross.items():
+        cross_payload[tk] = {"n": ce["n"], "h": ce["hits"]}
+        if len(ce["hits"]) >= 2:
+            multi.append((tk, ce["n"], len(ce["hits"])))
+    multi.sort(key=lambda x: (-x[2], x[0]))
+
+    n_focus = len(focuses)
+    n_rows = len(rows)
+    n_multi = len(multi)
+
+    H = []
+
+    # ── 說明 banner ──
+    H.append(
+        '<div class="im-intro">'
+        '<b>🗺️ 產業地圖</b>'
+        f'<span class="im-intro-meta">{n_focus} 個焦點產業 · {n_rows} 個個股標記 · '
+        f'{n_multi} 檔橫跨多個焦點</span>'
+        '<p class="im-intro-desc">由財報狗焦點產業彙整:每個焦點往下展開「上中下游 / '
+        '受惠層」與子產業,星級代表受惠程度。<b>點任一個股</b>可看它還出現在哪些其他焦點 '
+        '——「同一檔橫跨多個焦點」往往是投資聯想的起點。</p>'
+        '</div>'
+    )
+
+    # ── 頁首:橫跨最多焦點的明星股(聯想入口)──
+    if multi:
+        chips = []
+        for tk, nm, cnt in multi[:30]:
+            chips.append(
+                f'<button type="button" class="im-star-chip" '
+                f'onclick="imShowCross(\'{esc(tk)}\')">'
+                f'<span class="im-tk">{esc(tk)}</span> {esc(nm)}'
+                f'<span class="im-star-cnt">{cnt} 個焦點</span></button>'
+            )
+        H.append(
+            '<div class="im-multi"><h3 class="im-sec-h">🔗 橫跨多個焦點的個股'
+            '<span class="im-sec-sub">同一檔出現在愈多焦點,代表它是愈多題材的交集</span></h3>'
+            '<div class="im-star-chips">' + "".join(chips) + '</div></div>'
+        )
+
+    # ── 焦點產業導覽 jump bar ──
+    jumps = []
+    for i, f in enumerate(focuses):
+        jumps.append(
+            f'<button type="button" class="im-jump" '
+            f'onclick="imJump(\'imf-{i}\')">{esc(f["name"])}</button>'
+        )
+    H.append('<div class="im-jumpbar">' + "".join(jumps) + '</div>')
+
+    # ── 各焦點階層 ──
+    KIND_LABEL = {"supply_chain": "上下游", "benefit": "受惠層", "other": ""}
+    for i, f in enumerate(focuses):
+        kind_lbl = KIND_LABEL.get(f["kind"], "")
+        kind_html = (f'<span class="im-kind">{kind_lbl}</span>' if kind_lbl else "")
+        cols_html = []
+        for col in f["cols"]:
+            ax_cls = f'ax-{col["order"]}' if 1 <= col["order"] <= 6 else "ax-9"
+            subs_html = []
+            for s in col["subs"]:
+                cos_html = []
+                for co in s["cos"]:
+                    rr = co["rr"]
+                    star = ('<span class="im-star">' + ("★" * (rr + 1)) + '</span>'
+                            if isinstance(rr, int) and rr >= 0 else "")
+                    us = " us" if co["m"] == "US" else ""
+                    us_tag = '<span class="im-us">美</span>' if co["m"] == "US" else ""
+                    cos_html.append(
+                        f'<button type="button" class="im-co{us}" '
+                        f'onclick="imShowCross(\'{esc(co["t"])}\')" '
+                        f'title="看 {esc(co["n"])} 出現的所有焦點">'
+                        f'{us_tag}<span class="im-tk">{esc(co["t"])}</span> '
+                        f'{esc(co["n"])}{star}</button>'
+                    )
+                desc_html = (f'<div class="im-desc">{esc(s["desc"])}</div>'
+                             if s["desc"] else "")
+                sub_name = esc(s["sub"]) if s["sub"] else "—"
+                subs_html.append(
+                    f'<div class="im-sub"><div class="im-subname">{sub_name}</div>'
+                    f'{desc_html}<div class="im-cos">{"".join(cos_html)}</div></div>'
+                )
+            cols_html.append(
+                f'<div class="im-axiscol"><span class="im-axislabel {ax_cls}">'
+                f'{esc(col["axis"])}</span>{"".join(subs_html)}</div>'
+            )
+        H.append(
+            f'<section class="im-focus" id="imf-{i}">'
+            f'<h2 class="im-focus-h">{esc(f["name"])}{kind_html}</h2>'
+            f'<div class="im-axes">' + "".join(cols_html) + '</div></section>'
+        )
+
+    payload = json.dumps(cross_payload, ensure_ascii=False, separators=(",", ":"))
+    H.append(f'<script>window.IIA_INDMAP_CROSS={payload};</script>')
+
+    return '<div class="im-page">' + "".join(H) + '</div>'
+
+
 def build_catalyst_html(events: list[dict], stocks_info: dict | None = None) -> str:
     if not events:
         return ('<div class="cal-empty">'
@@ -3435,6 +3608,23 @@ async def generate():
     except Exception as exc:
         print(f"  ⚠ Q36/Q37 risk_dashboard query failed: {exc}")
 
+    # ── Q38 產業地圖(🗺️ 產業地圖 tab;ingest 週日 09:30 cron 爬 statementdog
+    #    焦點產業階層,~1095 列編輯型慢變)。整表一次撈,build_industry_map_page
+    #    端 group(focus → axis → sub → 個股 + 跨產業關聯)。query 壞只是該頁不出,
+    #    不中斷其餘 render。──
+    indmap_rows: list[dict] = []
+    try:
+        indmap_rows = [dict(r) for r in await conn.fetch(
+            "select focus_tag, focus_name, axis, axis_kind, axis_order, "
+            "sub_industry, sub_order, description, ticker, stock_name, "
+            "market, rating, rating_rank from industry_focus_map "
+            "order by focus_name, axis_order, sub_order, rating_rank desc, ticker"
+        )]
+        _im_focus = len({r.get("focus_tag") for r in indmap_rows})
+        print(f"  industry_map (Q38): {len(indmap_rows)} rows, {_im_focus} focuses")
+    except Exception as exc:
+        print(f"  ⚠ Q38 industry_map query failed: {exc}")
+
     # 「市場行情」ranking table 只顯前 N (RANKINGS_TOP_N=50),過濾 Q14 special
     # 與 Q15 focus_member 的 rank=NULL row(它們是 cluster detection universe,
     # 不該出現在 ranking 表)。cluster detection / stocks_info path 仍走完整
@@ -3455,6 +3645,7 @@ async def generate():
     notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)
     catalyst_html = build_catalyst_html(catalyst_events, stocks_info)
     risk_html   = build_risk_page(risk_snapshot, risk_history)
+    indmap_html = build_industry_map_page(indmap_rows)
 
     # ── 主動式 ETF(2026-05-20 對應 ingest f5faa21)──
     # Q18 拿全 23 檔 ETF master(按 AUM desc);Q19 對每 ETF 抓 latest holdings + diff;
@@ -3726,6 +3917,7 @@ async def generate():
     <button class="tab-btn active" data-tab="focus"    onclick="showTab('focus')">熱門題材</button>
     <button class="tab-btn"        data-tab="fstock"   onclick="showTab('fstock')">選股雷達</button>
     <button class="tab-btn"        data-tab="aetf"     onclick="showTab('aetf')">主動式 ETF</button>
+    <button class="tab-btn"        data-tab="indmap"   onclick="showTab('indmap')">🗺️ 產業地圖</button>
     <button class="tab-btn"        data-tab="notes"    onclick="showTab('notes')">市場話題</button>
     <button class="tab-btn"        data-tab="market"   onclick="showTab('market')">國際金融</button>
     <button class="tab-btn"        data-tab="risk"     onclick="showTab('risk')">🛡️ 風控</button>
@@ -3799,6 +3991,11 @@ async def generate():
     {notes_html}
   </div>
 
+  <!-- Tab: 🗺️ 產業地圖(焦點產業階層 + 跨產業關聯;資料 = ingest Q38) -->
+  <div id="tab-indmap" class="tab-pane">
+    {indmap_html}
+  </div>
+
   <!-- Tab: 🛡️ 風控儀錶板(取代舊趨勢頁,2026-06-06;資料 = ingest Q36/Q37) -->
   <div id="tab-risk" class="tab-pane">
     {risk_html}
@@ -3830,6 +4027,18 @@ async def generate():
                 id="art-nav-next" onclick="artNavTicker('next')">→</button>
       </div>
     </div>
+  </div>
+</dialog>
+
+<!-- 產業地圖:跨產業關聯 modal(點個股 → 它出現的所有焦點產業) -->
+<dialog id="im-modal">
+  <div class="im-modal-shell">
+    <div class="im-modal-top">
+      <span class="im-modal-title" id="im-modal-title"></span>
+      <button class="im-modal-close" type="button" aria-label="關閉"
+              onclick="document.getElementById('im-modal').close()">✕</button>
+    </div>
+    <div class="im-modal-body" id="im-modal-body"></div>
   </div>
 </dialog>
 

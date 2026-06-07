@@ -58,6 +58,51 @@ function _initRiskChart() {
   }).catch(e => console.error('risk chart load failed', e));
 }
 
+/* ── 🗺️ 產業地圖 ────────────────────────────────────────────────
+ * window.IIA_INDMAP_CROSS = { ticker: { n: 名稱, h: [{f: 焦點產業, s: 子產業}] } }
+ * imShowCross(tk) → modal 列出該 ticker 出現的所有焦點(同股橫跨多焦點 = 投資聯想)。
+ * imJump(id)      → 平滑捲動到該焦點 section(扣掉 sticky header 高度)。 */
+function _imEsc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function imShowCross(ticker) {
+  const map = window.IIA_INDMAP_CROSS || {};
+  const e = map[ticker];
+  const body = document.getElementById('im-modal-body');
+  const title = document.getElementById('im-modal-title');
+  if (!e || !body || !title) return;
+  title.innerHTML = '<span class="im-tk">' + _imEsc(ticker) + '</span> ' +
+    _imEsc(e.n || '');
+  const hits = e.h || [];
+  if (hits.length <= 1) {
+    body.innerHTML = '<p class="im-modal-note">' + _imEsc(e.n || ticker) +
+      ' 目前只出現在 <b>1</b> 個焦點產業' +
+      (hits.length ? '：<b>' + _imEsc(hits[0].f) + '</b>（' +
+        _imEsc(hits[0].s) + '）' : '') +
+      '。尚無跨產業聯想。</p>';
+  } else {
+    const rows = hits.map(h =>
+      '<li class="im-modal-row"><span class="im-modal-f">' + _imEsc(h.f) +
+      '</span><span class="im-modal-s">' + _imEsc(h.s) + '</span></li>'
+    ).join('');
+    body.innerHTML = '<p class="im-modal-lead">橫跨 <b>' + hits.length +
+      '</b> 個焦點產業，可作為投資聯想的交集：</p>' +
+      '<ul class="im-modal-list">' + rows + '</ul>';
+  }
+  document.getElementById('im-modal').showModal();
+}
+
+function imJump(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const hdr = document.querySelector('header');
+  const off = (hdr ? hdr.offsetHeight : 0) + 12;
+  const y = el.getBoundingClientRect().top + window.scrollY - off;
+  window.scrollTo({ top: y, behavior: 'smooth' });
+}
+
 function showSubTab(name) {
   document.querySelectorAll('.sub-tab-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.stab === name));

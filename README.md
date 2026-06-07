@@ -38,7 +38,7 @@ transcripts — all of that lives in a separate private system.
 ## How it's served
 
 ```
-Supabase DB ──[anon key, 34-pattern allowlist]──▶ Cloudflare Workers
+Supabase DB ──[anon key, 35-pattern allowlist]──▶ Cloudflare Workers
                                                   (public site)
                                                   ├ docs/index.html (inline state + per-render payload)
                                                   ├ docs/style.css / docs/app.js (static, content-hash cache-bust)
@@ -55,7 +55,7 @@ Supabase DB ──[anon key, 34-pattern allowlist]──▶ Cloudflare Workers
 3. GitHub Actions rebuilds + redeploys when the private system
    webhooks the workflow, plus on cron 07:30 / 18:15 / 23:15 TW.
 
-The Edge Function enforces a hard allowlist of 34 SELECT shapes — even
+The Edge Function enforces a hard allowlist of 35 SELECT shapes — even
 if the anon key in this repo leaks, raw article bodies and podcast
 transcripts are not reachable. The allowlist source is
 `supabase/functions/db-proxy-public/index.ts`.
@@ -67,7 +67,7 @@ transcripts are not reachable. The allowlist source is
 - `src/analysis/focus_themes.py` — theme dictionary clustering
 - `src/utils/db.py` — async DB client over the restricted Edge Function
 - `data/theme_dictionary.json` — main/sub industry hierarchy (ticker-centric, TW only)
-- `supabase/functions/db-proxy-public/` — Edge Function source (34-pattern allowlist)
+- `supabase/functions/db-proxy-public/` — Edge Function source (35-pattern allowlist)
 - `docs/index.html`, `docs/history.json`, `docs/kline.json` — generated artifacts served by Workers
 - `wrangler.jsonc` — Workers config (assets.directory: docs)
 

@@ -1111,3 +1111,93 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
   .risk-chart{height:240px}
 }
 
+/* ── 🗺️ 產業地圖(焦點產業階層 + 跨產業關聯,2026-06-07)──────────────── */
+.im-page{display:flex;flex-direction:column;gap:1rem;max-width:1080px;margin:0 auto}
+.im-intro{background:var(--card);border:1px solid var(--border);border-radius:12px;
+          padding:1rem 1.2rem}
+.im-intro>b{font-size:1.1rem}
+.im-intro-meta{color:var(--muted);font-size:.82rem;margin-left:.6rem}
+.im-intro-desc{margin:.5rem 0 0;color:var(--muted);font-size:.86rem;line-height:1.55}
+.im-intro-desc b{color:var(--text)}
+.im-sec-h{font-size:.95rem;font-weight:700;color:var(--accent);margin:0 0 .6rem;
+          letter-spacing:.03em}
+.im-sec-sub{display:block;font-size:.74rem;font-weight:500;color:var(--muted);
+            letter-spacing:0;margin-top:.15rem}
+/* 橫跨多焦點明星股 */
+.im-multi{background:var(--card);border:1px solid var(--border);border-radius:12px;
+          padding:1rem 1.2rem}
+.im-star-chips{display:flex;flex-wrap:wrap;gap:.4rem}
+.im-star-chip{background:rgba(108,142,245,.08);border:1px solid var(--border);
+              border-radius:8px;padding:.32rem .6rem;font-size:.82rem;color:var(--text);
+              cursor:pointer;display:inline-flex;align-items:center;gap:.3rem;
+              transition:.15s}
+.im-star-chip:hover{background:rgba(108,142,245,.18);border-color:var(--accent)}
+.im-star-cnt{font-size:.7rem;color:var(--accent);font-weight:700;
+             background:rgba(108,142,245,.12);padding:.08rem .35rem;border-radius:5px}
+/* 焦點 jump bar */
+.im-jumpbar{display:flex;flex-wrap:wrap;gap:.35rem;padding:.2rem 0}
+.im-jump{background:var(--card);border:1px solid var(--border);border-radius:6px;
+         padding:.28rem .55rem;font-size:.76rem;color:var(--muted);cursor:pointer;
+         transition:.15s;white-space:nowrap}
+.im-jump:hover{color:var(--text);border-color:var(--accent)}
+/* 焦點 section */
+.im-focus{background:var(--card);border:1px solid var(--border);border-radius:12px;
+          padding:1rem 1.2rem;scroll-margin-top:80px}
+.im-focus-h{margin:0 0 .7rem;font-size:1.12rem;display:flex;align-items:center;gap:.5rem}
+.im-kind{font-size:.68rem;font-weight:700;color:var(--accent);
+         background:rgba(108,142,245,.12);padding:.12rem .45rem;border-radius:5px}
+.im-axes{display:grid;grid-template-columns:repeat(3,1fr);gap:.9rem}
+.im-axiscol{background:rgba(255,255,255,.02);border:1px solid var(--border);
+            border-radius:8px;padding:.6rem .7rem}
+.im-axislabel{font-size:.76rem;font-weight:700;letter-spacing:.04em;
+              padding:.12rem .5rem;border-radius:5px;display:inline-block;
+              margin-bottom:.5rem}
+.ax-1{background:#16351f;color:#5ad17e}
+.ax-2{background:#2a3413;color:#c6d84a}
+.ax-3{background:#3a2a13;color:#e6a84a}
+.ax-4{background:#3a1d2a;color:#e68ab0}
+.ax-5{background:#1d2a3a;color:#7fb0e6}
+.ax-6{background:#2a2438;color:#b08ae6}
+.ax-9{background:rgba(255,255,255,.06);color:var(--muted)}
+.im-sub{margin:.4rem 0 .7rem}
+.im-subname{font-weight:600;font-size:.9rem;margin-bottom:.1rem}
+.im-desc{color:var(--muted);font-size:.76rem;line-height:1.45;margin:.1rem 0 .35rem}
+.im-cos{display:flex;flex-wrap:wrap;gap:.25rem}
+.im-co{display:inline-flex;align-items:center;gap:.25rem;font-size:.8rem;color:var(--text);
+       padding:.14rem .45rem;border-radius:6px;background:rgba(255,255,255,.04);
+       border:1px solid transparent;cursor:pointer;transition:.15s}
+.im-co:hover{border-color:var(--accent);background:rgba(108,142,245,.12)}
+.im-co.us{background:rgba(127,176,230,.08);border-color:rgba(45,58,85,.8)}
+.im-us{font-size:.62rem;font-weight:700;color:#7fb0e6;background:rgba(127,176,230,.15);
+       padding:.02rem .22rem;border-radius:4px}
+.im-tk{color:var(--accent);font-variant-numeric:tabular-nums;font-weight:600}
+.im-star{color:#e6c84a;font-size:.7rem;letter-spacing:-1px;margin-left:.1rem}
+/* 跨產業關聯 modal */
+dialog#im-modal{background:var(--card);border:1px solid var(--border);border-radius:14px;
+                color:var(--text);padding:0;width:min(480px,94vw);max-height:80vh;
+                position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);margin:0;
+                overflow:hidden}
+dialog#im-modal[open]{display:flex;flex-direction:column;
+                      animation:artModalOpen .22s cubic-bezier(.2,.7,.25,1)}
+dialog#im-modal::backdrop{background:rgba(0,0,0,.6)}
+.im-modal-top{display:flex;align-items:center;justify-content:space-between;
+              padding:.9rem 1.1rem;border-bottom:1px solid var(--border)}
+.im-modal-title{font-size:1rem;font-weight:700}
+.im-modal-close{background:transparent;border:none;color:var(--muted);font-size:1.1rem;
+                cursor:pointer;line-height:1}
+.im-modal-close:hover{color:var(--text)}
+.im-modal-body{padding:1rem 1.1rem;overflow-y:auto}
+.im-modal-lead{margin:0 0 .7rem;font-size:.86rem;color:var(--muted)}
+.im-modal-lead b{color:var(--accent)}
+.im-modal-note{margin:0;font-size:.86rem;color:var(--muted);line-height:1.6}
+.im-modal-note b{color:var(--text)}
+.im-modal-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;
+               gap:.35rem}
+.im-modal-row{display:flex;align-items:baseline;justify-content:space-between;gap:.6rem;
+              padding:.45rem .6rem;background:rgba(255,255,255,.03);border-radius:7px}
+.im-modal-f{font-weight:600;font-size:.88rem}
+.im-modal-s{font-size:.76rem;color:var(--muted);text-align:right}
+@media(max-width:720px){
+  .im-axes{grid-template-columns:1fr}
+}
+

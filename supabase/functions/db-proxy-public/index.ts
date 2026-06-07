@@ -204,6 +204,12 @@ const ALLOWED: Set<string> = new Set([
   // 未打贏 buy&hold(僅 3 次崩跌樣本),頁面讀 backtest_meta.caveat 明示為風險監控參考。
   "select snapshot_date, risk_score, position_pct, level, components, triggers, backtest_meta from risk_dashboard_snapshot order by snapshot_date desc limit 1",
   "select snapshot_date, risk_score, position_pct, twii_close, tpex_close, label_realized, strat_nav, bh_nav from risk_dashboard_history where snapshot_date >= (current_date - $1::int) order by snapshot_date asc",
+
+  // Q38 — 產業地圖(🗺️ 產業地圖頁;ingest 週日 09:30 cron 爬 statementdog
+  //   焦點產業階層)。50 焦點產業→軸(上中下游/受惠層/技術核心…)→子產業→個股。
+  //   axis_order = 該焦點內軸首次出現序;rating_rank 受惠最高=3/高=2/中=1/低=0。
+  //   ~1095 列、編輯型慢變,整表一次撈、前端 group。
+  "select focus_tag, focus_name, axis, axis_kind, axis_order, sub_industry, sub_order, description, ticker, stock_name, market, rating, rating_rank from industry_focus_map order by focus_name, axis_order, sub_order, rating_rank desc, ticker",
 ])
 
 function normalize(q: string): string {
