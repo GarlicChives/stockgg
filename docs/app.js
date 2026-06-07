@@ -128,6 +128,7 @@ let _imCharts = { price: null, net: null };
 let _imCurFocus = -1;
 let _imCurSub = null;       // null = 整個焦點;數字 = subs_payload.subs index
 let _imPeriod = '6m';
+let _imTickerDis = new Set();   // 左欄被排除(不納入加權)的 ticker(本地,不動題材 modal)
 
 function imOpenFocus(i, name) {
   const src = document.getElementById('imf-' + i);
@@ -136,7 +137,7 @@ function imOpenFocus(i, name) {
   if (!src || !body || !title) return;
   const fname = name || src.dataset.name || '焦點產業';
   title.innerHTML = '🗺️ ' + _imEsc(fname);
-  _imCurFocus = i; _imCurSub = null;
+  _imCurFocus = i; _imCurSub = null; _imTickerDis = new Set();
   const subInfo = (window.IIA_INDMAP_SUBS || {})[i];
   const hasChart = subInfo && (subInfo.all || []).length > 0;
   const chartHtml = hasChart ? (
@@ -154,12 +155,15 @@ function imOpenFocus(i, name) {
       '<span><i style="background:#f59e0b"></i>大盤</span>' +
       '<span><i style="background:#94aef7"></i>櫃買</span>' +
       '<span class="im-mc-net-lbl">下圖:三大法人資金淨流入(億)</span></div>' +
-    '<div class="im-mc-charts">' +
-      '<div id="im-mc-price" class="im-mc-chart"></div>' +
-      '<div id="im-mc-net" class="im-mc-chart im-mc-chart-net"></div>' +
-      '<div id="im-mc-empty" class="im-mc-empty" style="display:none">此題材的成分股暫無足夠歷史資料</div>' +
+    '<div class="im-mc-body">' +
+      '<div class="im-mc-side" id="im-mc-side" title="點個股可從加權指數排除/納入"></div>' +
+      '<div class="im-mc-main">' +
+        '<div id="im-mc-price" class="im-mc-chart"></div>' +
+        '<div id="im-mc-net" class="im-mc-chart im-mc-chart-net"></div>' +
+        '<div id="im-mc-empty" class="im-mc-empty" style="display:none">此題材的成分股暫無足夠歷史資料</div>' +
+      '</div>' +
     '</div>' +
-    '<div class="im-mc-hint">點下方任一<b>子產業標題</b>📈,趨勢圖即切換到該子產業</div>' +
+    '<div class="im-mc-hint">點<b>左側個股</b>可從加權指數排除/納入;點下方任一<b>子產業標題</b>📈,趨勢圖即切換到該子產業</div>' +
     '</div>'
   ) : '';
   body.innerHTML = chartHtml + '<div class="im-modal-focus">' + src.innerHTML + '</div>';
@@ -171,10 +175,16 @@ function imOpenFocus(i, name) {
 /* 點子產業標題 → 趨勢圖切到該子產業 */
 function imPickSub(i, subIdx) {
   if (i !== _imCurFocus) return;
-  _imCurSub = subIdx;
+  _imCurSub = subIdx; _imTickerDis = new Set();   // 換子產業 = 換一組標的,排除清空
   document.querySelectorAll('.im-modal-focus .im-sub-pick').forEach(b =>
     b.classList.toggle('active', +b.dataset.sub === subIdx));
   _imRenderSubChart(i, subIdx);
+}
+
+/* 左欄點個股 → 從加權指數排除/納入 */
+function imToggleTicker(t) {
+  if (_imTickerDis.has(t)) _imTickerDis.delete(t); else _imTickerDis.add(t);
+  _imRenderSubChart(_imCurFocus, _imCurSub);
 }
 
 function imSetPeriod(p) {
@@ -199,20 +209,38 @@ function _imFilterPeriod(series) {
   return series.filter(p => p.time >= cutoff);
 }
 
-/* 算 + 畫該焦點(或子產業)的加權指數 + 三大法人。reuse _computeClusterSeries。 */
+/* 算 + 畫該焦點(或子產業)的加權指數 + 三大法人。reuse _computeClusterSeries。
+ * 左欄列出成分股(今日報價),可點擊排除/納入(本地 _imTickerDis)。 */
 function _imRenderSubChart(i, subIdx) {
   const info = (window.IIA_INDMAP_SUBS || {})[i];
   if (!info) return;
-  const tickers = (subIdx == null) ? (info.all || []) : ((info.subs[subIdx] || {}).tickers || []);
+  const list = (subIdx == null) ? (info.all || []) : ((info.subs[subIdx] || {}).tickers || []);
   const label = (subIdx == null) ? (info.name + '（全部）') : (info.subs[subIdx].name);
   const titleEl = document.getElementById('im-mc-title');
   if (titleEl) titleEl.textContent = '📈 ' + label;
+  // 左欄成分股(依成交值 desc),點擊 toggle 排除
+  const sideEl = document.getElementById('im-mc-side');
+  if (sideEl) {
+    const sorted = list.slice().sort((a, b) => (b.tv || 0) - (a.tv || 0));
+    sideEl.innerHTML = '<div class="im-mc-side-hd">成分股 · 點擊排除</div>' + sorted.map(o => {
+      const dis = _imTickerDis.has(o.t) ? ' is-dis' : '';
+      const pct = _fmtPctJs(o.chg);
+      const quote = (o.close != null)
+        ? o.close.toFixed(2) + (o.chg != null ? '(' + pct.str + ')' : '')
+        : (o.chg != null ? pct.str : '—');
+      return '<div class="stk-pill modal-tk-pill' + dis + '" onclick="imToggleTicker(\'' + o.t + '\')">' +
+        '<span class="sp-ticker">' + _escHtml(_dispTk(o.t)) + '</span>' +
+        (o.n ? '<span class="sp-name">' + _escHtml(o.n) + '</span>' : '') +
+        '<span class="sp-quote ' + pct.cls + '">' + _escHtml(quote) + '</span></div>';
+    }).join('');
+  }
+  const tickers = list.filter(o => !_imTickerDis.has(o.t)).map(o => ({ ticker: o.t }));
   Promise.all([_loadLightweightCharts(), _loadHistory()]).then(() => {
     const priceEl = document.getElementById('im-mc-price');
     const netEl = document.getElementById('im-mc-net');
     const emptyEl = document.getElementById('im-mc-empty');
     if (!priceEl || !netEl) return;
-    const cluster = { focal: tickers.map(t => ({ ticker: t })), sentinel: [], memberKeys: [] };
+    const cluster = { focal: tickers, sentinel: [], memberKeys: [] };
     let { netSeries, priceSeries } = _computeClusterSeries(cluster, { ignoreModalDis: true });
     let twii = _computeIndexSeries('TWII'), tpex = _computeIndexSeries('TPEX');
     priceSeries = _imFilterPeriod(priceSeries); netSeries = _imFilterPeriod(netSeries);

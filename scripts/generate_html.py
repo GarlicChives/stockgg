@@ -1332,13 +1332,27 @@ def build_industry_map_page(rows: list[dict],
         cols_html = []
         sub_idx = 0                       # 該焦點內的子產業流水序(對應 subs_payload.subs)
         f_subs = []                       # 子產業趨勢圖用:[{name, tickers}]
-        f_all_tw: list[str] = []
+        f_all: dict[str, dict] = {}       # ticker → enriched obj(去重,焦點全部)
+
+        def _tw_obj(co):
+            """TW 個股 → {t,n,chg,close,tv}(今日報價來自 stocks_info,缺則 None)"""
+            sinfo = si.get(co["t"]) or {}
+            _c = sinfo.get("change_pct")
+            _p = sinfo.get("close_price")
+            _v = sinfo.get("trading_value")
+            return {
+                "t": co["t"], "n": co["n"],
+                "chg": round(_c, 2) if isinstance(_c, (int, float)) else None,
+                "close": round(_p, 2) if isinstance(_p, (int, float)) else None,
+                "tv": round(float(_v) / 1e8, 1) if _v else 0.0,
+            }
+
         for col in f["cols"]:
             ax_cls = f'ax-{col["order"]}' if 1 <= col["order"] <= 6 else "ax-9"
             subs_html = []
             for s in col["subs"]:
                 cos_html = []
-                tw_tks = []
+                tw_objs = []
                 for co in s["cos"]:
                     rr = co["rr"]
                     star = ('<span class="im-star">' + ("★" * (rr + 1)) + '</span>'
@@ -1353,17 +1367,18 @@ def build_industry_map_page(rows: list[dict],
                         f'{esc(co["n"])}{star}</button>'
                     )
                     if co["m"] != "US" and str(co["t"]).isdigit():
-                        tw_tks.append(co["t"])
-                        f_all_tw.append(co["t"])
+                        o = _tw_obj(co)
+                        tw_objs.append(o)
+                        f_all.setdefault(o["t"], o)
                 desc_html = (f'<div class="im-desc">{esc(s["desc"])}</div>'
                              if s["desc"] else "")
                 sub_name = esc(s["sub"]) if s["sub"] else "—"
                 # 子產業標題可點 → 上方趨勢圖切到該子產業(只在有 TW 個股時可點)
-                if tw_tks:
+                if tw_objs:
                     head = (f'<button type="button" class="im-subname im-sub-pick" '
                             f'data-sub="{sub_idx}" onclick="imPickSub({i},{sub_idx})">'
                             f'{sub_name}<span class="im-sub-go">📈</span></button>')
-                    f_subs.append({"name": s["sub"] or "—", "tickers": tw_tks})
+                    f_subs.append({"name": s["sub"] or "—", "tickers": tw_objs})
                     sub_idx += 1
                 else:
                     head = f'<div class="im-subname im-subname-flat">{sub_name}</div>'
@@ -1383,7 +1398,7 @@ def build_industry_map_page(rows: list[dict],
         )
         subs_payload[i] = {
             "name": f["name"],
-            "all": sorted(set(f_all_tw)),
+            "all": sorted(f_all.values(), key=lambda o: -(o["tv"] or 0)),
             "subs": f_subs,
         }
 
