@@ -1044,8 +1044,6 @@ def build_risk_page(snapshot: dict | None, history: list[dict]) -> str:
         f'<span class="risk-gauge-cap">建議曝險部位</span></div>'
         f'<div class="risk-gauge-state">'
         f'<span class="risk-state-badge {lvl_cls}">{icon} {lbl}</span>'
-        f'<span class="risk-gauge-score" title="綜合各訊號的風險溫度,越高越該降低部位">'
-        f'風險溫度 {_num(score)}</span>'
         f'<span class="risk-gauge-date">資料日 {snapshot["d"]}</span>'
         f'</div></div>'
     )
@@ -1064,22 +1062,25 @@ def build_risk_page(snapshot: dict | None, history: list[dict]) -> str:
             continue  # 權重 0 = 回測未選中 → 不顯示
         z = gi.get("z")
         zz = z if isinstance(z, (int, float)) else 0.0
-        # 條與狀態都用面向自身溫度 z(不用內部加權後的 contribution),避免
-        # 「狀態中性卻配一條很長的紅條」的不一致;中性=灰條。
+        # 溫度計:指針位置 = z 映射到 -3σ~+3σ,中間(50%)= 中性基準。z≈0(中性)
+        # 指針落正中央而非空條 —— 解決「中性看起來像沒資料」。左綠(偏冷/降風險)、
+        # 右紅(偏熱/升風險);狀態文字也用同一 z,三者一致。
         if zz >= 1.0:
-            st_txt, st_cls, bar_cls = "目前偏熱,推升風險", "risk-st-hot", "risk-bar-pos"
+            st_txt, st_cls, pin_cls = "目前偏熱,推升風險", "risk-st-hot", "risk-pin-hot"
         elif zz <= -1.0:
-            st_txt, st_cls, bar_cls = "目前偏冷,壓低風險", "risk-st-cold", "risk-bar-neg"
+            st_txt, st_cls, pin_cls = "目前偏冷,壓低風險", "risk-st-cold", "risk-pin-cold"
         else:
-            st_txt, st_cls, bar_cls = "目前中性", "risk-st-neutral", "risk-bar-mid"
-        barw = min(abs(zz) / 3.0 * 100, 100)
+            st_txt, st_cls, pin_cls = "目前中性", "risk-st-neutral", "risk-pin-neutral"
+        pin = max(0.0, min((zz + 3) / 6 * 100, 100))  # z∈[-3,3] → 0~100%,z=0 → 50%
         active_rows.append(
             f'<div class="risk-grp">'
             f'<div class="risk-grp-head"><b>{name}</b>'
             f'<span class="risk-grp-state {st_cls}">{st_txt}</span></div>'
             f'<div class="risk-grp-desc">{desc} —— {hi_means}</div>'
-            f'<div class="risk-bar-track"><div class="risk-bar {bar_cls}" '
-            f'style="width:{barw:.0f}%"></div></div>'
+            f'<div class="risk-gauge-bar"><span class="risk-gauge-mid"></span>'
+            f'<span class="risk-gauge-pin {pin_cls}" style="left:{pin:.0f}%"></span></div>'
+            f'<div class="risk-gauge-scale"><span>偏冷</span><span>中性</span>'
+            f'<span>偏熱</span></div>'
             f'</div>'
         )
     H.append(
@@ -1093,36 +1094,34 @@ def build_risk_page(snapshot: dict | None, history: list[dict]) -> str:
     # ── 過熱訊號:白話含意 + 定性程度 + 刻度條(標出警戒線基準),不 dump 裸 z ──
     if trig:
         tl = []
+        # 程度直接採用 ingest 判定的 status(danger=警戒 / warn=注意),不自己用
+        # value 套門檻(各訊號亮燈門檻不同、value 尺度未必可比 —— 之前臆測「>1.5
+        # 才亮」與實際 put_call=1.39 亮燈矛盾)。強度條只做「相對本批最大」的視覺
+        # 暗示,不標絕對數字、不畫固定門檻線。
+        _vals = [abs(x.get("value")) for x in trig
+                 if isinstance(x.get("value"), (int, float))]
+        max_v = max(_vals) if _vals else 1.0
         for t in trig:
             raw = t.get("name")
             entry = _RISK_TRIG.get(raw)
             short, mean = entry if entry else (raw or "訊號", "")
+            st = t.get("status", "warn")
+            deg = "警戒" if st == "danger" else "注意"
             val = t.get("value")
             v = abs(val) if isinstance(val, (int, float)) else 0.0
-            if v >= 2.5:
-                deg = "極端偏高"
-            elif v >= 2.0:
-                deg = "明顯偏高"
-            else:
-                deg = "偏高"
-            st = t.get("status", "warn")
-            fill_pct = min(v / 3.0 * 100, 100)
-            gate_pct = 1.5 / 3.0 * 100  # 警戒線(z=1.5)在刻度條 0~3 上的位置
+            fill_pct = min(v / max_v * 100, 100) if max_v else 0
             tl.append(
                 f'<div class="risk-trig risk-trig-{st}">'
                 f'<div class="risk-trig-top"><b>{short}</b>'
-                f'<span class="risk-trig-deg">{deg}</span></div>'
+                f'<span class="risk-trig-deg risk-deg-{st}">{deg}</span></div>'
                 f'<div class="risk-trig-mean">{mean}</div>'
-                f'<div class="risk-trig-scale" title="超過警戒線即亮燈,越右越極端">'
-                f'<span class="risk-trig-gate" style="left:{gate_pct:.0f}%"></span>'
+                f'<div class="risk-trig-scale" title="相對強度(本日警示訊號間比較)">'
                 f'<span class="risk-trig-fill" style="width:{fill_pct:.0f}%"></span></div>'
-                f'<div class="risk-trig-foot">偏離近期常態 {_num(v, 1)} 倍'
-                f'(超過 1.5 倍才亮燈,越右越極端)</div>'
                 f'</div>'
             )
         H.append(
-            '<div class="risk-trig-box"><h3 class="risk-sec-h">⚡ 目前亮燈的過熱訊號'
-            '<span class="risk-sec-sub">越接近右側越該留意</span></h3>'
+            '<div class="risk-trig-box"><h3 class="risk-sec-h">⚡ 目前觸發的警示訊號'
+            '<span class="risk-sec-sub">模型偵測到的過熱跡象,長條為彼此間的相對強度</span></h3>'
             '<div class="risk-trig-list">' + "".join(tl) + '</div></div>'
         )
     else:

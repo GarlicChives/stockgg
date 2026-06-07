@@ -1052,6 +1052,20 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .risk-grp-foot{font-size:.72rem;line-height:1.6;color:var(--muted);margin:.7rem 0 0;
                padding-top:.55rem;border-top:1px solid rgba(255,255,255,.06)}
 
+/* 面向溫度計:左綠(偏冷)→中灰(中性)→右紅(偏熱),指針標 z 位置;中性=正中央 */
+.risk-gauge-bar{position:relative;height:8px;border-radius:4px;margin:.1rem 0 .3rem;
+                background:linear-gradient(90deg,rgba(16,185,129,.32),rgba(148,160,168,.18) 50%,rgba(239,68,68,.32))}
+.risk-gauge-mid{position:absolute;left:50%;top:-2px;width:1px;height:12px;
+                background:rgba(255,255,255,.35);transform:translateX(-50%)}
+.risk-gauge-pin{position:absolute;top:50%;width:12px;height:12px;border-radius:50%;
+                transform:translate(-50%,-50%);border:2px solid var(--card);box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+.risk-pin-hot{background:#ef4444}
+.risk-pin-cold{background:#10b981}
+.risk-pin-neutral{background:#cbd5e1}
+.risk-gauge-scale{display:flex;justify-content:space-between;font-size:.6rem;color:var(--muted);opacity:.7}
+.risk-deg-warn{color:#fbbf24}
+.risk-deg-danger{color:#fca5a5}
+
 /* 過熱訊號 — 卡片式:標題+程度 / 白話含意 / 刻度條(含警戒線) / 基準說明 */
 .risk-trig-list{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
 .risk-trig{padding:.6rem .7rem;border-radius:9px;border:1px solid transparent}
