@@ -190,7 +190,11 @@ function _initIndmapGraph() {
   _indmapRendered = true;
   host.innerHTML = '';
 
-  const W = 1000, H = 680, nodes = g.nodes, edges = g.edges || [], hot = g.hot || 2.0;
+  // viewBox 寬度跟著容器寬高比走 → 圖滿版填滿容器(不留左右黑邊)
+  const H = 680;
+  const cw = host.clientWidth || 1200, ch = host.clientHeight || 680;
+  const W = Math.round(Math.max(700, Math.min(2200, H * (cw / ch))));
+  const nodes = g.nodes, edges = g.edges || [], hot = g.hot || 2.0;
   _imLayout(nodes, edges, W, H);
 
   // 節點半徑:成交熱度(tv 億)sqrt 縮放
@@ -348,32 +352,8 @@ function _initIndmapGraph() {
   }
   svg.appendChild(gNodes);
   host.appendChild(svg);
-
-  // pan(拖背景)+ zoom(滾輪)via viewBox
-  let dragging = false, lx = 0, ly = 0;
-  svg.addEventListener('mousedown', e => {
-    if (e.target.closest('.im-node')) return;
-    dragging = true; lx = e.clientX; ly = e.clientY; svg.classList.add('im-grab');
-  });
-  window.addEventListener('mouseup', () => { dragging = false; svg.classList.remove('im-grab'); });
-  window.addEventListener('mousemove', e => {
-    if (!dragging) return;
-    const sc = vb.w / svg.clientWidth;
-    vb.x -= (e.clientX - lx) * sc; vb.y -= (e.clientY - ly) * sc;
-    lx = e.clientX; ly = e.clientY; setVB();
-  });
-  svg.addEventListener('wheel', e => {
-    e.preventDefault();
-    const f = e.deltaY < 0 ? 0.88 : 1.14;
-    const r = svg.getBoundingClientRect();
-    const mx = vb.x + ((e.clientX - r.left) / r.width) * vb.w;
-    const my = vb.y + ((e.clientY - r.top) / r.height) * vb.h;
-    const nw = Math.max(W * 0.25, Math.min(W * 2.2, vb.w * f));
-    const nh = nw * (H / W);
-    vb.x = mx - (mx - vb.x) * (nw / vb.w);
-    vb.y = my - (my - vb.y) * (nh / vb.h);
-    vb.w = nw; vb.h = nh; setVB();
-  }, { passive: false });
+  // 滿版靜態呈現:不做滾輪縮放、不做拖曳平移(圖已填滿容器、節點全可見);
+  // 互動只保留 hover tooltip + 點節點開 modal。滾輪維持頁面正常捲動。
 }
 
 function showSubTab(name) {

@@ -1311,18 +1311,13 @@ def build_industry_map_page(rows: list[dict],
         edges.append([ia, ib, st, rel])
     edges.sort(key=lambda e: e[2])   # 弱邊先畫,強邊壓上(視覺層次)
 
-    # ── 4. 跨產業關聯 payload + 明星股清單 ──
+    # ── 4. 跨產業關聯 payload(modal 內個股點擊用;頁面層級「明星股」chip 已移除）──
     cross_payload = {}
-    multi = []
     for tk, ce in cross.items():
         cross_payload[tk] = {"n": ce["n"], "h": ce["hits"]}
-        if len(ce["hits"]) >= 2:
-            multi.append((tk, ce["n"], len(ce["hits"])))
-    multi.sort(key=lambda x: (-x[2], x[0]))
 
     n_focus = len(focuses)
     n_rows = len(rows)
-    n_multi = len(multi)
     n_hot = sum(1 for nd in nodes
                 if nd["chg"] is not None and nd["chg"] >= HOT_THRESHOLD
                 and nd["cov"] >= 0.2)
@@ -1399,23 +1394,6 @@ def build_industry_map_page(rows: list[dict],
     # ── 蜘蛛網圖容器(app.js _initIndmapGraph lazy render)──
     H.append('<div id="im-graph" class="im-graph"><div class="im-graph-hint">'
              '載入關聯圖中…</div></div>')
-
-    # ── 橫跨多個焦點的明星股(聯想入口,保留)──
-    if multi:
-        chips = []
-        for tk, nm, cnt in multi[:24]:
-            chips.append(
-                f'<button type="button" class="im-star-chip" '
-                f'onclick="imShowCross(\'{esc(tk)}\')">'
-                f'<span class="im-tk">{esc(tk)}</span> {esc(nm)}'
-                f'<span class="im-star-cnt">{cnt} 個焦點</span></button>'
-            )
-        H.append(
-            '<div class="im-multi"><h3 class="im-sec-h">🔗 橫跨多個焦點的個股'
-            '<span class="im-sec-sub">同一檔出現在愈多焦點,代表它是愈多題材的交集 ——'
-            ' 點它看橫跨哪些焦點</span></h3>'
-            '<div class="im-star-chips">' + "".join(chips) + '</div></div>'
-        )
 
     # ── 隱藏 detail store(點節點 → imOpenFocus 取 innerHTML 進 modal)──
     H.append('<div id="im-detail-store" hidden>' + "".join(detail_blocks) + '</div>')
