@@ -1167,14 +1167,15 @@ def build_risk_page(snapshot: dict | None, history: list[dict]) -> str:
 
 
 def build_industry_map_page(rows: list[dict],
-                            stocks_info: dict | None = None) -> str:
-    """🗺️ 產業地圖(Q38)— 焦點產業關聯「蜘蛛網」圖。
-      - 節點 = 焦點產業;連線 = 兩焦點共享個股(共享愈多愈靠近 = 跨產業聯想)。
+                            stocks_info: dict | None = None,
+                            supply_edges: list[dict] | None = None) -> str:
+    """🗺️ 產業地圖(Q38 + Q39)— 焦點產業供應鏈「蜘蛛網」圖。
+      - 節點 = 焦點產業;連線 = **焦點間供應鏈有向邊**(Q39 `industry_supply_edges`,
+        ingest Gemini 推導;from=上游供應端 → to=下游需求端,箭頭指下游)。**非交集股**。
       - 節點發亮 = 該焦點今日成分股的「成交值加權平均漲跌幅」(紅=今日強 / 綠=弱 /
         灰空心=今日無成交資料);加權漲幅 ≥ hot_threshold 的焦點脈動光暈。
-      - 點節點 → modal 展開該焦點完整階層(上中下游 / 受惠層 → 子產業 → 個股 + 星級)。
-    當日漲跌來自記憶體 `stocks_info`(已 fetch 的 trading_rankings),用 ticker join,
-    不另查 DB。純讀 ingest 的 industry_focus_map,stockgg 端只 group + 聚合 + render。"""
+      - 點節點 → modal 展開該焦點 **同產業上中下游**(axis)→ 子產業 → 個股 + 星級。
+    當日漲跌來自記憶體 `stocks_info`,用 ticker join,不另查 DB。供應鏈邊來自 Q39。"""
     if not rows:
         return ('<p class="muted-note">產業地圖資料載入失敗(Q38 無資料,'
                 'ingest 產業地圖 cron 可能尚未跑)。</p>')
@@ -1182,8 +1183,6 @@ def build_industry_map_page(rows: list[dict],
     esc = html_lib.escape
     si = stocks_info or {}
     HOT_THRESHOLD = 2.0          # 加權漲幅 ≥ 此值(且覆蓋足夠)→ 脈動「熱門」
-    EDGE_MIN_SHARED = 2          # 兩焦點共享個股 ≥ 此數才考慮建邊
-    EDGE_TOPK = 4                # 每焦點只保留最強 top-K 條連結(去 hairball)
 
     # ── 1. group rows → focus → axis(欄)→ sub_industry → companies ──
     # rows 已由 SQL 排好序(focus_name, axis_order, sub_order, rating_rank desc, ticker)。
@@ -1289,24 +1288,27 @@ def build_industry_map_page(rows: list[dict],
             "mv": [{"t": t, "n": n, "c": round(c, 1)} for t, n, c in movers],
         })
 
-    # ── 3. 邊:焦點兩兩共享個股數 ≥ EDGE_MIN_SHARED,再做「每節點留最強 top-K」去 hairball ──
-    # 半導體 / 被動元件等焦點彼此共享大量個股,全保留會是亂線團(50 點 462 邊)。
-    # 對每個焦點只留它最強的 top-K 條連結(取聯集),保住最有意義的關聯又不糊成一團。
-    sets = [set(f["tks"].keys()) for f in focuses]
-    pair_w: dict[tuple, int] = {}
-    inc: dict[int, list] = {}
-    for a in range(len(focuses)):
-        for b in range(a + 1, len(focuses)):
-            w = len(sets[a] & sets[b])
-            if w >= EDGE_MIN_SHARED:
-                pair_w[(a, b)] = w
-                inc.setdefault(a, []).append((w, a, b))
-                inc.setdefault(b, []).append((w, a, b))
-    keep = set()
-    for _node, lst in inc.items():
-        for w, a, b in sorted(lst, key=lambda x: -x[0])[:EDGE_TOPK]:
-            keep.add((a, b))
-    edges = [[a, b, pair_w[(a, b)]] for (a, b) in keep]
+    # ── 3. 邊:焦點間供應鏈有向邊(Q39;from=上游 → to=下游,箭頭指下游)──
+    # 取代舊的「交集股連線」—— 交集股只是「同一檔出現在兩題材」,不是供應鏈關係。
+    # 邊由 ingest Gemini 從 industry_focus_map 階層 + 描述語意推導(industry_supply_edges)。
+    tag2idx = {f["tag"]: i for i, f in enumerate(focuses)}
+    edges = []      # [from_idx, to_idx, strength, relation]
+    for e in (supply_edges or []):
+        try:
+            fa = int(e.get("from_focus_tag"))
+            tb = int(e.get("to_focus_tag"))
+        except (TypeError, ValueError):
+            continue
+        ia, ib = tag2idx.get(fa), tag2idx.get(tb)
+        if ia is None or ib is None or ia == ib:
+            continue
+        try:
+            st = int(e.get("strength"))
+        except (TypeError, ValueError):
+            st = 2
+        st = max(1, min(3, st))
+        rel = (e.get("relation") or "").strip()
+        edges.append([ia, ib, st, rel])
     edges.sort(key=lambda e: e[2])   # 弱邊先畫,強邊壓上(視覺層次)
 
     # ── 4. 跨產業關聯 payload + 明星股清單 ──
@@ -1368,22 +1370,24 @@ def build_industry_map_page(rows: list[dict],
             f'{kind_head}<div class="im-axes">' + "".join(cols_html) + '</div></div>'
         )
 
+    n_edges = len(edges)
     H = []
     # ── 說明 banner ──
     H.append(
         '<div class="im-intro">'
         '<b>🗺️ 產業地圖</b>'
-        f'<span class="im-intro-meta">{n_focus} 個焦點產業 · {n_multi} 檔橫跨多個焦點 · '
+        f'<span class="im-intro-meta">{n_focus} 個焦點產業 · {n_edges} 條供應鏈關係 · '
         f'今日 <b>{n_hot}</b> 個焦點明顯走強</span>'
-        '<p class="im-intro-desc">每個圓點是一個焦點產業,圓點之間有線 = 兩者<b>共享個股</b>'
-        '(愈多共享愈靠近,就是跨產業聯想)。圓點<b>今天愈紅愈亮 = 該題材今日資金愈強</b>'
-        '(成交值加權漲跌幅);灰色空心 = 今日成分股無成交資料。<b>點圓點</b>展開該焦點的'
-        '上中下游 / 受惠層與成分股。</p>'
+        '<p class="im-intro-desc">每個圓點是一個焦點產業,圓點之間的<b>箭頭 = 供應鏈上下游</b>'
+        '(箭頭由<b>上游供應端</b>指向<b>下游需求端</b>,如「ABF 載板 → 先進封裝」);滑過線看關係說明。'
+        '圓點<b>今天愈紅愈亮 = 該題材今日資金愈強</b>(成交值加權漲跌幅),灰色空心 = 今日無成交資料。'
+        '<b>點圓點</b>展開該焦點<b>內部</b>的上中下游 / 受惠層與成分股。</p>'
         '</div>'
     )
     # ── 圖例(標尺,不 dump 裸值)──
     H.append(
         '<div class="im-legend">'
+        '<span class="im-leg-item"><span class="im-leg-arrow">→</span>供應鏈:上游指向下游</span>'
         '<span class="im-leg-item"><i class="im-leg-dot im-leg-up"></i>今日走強(愈紅愈亮)</span>'
         '<span class="im-leg-item"><i class="im-leg-dot im-leg-flat"></i>今日持平</span>'
         '<span class="im-leg-item"><i class="im-leg-dot im-leg-down"></i>今日走弱(綠)</span>'
@@ -3712,6 +3716,19 @@ async def generate():
     except Exception as exc:
         print(f"  ⚠ Q38 industry_map query failed: {exc}")
 
+    # ── Q39 焦點產業供應鏈有向邊(蜘蛛網的「線」;ingest 4162523 Gemini 推導,
+    #    industry_supply_edges,from=上游 → to=下游)。壞只是圖沒線,不中斷。──
+    indmap_edges: list[dict] = []
+    try:
+        indmap_edges = [dict(r) for r in await conn.fetch(
+            "select from_focus_tag, from_focus_name, to_focus_tag, to_focus_name, "
+            "relation, strength from industry_supply_edges "
+            "order by strength desc, from_focus_name"
+        )]
+        print(f"  industry_supply_edges (Q39): {len(indmap_edges)} edges")
+    except Exception as exc:
+        print(f"  ⚠ Q39 industry_supply_edges query failed: {exc}")
+
     # 「市場行情」ranking table 只顯前 N (RANKINGS_TOP_N=50),過濾 Q14 special
     # 與 Q15 focus_member 的 rank=NULL row(它們是 cluster detection universe,
     # 不該出現在 ranking 表)。cluster detection / stocks_info path 仍走完整
@@ -3732,7 +3749,7 @@ async def generate():
     notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)
     catalyst_html = build_catalyst_html(catalyst_events, stocks_info)
     risk_html   = build_risk_page(risk_snapshot, risk_history)
-    indmap_html = build_industry_map_page(indmap_rows, stocks_info)
+    indmap_html = build_industry_map_page(indmap_rows, stocks_info, indmap_edges)
 
     # ── 主動式 ETF(2026-05-20 對應 ingest f5faa21)──
     # Q18 拿全 23 檔 ETF master(按 AUM desc);Q19 對每 ETF 抓 latest holdings + diff;

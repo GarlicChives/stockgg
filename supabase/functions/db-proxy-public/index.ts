@@ -210,6 +210,12 @@ const ALLOWED: Set<string> = new Set([
   //   axis_order = 該焦點內軸首次出現序;rating_rank 受惠最高=3/高=2/中=1/低=0。
   //   ~1095 列、編輯型慢變,整表一次撈、前端 group。
   "select focus_tag, focus_name, axis, axis_kind, axis_order, sub_industry, sub_order, description, ticker, stock_name, market, rating, rating_rank from industry_focus_map order by focus_name, axis_order, sub_order, rating_rank desc, ticker",
+
+  // Q39 — 焦點產業間供應鏈有向邊(🗺️ 產業地圖蜘蛛網的「線」;ingest 4162523 起
+  //   Gemini 從 industry_focus_map 階層 + 描述語意推導,寫 industry_supply_edges)。
+  //   from = 上游/供應端、to = 下游/需求端;strength 1..3(3=核心直接供應)。
+  //   取代原本「交集股連線」—— 那不是供應鏈關係。~數十~百條、週更慢變,整表撈。
+  "select from_focus_tag, from_focus_name, to_focus_tag, to_focus_name, relation, strength from industry_supply_edges order by strength desc, from_focus_name",
 ])
 
 function normalize(q: string): string {

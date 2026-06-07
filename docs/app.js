@@ -228,27 +228,66 @@ function _initIndmapGraph() {
     '<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
   svg.appendChild(defs);
 
-  // edges
-  const gEdges = document.createElementNS(SVGNS, 'g');
-  for (const e of edges) {
-    const a = nodes[e[0]], b = nodes[e[1]], w = e[2];
-    const ln = document.createElementNS(SVGNS, 'line');
-    ln.setAttribute('x1', a.x); ln.setAttribute('y1', a.y);
-    ln.setAttribute('x2', b.x); ln.setAttribute('y2', b.y);
-    ln.setAttribute('class', 'im-edge');
-    ln.setAttribute('stroke-width', Math.min(0.6 + w * 0.35, 3));
-    ln.style.opacity = Math.min(0.08 + w * 0.07, 0.42);
-    gEdges.appendChild(ln);
-  }
-  svg.appendChild(gEdges);
-
-  // tooltip
+  // tooltip(節點 + 供應鏈邊 共用)
   let tip = document.getElementById('im-tooltip');
   if (!tip) {
     tip = document.createElement('div');
     tip.id = 'im-tooltip'; tip.className = 'im-tooltip'; tip.hidden = true;
     host.appendChild(tip);
   }
+  const placeTip = (evt) => {
+    const hb = host.getBoundingClientRect();
+    let x = evt.clientX - hb.left + 14, y = evt.clientY - hb.top + 14;
+    x = Math.min(x, hb.width - tip.offsetWidth - 8);
+    y = Math.min(y, hb.height - tip.offsetHeight - 8);
+    tip.style.left = x + 'px'; tip.style.top = y + 'px';
+  };
+
+  // edges:供應鏈有向邊(e=[from, to, strength, relation];from=上游 → to=下游)。
+  // 線在節點邊界收尾、箭頭指下游;滑過顯示關係說明。
+  const gEdges = document.createElementNS(SVGNS, 'g');
+  for (const e of edges) {
+    const a = nodes[e[0]], b = nodes[e[1]], st = e[2], rel = e[3] || '';
+    let ux = b.x - a.x, uy = b.y - a.y; const d = Math.hypot(ux, uy) || 0.01;
+    ux /= d; uy /= d;
+    const sx = a.x + ux * (a.r + 1), sy = a.y + uy * (a.r + 1);
+    const ex = b.x - ux * (b.r + 3), ey = b.y - uy * (b.r + 3);
+    const op = st >= 3 ? 0.5 : 0.3, sw = st >= 3 ? 1.8 : 1.1;
+    const cell = document.createElementNS(SVGNS, 'g');
+    cell.setAttribute('class', 'im-edge-g');
+    const ln = document.createElementNS(SVGNS, 'line');
+    ln.setAttribute('x1', sx); ln.setAttribute('y1', sy);
+    ln.setAttribute('x2', ex); ln.setAttribute('y2', ey);
+    ln.setAttribute('class', 'im-edge');
+    ln.setAttribute('stroke-width', sw); ln.style.opacity = op;
+    cell.appendChild(ln);
+    // 箭頭(指向下游節點)
+    const ah = 7 + st, aw = 3 + st * 0.6;
+    const lx = ex - ux * ah, ly = ey - uy * ah, px = -uy, py = ux;
+    const tri = document.createElementNS(SVGNS, 'polygon');
+    tri.setAttribute('points', ex + ',' + ey + ' ' + (lx + px * aw) + ',' + (ly + py * aw) +
+      ' ' + (lx - px * aw) + ',' + (ly - py * aw));
+    tri.setAttribute('class', 'im-arrow'); tri.style.opacity = Math.min(op + 0.18, 0.72);
+    cell.appendChild(tri);
+    // 透明粗線當 hover 命中區
+    const hit = document.createElementNS(SVGNS, 'line');
+    hit.setAttribute('x1', sx); hit.setAttribute('y1', sy);
+    hit.setAttribute('x2', ex); hit.setAttribute('y2', ey);
+    hit.setAttribute('class', 'im-edge-hit');
+    cell.appendChild(hit);
+    const showEdge = (evt) => {
+      tip.innerHTML = '<div class="im-tip-edge"><b>' + _imEsc(a.name) +
+        '</b> <span class="im-tip-arrow">→</span> <b>' + _imEsc(b.name) + '</b></div>' +
+        (rel ? '<div class="im-tip-row im-tip-sub">' + _imEsc(rel) + '</div>' : '') +
+        '<div class="im-tip-hint">供應鏈:上游 → 下游</div>';
+      tip.hidden = false; placeTip(evt);
+    };
+    cell.addEventListener('mouseenter', showEdge);
+    cell.addEventListener('mousemove', showEdge);
+    cell.addEventListener('mouseleave', () => { tip.hidden = true; });
+    gEdges.appendChild(cell);
+  }
+  svg.appendChild(gEdges);
   const showTip = (nd, evt) => {
     const hc = _imHeatColor(nd.chg);
     let s = '<div class="im-tip-name">' + _imEsc(nd.name) + '</div>';
