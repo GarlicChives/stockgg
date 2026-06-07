@@ -85,10 +85,20 @@ function _imBindModalScroll() {
   _imModalBound = true;
   dlg.addEventListener('wheel', (e) => {
     const body = dlg.querySelector('.im-modal-body');
-    if (!body || !body.contains(e.target)) { e.preventDefault(); return; }
-    const atTop = body.scrollTop <= 0;
-    const atBottom = body.scrollTop + body.clientHeight >= body.scrollHeight - 1;
-    if ((atTop && e.deltaY < 0) || (atBottom && e.deltaY > 0)) e.preventDefault();
+    if (!body) { e.preventDefault(); return; }
+    // 左欄成分股清單:自己可捲(overscroll:contain 擋鏈),到頂/底時擋頁面穿透
+    const side = e.target.closest('.im-mc-side');
+    if (side && side.scrollHeight > side.clientHeight) {
+      const atT = side.scrollTop <= 0;
+      const atB = side.scrollTop + side.clientHeight >= side.scrollHeight - 1;
+      if ((atT && e.deltaY < 0) || (atB && e.deltaY > 0)) e.preventDefault();
+      return;
+    }
+    if (!body.contains(e.target)) { e.preventDefault(); return; }
+    // 其餘區域(含 lightweight-charts canvas —— 它會吃掉 wheel 讓 body 捲不動)
+    // 一律手動驅動 body 捲動 + 擋穿透 → 確保 modal 內容永遠可捲到底。
+    body.scrollTop += e.deltaY;
+    e.preventDefault();
   }, { passive: false });
   dlg.addEventListener('close', () => { _imDisposeCharts(); });
 }
@@ -129,6 +139,8 @@ let _imCurFocus = -1;
 let _imCurSub = null;       // null = 整個焦點;數字 = subs_payload.subs index
 let _imPeriod = '6m';
 let _imTickerDis = new Set();   // 左欄被排除(不納入加權)的 ticker(本地,不動題材 modal)
+let _imChartMode = 'index';     // 'index' = 加權指數 vs 大盤/櫃買;'strength' = 個股各一條
+let _imNetMode = 'daily';       // 'daily' = 當日;'cum' = 累計
 
 function imOpenFocus(i, name) {
   const src = document.getElementById('imf-' + i);
@@ -138,6 +150,7 @@ function imOpenFocus(i, name) {
   const fname = name || src.dataset.name || '焦點產業';
   title.innerHTML = '🗺️ ' + _imEsc(fname);
   _imCurFocus = i; _imCurSub = null; _imTickerDis = new Set();
+  _imChartMode = 'index'; _imNetMode = 'daily';
   const subInfo = (window.IIA_INDMAP_SUBS || {})[i];
   const hasChart = subInfo && (subInfo.all || []).length > 0;
   const chartHtml = hasChart ? (
@@ -151,19 +164,30 @@ function imOpenFocus(i, name) {
           p.toUpperCase() + '</button>').join('') +
       '</span>' +
     '</div>' +
-    '<div class="im-mc-legend"><span><i style="background:#10b981"></i>焦點股加權指數</span>' +
-      '<span><i style="background:#f59e0b"></i>大盤</span>' +
-      '<span><i style="background:#94aef7"></i>櫃買</span>' +
-      '<span class="im-mc-net-lbl">下圖:三大法人資金淨流入(億)</span></div>' +
     '<div class="im-mc-body">' +
       '<div class="im-mc-side" id="im-mc-side" title="點個股可從加權指數排除/納入"></div>' +
       '<div class="im-mc-main">' +
+        '<div class="im-mc-clabel">' +
+          '<span class="im-mc-clabel-t" id="im-mc-leg">' +
+            '<i style="background:#10b981"></i>焦點股加權指數' +
+            '<i style="background:#f59e0b;margin-left:.5rem"></i>大盤' +
+            '<i style="background:#94aef7;margin-left:.4rem"></i>櫃買</span>' +
+          '<span class="im-mc-seg">' +
+            '<button type="button" class="im-mc-mchip active" data-cm="index" onclick="imSetChartMode(\'index\')">指數</button>' +
+            '<button type="button" class="im-mc-mchip" data-cm="strength" onclick="imSetChartMode(\'strength\')">個股</button></span>' +
+        '</div>' +
         '<div id="im-mc-price" class="im-mc-chart"></div>' +
+        '<div class="im-mc-clabel">' +
+          '<span class="im-mc-clabel-t">三大法人資金淨流入(億)</span>' +
+          '<span class="im-mc-seg">' +
+            '<button type="button" class="im-mc-mchip active" data-nm="daily" onclick="imSetNetMode(\'daily\')">當日</button>' +
+            '<button type="button" class="im-mc-mchip" data-nm="cum" onclick="imSetNetMode(\'cum\')">累計</button></span>' +
+        '</div>' +
         '<div id="im-mc-net" class="im-mc-chart im-mc-chart-net"></div>' +
         '<div id="im-mc-empty" class="im-mc-empty" style="display:none">此題材的成分股暫無足夠歷史資料</div>' +
       '</div>' +
     '</div>' +
-    '<div class="im-mc-hint">點<b>左側個股</b>可從加權指數排除/納入;點下方任一<b>子產業標題</b>📈,趨勢圖即切換到該子產業</div>' +
+    '<div class="im-mc-hint">點<b>左側個股</b>排除/納入加權;<b>指數/個股</b>、<b>當日/累計</b>可切換圖;點下方<b>子產業標題</b>📈切換題材</div>' +
     '</div>'
   ) : '';
   body.innerHTML = chartHtml + '<div class="im-modal-focus">' + src.innerHTML + '</div>';
@@ -184,6 +208,24 @@ function imPickSub(i, subIdx) {
 /* 左欄點個股 → 從加權指數排除/納入 */
 function imToggleTicker(t) {
   if (_imTickerDis.has(t)) _imTickerDis.delete(t); else _imTickerDis.add(t);
+  _imRenderSubChart(_imCurFocus, _imCurSub);
+}
+
+/* 上圖模式:指數(加權 vs 大盤/櫃買)/ 個股(各檔各一條,比強弱)*/
+function imSetChartMode(m) {
+  if (m === _imChartMode) return;
+  _imChartMode = m;
+  document.querySelectorAll('.im-mc-mchip[data-cm]').forEach(b =>
+    b.classList.toggle('active', b.dataset.cm === m));
+  _imRenderSubChart(_imCurFocus, _imCurSub);
+}
+
+/* 下圖模式:當日 / 累計(滾動加總)*/
+function imSetNetMode(m) {
+  if (m === _imNetMode) return;
+  _imNetMode = m;
+  document.querySelectorAll('.im-mc-mchip[data-nm]').forEach(b =>
+    b.classList.toggle('active', b.dataset.nm === m));
   _imRenderSubChart(_imCurFocus, _imCurSub);
 }
 
@@ -269,14 +311,43 @@ function _imRenderSubChart(i, subIdx) {
     const lo = (c) => ({ color: c, lineWidth: 2, priceLineVisible: false,
       priceFormat: { type: 'custom', formatter: v => v.toFixed(1) } });
     _imCharts.price = LightweightCharts.createChart(priceEl, opts);
-    _imCharts.price.addLineSeries(lo('#10b981')).setData(_rebaseSeries(priceSeries, startDate));
-    _imCharts.price.addLineSeries(lo('#f59e0b')).setData(_rebaseSeries(twii, startDate));
-    _imCharts.price.addLineSeries(lo('#94aef7')).setData(_rebaseSeries(tpex, startDate));
+    const legEl = document.getElementById('im-mc-leg');
+    if (_imChartMode === 'strength') {
+      // 個股強弱:每檔 enabled ticker 各一條 rebase 100,不畫大盤/櫃買;legend 顯 ticker→色
+      const tch = window.IIA_TICKER_CLOSE || {};
+      const legItems = [];
+      tickers.forEach((tk, idx) => {
+        const rows = (tch[tk.ticker] || []).filter(p => p.c != null).map(p => ({ time: p.d, value: p.c }));
+        const filtered = _imFilterPeriod(rows).filter(p => p.time >= startDate);
+        if (!filtered.length) return;
+        const color = _pickTickerColor(idx, tickers.length);
+        _imCharts.price.addLineSeries(lo(color)).setData(_rebaseSeries(filtered, startDate));
+        legItems.push('<span class="im-mc-tkleg"><i style="background:' + color + '"></i>' + _escHtml(_dispTk(tk.ticker)) + '</span>');
+      });
+      if (legEl) legEl.innerHTML = legItems.join('') || '個股強弱';
+    } else {
+      _imCharts.price.addLineSeries(lo('#10b981')).setData(_rebaseSeries(priceSeries, startDate));
+      _imCharts.price.addLineSeries(lo('#f59e0b')).setData(_rebaseSeries(twii, startDate));
+      _imCharts.price.addLineSeries(lo('#94aef7')).setData(_rebaseSeries(tpex, startDate));
+      if (legEl) legEl.innerHTML = '<i style="background:#10b981"></i>焦點股加權指數' +
+        '<i style="background:#f59e0b;margin-left:.5rem"></i>大盤' +
+        '<i style="background:#94aef7;margin-left:.4rem"></i>櫃買';
+    }
+    // 下圖 net:當日 / 累計(滾動加總,色依累計正負)
+    let netData = netSeries;
+    if (_imNetMode === 'cum') {
+      let acc = 0;
+      netData = netSeries.map(p => {
+        acc += p.value;
+        return { time: p.time, value: +acc.toFixed(2),
+          color: acc >= 0 ? 'rgba(239,83,80,.8)' : 'rgba(38,166,154,.8)' };
+      });
+    }
     _imCharts.net = LightweightCharts.createChart(netEl, opts);
     _imCharts.net.addHistogramSeries({
       base: 0,
       priceFormat: { type: 'custom', formatter: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '億' },
-    }).setData(netSeries);
+    }).setData(netData);
     _imCharts.price.timeScale().fitContent();
     _imCharts.net.timeScale().fitContent();
     // 兩圖 right scale 同寬 → crosshair 對齊

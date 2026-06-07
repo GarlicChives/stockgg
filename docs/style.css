@@ -1186,7 +1186,11 @@ dialog#im-modal::backdrop{background:rgba(0,0,0,.6)}
 .im-modal-close{background:transparent;border:none;color:var(--muted);font-size:1.1rem;
                 cursor:pointer;line-height:1}
 .im-modal-close:hover{color:var(--text)}
-.im-modal-body{padding:1rem 1.1rem;overflow-y:auto;flex:1;min-height:0;
+/* max-height 直接限制 body 高度使其成為捲動容器 —— flex:1 在 dialog(max-height
+   而非固定 height)下不會 cap 子元素,body 會長到滿內容、dialog overflow:hidden
+   只是切掉 → 捲不動。直接給 body max-height 才穩。 */
+.im-modal-body{padding:1rem 1.1rem;overflow-y:auto;flex:1 1 auto;min-height:0;
+               max-height:calc(84vh - 58px);
                overscroll-behavior:contain;scrollbar-width:none}
 .im-modal-body::-webkit-scrollbar{display:none}
 .im-modal-lead{margin:0 0 .7rem;font-size:.86rem;color:var(--muted)}
@@ -1227,15 +1231,33 @@ dialog#im-modal::backdrop{background:rgba(0,0,0,.6)}
                 vertical-align:middle;margin-right:.25rem}
 .im-mc-net-lbl{margin-left:auto}
 .im-mc-body{display:flex;gap:.7rem;align-items:stretch}
-.im-mc-side{flex:0 0 172px;max-height:352px;overflow-y:auto;overscroll-behavior:contain;
-            display:flex;flex-direction:column;gap:.18rem;scrollbar-width:thin}
-.im-mc-side::-webkit-scrollbar{width:6px}
-.im-mc-side::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.im-mc-side{flex:0 0 210px;max-height:360px;overflow-y:auto;overflow-x:hidden;
+            overscroll-behavior:contain;display:flex;flex-direction:column;gap:.18rem;
+            scrollbar-width:none}
+.im-mc-side::-webkit-scrollbar{display:none}
+.im-mc-side .modal-tk-pill{overflow:hidden}
+.im-mc-side .modal-tk-pill .sp-name{max-width:4.5em}
+.im-mc-side .modal-tk-pill .sp-quote{font-size:.72rem}
 .im-mc-side-hd{font-size:.68rem;color:var(--muted);padding:.1rem .2rem .25rem;
                position:sticky;top:0;background:var(--card)}
-.im-mc-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:.2rem}
-.im-mc-chart{width:100%;height:220px}
+.im-mc-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:.1rem}
+.im-mc-chart{width:100%;height:210px}
 .im-mc-chart-net{height:120px}
+/* 每張圖上方標題列 + 模式切換(指數/個股、當日/累計)*/
+.im-mc-clabel{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;
+              font-size:.72rem;color:var(--muted);margin:.25rem 0 0}
+.im-mc-clabel-t{display:inline-flex;align-items:center;flex-wrap:wrap;gap:.1rem}
+.im-mc-clabel-t i{display:inline-block;width:.7rem;height:.18rem;border-radius:2px;
+                  vertical-align:middle;margin-right:.25rem}
+.im-mc-seg{display:inline-flex;gap:.12rem;margin-left:auto;flex-shrink:0}
+.im-mc-mchip{font-size:.66rem;font-weight:700;padding:.16rem .42rem;border-radius:5px;
+             background:rgba(255,255,255,.05);color:var(--muted);border:none;cursor:pointer;
+             transition:.15s;font-family:inherit}
+.im-mc-mchip:hover{color:var(--text)}
+.im-mc-mchip.active{background:var(--accent);color:#fff}
+.im-mc-tkleg{display:inline-flex;align-items:center;gap:.2rem;margin-right:.45rem;
+             font-size:.7rem;color:var(--text);font-variant-numeric:tabular-nums}
+.im-mc-tkleg i{display:inline-block;width:.7rem;height:.16rem;border-radius:2px}
 .im-mc-empty{padding:1.5rem;text-align:center;color:var(--muted);font-size:.85rem}
 .im-mc-hint{margin-top:.5rem;font-size:.74rem;color:var(--muted)}
 .im-mc-hint b{color:var(--accent)}
