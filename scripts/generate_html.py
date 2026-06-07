@@ -1325,15 +1325,20 @@ def build_industry_map_page(rows: list[dict],
     # ── 5. 每焦點階層 HTML → 隱藏 detail store(點節點才進 modal)──
     KIND_LABEL = {"supply_chain": "上下游", "benefit": "受惠層", "other": ""}
     detail_blocks = []
+    subs_payload: dict[int, dict] = {}   # focus i → {name, all:[tw tk], subs:[{name,tickers}]}
     for i, f in enumerate(focuses):
         kind_lbl = KIND_LABEL.get(f["kind"], "")
         kind_html = (f'<span class="im-kind">{kind_lbl}</span>' if kind_lbl else "")
         cols_html = []
+        sub_idx = 0                       # 該焦點內的子產業流水序(對應 subs_payload.subs)
+        f_subs = []                       # 子產業趨勢圖用:[{name, tickers}]
+        f_all_tw: list[str] = []
         for col in f["cols"]:
             ax_cls = f'ax-{col["order"]}' if 1 <= col["order"] <= 6 else "ax-9"
             subs_html = []
             for s in col["subs"]:
                 cos_html = []
+                tw_tks = []
                 for co in s["cos"]:
                     rr = co["rr"]
                     star = ('<span class="im-star">' + ("★" * (rr + 1)) + '</span>'
@@ -1347,11 +1352,23 @@ def build_industry_map_page(rows: list[dict],
                         f'{us_tag}<span class="im-tk">{esc(co["t"])}</span> '
                         f'{esc(co["n"])}{star}</button>'
                     )
+                    if co["m"] != "US" and str(co["t"]).isdigit():
+                        tw_tks.append(co["t"])
+                        f_all_tw.append(co["t"])
                 desc_html = (f'<div class="im-desc">{esc(s["desc"])}</div>'
                              if s["desc"] else "")
                 sub_name = esc(s["sub"]) if s["sub"] else "—"
+                # 子產業標題可點 → 上方趨勢圖切到該子產業(只在有 TW 個股時可點)
+                if tw_tks:
+                    head = (f'<button type="button" class="im-subname im-sub-pick" '
+                            f'data-sub="{sub_idx}" onclick="imPickSub({i},{sub_idx})">'
+                            f'{sub_name}<span class="im-sub-go">📈</span></button>')
+                    f_subs.append({"name": s["sub"] or "—", "tickers": tw_tks})
+                    sub_idx += 1
+                else:
+                    head = f'<div class="im-subname im-subname-flat">{sub_name}</div>'
                 subs_html.append(
-                    f'<div class="im-sub"><div class="im-subname">{sub_name}</div>'
+                    f'<div class="im-sub">{head}'
                     f'{desc_html}<div class="im-cos">{"".join(cos_html)}</div></div>'
                 )
             cols_html.append(
@@ -1364,6 +1381,11 @@ def build_industry_map_page(rows: list[dict],
             f'<div class="im-focus" id="imf-{i}" data-name="{esc(f["name"])}">'
             f'{kind_head}<div class="im-axes">' + "".join(cols_html) + '</div></div>'
         )
+        subs_payload[i] = {
+            "name": f["name"],
+            "all": sorted(set(f_all_tw)),
+            "subs": f_subs,
+        }
 
     n_edges = len(edges)
     H = []
@@ -1402,8 +1424,10 @@ def build_industry_map_page(rows: list[dict],
         {"nodes": nodes, "edges": edges, "hot": HOT_THRESHOLD},
         ensure_ascii=False, separators=(",", ":"))
     cross_json = json.dumps(cross_payload, ensure_ascii=False, separators=(",", ":"))
+    subs_json = json.dumps(subs_payload, ensure_ascii=False, separators=(",", ":"))
     H.append(f'<script>window.IIA_INDMAP_GRAPH={graph_payload};'
-             f'window.IIA_INDMAP_CROSS={cross_json};</script>')
+             f'window.IIA_INDMAP_CROSS={cross_json};'
+             f'window.IIA_INDMAP_SUBS={subs_json};</script>')
 
     return '<div class="im-page">' + "".join(H) + '</div>'
 
@@ -3303,7 +3327,35 @@ async def generate():
     # 給「焦點股」頁算 5 日均成交金額 / MA10 / MA20 用(history.json 的
     # ticker_close_payload 不含 volume,維持 modal chart payload 精簡)。
     ticker_close_full: dict[str, list[dict]] = {}
-    _hist_tickers = list(set(_focal_tw) | set(highlight_tickers))
+    # ── Q38 / Q39 產業地圖(在此提前 fetch,讓 industry-map TW ticker 也納入下面
+    #    的 ticker_close / ticker_net_inst 歷史 → modal 內子產業趨勢圖有資料)──
+    indmap_rows: list[dict] = []
+    indmap_edges: list[dict] = []
+    try:
+        indmap_rows = [dict(r) for r in await conn.fetch(
+            "select focus_tag, focus_name, axis, axis_kind, axis_order, "
+            "sub_industry, sub_order, description, ticker, stock_name, "
+            "market, rating, rating_rank from industry_focus_map "
+            "order by focus_name, axis_order, sub_order, rating_rank desc, ticker"
+        )]
+        _im_focus = len({r.get("focus_tag") for r in indmap_rows})
+        print(f"  industry_map (Q38): {len(indmap_rows)} rows, {_im_focus} focuses")
+    except Exception as exc:
+        print(f"  ⚠ Q38 industry_map query failed: {exc}")
+    try:
+        indmap_edges = [dict(r) for r in await conn.fetch(
+            "select from_focus_tag, from_focus_name, to_focus_tag, to_focus_name, "
+            "relation, strength from industry_supply_edges "
+            "order by strength desc, from_focus_name"
+        )]
+        print(f"  industry_supply_edges (Q39): {len(indmap_edges)} edges")
+    except Exception as exc:
+        print(f"  ⚠ Q39 industry_supply_edges query failed: {exc}")
+    # industry-map 純台股 ticker(4~6 碼數字)納入歷史 ticker 集,供子產業趨勢圖
+    _indmap_tw = {r["ticker"] for r in indmap_rows
+                  if r.get("ticker") and str(r["ticker"]).isdigit()}
+
+    _hist_tickers = list(set(_focal_tw) | set(highlight_tickers) | _indmap_tw)
 
     async def _fetch_ticker_batched(sql: str, tickers: list[str], *,
                                      batch_size: int = 60, retries: int = 2,
@@ -3677,35 +3729,8 @@ async def generate():
     except Exception as exc:
         print(f"  ⚠ Q36/Q37 risk_dashboard query failed: {exc}")
 
-    # ── Q38 產業地圖(🗺️ 產業地圖 tab;ingest 週日 09:30 cron 爬 statementdog
-    #    焦點產業階層,~1095 列編輯型慢變)。整表一次撈,build_industry_map_page
-    #    端 group(focus → axis → sub → 個股 + 跨產業關聯)。query 壞只是該頁不出,
-    #    不中斷其餘 render。──
-    indmap_rows: list[dict] = []
-    try:
-        indmap_rows = [dict(r) for r in await conn.fetch(
-            "select focus_tag, focus_name, axis, axis_kind, axis_order, "
-            "sub_industry, sub_order, description, ticker, stock_name, "
-            "market, rating, rating_rank from industry_focus_map "
-            "order by focus_name, axis_order, sub_order, rating_rank desc, ticker"
-        )]
-        _im_focus = len({r.get("focus_tag") for r in indmap_rows})
-        print(f"  industry_map (Q38): {len(indmap_rows)} rows, {_im_focus} focuses")
-    except Exception as exc:
-        print(f"  ⚠ Q38 industry_map query failed: {exc}")
-
-    # ── Q39 焦點產業供應鏈有向邊(蜘蛛網的「線」;ingest 4162523 Gemini 推導,
-    #    industry_supply_edges,from=上游 → to=下游)。壞只是圖沒線,不中斷。──
-    indmap_edges: list[dict] = []
-    try:
-        indmap_edges = [dict(r) for r in await conn.fetch(
-            "select from_focus_tag, from_focus_name, to_focus_tag, to_focus_name, "
-            "relation, strength from industry_supply_edges "
-            "order by strength desc, from_focus_name"
-        )]
-        print(f"  industry_supply_edges (Q39): {len(indmap_edges)} edges")
-    except Exception as exc:
-        print(f"  ⚠ Q39 industry_supply_edges query failed: {exc}")
+    # Q38 / Q39 產業地圖已在前面(_hist_tickers 構建前)fetch,讓 industry-map
+    # ticker 也納入 ticker_close / ticker_net_inst 歷史(供 modal 內子產業趨勢圖)。
 
     # 「市場行情」ranking table 只顯前 N (RANKINGS_TOP_N=50),過濾 Q14 special
     # 與 Q15 focus_member 的 rank=NULL row(它們是 cluster detection universe,

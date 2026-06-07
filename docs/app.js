@@ -68,10 +68,29 @@ function _initRiskChart() {
  * (Fruchterman-Reingold)+ 原生 SVG,不引入外部圖庫。點節點 → imOpenFocus 展開階層。*/
 const SVGNS = 'http://www.w3.org/2000/svg';
 let _indmapRendered = false;
+let _imModalBound = false;
 
 function _imEsc(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/* 綁一次:im-modal 內的滾輪只作用於 modal,不穿透到外層頁面。
+ * 命中區在 .im-modal-body(可捲)以外時 preventDefault;body 自身靠
+ * overscroll-behavior:contain 不把捲動鏈傳給背景頁。(其他 modal 漏過,這裡補齊) */
+function _imBindModalScroll() {
+  if (_imModalBound) return;
+  const dlg = document.getElementById('im-modal');
+  if (!dlg) return;
+  _imModalBound = true;
+  dlg.addEventListener('wheel', (e) => {
+    const body = dlg.querySelector('.im-modal-body');
+    if (!body || !body.contains(e.target)) { e.preventDefault(); return; }
+    const atTop = body.scrollTop <= 0;
+    const atBottom = body.scrollTop + body.clientHeight >= body.scrollHeight - 1;
+    if ((atTop && e.deltaY < 0) || (atBottom && e.deltaY > 0)) e.preventDefault();
+  }, { passive: false });
+  dlg.addEventListener('close', () => { _imDisposeCharts(); });
 }
 
 /* 跨產業關聯 modal:點個股 → 列出它出現的所有焦點 */
@@ -99,18 +118,146 @@ function imShowCross(ticker) {
       '</b> 個焦點產業，可作為投資聯想的交集：</p>' +
       '<ul class="im-modal-list">' + rows + '</ul>';
   }
+  _imBindModalScroll();
   document.getElementById('im-modal').showModal();
 }
 
-/* 點節點 → 取隱藏 detail store 的該焦點階層 HTML,塞進放大版 im-modal */
+/* 點節點 → modal 上方 = 該焦點題材趨勢圖(可切子產業)、下方 = 上中下游階層。
+ * 同一個 modal 容納兩塊資訊(不是 modal 內再開 modal)。 */
+let _imCharts = { price: null, net: null };
+let _imCurFocus = -1;
+let _imCurSub = null;       // null = 整個焦點;數字 = subs_payload.subs index
+let _imPeriod = '6m';
+
 function imOpenFocus(i, name) {
   const src = document.getElementById('imf-' + i);
   const body = document.getElementById('im-modal-body');
   const title = document.getElementById('im-modal-title');
   if (!src || !body || !title) return;
-  title.innerHTML = '🗺️ ' + _imEsc(name || src.dataset.name || '焦點產業');
-  body.innerHTML = '<div class="im-modal-focus">' + src.innerHTML + '</div>';
+  const fname = name || src.dataset.name || '焦點產業';
+  title.innerHTML = '🗺️ ' + _imEsc(fname);
+  _imCurFocus = i; _imCurSub = null;
+  const subInfo = (window.IIA_INDMAP_SUBS || {})[i];
+  const hasChart = subInfo && (subInfo.all || []).length > 0;
+  const chartHtml = hasChart ? (
+    '<div class="im-mc">' +
+    '<div class="im-mc-bar">' +
+      '<span class="im-mc-title" id="im-mc-title"></span>' +
+      '<span class="im-mc-periods">' +
+        ['1m', '3m', '6m', '1y', 'all'].map(p =>
+          '<button type="button" class="im-mc-chip' + (p === _imPeriod ? ' active' : '') +
+          '" data-p="' + p + '" onclick="imSetPeriod(\'' + p + '\')">' +
+          p.toUpperCase() + '</button>').join('') +
+      '</span>' +
+    '</div>' +
+    '<div class="im-mc-legend"><span><i style="background:#10b981"></i>焦點股加權指數</span>' +
+      '<span><i style="background:#f59e0b"></i>大盤</span>' +
+      '<span><i style="background:#94aef7"></i>櫃買</span>' +
+      '<span class="im-mc-net-lbl">下圖:三大法人資金淨流入(億)</span></div>' +
+    '<div class="im-mc-charts">' +
+      '<div id="im-mc-price" class="im-mc-chart"></div>' +
+      '<div id="im-mc-net" class="im-mc-chart im-mc-chart-net"></div>' +
+      '<div id="im-mc-empty" class="im-mc-empty" style="display:none">此題材的成分股暫無足夠歷史資料</div>' +
+    '</div>' +
+    '<div class="im-mc-hint">點下方任一<b>子產業標題</b>📈,趨勢圖即切換到該子產業</div>' +
+    '</div>'
+  ) : '';
+  body.innerHTML = chartHtml + '<div class="im-modal-focus">' + src.innerHTML + '</div>';
+  _imBindModalScroll();
   document.getElementById('im-modal').showModal();
+  if (hasChart) _imRenderSubChart(i, null);
+}
+
+/* 點子產業標題 → 趨勢圖切到該子產業 */
+function imPickSub(i, subIdx) {
+  if (i !== _imCurFocus) return;
+  _imCurSub = subIdx;
+  document.querySelectorAll('.im-modal-focus .im-sub-pick').forEach(b =>
+    b.classList.toggle('active', +b.dataset.sub === subIdx));
+  _imRenderSubChart(i, subIdx);
+}
+
+function imSetPeriod(p) {
+  if (p === _imPeriod) return;
+  _imPeriod = p;
+  document.querySelectorAll('.im-mc-chip').forEach(b =>
+    b.classList.toggle('active', b.dataset.p === p));
+  _imRenderSubChart(_imCurFocus, _imCurSub);
+}
+
+function _imDisposeCharts() {
+  ['price', 'net'].forEach(k => { if (_imCharts[k]) { try { _imCharts[k].remove(); } catch (e) {} _imCharts[k] = null; } });
+}
+
+/* 本地版期間過濾(不動全站 _chartPeriod) */
+function _imFilterPeriod(series) {
+  const days = { '1m': 30, '3m': 90, '6m': 180, '1y': 365 }[_imPeriod];
+  if (!days || !series.length) return series;
+  const last = series[series.length - 1].time;
+  const cutoff = new Date(new Date(last + 'T00:00:00Z').getTime() - days * 86400000)
+    .toISOString().slice(0, 10);
+  return series.filter(p => p.time >= cutoff);
+}
+
+/* 算 + 畫該焦點(或子產業)的加權指數 + 三大法人。reuse _computeClusterSeries。 */
+function _imRenderSubChart(i, subIdx) {
+  const info = (window.IIA_INDMAP_SUBS || {})[i];
+  if (!info) return;
+  const tickers = (subIdx == null) ? (info.all || []) : ((info.subs[subIdx] || {}).tickers || []);
+  const label = (subIdx == null) ? (info.name + '（全部）') : (info.subs[subIdx].name);
+  const titleEl = document.getElementById('im-mc-title');
+  if (titleEl) titleEl.textContent = '📈 ' + label;
+  Promise.all([_loadLightweightCharts(), _loadHistory()]).then(() => {
+    const priceEl = document.getElementById('im-mc-price');
+    const netEl = document.getElementById('im-mc-net');
+    const emptyEl = document.getElementById('im-mc-empty');
+    if (!priceEl || !netEl) return;
+    const cluster = { focal: tickers.map(t => ({ ticker: t })), sentinel: [], memberKeys: [] };
+    let { netSeries, priceSeries } = _computeClusterSeries(cluster, { ignoreModalDis: true });
+    let twii = _computeIndexSeries('TWII'), tpex = _computeIndexSeries('TPEX');
+    priceSeries = _imFilterPeriod(priceSeries); netSeries = _imFilterPeriod(netSeries);
+    twii = _imFilterPeriod(twii); tpex = _imFilterPeriod(tpex);
+    const starts = [priceSeries[0]?.time, twii[0]?.time, tpex[0]?.time, netSeries[0]?.time]
+      .filter(Boolean).sort();
+    const startDate = starts[starts.length - 1];
+    _imDisposeCharts();
+    if (!priceSeries.length || !startDate) {
+      priceEl.style.display = 'none'; netEl.style.display = 'none';
+      if (emptyEl) emptyEl.style.display = '';
+      return;
+    }
+    priceEl.style.display = ''; netEl.style.display = '';
+    if (emptyEl) emptyEl.style.display = 'none';
+    netSeries = netSeries.filter(p => p.time >= startDate);
+    const opts = {
+      layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#7c8290', attributionLogo: false },
+      grid: { vertLines: { color: 'rgba(255,255,255,.04)' }, horzLines: { color: 'rgba(255,255,255,.04)' } },
+      rightPriceScale: { borderColor: 'rgba(255,255,255,.08)' },
+      timeScale: { borderColor: 'rgba(255,255,255,.08)', timeVisible: false },
+      crosshair: { mode: 1 }, autoSize: true,
+      handleScroll: { mouseWheel: false, pressedMouseMove: false, horzTouchDrag: false, vertTouchDrag: false },
+      handleScale: { mouseWheel: false, axisPressedMouseMove: false, pinch: false },
+    };
+    const lo = (c) => ({ color: c, lineWidth: 2, priceLineVisible: false,
+      priceFormat: { type: 'custom', formatter: v => v.toFixed(1) } });
+    _imCharts.price = LightweightCharts.createChart(priceEl, opts);
+    _imCharts.price.addLineSeries(lo('#10b981')).setData(_rebaseSeries(priceSeries, startDate));
+    _imCharts.price.addLineSeries(lo('#f59e0b')).setData(_rebaseSeries(twii, startDate));
+    _imCharts.price.addLineSeries(lo('#94aef7')).setData(_rebaseSeries(tpex, startDate));
+    _imCharts.net = LightweightCharts.createChart(netEl, opts);
+    _imCharts.net.addHistogramSeries({
+      base: 0,
+      priceFormat: { type: 'custom', formatter: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '億' },
+    }).setData(netSeries);
+    _imCharts.price.timeScale().fitContent();
+    _imCharts.net.timeScale().fitContent();
+    // 兩圖 right scale 同寬 → crosshair 對齊
+    requestAnimationFrame(() => {
+      if (!_imCharts.price || !_imCharts.net) return;
+      const w = Math.max(_imCharts.price.priceScale('right').width(), _imCharts.net.priceScale('right').width());
+      [_imCharts.price, _imCharts.net].forEach(c => c.priceScale('right').applyOptions({ minimumWidth: w }));
+    });
+  });
 }
 
 /* hex lerp */
@@ -241,9 +388,14 @@ function _initIndmapGraph() {
   }
   const placeTip = (evt) => {
     const hb = host.getBoundingClientRect();
-    let x = evt.clientX - hb.left + 14, y = evt.clientY - hb.top + 14;
-    x = Math.min(x, hb.width - tip.offsetWidth - 8);
-    y = Math.min(y, hb.height - tip.offsetHeight - 8);
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    const cx = evt.clientX - hb.left, cy = evt.clientY - hb.top;
+    // 預設放游標右下;貼右/下緣時翻到左/上,最後再夾進容器(避免被 overflow:hidden 切掉)
+    let x = cx + 14, y = cy + 14;
+    if (x + tw > hb.width - 8) x = cx - tw - 14;
+    if (y + th > hb.height - 8) y = cy - th - 14;
+    x = Math.max(8, Math.min(x, hb.width - tw - 8));
+    y = Math.max(8, Math.min(y, hb.height - th - 8));
     tip.style.left = x + 'px'; tip.style.top = y + 'px';
   };
 
@@ -312,10 +464,7 @@ function _initIndmapGraph() {
     }
     s += '<div class="im-tip-hint">點擊展開成分股</div>';
     tip.innerHTML = s; tip.hidden = false;
-    const hb = host.getBoundingClientRect();
-    let x = evt.clientX - hb.left + 14, y = evt.clientY - hb.top + 14;
-    x = Math.min(x, hb.width - tip.offsetWidth - 8);
-    tip.style.left = x + 'px'; tip.style.top = y + 'px';
+    placeTip(evt);   // 統一夾邊 + 翻轉,避免被容器 overflow:hidden 切掉
   };
 
   // nodes

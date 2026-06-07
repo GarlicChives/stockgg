@@ -1186,7 +1186,9 @@ dialog#im-modal::backdrop{background:rgba(0,0,0,.6)}
 .im-modal-close{background:transparent;border:none;color:var(--muted);font-size:1.1rem;
                 cursor:pointer;line-height:1}
 .im-modal-close:hover{color:var(--text)}
-.im-modal-body{padding:1rem 1.1rem;overflow-y:auto}
+.im-modal-body{padding:1rem 1.1rem;overflow-y:auto;flex:1;min-height:0;
+               overscroll-behavior:contain;scrollbar-width:none}
+.im-modal-body::-webkit-scrollbar{display:none}
 .im-modal-lead{margin:0 0 .7rem;font-size:.86rem;color:var(--muted)}
 .im-modal-lead b{color:var(--accent)}
 .im-modal-note{margin:0;font-size:.86rem;color:var(--muted);line-height:1.6}
@@ -1199,6 +1201,37 @@ dialog#im-modal::backdrop{background:rgba(0,0,0,.6)}
 .im-modal-s{font-size:.76rem;color:var(--muted);text-align:right}
 /* modal 內焦點階層(沿用 .im-focus / .im-axes,去掉外卡片邊框) */
 .im-modal-focus .im-focus{background:transparent;border:none;padding:0;margin:0}
+/* 子產業標題可點 → 切換上方趨勢圖 */
+.im-subname.im-sub-pick{background:transparent;border:none;color:var(--text);
+              font-weight:600;font-size:.9rem;margin:0 0 .1rem;padding:.1rem .3rem .1rem 0;
+              cursor:pointer;text-align:left;display:inline-flex;align-items:center;gap:.25rem;
+              border-radius:5px;transition:.12s}
+.im-subname.im-sub-pick:hover{color:var(--accent)}
+.im-subname.im-sub-pick.active{color:var(--accent)}
+.im-sub-go{font-size:.7rem;opacity:.45}
+.im-subname.im-sub-pick:hover .im-sub-go,.im-subname.im-sub-pick.active .im-sub-go{opacity:1}
+.im-subname-flat{font-weight:600;font-size:.9rem;margin-bottom:.1rem}
+/* modal 上方題材趨勢圖 */
+.im-mc{margin-bottom:1rem;padding-bottom:.9rem;border-bottom:1px solid var(--border)}
+.im-mc-bar{display:flex;align-items:center;justify-content:space-between;gap:.6rem;
+           flex-wrap:wrap;margin-bottom:.5rem}
+.im-mc-title{font-weight:700;font-size:.95rem;color:var(--accent)}
+.im-mc-periods{display:inline-flex;gap:.25rem}
+.im-mc-chip{background:var(--card);border:1px solid var(--border);color:var(--muted);
+            border-radius:6px;padding:.2rem .5rem;font-size:.72rem;cursor:pointer;transition:.12s}
+.im-mc-chip:hover{color:var(--text)}
+.im-mc-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.im-mc-legend{display:flex;flex-wrap:wrap;gap:.3rem .9rem;font-size:.72rem;
+              color:var(--muted);margin-bottom:.4rem}
+.im-mc-legend i{display:inline-block;width:.7rem;height:.18rem;border-radius:2px;
+                vertical-align:middle;margin-right:.25rem}
+.im-mc-net-lbl{margin-left:auto}
+.im-mc-charts{display:flex;flex-direction:column;gap:.2rem}
+.im-mc-chart{width:100%;height:210px}
+.im-mc-chart-net{height:120px}
+.im-mc-empty{padding:1.5rem;text-align:center;color:var(--muted);font-size:.85rem}
+.im-mc-hint{margin-top:.5rem;font-size:.74rem;color:var(--muted)}
+.im-mc-hint b{color:var(--accent)}
 
 /* ── 蜘蛛網關聯圖 ── */
 .im-legend{display:flex;flex-wrap:wrap;gap:.4rem 1rem;align-items:center;
