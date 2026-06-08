@@ -1687,6 +1687,17 @@ def _fmt_data_stamp(dt) -> str | None:
     return dt.astimezone(_TAIPEI_TZ).strftime("%Y/%m/%d %H:%M:%S")
 
 
+def _taipei_date(dt) -> str | None:
+    """timestamptz → 台北日期 YYYY-MM-DD(供主動 ETF「資料已更新 n/total」badge
+    判定「該檔今天有沒有公布」用 updated_at,而非持股截止日 holding_date —— 部分
+    發行商結構性標 T-1 持股日,用 holding_date 比對會永遠少算一檔)。"""
+    if not isinstance(dt, datetime):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(_TAIPEI_TZ).strftime("%Y-%m-%d")
+
+
 def _stamp_badge(ts_str: str | None, label: str = "資料更新") -> str:
     """各頁右上「資料最後更新時間」badge。ts_str 為 None(查不到 / 空表)時不渲染。"""
     return _stamp_badge_multi([(label, ts_str)])
@@ -1877,8 +1888,13 @@ def build_active_etf_page(etf_list: list, holdings_by_etf: dict[str, list],
 
     # 「資料已更新 n/total」:client-side 即時算(每交易日 13:30 收盤後歸零,
     # 假日 / 週末不歸零 —— 見 app.js aetfUpdateBadge + IIA_TW_HOLIDAYS)。
-    # server 端嵌每檔 data_date payload + 初始值(JS 載入後依台北現在時間覆寫)。
-    _dd_list = [d for d in (_aetf_date_fmt(e.get("data_date")) for e in etf_list) if d]
+    # server 端嵌每檔日期 payload + 初始值(JS 載入後依台北現在時間覆寫)。
+    #
+    # **用 updated_at 的台北日期(「今天公布了沒」),不用 holding_date(持股截止日)**
+    # (2026-06-08 修):部分發行商結構性標 T-1 持股日(如 00988A 週一公布卻標週五
+    # 持股),用 holding_date 比對全體 max 會讓它永遠少算一檔 → badge 卡死 9/10。
+    # updated_at 才是「該檔今天有無刷新」的正確訊號(00988A 今日 updated_at=當日)。
+    _dd_list = [d for d in (e.get("updated_date") for e in etf_list) if d]
     _total = len(etf_list)
     if _dd_list:
         _latest = max(_dd_list)
@@ -4033,13 +4049,17 @@ async def generate():
     # 各家主動式 ETF 官方公布時間不同 → 每檔取自己最新 updated_at(台北時間),
     # 顯示在該 ETF tab 頂部「持股更新」。單一頁面 MAX 會誤導故不用。
     try:
-        _etf_ts = {r["etf_code"]: _fmt_data_stamp(r["t"]) for r in await conn.fetch(
-            "SELECT etf_code, MAX(updated_at) AS t FROM active_etf_holdings GROUP BY etf_code")}
+        _etf_upd_rows = await conn.fetch(
+            "SELECT etf_code, MAX(updated_at) AS t FROM active_etf_holdings GROUP BY etf_code")
+        _etf_ts = {r["etf_code"]: _fmt_data_stamp(r["t"]) for r in _etf_upd_rows}
+        # 台北日期版,供「資料已更新 n/total」badge 判「今天公布了沒」(見 _taipei_date)
+        _etf_ud = {r["etf_code"]: _taipei_date(r["t"]) for r in _etf_upd_rows}
     except Exception as exc:
         print(f"  ⚠ active_etf per-ETF updated_at query failed: {exc}")
-        _etf_ts = {}
+        _etf_ts, _etf_ud = {}, {}
     for _etf in aetf_list:
         _etf["updated_ts"] = _etf_ts.get(_etf.get("etf_code"))
+        _etf["updated_date"] = _etf_ud.get(_etf.get("etf_code"))
     from collections import defaultdict as _dd
     # ── 近期加減碼趨勢(逐日,跨保留 ETF;retention 目前 ~14 天,延長後到一個月)──
     # 多日持股 diff:同 (etf,ticker) 連續持股日 lots 差 × 每張價 → 當日加 / 減碼金額。
