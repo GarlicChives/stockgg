@@ -31,6 +31,7 @@ from src.analysis.focus_themes import (
     detect_focus_clusters,
     hot_subs_from_seeds,
     _sub_prefix as _focus_sub_prefix,
+    FOCUS_SENTINEL_THRESHOLD,
     IndustryCluster,
 )
 from src.utils.config import RANKINGS_TOP_N
@@ -2819,20 +2820,37 @@ def build_focus_html(
     # 大跌盤抗跌模式 banner（只在「焦點」pane 頂渲;ingest 把 tw_crash_mode
     # 寫進當日 ^TWII extra 才有,平盤日 tw_breadth 為空 → 不渲）。數字皆帶基準
     # （上漲家數/總家數 + 百分比），不外洩內部代號。
+    #
+    # **全門檻字眼從驅動邏輯的常數內插**(2026-06-08),避免調參後文字與真實邏輯
+    # 脫節(例:beat_market 1.0→1.5、resilience 0.5→0.6、ingest 門檻變動)。
+    #   - stockgg 自有:CRASH_DISTILL_MIN_RESILIENCE / _BEAT_MARKET / FOCUS_SENTINEL_THRESHOLD
+    #   - ingest 自有(breadth 門檻 / 種子抗跌門檻):優先讀 tw_breadth payload
+    #     (ingest 若有寫 threshold / seed_gain),缺則 fallback 到目前已知值。
     crash_banner = ""
     if tw_breadth and tw_breadth.get("up") is not None:
         _r = tw_breadth.get("ratio")
         _pct = f"{_r * 100:.1f}%" if isinstance(_r, (int, float)) else "—"
         _up, _tot = tw_breadth.get("up"), tw_breadth.get("total")
+        # ingest-owned 門檻:payload 帶就用真值,否則 fallback(forward-compat)
+        _bthr = tw_breadth.get("threshold")
+        _bthr_s = f"{_bthr * 100:.0f}%" if isinstance(_bthr, (int, float)) else "20%"
+        _sgain = tw_breadth.get("seed_gain")
+        _sgain_s = f"{abs(_sgain):g}%" if isinstance(_sgain, (int, float)) else "3%"
+        # stockgg-owned 門檻:直接從常數算文字
+        _rp = int(round(CRASH_DISTILL_MIN_RESILIENCE * 100))
+        _resil_w = "過半" if _rp == 50 else f"逾 {_rp}%"
+        _snt = f"{abs(FOCUS_SENTINEL_THRESHOLD):g}"
+        _beat = f"{CRASH_DISTILL_BEAT_MARKET:g}"
         crash_banner = (
             '<div class="crash-banner" role="status">'
             '<span class="crash-banner-icon">🛡️</span>'
             '<div class="crash-banner-txt">'
             f'<b>大跌盤模式</b>　今日上市櫃僅 <b>{_pct}</b> 個股上漲'
-            f'（{_up}/{_tot} 家），低於 20% 門檻。'
-            '個股收錄今日逆勢上漲或跌幅小於 3% 的相對抗跌股；'
+            f'（{_up}/{_tot} 家），低於 {_bthr_s} 門檻。'
+            f'個股收錄今日逆勢上漲或跌幅小於 {_sgain_s} 的相對抗跌股；'
             f'下方再<b>精選為 {len(hl_clusters)} 個真抗跌題材</b>'
-            '（過半成分守住 −3% 以上、且整體成交值加權漲跌明顯優於大盤）。'
+            f'（{_resil_w}成分守住 −{_snt}% 以上、'
+            f'且整體成交值加權漲跌贏大盤逾 {_beat} 個百分點）。'
             '</div></div>'
         )
     panes_html = (
