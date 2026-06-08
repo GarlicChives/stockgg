@@ -2616,19 +2616,29 @@ def build_focus_stock_page(
 # **只在大跌盤日(tw_crash_mode)啟用**,平盤/多頭日維持顯示全部題材。
 CRASH_DISTILL_MAX = 8                  # 上限題材數
 CRASH_DISTILL_MIN_RESILIENCE = 0.5     # 抗跌率 focal/(focal+sentinel) ≥ 此值
-CRASH_DISTILL_MIN_WCHG = -2.5          # 成交值加權平均漲跌(全成員)≥ 此值
+# 加權漲跌門檻 = 大盤(TWII)當日漲跌 + 此 buffer(贏大盤至少幾個百分點)。
+# 動態鬆緊:溫和崩盤(TWII -1.5)gate 自動收到 -0.5;重挫日(TWII -5)gate 放到
+# -4.0。抗跌率 ≥0.5 那道閘本身就是絕對地板(過半成分守 -3% 上 → 不會是 -5% 災難
+# 題材),兩者搭配避免「贏大盤但絕對很慘」的退化情形。
+CRASH_DISTILL_BEAT_MARKET = 1.0
+# TWII 當日漲跌取不到(snaps 缺 ^TWII chg)時退回的絕對 fallback 門檻。
+CRASH_DISTILL_FALLBACK_WCHG = -2.5
 
 
-def _crash_distill_clusters(clusters: list, stocks_info: dict) -> list:
+def _crash_distill_clusters(clusters: list, stocks_info: dict,
+                            market_chg: float | None = None) -> list:
     """大跌盤日把焦點題材濃縮成「真抗跌題材」。
 
     兩道硬閘(都看 cluster 全成員 focal+sentinel,chg/tv 取自 stocks_info):
       1. 抗跌率 focal/(focal+sentinel) ≥ CRASH_DISTILL_MIN_RESILIENCE
          —— 過半成員守在 -3% 以上,排除「靠 1-2 龍頭撐、其餘崩」的假抗跌。
-      2. 成交值加權平均漲跌 ≥ CRASH_DISTILL_MIN_WCHG —— 整體明顯優於重挫大盤。
+      2. 成交值加權平均漲跌 ≥ 動態門檻 = market_chg + CRASH_DISTILL_BEAT_MARKET
+         (贏大盤至少 buffer 個百分點;market_chg=None 時退 FALLBACK_WCHG)。
     過閘者按加權漲跌 desc 取前 CRASH_DISTILL_MAX(最強的留下);順序仍交給
     下游既有 sort(外層 TV sort chip)。回傳原 cluster 物件子集。
     """
+    wchg_gate = (market_chg + CRASH_DISTILL_BEAT_MARKET
+                 if market_chg is not None else CRASH_DISTILL_FALLBACK_WCHG)
     scored = []
     for c in clusters:
         members = list(c.focal) + list(getattr(c, "sentinel", []) or [])
@@ -2646,7 +2656,7 @@ def _crash_distill_clusters(clusters: list, stocks_info: dict) -> list:
                 den += tv
         wchg = (num / den) if den > 0 else None
         if (resil >= CRASH_DISTILL_MIN_RESILIENCE
-                and wchg is not None and wchg >= CRASH_DISTILL_MIN_WCHG):
+                and wchg is not None and wchg >= wchg_gate):
             scored.append((wchg, c))
     scored.sort(key=lambda x: -x[0])
     return [c for _w, c in scored[:CRASH_DISTILL_MAX]]
@@ -3136,8 +3146,13 @@ async def generate():
     # tw_breadth 非空 = ingest 判定今日 crash;平盤/多頭日不套,顯示全部題材。
     if tw_breadth:
         _before = len(focus_hl_clusters)
-        focus_hl_clusters = _crash_distill_clusters(focus_hl_clusters, stocks_info)
-        print(f"  crash distill: {_before} → {len(focus_hl_clusters)} 真抗跌題材(≤{CRASH_DISTILL_MAX})")
+        _twii_chg = (snaps.get("^TWII") or {}).get("chg")  # 動態門檻 = TWII + buffer
+        focus_hl_clusters = _crash_distill_clusters(
+            focus_hl_clusters, stocks_info, market_chg=_twii_chg)
+        _gate = (_twii_chg + CRASH_DISTILL_BEAT_MARKET
+                 if _twii_chg is not None else CRASH_DISTILL_FALLBACK_WCHG)
+        print(f"  crash distill: {_before} → {len(focus_hl_clusters)} 真抗跌題材"
+              f"(≤{CRASH_DISTILL_MAX};TWII={_twii_chg} gate 加權漲跌≥{_gate:.2f})")
     # main_clusters 仍計算(供未來/ ingest backport 用),但公開站 2026-05-16 起
     # 不在 UI 顯示;前哨觀察(watch)同步從卡片移除 → 不再需要查 watch change_pct
     # 也不再 yfinance 補 watch close,純粹靠 stocks_info(top-N from SQL)。
