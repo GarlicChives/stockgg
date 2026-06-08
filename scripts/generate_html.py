@@ -30,6 +30,7 @@ from src.analysis.focus_themes import (
     detect_industry_clusters,
     detect_focus_clusters,
     hot_subs_from_seeds,
+    _sub_prefix as _focus_sub_prefix,
     IndustryCluster,
 )
 from src.utils.config import RANKINGS_TOP_N
@@ -2712,8 +2713,11 @@ def build_focus_html(
         for topic in market_notes["topics"]:
             for tk in topic.get("tickers", []) or []:
                 _tk_topics[tk].append(topic)
+            # 2026-06-08 v3:cluster 改前綴群組命名,topic.focus_themes 是完整 sub
+            # 原字串 → 收斂到前綴當 key,才對得上 cluster.members 的前綴(_resolve_
+            # cluster_topics 內 id(t) 去重,同前綴多 sub 命中同 topic 不重複渲)
             for sub in topic.get("focus_themes", []) or []:
-                _ft_topics[sub].append(topic)
+                _ft_topics[_focus_sub_prefix(sub)].append(topic)
         topics_by_ticker = {
             tk: ''.join(_render_topic_card(t, stocks_info) for t in topics)
             for tk, topics in _tk_topics.items()

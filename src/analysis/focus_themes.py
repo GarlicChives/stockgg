@@ -43,8 +43,25 @@ from pathlib import Path
 DICT_FILE = Path(__file__).resolve().parents[2] / "data" / "theme_dictionary.json"
 MIN_VOLUME = 2  # minimum top-N members for a cluster to qualify (保留舊門檻)
 HIGHLIGHT_MAIN = "近一年焦點"  # 焦點 cluster detection 限定 main
-FOCUS_MIN_SEEDS = 2  # v2:同 sub 種子數 ≥ FOCUS_MIN_SEEDS 才算熱門題材
+FOCUS_MIN_SEEDS = 2  # v2:同前綴群組種子數 ≥ FOCUS_MIN_SEEDS 才算熱門題材
 FOCUS_SENTINEL_THRESHOLD = -3.0  # v2:chg > threshold → focal、chg < threshold → sentinel
+
+# 人名 / 非產業類前綴黑名單(2026-06-08):前綴群組化後不以這些當公開站題材
+# 標題(人名當題材標題不妥)。被黑前綴的成分股仍照常出現在它們的其他產業
+# 前綴題材(如黃仁勳概念股也都在 半導體 / HBM…),不損失覆蓋。需擴充時加字串即可。
+FOCUS_PREFIX_BLOCKLIST = {"黃仁勳"}
+
+
+def _sub_prefix(sub: str) -> str:
+    """子產業名「前綴·後綴」取前綴當題材群組鍵(2026-06-08 v3)。
+
+    字典把同題材拆成多個編輯子角度(例「被動元件·綜合型龍頭」/「被動元件·
+    通路與供應鏈配置」),前綴才是真正的題材。種子計數 / 成題材 / 成員蒐集
+    全改用前綴群組,避免同質種子被打散到不同完整 sub、各只 1 顆湊不到
+    FOCUS_MIN_SEEDS。無「·」者整串即自身群組。
+    """
+    s = (sub or "").strip()
+    return s.split("·", 1)[0].strip() if "·" in s else s
 
 _ETF_TW_RE = re.compile(r"^00\d")
 
@@ -336,7 +353,8 @@ def hot_subs_from_seeds(seeds: list[str] | set[str],
     seed_set = {t for t in seeds if not _is_etf(t, (all_stocks.get(t) or {}).get("name", ""))}
     if not seed_set:
         return set()
-    sub_seed_count: dict[str, int] = defaultdict(int)
+    # 按前綴群組計數(2026-06-08 v3):同 seed 同前綴只計 1 次
+    pref_seed_count: dict[str, int] = defaultdict(int)
     for seed in seed_set:
         info = all_stocks.get(seed)
         if not info:
@@ -348,11 +366,12 @@ def hot_subs_from_seeds(seeds: list[str] | set[str],
             if (entry.get("main") or "").strip() != HIGHLIGHT_MAIN:
                 continue
             for sub in entry.get("subs", []) or []:
-                sub = (sub or "").strip()
-                if sub and sub not in seen:
-                    sub_seed_count[sub] += 1
-                    seen.add(sub)
-    return {s for s, c in sub_seed_count.items() if c >= FOCUS_MIN_SEEDS}
+                pref = _sub_prefix(sub)
+                if pref and pref not in seen:
+                    pref_seed_count[pref] += 1
+                    seen.add(pref)
+    return {p for p, c in pref_seed_count.items()
+            if c >= FOCUS_MIN_SEEDS and p not in FOCUS_PREFIX_BLOCKLIST}
 
 
 def detect_focus_clusters(
@@ -381,31 +400,36 @@ def detect_focus_clusters(
     if not seed_set:
         return []
 
-    # 1) seeds → 累計 sub 種子計數(只看 main='近一年焦點' 的 entries)
-    sub_seed_count: dict[str, int] = defaultdict(int)
+    # 1) seeds → 累計「前綴群組」種子計數(只看 main='近一年焦點' 的 entries)。
+    #    2026-06-08 v3:從「完整 sub 計數」改「· 前綴計數」。同質種子(如被動
+    #    元件 5 檔)原本被字典編輯子角度打散到不同完整 sub、各只 1 顆湊不到
+    #    門檻;改前綴後 5 檔同歸「被動元件」群 → 成題材。同 seed 同前綴計 1 次。
+    pref_seed_count: dict[str, int] = defaultdict(int)
     for seed in seed_set:
         info = all_stocks.get(seed)
         if not info:
             continue
-        seen_in_seed: set[str] = set()  # 同 seed 同 sub 只計 1 次(字典若有重複 entry)
+        seen_in_seed: set[str] = set()
         for entry in info.get("industries", []):
             if entry.get("disabled"):
                 continue
             if (entry.get("main") or "").strip() != HIGHLIGHT_MAIN:
                 continue
             for sub in entry.get("subs", []) or []:
-                sub = (sub or "").strip()
-                if sub and sub not in seen_in_seed:
-                    sub_seed_count[sub] += 1
-                    seen_in_seed.add(sub)
+                pref = _sub_prefix(sub)
+                if pref and pref not in seen_in_seed:
+                    pref_seed_count[pref] += 1
+                    seen_in_seed.add(pref)
 
-    hot_subs = [s for s, c in sub_seed_count.items() if c >= FOCUS_MIN_SEEDS]
-    if not hot_subs:
+    hot_prefixes = [p for p, c in pref_seed_count.items()
+                    if c >= FOCUS_MIN_SEEDS and p not in FOCUS_PREFIX_BLOCKLIST]
+    if not hot_prefixes:
         return []
 
-    # 2) 對每熱門 sub:字典成員 ∩ focus_members → focal (chg > -3) / sentinel (chg < -3)
+    # 2) 對每熱門前綴:字典內任一 sub 前綴 match 的成員 ∩ focus_members →
+    #    focal (chg > -3) / sentinel (chg < -3)。cluster 名 = 前綴。
     clusters: list[IndustryCluster] = []
-    for sub in hot_subs:
+    for pref in hot_prefixes:
         members: list[str] = []
         for ticker, info in all_stocks.items():
             if _is_etf(ticker, info.get("name", "")):
@@ -415,9 +439,9 @@ def detect_focus_clusters(
                     continue
                 if (entry.get("main") or "").strip() != HIGHLIGHT_MAIN:
                     continue
-                if sub in (entry.get("subs", []) or []):
+                if any(_sub_prefix(s) == pref for s in (entry.get("subs", []) or [])):
                     members.append(ticker)
-                    break  # 單檔在同 (main, sub) 只算一次
+                    break  # 單檔同前綴只算一次
 
         focal_stocks: list[FocalStock] = []
         sentinel_stocks: list[FocalStock] = []
@@ -443,14 +467,14 @@ def detect_focus_clusters(
         total_tv = sum(s.trading_value for s in focal_stocks)
 
         clusters.append(IndustryCluster(
-            cluster_id=f"hl::{sub}",
+            cluster_id=f"hl::{pref}",
             level="hl_sub",
-            name=sub,
+            name=pref,
             main=HIGHLIGHT_MAIN,
             focal=focal_stocks,
             watch=[],
             trading_value=total_tv,
-            members=[(HIGHLIGHT_MAIN, sub)],
+            members=[(HIGHLIGHT_MAIN, pref)],
             sentinel=sentinel_stocks,
         ))
 
