@@ -3553,6 +3553,18 @@ async def generate():
             # client 端 _fetchKline 改 lazy 載 kline.json 一次,後續 ticker 從
             # in-memory dict 取。檔案 ~6MB / gzip ~2MB,跟 history.json 同等級。
             _build_stamp_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            # 根因修正(2026-06-08):kline 的「今日」那根 K 一律以 trading_rankings
+            # (stocks_info)的權威 OHLC 為準,不再純信 Q13 ticker_close_history。
+            #
+            # 為什麼:同一檔的「今日收盤」原本有兩個來源 —— 卡片 pill/cluster 走
+            # trading_rankings(Q14,17:30 主 job),modal K 線走 Q13(另一支 ingest
+            # job + 易 stale 的 kline.json 邊緣部署)。兩者不同步時,對 99% 股票只差
+            # 1 天≈價差微小沒人發現;但處置/跌停股日跳 ±10% → modal 顯一個差 10% 的
+            # 舊價、跟 pill 今日價打架(「處置股股價抓錯」的反覆根因)。在此把今日那
+            # 根錨定到 trading_rankings → modal 末根 ≡ pill close,與 Q13 是否落後無關。
+            _today_str = (tw_rank_date.strftime("%Y-%m-%d")
+                          if hasattr(tw_rank_date, "strftime") else str(tw_rank_date)[:10])
+            _kline_anchored = 0
             _kline_all: dict[str, list] = {}
             for tk, rows in ticker_close_full.items():
                 kline_arr = [
@@ -3561,6 +3573,28 @@ async def generate():
                     for r in rows
                     if r.get("open") is not None and r.get("c") is not None
                 ]
+                si = stocks_info.get(tk)
+                if si and si.get("market") == "TW" and si.get("close_price") is not None:
+                    c = si["close_price"]
+                    # 處置/跌停鎖死等情形 O/H/L 可能缺 → 退回 c(doji),不可留 None
+                    # 否則 lightweight-charts 蠟燭畫不出來。
+                    o = si["open"] if si.get("open") is not None else c
+                    h = si["high"] if si.get("high") is not None else c
+                    l = si["low"] if si.get("low") is not None else c
+                    has_today = bool(kline_arr) and kline_arr[-1][0] == _today_str
+                    if has_today:
+                        v = kline_arr[-1][5]  # Q13 已有今日 → 留其真實股數 volume
+                    else:
+                        tv = si.get("trading_value") or 0  # 無股數,用成交值/收盤近似
+                        v = round(tv / c) if c else None
+                    today_bar = [_today_str, o, h, l, c, v]
+                    if has_today:
+                        if abs((kline_arr[-1][4] or 0) - c) > 1e-9:
+                            _kline_anchored += 1  # Q13 今日收盤與權威不符 → 覆寫
+                        kline_arr[-1] = today_bar
+                    elif not kline_arr or kline_arr[-1][0] < _today_str:
+                        kline_arr.append(today_bar)  # Q13 落後沒今日 → 補權威今日根
+                        _kline_anchored += 1
                 if kline_arr:
                     _kline_all[tk] = kline_arr
             _kline_path = OUT_FILE.parent / "kline.json"
@@ -3570,7 +3604,8 @@ async def generate():
                 encoding="utf-8",
             )
             _kline_size = _kline_path.stat().st_size
-            print(f"  kline.json: {len(_kline_all)} tickers, {_kline_size:,} bytes")
+            print(f"  kline.json: {len(_kline_all)} tickers, {_kline_size:,} bytes "
+                  f"(今日根錨定 trading_rankings:{_kline_anchored} 檔補/正)")
             # 不再寫 per-ticker docs/kline/<tk>.json fallback —— 跟 docs/kline.json
             # 同名衝突(file vs directory)疑似讓 Cloudflare Workers Static Assets
             # silent drop /kline.json manifest entry,造成線上 10 分鐘後仍 404
