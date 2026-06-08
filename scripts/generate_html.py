@@ -3379,6 +3379,12 @@ async def generate():
     #    的 ticker_close / ticker_net_inst 歷史 → modal 內子產業趨勢圖有資料)──
     indmap_rows: list[dict] = []
     indmap_edges: list[dict] = []
+    # 人名 / 非產業焦點黑名單(2026-06-08):與焦點題材的前綴黑名單同精神,人名當
+    # 產業地圖節點不妥(user 指定移除「黃仁勳」)。濾掉這些 focus 的 rows → 節點
+    # 不生成;連到它的供應鏈邊因 tag2idx 查無自動跳過(下方再按名稱濾一次保持 Q39
+    # log 準確)。statementdog 的 industry_focus_map 是獨立 dataset,與
+    # theme_dictionary 的 FOCUS_PREFIX_BLOCKLIST 不共用。
+    _INDMAP_FOCUS_EXCLUDE = {"黃仁勳"}
     try:
         indmap_rows = [dict(r) for r in await conn.fetch(
             "select focus_tag, focus_name, axis, axis_kind, axis_order, "
@@ -3386,6 +3392,8 @@ async def generate():
             "market, rating, rating_rank from industry_focus_map "
             "order by focus_name, axis_order, sub_order, rating_rank desc, ticker"
         )]
+        indmap_rows = [r for r in indmap_rows
+                       if (r.get("focus_name") or "").strip() not in _INDMAP_FOCUS_EXCLUDE]
         _im_focus = len({r.get("focus_tag") for r in indmap_rows})
         print(f"  industry_map (Q38): {len(indmap_rows)} rows, {_im_focus} focuses")
     except Exception as exc:
@@ -3396,6 +3404,11 @@ async def generate():
             "relation, strength from industry_supply_edges "
             "order by strength desc, from_focus_name"
         )]
+        indmap_edges = [
+            e for e in indmap_edges
+            if (e.get("from_focus_name") or "").strip() not in _INDMAP_FOCUS_EXCLUDE
+            and (e.get("to_focus_name") or "").strip() not in _INDMAP_FOCUS_EXCLUDE
+        ]
         print(f"  industry_supply_edges (Q39): {len(indmap_edges)} edges")
     except Exception as exc:
         print(f"  ⚠ Q39 industry_supply_edges query failed: {exc}")
