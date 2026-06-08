@@ -2994,6 +2994,9 @@ async def generate():
                 "up": extra.get("tw_breadth_up"),
                 "total": extra.get("tw_breadth_total"),
                 "ratio": extra.get("tw_breadth_ratio"),
+                # ingest-owned 門檻(forward-compat;ingest 加欄即生效,缺則 banner fallback)
+                "threshold": extra.get("tw_breadth_threshold"),
+                "seed_gain": extra.get("tw_seed_crash_gain"),
             }
 
     snap_date = snap_dates.get("^GSPC") or snap_dates.get("^IXIC") or (
