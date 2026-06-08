@@ -2609,6 +2609,49 @@ def build_focus_stock_page(
     return nav_html + panes_html
 
 
+# ── 大跌盤「精選閘」(2026-06-08) ──────────────────────────────────────────────
+# crash 日焦點題材會偏多(35+),user 要濃縮成「真正抗跌、且可能是下一波主流
+# (相對惜售追捧)」的少數題材。決議:**只看價格抗跌**(不加法人淨買閘 —— 法人
+# 淨流在大跌盤被權值股如 2330 機械性主導、且同股跨多題材重複計入,失真),
+# **只在大跌盤日(tw_crash_mode)啟用**,平盤/多頭日維持顯示全部題材。
+CRASH_DISTILL_MAX = 8                  # 上限題材數
+CRASH_DISTILL_MIN_RESILIENCE = 0.5     # 抗跌率 focal/(focal+sentinel) ≥ 此值
+CRASH_DISTILL_MIN_WCHG = -2.5          # 成交值加權平均漲跌(全成員)≥ 此值
+
+
+def _crash_distill_clusters(clusters: list, stocks_info: dict) -> list:
+    """大跌盤日把焦點題材濃縮成「真抗跌題材」。
+
+    兩道硬閘(都看 cluster 全成員 focal+sentinel,chg/tv 取自 stocks_info):
+      1. 抗跌率 focal/(focal+sentinel) ≥ CRASH_DISTILL_MIN_RESILIENCE
+         —— 過半成員守在 -3% 以上,排除「靠 1-2 龍頭撐、其餘崩」的假抗跌。
+      2. 成交值加權平均漲跌 ≥ CRASH_DISTILL_MIN_WCHG —— 整體明顯優於重挫大盤。
+    過閘者按加權漲跌 desc 取前 CRASH_DISTILL_MAX(最強的留下);順序仍交給
+    下游既有 sort(外層 TV sort chip)。回傳原 cluster 物件子集。
+    """
+    scored = []
+    for c in clusters:
+        members = list(c.focal) + list(getattr(c, "sentinel", []) or [])
+        ntot = len(members)
+        if not ntot:
+            continue
+        resil = len(c.focal) / ntot
+        num = den = 0.0
+        for s in members:
+            info = stocks_info.get(s.ticker) or {}
+            chg = info.get("change_pct")
+            tv = float(info.get("trading_value") or 0)
+            if chg is not None and tv > 0:
+                num += chg * tv
+                den += tv
+        wchg = (num / den) if den > 0 else None
+        if (resil >= CRASH_DISTILL_MIN_RESILIENCE
+                and wchg is not None and wchg >= CRASH_DISTILL_MIN_WCHG):
+            scored.append((wchg, c))
+    scored.sort(key=lambda x: -x[0])
+    return [c for _w, c in scored[:CRASH_DISTILL_MAX]]
+
+
 def build_focus_html(
     tw_ranks: list,
     sub_clusters: list,
@@ -2774,8 +2817,9 @@ def build_focus_html(
             '<div class="crash-banner-txt">'
             f'<b>大跌盤模式</b>　今日上市櫃僅 <b>{_pct}</b> 個股上漲'
             f'（{_up}/{_tot} 家），低於 20% 門檻。'
-            '下方「焦點」題材改以<b>抗跌邏輯</b>篩選：'
-            '收錄今日逆勢上漲或跌幅小於 3% 的相對抗跌股。'
+            '個股收錄今日逆勢上漲或跌幅小於 3% 的相對抗跌股；'
+            f'下方再<b>精選為 {len(hl_clusters)} 個真抗跌題材</b>'
+            '（過半成分守住 −3% 以上、且整體成交值加權漲跌明顯優於大盤）。'
             '</div></div>'
         )
     panes_html = (
@@ -3088,6 +3132,12 @@ async def generate():
     }
     focus_hl_clusters = detect_focus_clusters(focus_seed_tickers, focus_members_info)
     print(f"  focus_hl_clusters: {len(focus_hl_clusters)} (v2: seeds={len(focus_seed_tickers)}, members={len(focus_members_info)})")
+    # 大跌盤日:精選閘濃縮成 ≤8 個真抗跌題材(只看價格抗跌,見 _crash_distill_clusters)。
+    # tw_breadth 非空 = ingest 判定今日 crash;平盤/多頭日不套,顯示全部題材。
+    if tw_breadth:
+        _before = len(focus_hl_clusters)
+        focus_hl_clusters = _crash_distill_clusters(focus_hl_clusters, stocks_info)
+        print(f"  crash distill: {_before} → {len(focus_hl_clusters)} 真抗跌題材(≤{CRASH_DISTILL_MAX})")
     # main_clusters 仍計算(供未來/ ingest backport 用),但公開站 2026-05-16 起
     # 不在 UI 顯示;前哨觀察(watch)同步從卡片移除 → 不再需要查 watch change_pct
     # 也不再 yfinance 補 watch close,純粹靠 stocks_info(top-N from SQL)。
