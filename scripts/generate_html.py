@@ -218,7 +218,9 @@ def _stk_pill(ticker: str, stocks_info: dict, clickable: bool = True, extra_attr
     pct_str, pct_cls = fmt_pct(chg)
     if close is not None:
         price_str = f"{close:.2f}"
-        quote = f"{price_str}({pct_str})" if chg is not None else price_str
+        # chg=None(如 TPEX 除權息股 ingest 存 NULL)→ pct_str 已是「—」,照樣顯
+        # 「價(—)」而非省略,讓「無漲跌資料」明確可見、不被誤認平盤(2026-06-08)
+        quote = f"{price_str}({pct_str})"
     else:
         quote = pct_str
     name_span = f'<span class="sp-name">{html_lib.escape(name[:8])}</span>' if name else ""
@@ -351,7 +353,8 @@ def rank_rows_html(ranks, market: str) -> str:
                 val += " ⬆"
         if close is not None:
             price_str = f"{close:.2f}"
-            quote = f"{price_str} ({pct_str})" if chg is not None else price_str
+            # chg=None → 顯「價 (—)」(pct_str 已是「—」),不省略、不誤認平盤
+            quote = f"{price_str} ({pct_str})"
         else:
             quote = pct_str
         board = ""

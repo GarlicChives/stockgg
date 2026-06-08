@@ -1134,8 +1134,10 @@ function _focalQuoteByKey(f, key) {
   }
   const closeStr = f.close.toFixed(2);
   if (key === 'chg') {
+    // f.chg=null(TPEX 除權息股 ingest 存 NULL)→ _fmtPctJs 回「—」,照樣顯
+    // 「價(—)」而非省略,與 server-side pill 一致、不被誤認平盤(2026-06-08)
     const p = _fmtPctJs(f.chg);
-    return { str: closeStr + (f.chg != null ? '(' + p.str + ')' : ''), cls: p.cls };
+    return { str: closeStr + '(' + p.str + ')', cls: p.cls };
   }
   if (key === 'bias') {
     const v = f.bias;
