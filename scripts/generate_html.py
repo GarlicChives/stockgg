@@ -2621,6 +2621,7 @@ def build_focus_html(
     market_notes: dict | None = None,
     focus_daily_subs: dict[str, set[str]] | None = None,
     focus_sorted_dates: list[str] | None = None,
+    tw_breadth: dict | None = None,
 ) -> tuple[str, dict]:
     """Build the 熱門題材 tab — 只渲染子產業 ranked list。
 
@@ -2755,8 +2756,26 @@ def build_focus_html(
         '<button class="sub-tab-btn"        data-stab="pan" type="button" onclick="showSubTab(\'pan\')">📊 泛分類</button>'
         '</div>'
     )
+    # 大跌盤抗跌模式 banner（只在「焦點」pane 頂渲;ingest 把 tw_crash_mode
+    # 寫進當日 ^TWII extra 才有,平盤日 tw_breadth 為空 → 不渲）。數字皆帶基準
+    # （上漲家數/總家數 + 百分比），不外洩內部代號。
+    crash_banner = ""
+    if tw_breadth and tw_breadth.get("up") is not None:
+        _r = tw_breadth.get("ratio")
+        _pct = f"{_r * 100:.1f}%" if isinstance(_r, (int, float)) else "—"
+        _up, _tot = tw_breadth.get("up"), tw_breadth.get("total")
+        crash_banner = (
+            '<div class="crash-banner" role="status">'
+            '<span class="crash-banner-icon">🛡️</span>'
+            '<div class="crash-banner-txt">'
+            f'<b>大跌盤模式</b>　今日上市櫃僅 <b>{_pct}</b> 個股上漲'
+            f'（{_up}/{_tot} 家），低於 20% 門檻。'
+            '下方「焦點」題材改以<b>抗跌邏輯</b>篩選：'
+            '收錄今日逆勢上漲或跌幅小於 3% 的相對抗跌股。'
+            '</div></div>'
+        )
     panes_html = (
-        f'<div class="sub-tab-pane active" id="stab-hl">{hl_html}</div>'
+        f'<div class="sub-tab-pane active" id="stab-hl">{crash_banner}{hl_html}</div>'
         f'<div class="sub-tab-pane" id="stab-pan">{pan_html}</div>'
     )
     return nav_html + panes_html, modal_data
@@ -2872,6 +2891,10 @@ async def generate():
     # Market snapshots — each symbol uses its own latest non-null date
     snaps: dict = {}
     snap_dates: dict = {}
+    # ^TWII extra 帶 ingest c587cd1 起寫入的全市場 breadth + 大跌盤旗標
+    # (tw_crash_mode 真 → ingest 端焦點種子已改抗跌門檻;此處只負責讀來渲
+    #  banner。欄位缺 = 該 snapshot 還沒被新版 ingest 寫過 → banner 不渲,無害)。
+    tw_breadth: dict = {}
     for row in await conn.fetch("""
         SELECT DISTINCT ON (symbol)
             symbol, close_price, change_pct, snapshot_date, extra
@@ -2887,6 +2910,12 @@ async def generate():
             "chg": float(row["change_pct"]) if row["change_pct"] is not None else None,
         }
         snap_dates[row["symbol"]] = row["snapshot_date"]
+        if row["symbol"] == "^TWII" and isinstance(extra, dict) and extra.get("tw_crash_mode"):
+            tw_breadth = {
+                "up": extra.get("tw_breadth_up"),
+                "total": extra.get("tw_breadth_total"),
+                "ratio": extra.get("tw_breadth_ratio"),
+            }
 
     snap_date = snap_dates.get("^GSPC") or snap_dates.get("^IXIC") or (
         max(snap_dates.values()) if snap_dates else None
@@ -3762,6 +3791,7 @@ async def generate():
         market_notes=market_notes,
         focus_daily_subs=focus_daily_subs,
         focus_sorted_dates=focus_sorted_dates,
+        tw_breadth=tw_breadth,
     )
 
     notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)

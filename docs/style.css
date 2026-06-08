@@ -112,6 +112,16 @@ header{position:sticky;top:0;z-index:200;
 .sub-tab-pane{display:none}
 .sub-tab-pane.active{display:block}
 
+/* 大跌盤抗跌模式 banner（焦點 pane 頂） */
+.crash-banner{display:flex;gap:.6rem;align-items:flex-start;
+              margin:0 0 .85rem;padding:.65rem .8rem;border-radius:8px;
+              background:rgba(245,166,35,.10);
+              border:1px solid rgba(245,166,35,.45);
+              border-left:3px solid #f5a623}
+.crash-banner-icon{font-size:1.05rem;line-height:1.4;flex:0 0 auto}
+.crash-banner-txt{font-size:.82rem;line-height:1.55;color:var(--text)}
+.crash-banner-txt b{color:#f5a623;font-weight:700}
+
 /* ── Card ── */
 .card{background:var(--card);border:1px solid var(--border);border-radius:12px;
        padding:1.2rem 1.35rem;margin-bottom:1.1rem}
