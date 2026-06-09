@@ -1740,9 +1740,10 @@ def _build_aetf_trend(trend: list[dict], update_badge: str = "") -> str:
         up = d["add"] / _mx * 100
         dn = abs(d["red"]) / _mx * 100
         mmdd = d["d"][5:].replace("-", "/") if len(d["d"]) >= 10 else d["d"]
-        tip = f'{d["d"]} 加碼 {_aetf_money(d["add"])} / 減碼 {_aetf_money(d["red"])}'
+        # data-add/-red(原始 NTD)供 app.js hover:畫對應 Y 軸的虛線 + 顯實際金額
         cols.append(
-            f'<div class="atr-col" title="{tip}">'
+            f'<div class="atr-col" data-d="{mmdd}" '
+            f'data-add="{int(d["add"])}" data-red="{int(d["red"])}">'
             f'<div class="atr-up"><i style="height:{up:.1f}%"></i></div>'
             f'<div class="atr-dn"><i style="height:{dn:.1f}%"></i></div>'
             f'<div class="atr-d">{mmdd}</div></div>')
@@ -1756,9 +1757,14 @@ def _build_aetf_trend(trend: list[dict], update_badge: str = "") -> str:
     axis = ('<div class="atr-axis"><div class="atr-scale">'
             + "".join(f'<span>{_axe(v)}</span>' for v in _ticks)
             + '</div></div>')
+    # guide(對應 Y 軸的虛線,加碼紅/減碼綠)+ vtip(實際金額)由 app.js `_initAetfTrend`
+    # 於 hover 時定位顯示;放在 .atr-plot(不隨 bars 橫向捲動)層級。
+    overlay = ('<div class="atr-guide atr-guide-add" hidden></div>'
+               '<div class="atr-guide atr-guide-red" hidden></div>'
+               '<div class="atr-vtip" hidden></div>')
     return (
         '<div class="aetf-trend">' + hdr
-        + f'<div class="atr-plot">{axis}<div class="atr-bars">{"".join(cols)}</div></div>'
+        + f'<div class="atr-plot">{axis}<div class="atr-bars">{"".join(cols)}</div>{overlay}</div>'
         '</div>'
     )
 

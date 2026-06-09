@@ -828,7 +828,21 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 /* 近期加減碼趨勢(server-render CSS 長條圖)*/
 .aetf-trend{margin-bottom:.4rem}
 /* Y 軸 + 長條:軸固定左側不隨 bars 橫向捲動;軸 scale 92px 對齊 up(46)+dn(46) */
-.atr-plot{display:flex;align-items:flex-start;gap:.15rem}
+.atr-plot{display:flex;align-items:flex-start;gap:.15rem;position:relative}
+/* hover guide:對應 Y 軸的水平虛線(加碼紅柱頂 / 減碼綠柱底);JS 設 left/width/top */
+.atr-guide{position:absolute;height:0;border-top:1px dashed;pointer-events:none;z-index:2}
+.atr-guide-add{border-color:#ef5350}
+.atr-guide-red{border-color:#26a69a}
+.atr-guide[hidden]{display:none}
+/* hover 那根的實際金額讀數(置於圖頂,JS 設 left + 夾邊) */
+.atr-vtip{position:absolute;top:.2rem;transform:translateX(-50%);pointer-events:none;z-index:3;
+          background:rgba(8,10,16,.94);border:1px solid var(--border);border-radius:6px;
+          padding:.22rem .5rem;font-size:.66rem;white-space:nowrap;color:var(--text);
+          font-variant-numeric:tabular-nums}
+.atr-vtip b{color:var(--muted);font-weight:600;margin-right:.15rem}
+.atr-vt-add{color:#ef5350}
+.atr-vt-red{color:#26a69a}
+.atr-vtip[hidden]{display:none}
 .atr-axis{flex:0 0 auto;padding-top:.6rem}
 .atr-scale{height:92px;display:flex;flex-direction:column;justify-content:space-between;
            align-items:flex-end;text-align:right}

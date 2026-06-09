@@ -959,6 +959,56 @@ window.aetfUpdateBadge = aetfUpdateBadge;
 aetfUpdateBadge();
 setInterval(aetfUpdateBadge, 60000);
 
+/* 加減碼趨勢圖 hover:對應 Y 軸的水平虛線(加碼紅柱頂 / 減碼綠柱底)+ 該根實際金額。
+   金額格式對齊 server `_aetf_money`(≥1億顯 X.X億、≥1萬顯 X萬)。 */
+function _aetfMoneyJs(v) {
+  if (!v) return '0';
+  const s = v > 0 ? '+' : '−', a = Math.abs(v);
+  if (a >= 1e8) return s + (a / 1e8).toFixed(1) + '億';
+  if (a >= 1e4) return s + Math.round(a / 1e4) + '萬';
+  return s + Math.round(a);
+}
+function _initAetfTrend() {
+  const bars = document.querySelector('.atr-bars');
+  if (!bars) return;
+  const plot = bars.parentElement;                 // .atr-plot(定位基準,不橫向捲動)
+  const gAdd = plot.querySelector('.atr-guide-add');
+  const gRed = plot.querySelector('.atr-guide-red');
+  const tip  = plot.querySelector('.atr-vtip');
+  if (!gAdd || !gRed || !tip) return;
+  const hide = () => { gAdd.hidden = gRed.hidden = tip.hidden = true; };
+  plot.querySelectorAll('.atr-col').forEach(col => {
+    col.addEventListener('mouseenter', () => {
+      const add = +col.dataset.add || 0, red = +col.dataset.red || 0;
+      const pr = plot.getBoundingClientRect(), br = bars.getBoundingClientRect();
+      const x0 = br.left - pr.left, w = bars.clientWidth;   // bars 可視區(含內距)
+      const upI = col.querySelector('.atr-up > i');
+      const dnI = col.querySelector('.atr-dn > i');
+      if (add > 0 && upI) {
+        gAdd.style.left = x0 + 'px'; gAdd.style.width = w + 'px';
+        gAdd.style.top = (upI.getBoundingClientRect().top - pr.top) + 'px';
+        gAdd.hidden = false;
+      } else { gAdd.hidden = true; }
+      if (red < 0 && dnI) {
+        gRed.style.left = x0 + 'px'; gRed.style.width = w + 'px';
+        gRed.style.top = (dnI.getBoundingClientRect().bottom - pr.top) + 'px';
+        gRed.hidden = false;
+      } else { gRed.hidden = true; }
+      const cr = col.getBoundingClientRect();
+      tip.innerHTML = '<b>' + (col.dataset.d || '') + '</b>'
+        + '<span class="atr-vt-add">加碼 ' + _aetfMoneyJs(add) + '</span>　'
+        + '<span class="atr-vt-red">減碼 ' + _aetfMoneyJs(red) + '</span>';
+      tip.hidden = false;
+      const half = tip.offsetWidth / 2 + 4;                // 夾邊避免溢出 bars 區
+      let lx = cr.left - pr.left + cr.width / 2;
+      lx = Math.max(x0 + half, Math.min(lx, x0 + w - half));
+      tip.style.left = lx + 'px';
+    });
+    col.addEventListener('mouseleave', hide);
+  });
+}
+window.addEventListener('load', _initAetfTrend);
+
 /* showFocusStockTab: 焦點股頁 sub-tab 切換(交集股 int / 出量股 vol / 潛力股 pot) */
 function showFocusStockTab(name) {
   document.querySelectorAll('.sub-tab-btn[data-fstab]').forEach(b =>
