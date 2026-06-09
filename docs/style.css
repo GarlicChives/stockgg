@@ -827,7 +827,14 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 /* ETF 切換從 23 個 tab button 改為下拉 select(2026-05-20,排序 AUM desc) */
 /* 近期加減碼趨勢(server-render CSS 長條圖)*/
 .aetf-trend{margin-bottom:.4rem}
-.atr-bars{display:flex;align-items:stretch;gap:.25rem;overflow-x:auto;
+/* Y 軸 + 長條:軸固定左側不隨 bars 橫向捲動;軸 scale 92px 對齊 up(46)+dn(46) */
+.atr-plot{display:flex;align-items:flex-start;gap:.15rem}
+.atr-axis{flex:0 0 auto;padding-top:.6rem}
+.atr-scale{height:92px;display:flex;flex-direction:column;justify-content:space-between;
+           align-items:flex-end;text-align:right}
+.atr-scale span{font-size:.58rem;line-height:1;color:var(--muted);
+                font-variant-numeric:tabular-nums;white-space:nowrap}
+.atr-bars{display:flex;align-items:stretch;gap:.25rem;overflow-x:auto;flex:1 1 auto;
           background:#12151f;border:1px solid var(--border);border-radius:8px;
           padding:.6rem .7rem}
 .atr-col{flex:1 0 1.6rem;min-width:1.6rem;display:flex;flex-direction:column;align-items:center}

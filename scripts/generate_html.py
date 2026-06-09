@@ -1746,9 +1746,19 @@ def _build_aetf_trend(trend: list[dict], update_badge: str = "") -> str:
             f'<div class="atr-up"><i style="height:{up:.1f}%"></i></div>'
             f'<div class="atr-dn"><i style="height:{dn:.1f}%"></i></div>'
             f'<div class="atr-d">{mmdd}</div></div>')
+    # Y 軸刻度(億元):bars 上下各 46px(共 92px)對應 ±_mx,零線在中段。刻度 5 格
+    # +max / +max/2 / 0 / −max/2 / −max,億元值即時從 _mx 算(調參或資料變動自動跟著)。
+    def _axe(v: float) -> str:
+        if abs(v) < 5e6:          # < 0.05 億 一律當 0(避免 +0.0億 噪音)
+            return "0"
+        return f"{'+' if v > 0 else '−'}{abs(v) / 1e8:.1f}億"
+    _ticks = [_mx, _mx / 2, 0.0, -_mx / 2, -_mx]
+    axis = ('<div class="atr-axis"><div class="atr-scale">'
+            + "".join(f'<span>{_axe(v)}</span>' for v in _ticks)
+            + '</div></div>')
     return (
         '<div class="aetf-trend">' + hdr
-        + f'<div class="atr-bars">{"".join(cols)}</div>'
+        + f'<div class="atr-plot">{axis}<div class="atr-bars">{"".join(cols)}</div></div>'
         '</div>'
     )
 
