@@ -121,6 +121,13 @@ header{position:sticky;top:0;z-index:200;
 .crash-banner-icon{font-size:1.05rem;line-height:1.4;flex:0 0 auto}
 .crash-banner-txt{font-size:.82rem;line-height:1.55;color:var(--text)}
 .crash-banner-txt b{color:#f5a623;font-weight:700}
+/* 大漲盤(真領漲)banner:沿用 crash-banner 版型,改紅色系(台股紅=漲) */
+.rally-banner{display:flex;gap:.6rem;align-items:flex-start;
+              margin:0 0 .85rem;padding:.65rem .8rem;border-radius:8px;
+              background:rgba(229,57,53,.10);
+              border:1px solid rgba(229,57,53,.45);
+              border-left:3px solid #e53935}
+.rally-banner .crash-banner-txt b{color:#e53935}
 
 /* ── Card ── */
 .card{background:var(--card);border:1px solid var(--border);border-radius:12px;

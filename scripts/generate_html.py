@@ -2682,6 +2682,100 @@ def _crash_distill_clusters(clusters: list, stocks_info: dict,
     return [c for _w, c in scored[:CRASH_DISTILL_MAX]]
 
 
+# ── 大漲盤「精選閘」(2026-06-09) ──────────────────────────────────────────────
+# 大漲盤(普遍齊漲)時焦點題材同樣會爆量、且同一強勢股橫跨多題材 → user 難以聚焦。
+# 鏡像 crash 精選閘,但**方向相反**:crash 找「抗跌」、rally 找「真領漲、可能是下一波
+# 主流(相對惜售追捧)」。決議同 crash:**只看價格結果**(排除三大法人籌碼 —— 大漲盤
+# 法人淨流被權值股機械主導 + 同股跨多題材重複計入,失真),**只在大漲盤日啟用**,
+# 平盤/弱勢日顯示全部題材。
+#
+# 大漲盤偵測為 stockgg 自有(ingest 每日都寫 breadth,不需 ingest 改動;crash 那套
+# `tw_crash_mode` 是 ingest 翻的種子門檻,rally 不動種子、純做展示層精選):
+#   breadth_ratio ≥ RALLY_BREADTH_THRESHOLD 且 TWII 當日漲幅 ≥ RALLY_MIN_INDEX_CHG。
+#   雙條件 —— breadth 65% 不像 crash <20% 那樣罕見(普通上漲日就有),須加指數強度
+#   閘才算「超級大漲盤」,否則溫和上漲日會誤觸、過度精簡反而擾民。
+RALLY_BREADTH_THRESHOLD = 0.65   # 上漲家數佔比 ≥ 此值(配合指數強度才算大漲盤)
+RALLY_MIN_INDEX_CHG = 1.5        # TWII 當日漲幅 ≥ 此值(% ;確認是「超級」大漲盤)
+RALLY_DISTILL_MAX = 8            # 上限題材數
+RALLY_MIN_LEAD_RATIO = 0.5       # 齊漲率 = 成員 chg ≥ 大盤 的佔比 ≥ 此值
+# 重疊抑制:由強到弱貪婪選取時,若候選題材的 focal 成分股已被「已選中的更強題材」
+# 涵蓋達此比例(containment = |候選∩已選| / |候選 focal|)即跳過,避免同一批股票的
+# 多個編輯角度(被動元件 / MLCC / 電容器同源)各佔一個聚焦欄位 → 直擊 user 的
+# 「多題材股過多」。代表題材取重疊群中最強(加權漲跌最高)的子角度。
+RALLY_OVERLAP_MAX = 0.67
+# 加權漲跌門檻 = 大盤(TWII)當日漲跌 + 此 buffer(贏大盤至少幾個百分點)。
+# 動態鬆緊:溫和上漲(TWII +1.5)gate 收到 +3.5;噴出日(TWII +5)gate 放到 +7.0,
+# 始終只留「明顯領先大盤」的真主流。齊漲率 ≥0.5 那道閘把「靠 1-2 飆股拉高加權、
+# 其餘平庸跟漲」的假領漲擋掉(過半成員自身就贏大盤)。
+RALLY_BEAT_MARKET = 2.0
+# TWII 當日漲跌取不到時退回的絕對 fallback(rally 偵測本就要 TWII chg,理論上不會走到)。
+RALLY_FALLBACK_WCHG = RALLY_MIN_INDEX_CHG + RALLY_BEAT_MARKET
+
+
+def _rally_distill_clusters(clusters: list, stocks_info: dict,
+                            market_chg: float | None = None) -> list:
+    """大漲盤日把焦點題材濃縮成「真領漲題材」(下一波主流候選)。
+
+    兩道硬閘(都看 cluster 全成員 focal+sentinel,chg/tv 取自 stocks_info;
+    change_pct=None 不納入計算,不當 0、不當平盤):
+      1. 齊漲率 = 成員 chg ≥ 大盤當日漲跌 的佔比 ≥ RALLY_MIN_LEAD_RATIO
+         —— 過半成員「自己就贏大盤」,排除「靠 1-2 飆股拉高加權、其餘只是跟漲」
+         的假領漲(crash 抗跌率的鏡像)。
+      2. 成交值加權平均漲跌 ≥ 動態門檻 = market_chg + RALLY_BEAT_MARKET
+         (贏大盤至少 buffer 個百分點;market_chg=None 時退 FALLBACK_WCHG)。
+    過閘者按加權漲跌 desc 取前 RALLY_DISTILL_MAX(最強的留下);顯示順序仍交給
+    下游既有 sort(外層 TV sort chip)。回傳原 cluster 物件子集。
+    """
+    wchg_gate = (market_chg + RALLY_BEAT_MARKET
+                 if market_chg is not None else RALLY_FALLBACK_WCHG)
+    lead_bar = market_chg if market_chg is not None else RALLY_MIN_INDEX_CHG
+    scored = []
+    for c in clusters:
+        members = list(c.focal) + list(getattr(c, "sentinel", []) or [])
+        if not members:
+            continue
+        lead_n = lead_den = 0
+        num = den = 0.0
+        for s in members:
+            info = stocks_info.get(s.ticker) or {}
+            chg = info.get("change_pct")
+            if chg is None:
+                continue                      # NULL 不判齊漲、不入加權
+            lead_den += 1
+            if chg >= lead_bar:
+                lead_n += 1
+            tv = float(info.get("trading_value") or 0)
+            if tv > 0:
+                num += chg * tv
+                den += tv
+        if lead_den == 0:
+            continue
+        lead_ratio = lead_n / lead_den
+        wchg = (num / den) if den > 0 else None
+        if (lead_ratio >= RALLY_MIN_LEAD_RATIO
+                and wchg is not None and wchg >= wchg_gate):
+            scored.append((wchg, c))
+    scored.sort(key=lambda x: -x[0])
+    # 由強到弱貪婪選取 + 重疊抑制(同源多角度只留最強子角度)。
+    picked: list = []
+    picked_sets: list[set] = []
+    for w, c in scored:
+        fset = {s.ticker for s in c.focal}
+        if fset:
+            # overlap coefficient = |交集| / min(兩者大小):小題材被大傘涵蓋、或反之,
+            # 都判定同源(分母取較小者才抓得到「子集型」重複,如電容器⊂被動元件)。
+            overlap = max(
+                (len(fset & ps) / min(len(fset), len(ps))
+                 for ps in picked_sets if ps), default=0.0)
+            if overlap >= RALLY_OVERLAP_MAX:
+                continue
+        picked.append(c)
+        picked_sets.append(fset)
+        if len(picked) >= RALLY_DISTILL_MAX:
+            break
+    return picked
+
+
 def build_focus_html(
     tw_ranks: list,
     sub_clusters: list,
@@ -2842,33 +2936,56 @@ def build_focus_html(
     #   - stockgg 自有:CRASH_DISTILL_MIN_RESILIENCE / _BEAT_MARKET / FOCUS_SENTINEL_THRESHOLD
     #   - ingest 自有(breadth 門檻 / 種子抗跌門檻):優先讀 tw_breadth payload
     #     (ingest 若有寫 threshold / seed_gain),缺則 fallback 到目前已知值。
+    # 極端盤 banner(只在「焦點」pane 頂渲)。crash / rally 各一套文字,**全門檻字眼
+    # 從驅動邏輯的常數內插**(避免調參後文字與真實邏輯脫節);banner 是否渲染、渲哪套
+    # 完全由 populate 算出的 tw_breadth["mode"] 決定。
     crash_banner = ""
-    if tw_breadth and tw_breadth.get("up") is not None:
+    _bmode = (tw_breadth or {}).get("mode")
+    if _bmode in ("crash", "rally") and tw_breadth.get("up") is not None:
         _r = tw_breadth.get("ratio")
         _pct = f"{_r * 100:.1f}%" if isinstance(_r, (int, float)) else "—"
         _up, _tot = tw_breadth.get("up"), tw_breadth.get("total")
-        # ingest-owned 門檻:payload 帶就用真值,否則 fallback(forward-compat)
-        _bthr = tw_breadth.get("threshold")
-        _bthr_s = f"{_bthr * 100:.0f}%" if isinstance(_bthr, (int, float)) else "20%"
-        _sgain = tw_breadth.get("seed_gain")
-        _sgain_s = f"{abs(_sgain):g}%" if isinstance(_sgain, (int, float)) else "3%"
-        # stockgg-owned 門檻:直接從常數算文字
-        _rp = int(round(CRASH_DISTILL_MIN_RESILIENCE * 100))
-        _resil_w = "過半" if _rp == 50 else f"逾 {_rp}%"
-        _snt = f"{abs(FOCUS_SENTINEL_THRESHOLD):g}"
-        _beat = f"{CRASH_DISTILL_BEAT_MARKET:g}"
-        crash_banner = (
-            '<div class="crash-banner" role="status">'
-            '<span class="crash-banner-icon">🛡️</span>'
-            '<div class="crash-banner-txt">'
-            f'<b>大跌盤模式</b>　今日上市櫃僅 <b>{_pct}</b> 個股上漲'
-            f'（{_up}/{_tot} 家），低於 {_bthr_s} 門檻。'
-            f'個股收錄今日逆勢上漲或跌幅小於 {_sgain_s} 的相對抗跌股；'
-            f'下方再<b>精選為 {len(hl_clusters)} 個真抗跌題材</b>'
-            f'（{_resil_w}成分守住 −{_snt}% 以上、'
-            f'且整體成交值加權漲跌贏大盤逾 {_beat} 個百分點）。'
-            '</div></div>'
-        )
+        if _bmode == "crash":
+            # ingest-owned 門檻:payload 帶就用真值,否則 fallback(forward-compat)
+            _bthr = tw_breadth.get("threshold")
+            _bthr_s = f"{_bthr * 100:.0f}%" if isinstance(_bthr, (int, float)) else "20%"
+            _sgain = tw_breadth.get("seed_gain")
+            _sgain_s = f"{abs(_sgain):g}%" if isinstance(_sgain, (int, float)) else "3%"
+            # stockgg-owned 門檻:直接從常數算文字
+            _rp = int(round(CRASH_DISTILL_MIN_RESILIENCE * 100))
+            _resil_w = "過半" if _rp == 50 else f"逾 {_rp}%"
+            _snt = f"{abs(FOCUS_SENTINEL_THRESHOLD):g}"
+            _beat = f"{CRASH_DISTILL_BEAT_MARKET:g}"
+            crash_banner = (
+                '<div class="crash-banner" role="status">'
+                '<span class="crash-banner-icon">🛡️</span>'
+                '<div class="crash-banner-txt">'
+                f'<b>大跌盤模式</b>　今日上市櫃僅 <b>{_pct}</b> 個股上漲'
+                f'（{_up}/{_tot} 家），低於 {_bthr_s} 門檻。'
+                f'個股收錄今日逆勢上漲或跌幅小於 {_sgain_s} 的相對抗跌股；'
+                f'下方再<b>精選為 {len(hl_clusters)} 個真抗跌題材</b>'
+                f'（{_resil_w}成分守住 −{_snt}% 以上、'
+                f'且整體成交值加權漲跌贏大盤逾 {_beat} 個百分點）。'
+                '</div></div>'
+            )
+        else:  # rally
+            _rthr = int(round(RALLY_BREADTH_THRESHOLD * 100))     # breadth 門檻
+            _ithr = f"{RALLY_MIN_INDEX_CHG:g}"                    # 指數強度門檻
+            _lp = int(round(RALLY_MIN_LEAD_RATIO * 100))
+            _lead_w = "過半" if _lp == 50 else f"逾 {_lp}%"
+            _beat = f"{RALLY_BEAT_MARKET:g}"
+            crash_banner = (
+                '<div class="rally-banner" role="status">'
+                '<span class="crash-banner-icon">🚀</span>'
+                '<div class="crash-banner-txt">'
+                f'<b>大漲盤模式</b>　今日上市櫃 <b>{_pct}</b> 個股上漲'
+                f'（{_up}/{_tot} 家），普遍齊漲（達 {_rthr}% 且大盤漲逾 {_ithr}%）。'
+                f'題材爆量易失焦,下方<b>精選為 {len(hl_clusters)} 個真領漲題材</b>'
+                f'（{_lead_w}成分自身就贏大盤、'
+                f'且整體成交值加權漲跌贏大盤逾 {_beat} 個百分點）—— '
+                '相對惜售追捧、可能是下一波主流。'
+                '</div></div>'
+            )
     panes_html = (
         f'<div class="sub-tab-pane active" id="stab-hl">{crash_banner}{hl_html}</div>'
         f'<div class="sub-tab-pane" id="stab-pan">{pan_html}</div>'
@@ -3005,15 +3122,29 @@ async def generate():
             "chg": float(row["change_pct"]) if row["change_pct"] is not None else None,
         }
         snap_dates[row["symbol"]] = row["snapshot_date"]
-        if row["symbol"] == "^TWII" and isinstance(extra, dict) and extra.get("tw_crash_mode"):
-            tw_breadth = {
-                "up": extra.get("tw_breadth_up"),
-                "total": extra.get("tw_breadth_total"),
-                "ratio": extra.get("tw_breadth_ratio"),
-                # ingest-owned 門檻(forward-compat;ingest 加欄即生效,缺則 banner fallback)
-                "threshold": extra.get("tw_breadth_threshold"),
-                "seed_gain": extra.get("tw_seed_crash_gain"),
-            }
+        # 大盤模式判定(只看 ^TWII):crash 由 ingest 翻 tw_crash_mode(同時改了種子
+        # 門檻);rally 為 stockgg 自有(純展示層精選,不動種子)—— breadth ≥ 門檻
+        # 且 TWII 漲幅 ≥ 門檻。兩者都把 breadth payload + mode 帶下去,distill / banner
+        # 依 mode 分支;平盤/弱勢日 tw_breadth 維持空 → 不精選、不渲 banner。
+        if row["symbol"] == "^TWII" and isinstance(extra, dict):
+            _ratio = extra.get("tw_breadth_ratio")
+            _twii_chg = float(row["change_pct"]) if row["change_pct"] is not None else None
+            _mode = None
+            if extra.get("tw_crash_mode"):
+                _mode = "crash"
+            elif (isinstance(_ratio, (int, float)) and _ratio >= RALLY_BREADTH_THRESHOLD
+                  and _twii_chg is not None and _twii_chg >= RALLY_MIN_INDEX_CHG):
+                _mode = "rally"
+            if _mode:
+                tw_breadth = {
+                    "mode": _mode,
+                    "up": extra.get("tw_breadth_up"),
+                    "total": extra.get("tw_breadth_total"),
+                    "ratio": _ratio,
+                    # ingest-owned crash 門檻(forward-compat;缺則 banner fallback)
+                    "threshold": extra.get("tw_breadth_threshold"),
+                    "seed_gain": extra.get("tw_seed_crash_gain"),
+                }
 
     snap_date = snap_dates.get("^GSPC") or snap_dates.get("^IXIC") or (
         max(snap_dates.values()) if snap_dates else None
@@ -3182,17 +3313,28 @@ async def generate():
     }
     focus_hl_clusters = detect_focus_clusters(focus_seed_tickers, focus_members_info)
     print(f"  focus_hl_clusters: {len(focus_hl_clusters)} (v2: seeds={len(focus_seed_tickers)}, members={len(focus_members_info)})")
-    # 大跌盤日:精選閘濃縮成 ≤8 個真抗跌題材(只看價格抗跌,見 _crash_distill_clusters)。
-    # tw_breadth 非空 = ingest 判定今日 crash;平盤/多頭日不套,顯示全部題材。
-    if tw_breadth:
+    # 極端盤精選閘(只看價格結果,排除法人籌碼):
+    #   crash 日 → 濃縮成 ≤8 真抗跌題材(_crash_distill_clusters)
+    #   rally 日 → 濃縮成 ≤8 真領漲題材(_rally_distill_clusters)
+    # tw_breadth 空 = 平盤/弱勢日,不套精選,顯示全部題材。
+    _mode = (tw_breadth or {}).get("mode")
+    if _mode in ("crash", "rally"):
         _before = len(focus_hl_clusters)
         _twii_chg = (snaps.get("^TWII") or {}).get("chg")  # 動態門檻 = TWII + buffer
-        focus_hl_clusters = _crash_distill_clusters(
-            focus_hl_clusters, stocks_info, market_chg=_twii_chg)
-        _gate = (_twii_chg + CRASH_DISTILL_BEAT_MARKET
-                 if _twii_chg is not None else CRASH_DISTILL_FALLBACK_WCHG)
-        print(f"  crash distill: {_before} → {len(focus_hl_clusters)} 真抗跌題材"
-              f"(≤{CRASH_DISTILL_MAX};TWII={_twii_chg} gate 加權漲跌≥{_gate:.2f})")
+        if _mode == "crash":
+            focus_hl_clusters = _crash_distill_clusters(
+                focus_hl_clusters, stocks_info, market_chg=_twii_chg)
+            _gate = (_twii_chg + CRASH_DISTILL_BEAT_MARKET
+                     if _twii_chg is not None else CRASH_DISTILL_FALLBACK_WCHG)
+            print(f"  crash distill: {_before} → {len(focus_hl_clusters)} 真抗跌題材"
+                  f"(≤{CRASH_DISTILL_MAX};TWII={_twii_chg} gate 加權漲跌≥{_gate:.2f})")
+        else:
+            focus_hl_clusters = _rally_distill_clusters(
+                focus_hl_clusters, stocks_info, market_chg=_twii_chg)
+            _gate = (_twii_chg + RALLY_BEAT_MARKET
+                     if _twii_chg is not None else RALLY_FALLBACK_WCHG)
+            print(f"  rally distill: {_before} → {len(focus_hl_clusters)} 真領漲題材"
+                  f"(≤{RALLY_DISTILL_MAX};TWII={_twii_chg} gate 加權漲跌≥{_gate:.2f})")
     # main_clusters 仍計算(供未來/ ingest backport 用),但公開站 2026-05-16 起
     # 不在 UI 顯示;前哨觀察(watch)同步從卡片移除 → 不再需要查 watch change_pct
     # 也不再 yfinance 補 watch close,純粹靠 stocks_info(top-N from SQL)。
