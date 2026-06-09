@@ -2772,23 +2772,33 @@ def _rally_distill_clusters(clusters: list, stocks_info: dict,
                 and wchg is not None and wchg >= wchg_gate):
             scored.append((wchg, c))
     scored.sort(key=lambda x: -x[0])
-    # 由強到弱貪婪選取 + 重疊抑制(同源多角度只留最強子角度)。
+    # 由強到弱貪婪選取 + 重疊抑制。同源(overlap coefficient = |交集|/min(兩者大小)
+    # ≥ 門檻;分母取較小者才抓得到「子集型」重複,如電容器⊂被動元件)只佔一個聚焦
+    # 欄位,但**代表題材升級為較廣的傘狀題材**(非最強的窄子角度)——否則窄角度(如
+    # 電容器)會把同家族、卻不在其成分內的熱門股(如石英/頻率元件的晶技,只掛在被動
+    # 元件傘下)整批藏掉。家族佔位由最強成員先到先 claim(strength desc),representative
+    # 隨後遇到更廣同源成員時替換 → 保留全成分 + 維持高排名 + 仍只一欄。
     picked: list = []
     picked_sets: list[set] = []
     for w, c in scored:
         fset = {s.ticker for s in c.focal}
+        merged = False
         if fset:
-            # overlap coefficient = |交集| / min(兩者大小):小題材被大傘涵蓋、或反之,
-            # 都判定同源(分母取較小者才抓得到「子集型」重複,如電容器⊂被動元件)。
-            overlap = max(
-                (len(fset & ps) / min(len(fset), len(ps))
-                 for ps in picked_sets if ps), default=0.0)
-            if overlap >= RALLY_OVERLAP_MAX:
-                continue
-        picked.append(c)
-        picked_sets.append(fset)
-        if len(picked) >= RALLY_DISTILL_MAX:
-            break
+            for idx, ps in enumerate(picked_sets):
+                if not ps:
+                    continue
+                if len(fset & ps) / min(len(fset), len(ps)) >= RALLY_OVERLAP_MAX:
+                    if len(fset) > len(picked_sets[idx]):   # 升級為較廣傘狀題材
+                        picked[idx] = c
+                        picked_sets[idx] = fset
+                    merged = True
+                    break
+        if merged:
+            continue
+        if len(picked) < RALLY_DISTILL_MAX:
+            picked.append(c)
+            picked_sets.append(fset)
+        # 不 break:後續更廣的同源成員(strength 較低、排在後面)仍需 upgrade 已選代表
     return picked
 
 
