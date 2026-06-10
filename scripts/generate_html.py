@@ -2974,7 +2974,8 @@ def build_focus_html(
         if _bmode == "crash":
             # ingest-owned 門檻:payload 帶就用真值,否則 fallback(forward-compat)
             _bthr = tw_breadth.get("threshold")
-            _bthr_s = f"{_bthr * 100:.0f}%" if isinstance(_bthr, (int, float)) else "20%"
+            _bthr_v = _bthr if isinstance(_bthr, (int, float)) else 0.20
+            _bthr_s = f"{_bthr_v * 100:.0f}%"
             _sgain = tw_breadth.get("seed_gain")
             _sgain_s = f"{abs(_sgain):g}%" if isinstance(_sgain, (int, float)) else "3%"
             # stockgg-owned 門檻:直接從常數算文字
@@ -2982,16 +2983,38 @@ def build_focus_html(
             _resil_w = "過半" if _rp == 50 else f"逾 {_rp}%"
             _snt = f"{abs(FOCUS_SENTINEL_THRESHOLD):g}"
             _beat = f"{CRASH_DISTILL_BEAT_MARKET:g}"
+            # 觸發軌判別(2026-06-10 雙軌 OR):breadth < 門檻 → 廣度軌(原文字);
+            # 否則為分化崩盤軌(breadth < div_breadth 且 min(TWII,TPEX) ≤ div_index,
+            # 如 TWII −0.64 / TPEX −4.43 的權值撐盤中小崩日)→ 改述分化原因,
+            # 不能再寫「低於 20% 門檻」(該日不成立)。
+            _breadth_track = isinstance(_r, (int, float)) and _r < _bthr_v
+            if _breadth_track:
+                _cause = f'（{_up}/{_tot} 家），低於 {_bthr_s} 門檻。'
+            else:
+                _dvb = tw_breadth.get("div_breadth")
+                _dvb_s = f"{_dvb * 100:.0f}%" if isinstance(_dvb, (int, float)) else "30%"
+                _dvi = tw_breadth.get("div_index")
+                _dvi_s = f"{abs(_dvi):g}%" if isinstance(_dvi, (int, float)) else "3%"
+                _tw, _tp = tw_breadth.get("twii_chg"), tw_breadth.get("tpex_chg")
+                _weak_name, _weak_chg = ("櫃買", _tp) if (
+                    _tp is not None and (_tw is None or _tp <= _tw)) else ("加權", _tw)
+                _weak_s = (f"{_weak_chg:+.2f}%".replace("-", "−")
+                           if _weak_chg is not None else "—")
+                # 第二軌可在「分化(權值撐、中小崩)」與「雙指數重挫但 breadth 未達
+                # 極端」兩種盤觸發,editorial 尾句須兩者皆真,不寫死分化敘事。
+                _cause = (f'（{_up}/{_tot} 家，低於 {_dvb_s}），'
+                          f'且{_weak_name}指數重挫 <b>{_weak_s}</b>'
+                          f'（跌逾 {_dvi_s}）。')
             crash_banner = (
                 '<div class="crash-banner" role="status">'
                 '<span class="crash-banner-icon">🛡️</span>'
                 '<div class="crash-banner-txt">'
                 f'<b>大跌盤模式</b>　今日上市櫃僅 <b>{_pct}</b> 個股上漲'
-                f'（{_up}/{_tot} 家），低於 {_bthr_s} 門檻。'
+                f'{_cause}'
                 f'個股收錄今日逆勢上漲或跌幅小於 {_sgain_s} 的相對抗跌股；'
                 f'下方再<b>精選為 {len(hl_clusters)} 個真抗跌題材</b>'
                 f'（{_resil_w}成分守住 −{_snt}% 以上、'
-                f'且整體成交值加權漲跌贏大盤逾 {_beat} 個百分點）。'
+                f'且整體成交值加權漲跌贏較弱的大盤指數逾 {_beat} 個百分點）。'
                 '</div></div>'
             )
         else:  # rally
@@ -3008,7 +3031,7 @@ def build_focus_html(
                 f'（{_up}/{_tot} 家），普遍齊漲（達 {_rthr}% 且大盤漲逾 {_ithr}%）。'
                 f'題材爆量易失焦,下方<b>精選為 {len(hl_clusters)} 個真領漲題材</b>'
                 f'（{_lead_w}成分自身就贏大盤、'
-                f'且整體成交值加權漲跌贏大盤逾 {_beat} 個百分點）—— '
+                f'且整體成交值加權漲跌贏較強的大盤指數逾 {_beat} 個百分點）—— '
                 '相對惜售追捧、可能是下一波主流。'
                 '</div></div>'
             )
@@ -3170,7 +3193,15 @@ async def generate():
                     # ingest-owned crash 門檻(forward-compat;缺則 banner fallback)
                     "threshold": extra.get("tw_breadth_threshold"),
                     "seed_gain": extra.get("tw_seed_crash_gain"),
+                    # 分化崩盤軌門檻(ingest 雙軌 OR 起寫;缺則 banner fallback 30%/3%)
+                    "div_breadth": extra.get("tw_crash_div_breadth"),
+                    "div_index": extra.get("tw_crash_div_index"),
                 }
+    # 兩指數當日漲跌補進 payload(banner 分化軌文字 + 判定用;^TWOII 列可能晚於
+    # ^TWII 處理,故 loop 結束後補)。
+    if tw_breadth:
+        tw_breadth["twii_chg"] = (snaps.get("^TWII") or {}).get("chg")
+        tw_breadth["tpex_chg"] = (snaps.get("^TWOII") or {}).get("chg")
 
     snap_date = snap_dates.get("^GSPC") or snap_dates.get("^IXIC") or (
         max(snap_dates.values()) if snap_dates else None
@@ -3346,21 +3377,31 @@ async def generate():
     _mode = (tw_breadth or {}).get("mode")
     if _mode in ("crash", "rally"):
         _before = len(focus_hl_clusters)
-        _twii_chg = (snaps.get("^TWII") or {}).get("chg")  # 動態門檻 = TWII + buffer
+        # 動態門檻錨(2026-06-10 改,原單用 TWII):分化盤(TWII −0.64 / TPEX −4.43
+        # 之類)單錨 TWII 會讓 crash gate 失真(+0.36 幾乎全滅)。crash 錨到較弱指數
+        # min(TWII,TPEX)、rally 錨到較強指數 max(...) —— 焦點 universe 偏中小型/櫃買,
+        # 「贏大盤」基準取真正在崩/在噴的那邊;雙指數同向日與原行為幾乎等價。
+        _twii_chg = (snaps.get("^TWII") or {}).get("chg")
+        _tpex_chg = (snaps.get("^TWOII") or {}).get("chg")
+        _avail = [v for v in (_twii_chg, _tpex_chg) if v is not None]
         if _mode == "crash":
+            _mkt_chg = min(_avail) if _avail else None
             focus_hl_clusters = _crash_distill_clusters(
-                focus_hl_clusters, stocks_info, market_chg=_twii_chg)
-            _gate = (_twii_chg + CRASH_DISTILL_BEAT_MARKET
-                     if _twii_chg is not None else CRASH_DISTILL_FALLBACK_WCHG)
+                focus_hl_clusters, stocks_info, market_chg=_mkt_chg)
+            _gate = (_mkt_chg + CRASH_DISTILL_BEAT_MARKET
+                     if _mkt_chg is not None else CRASH_DISTILL_FALLBACK_WCHG)
             print(f"  crash distill: {_before} → {len(focus_hl_clusters)} 真抗跌題材"
-                  f"(≤{CRASH_DISTILL_MAX};TWII={_twii_chg} gate 加權漲跌≥{_gate:.2f})")
+                  f"(≤{CRASH_DISTILL_MAX};錨=min(TWII={_twii_chg},TPEX={_tpex_chg})"
+                  f" gate 加權漲跌≥{_gate:.2f})")
         else:
+            _mkt_chg = max(_avail) if _avail else None
             focus_hl_clusters = _rally_distill_clusters(
-                focus_hl_clusters, stocks_info, market_chg=_twii_chg)
-            _gate = (_twii_chg + RALLY_BEAT_MARKET
-                     if _twii_chg is not None else RALLY_FALLBACK_WCHG)
+                focus_hl_clusters, stocks_info, market_chg=_mkt_chg)
+            _gate = (_mkt_chg + RALLY_BEAT_MARKET
+                     if _mkt_chg is not None else RALLY_FALLBACK_WCHG)
             print(f"  rally distill: {_before} → {len(focus_hl_clusters)} 真領漲題材"
-                  f"(≤{RALLY_DISTILL_MAX};TWII={_twii_chg} gate 加權漲跌≥{_gate:.2f})")
+                  f"(≤{RALLY_DISTILL_MAX};錨=max(TWII={_twii_chg},TPEX={_tpex_chg})"
+                  f" gate 加權漲跌≥{_gate:.2f})")
     # main_clusters 仍計算(供未來/ ingest backport 用),但公開站 2026-05-16 起
     # 不在 UI 顯示;前哨觀察(watch)同步從卡片移除 → 不再需要查 watch change_pct
     # 也不再 yfinance 補 watch close,純粹靠 stocks_info(top-N from SQL)。
