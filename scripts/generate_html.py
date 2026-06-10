@@ -2661,6 +2661,41 @@ CRASH_DISTILL_BEAT_MARKET = 1.0
 CRASH_DISTILL_FALLBACK_WCHG = -2.5
 
 
+def _distill_pick(scored: list, max_n: int) -> list:
+    """crash / rally 精選共用:由強到弱貪婪選取 + 重疊抑制(2026-06-10 抽共用,
+    原先只在 rally;crash 同樣會出現 MLCC/電容器/被動元件家族佔 3 欄)。
+
+    scored = [(wchg, cluster)] 已按強度 desc。同源判定 overlap coefficient =
+    |交集|/min(兩者大小)≥ DISTILL_OVERLAP_MAX(分母取較小者才抓得到「子集型」
+    重複,如電容器⊂被動元件)。同源只佔一個聚焦欄位,**代表題材升級為較廣的傘狀
+    題材**(非最強窄子角度)——否則窄角度會把同家族、卻不在其成分內的熱門股(如
+    石英/頻率元件的晶技,只掛在被動元件傘下)整批藏掉。家族佔位由最強成員先到先
+    claim,representative 隨後遇更廣同源成員時替換 → 保留全成分 + 高排名 + 仍只一欄。
+    不提早 break:後續更廣的同源成員(強度較低、排在後面)仍需 upgrade 已選代表。
+    """
+    picked: list = []
+    picked_sets: list[set] = []
+    for _w, c in scored:
+        fset = {s.ticker for s in c.focal}
+        merged = False
+        if fset:
+            for idx, ps in enumerate(picked_sets):
+                if not ps:
+                    continue
+                if len(fset & ps) / min(len(fset), len(ps)) >= DISTILL_OVERLAP_MAX:
+                    if len(fset) > len(picked_sets[idx]):   # 升級為較廣傘狀題材
+                        picked[idx] = c
+                        picked_sets[idx] = fset
+                    merged = True
+                    break
+        if merged:
+            continue
+        if len(picked) < max_n:
+            picked.append(c)
+            picked_sets.append(fset)
+    return picked
+
+
 def _crash_distill_clusters(clusters: list, stocks_info: dict,
                             market_chg: float | None = None) -> list:
     """大跌盤日把焦點題材濃縮成「真抗跌題材」。
@@ -2670,8 +2705,9 @@ def _crash_distill_clusters(clusters: list, stocks_info: dict,
          —— 過半成員守在 -3% 以上,排除「靠 1-2 龍頭撐、其餘崩」的假抗跌。
       2. 成交值加權平均漲跌 ≥ 動態門檻 = market_chg + CRASH_DISTILL_BEAT_MARKET
          (贏大盤至少 buffer 個百分點;market_chg=None 時退 FALLBACK_WCHG)。
-    過閘者按加權漲跌 desc 取前 CRASH_DISTILL_MAX(最強的留下);順序仍交給
-    下游既有 sort(外層 TV sort chip)。回傳原 cluster 物件子集。
+    過閘者經 _distill_pick(由強到弱 + 重疊抑制、傘狀代表)取前
+    CRASH_DISTILL_MAX;順序仍交給下游既有 sort(外層 TV sort chip)。
+    回傳原 cluster 物件子集。
     """
     wchg_gate = (market_chg + CRASH_DISTILL_BEAT_MARKET
                  if market_chg is not None else CRASH_DISTILL_FALLBACK_WCHG)
@@ -2695,7 +2731,7 @@ def _crash_distill_clusters(clusters: list, stocks_info: dict,
                 and wchg is not None and wchg >= wchg_gate):
             scored.append((wchg, c))
     scored.sort(key=lambda x: -x[0])
-    return [c for _w, c in scored[:CRASH_DISTILL_MAX]]
+    return _distill_pick(scored, CRASH_DISTILL_MAX)
 
 
 # ── 大漲盤「精選閘」(2026-06-09) ──────────────────────────────────────────────
@@ -2714,11 +2750,9 @@ RALLY_BREADTH_THRESHOLD = 0.65   # 上漲家數佔比 ≥ 此值(配合指數強
 RALLY_MIN_INDEX_CHG = 1.5        # TWII 當日漲幅 ≥ 此值(% ;確認是「超級」大漲盤)
 RALLY_DISTILL_MAX = 8            # 上限題材數
 RALLY_MIN_LEAD_RATIO = 0.5       # 齊漲率 = 成員 chg ≥ 大盤 的佔比 ≥ 此值
-# 重疊抑制:由強到弱貪婪選取時,若候選題材的 focal 成分股已被「已選中的更強題材」
-# 涵蓋達此比例(containment = |候選∩已選| / |候選 focal|)即跳過,避免同一批股票的
-# 多個編輯角度(被動元件 / MLCC / 電容器同源)各佔一個聚焦欄位 → 直擊 user 的
-# 「多題材股過多」。代表題材取重疊群中最強(加權漲跌最高)的子角度。
-RALLY_OVERLAP_MAX = 0.67
+# 重疊抑制(crash / rally 共用,_distill_pick):同源家族(overlap coefficient ≥
+# 門檻)只佔一個聚焦欄位,代表題材取較廣傘狀 —— 直擊 user 的「多題材股過多」。
+DISTILL_OVERLAP_MAX = 0.67
 # 加權漲跌門檻 = 大盤(TWII)當日漲跌 + 此 buffer(贏大盤至少幾個百分點)。
 # 動態鬆緊:溫和上漲(TWII +1.5)gate 收到 +3.5;噴出日(TWII +5)gate 放到 +7.0,
 # 始終只留「明顯領先大盤」的真主流。齊漲率 ≥0.5 那道閘把「靠 1-2 飆股拉高加權、
@@ -2772,34 +2806,7 @@ def _rally_distill_clusters(clusters: list, stocks_info: dict,
                 and wchg is not None and wchg >= wchg_gate):
             scored.append((wchg, c))
     scored.sort(key=lambda x: -x[0])
-    # 由強到弱貪婪選取 + 重疊抑制。同源(overlap coefficient = |交集|/min(兩者大小)
-    # ≥ 門檻;分母取較小者才抓得到「子集型」重複,如電容器⊂被動元件)只佔一個聚焦
-    # 欄位,但**代表題材升級為較廣的傘狀題材**(非最強的窄子角度)——否則窄角度(如
-    # 電容器)會把同家族、卻不在其成分內的熱門股(如石英/頻率元件的晶技,只掛在被動
-    # 元件傘下)整批藏掉。家族佔位由最強成員先到先 claim(strength desc),representative
-    # 隨後遇到更廣同源成員時替換 → 保留全成分 + 維持高排名 + 仍只一欄。
-    picked: list = []
-    picked_sets: list[set] = []
-    for w, c in scored:
-        fset = {s.ticker for s in c.focal}
-        merged = False
-        if fset:
-            for idx, ps in enumerate(picked_sets):
-                if not ps:
-                    continue
-                if len(fset & ps) / min(len(fset), len(ps)) >= RALLY_OVERLAP_MAX:
-                    if len(fset) > len(picked_sets[idx]):   # 升級為較廣傘狀題材
-                        picked[idx] = c
-                        picked_sets[idx] = fset
-                    merged = True
-                    break
-        if merged:
-            continue
-        if len(picked) < RALLY_DISTILL_MAX:
-            picked.append(c)
-            picked_sets.append(fset)
-        # 不 break:後續更廣的同源成員(strength 較低、排在後面)仍需 upgrade 已選代表
-    return picked
+    return _distill_pick(scored, RALLY_DISTILL_MAX)
 
 
 def build_focus_html(
