@@ -39,3 +39,6 @@ docs/history.json
 # 驗證截圖 / 雜項(不准進 public repo)
 *.png
 logs/
+
+# filter-repo 備份
+*.bundle
