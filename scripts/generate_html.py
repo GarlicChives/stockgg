@@ -388,9 +388,37 @@ def rank_rows_html(ranks, market: str) -> str:
 # ── Focus stocks tab ──────────────────────────────────────────────────────────
 
 
+def _jc(v, nd: int | None = None):
+    """JSON payload 數值壓縮:round 到 nd 位(None=取整),整數值收斂成 int。
+
+    DB 回來的價格常帶 float32→float64 雜訊(7.650000095367432),原樣
+    json.dumps 一個數字就 17+ 字元;round(2) 後 4 字元、且才是真實 tick 價
+    (台股最小 tick 0.01)。整數值再去掉 `.0` 尾巴(51.0→51)。
+    history.json / kline.json 靠這支從 16MB/12MB 壓回約一半。
+    """
+    if v is None:
+        return None
+    f = float(v)
+    if nd is None:
+        return int(round(f))
+    r = round(f, nd)
+    i = int(r)
+    return i if i == r else r
+
+
+def _svgn(v: float) -> str:
+    """SVG path 座標:2 位小數,去尾零(8.20→8.2、3.00→3)。"""
+    s = f"{v:.2f}".rstrip("0").rstrip(".")
+    return s if s and s != "-0" else "0"
+
+
 def _sparkline_bars_svg(values: list[float], width: int = 84, height: int = 22) -> str:
     """Histogram sparkline:每天一根 bar,紅(正/買)綠(負/賣)。
     values 是 daily 三大法人淨流入金額(億 TWD),正買負賣。
+
+    2026-06-11 起 up/down 各合併成單一 <path>(原本每天一個 <rect>,
+    210 張卡 × ~42 天 ≈ 8,700 個 rect ≈ 600KB HTML;path 同樣吃
+    .spark-up/.spark-down 的 fill,視覺不變,省 ~75% sparkline bytes)。
     """
     if not values or all(v == 0 for v in values):
         return ""
@@ -399,26 +427,27 @@ def _sparkline_bars_svg(values: list[float], width: int = 84, height: int = 22) 
         return ""
     n = len(values)
     bar_w = width / n
+    w = max(bar_w - 0.4, 0.5)
     mid = height / 2
-    bars = []
+    up_d: list[str] = []
+    down_d: list[str] = []
     for i, v in enumerate(values):
         x = i * bar_w
         h = abs(v) / abs_max * (height / 2 - 1)
         if h < 0.5:
             h = 0.5
-        if v >= 0:
-            y = mid - h
-            cls = "spark-up"
-        else:
-            y = mid
-            cls = "spark-down"
-        bars.append(
-            f'<rect class="{cls}" x="{x:.2f}" y="{y:.2f}" '
-            f'width="{max(bar_w - 0.4, 0.5):.2f}" height="{h:.2f}" />'
+        y = mid - h if v >= 0 else mid
+        (up_d if v >= 0 else down_d).append(
+            f'M{_svgn(x)} {_svgn(y)}h{_svgn(w)}v{_svgn(h)}h-{_svgn(w)}z'
         )
+    paths = ""
+    if up_d:
+        paths += f'<path class="spark-up" d="{"".join(up_d)}"/>'
+    if down_d:
+        paths += f'<path class="spark-down" d="{"".join(down_d)}"/>'
     return (
         f'<svg class="sparkline" viewBox="0 0 {width} {height}" preserveAspectRatio="none">'
-        + "".join(bars)
+        + paths
         + f'<line class="spark-mid" x1="0" y1="{mid}" x2="{width}" y2="{mid}" />'
         + '</svg>'
     )
@@ -3677,9 +3706,11 @@ async def generate():
         # shares_out 用來算 cluster market-cap weighted index(F0);
         # volume(2026-05-18 ingest 5a172be 起)目前未在前端使用,保留供未來
         # 統計或顯示「當日成交股數」用
+        # _jc 數值壓縮:tv/net/shares/volume 取整、chg 4 位、close 2 位
+        # (ingest 寫進 jsonb 的 float 帶 .0 尾巴與 float32 雜訊)
         stocks_compact = {
-            tk: [v.get("tv"), v.get("chg"), v.get("close"),
-                 v.get("net_inst"), v.get("shares_out"), v.get("volume")]
+            tk: [_jc(v.get("tv")), _jc(v.get("chg"), 4), _jc(v.get("close"), 2),
+                 _jc(v.get("net_inst")), _jc(v.get("shares_out")), _jc(v.get("volume"))]
             for tk, v in breakdown.items()
             if isinstance(v, dict)
         }
@@ -3781,12 +3812,14 @@ async def generate():
                 # _computeClusterSeries 的 dateSet union 才會 match
                 _d = r["rank_date"]
                 d_str = _d.strftime("%Y-%m-%d") if hasattr(_d, "strftime") else str(_d)[:10]
-                _close = float(r["close"]) if r["close"] is not None else None
-                _shares = float(r["shares_out"]) if r["shares_out"] is not None else None
-                _vol = float(r["volume"]) if r["volume"] is not None else None
-                _high = float(r["high"]) if r["high"] is not None else None
-                _open = float(r["open"]) if r["open"] is not None else None
-                _low  = float(r["low"])  if r["low"]  is not None else None
+                # _jc 壓數值精度:價格 round(2) 去 float32 雜訊(=真實 tick 價),
+                # 股數/成交股數取整 —— history.json / kline.json 體積減半的關鍵
+                _close = _jc(r["close"], 2)
+                _shares = _jc(r["shares_out"])
+                _vol = _jc(r["volume"])
+                _high = _jc(r["high"], 2)
+                _open = _jc(r["open"], 2)
+                _low  = _jc(r["low"], 2)
                 ticker_close_payload.setdefault(r["ticker"], []).append({
                     "d": d_str, "c": _close, "s": _shares,
                 })
@@ -3831,12 +3864,12 @@ async def generate():
                 ]
                 si = stocks_info.get(tk)
                 if si and si.get("market") == "TW" and si.get("close_price") is not None:
-                    c = si["close_price"]
+                    c = _jc(si["close_price"], 2)
                     # 處置/跌停鎖死等情形 O/H/L 可能缺 → 退回 c(doji),不可留 None
                     # 否則 lightweight-charts 蠟燭畫不出來。
-                    o = si["open"] if si.get("open") is not None else c
-                    h = si["high"] if si.get("high") is not None else c
-                    l = si["low"] if si.get("low") is not None else c
+                    o = _jc(si["open"], 2) if si.get("open") is not None else c
+                    h = _jc(si["high"], 2) if si.get("high") is not None else c
+                    l = _jc(si["low"], 2) if si.get("low") is not None else c
                     has_today = bool(kline_arr) and kline_arr[-1][0] == _today_str
                     if has_today:
                         v = kline_arr[-1][5]  # Q13 已有今日 → 留其真實股數 volume
@@ -3924,7 +3957,8 @@ async def generate():
                 ni = r["net_inst"]
                 if ni is None:
                     continue
-                ticker_net_inst.setdefault(r["ticker"], {})[d_str] = float(ni)
+                # 取整(NTD;小數分毫無意義,payload 每值省 3 字元)
+                ticker_net_inst.setdefault(r["ticker"], {})[d_str] = _jc(ni)
             print(f"  ticker_net_inst_history: {len(tni_rows)} rows for "
                   f"{len(ticker_net_inst)}/{len(_hist_tickers)} tickers")
         except Exception as exc:
@@ -4065,7 +4099,7 @@ async def generate():
             ["^TWII", "^TWOII"],
         )
         def _fnum(v):
-            return round(float(v), 2) if v is not None else None
+            return _jc(v, 2)  # round 2 + 整數收斂(volume 的 .0 尾巴)
         for r in _idx_rows:
             _k = _idx_sym_map.get(r["symbol"])
             if not _k or r["close_price"] is None:

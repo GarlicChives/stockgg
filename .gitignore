@@ -28,5 +28,14 @@ data/search_cache.json
 .DS_Store
 
 supabase/.temp/
+# 建置產物(generate_html.py 每次 regen 重寫;CI 只 deploy 不 commit。
+# 2026-06-11 起 index.html / history.json 也退出 git —— 15MB history.json
+# × 每日多次 bot commit 曾把 .git 撐到 3GB)
 docs/kline/
 docs/kline.json
+docs/index.html
+docs/history.json
+
+# 驗證截圖 / 雜項(不准進 public repo)
+*.png
+logs/

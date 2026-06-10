@@ -68,7 +68,7 @@ transcripts are not reachable. The allowlist source is
 - `src/utils/db.py` — async DB client over the restricted Edge Function
 - `data/theme_dictionary.json` — main/sub industry hierarchy (ticker-centric, TW only)
 - `supabase/functions/db-proxy-public/` — Edge Function source (35-pattern allowlist)
-- `docs/index.html`, `docs/history.json`, `docs/kline.json` — generated artifacts served by Workers
+- `docs/index.html`, `docs/history.json`, `docs/kline.json` — generated artifacts served by Workers (gitignored since 2026-06-11; CI regenerates and deploys them, they are never committed)
 - `wrangler.jsonc` — Workers config (assets.directory: docs)
 
 ## Local development
