@@ -7,6 +7,7 @@
 ## 本 repo 角色
 
 Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
+**Repo 2026-06-10 起轉 PUBLIC**(Actions 分鐘免費不限量;起因:ingest catchup 風暴 10 天燒掉 1,800/2,000 分,轉 public 前已全歷史掃描 1,558 commits 無 secrets)。嚴禁任何 secrets 進 repo 的鐵則不變,且從此**對全世界可見**——commit 前多想一秒。
 資料攝取、AI 分析、爬蟲全部在 companion repo `StockGG-ingest` 跑
 (本機 `~/Desktop/StockGG-ingest`,私有 GitHub repo)。
 
