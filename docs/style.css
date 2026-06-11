@@ -1216,9 +1216,11 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
        padding:.02rem .22rem;border-radius:4px}
 .im-tk{color:var(--accent);font-variant-numeric:tabular-nums;font-weight:600}
 .im-star{color:#e6c84a;font-size:.7rem;letter-spacing:-1px;margin-left:.1rem}
-/* 跨產業關聯 / 焦點階層 modal(寬度容納 3 欄 im-axes) */
+/* 跨產業關聯 / 焦點階層 modal。2026-06-11 放大比照題材 chart modal 的
+   .tc-shell(1160×92vh)—— 原 940px/84vh 在桌機顯得侷促,跟其他頁 modal
+   體感不一致(user 反饋「太小了」)。 */
 dialog#im-modal{background:var(--card);border:1px solid var(--border);border-radius:14px;
-                color:var(--text);padding:0;width:min(940px,96vw);max-height:84vh;
+                color:var(--text);padding:0;width:min(1160px,96vw);max-height:92vh;
                 position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);margin:0;
                 overflow:hidden}
 dialog#im-modal[open]{display:flex;flex-direction:column;
@@ -1234,7 +1236,7 @@ dialog#im-modal::backdrop{background:rgba(0,0,0,.6)}
    而非固定 height)下不會 cap 子元素,body 會長到滿內容、dialog overflow:hidden
    只是切掉 → 捲不動。直接給 body max-height 才穩。 */
 .im-modal-body{padding:1rem 1.1rem;overflow-y:auto;flex:1 1 auto;min-height:0;
-               max-height:calc(84vh - 58px);
+               max-height:calc(92vh - 58px);
                overscroll-behavior:contain;scrollbar-width:none}
 .im-modal-body::-webkit-scrollbar{display:none}
 .im-modal-lead{margin:0 0 .7rem;font-size:.86rem;color:var(--muted)}
@@ -1247,6 +1249,15 @@ dialog#im-modal::backdrop{background:rgba(0,0,0,.6)}
               padding:.45rem .6rem;background:rgba(255,255,255,.03);border-radius:7px}
 .im-modal-f{font-weight:600;font-size:.88rem}
 .im-modal-s{font-size:.76rem;color:var(--muted);text-align:right}
+/* 跨產業清單:焦點名稱可點跳轉 + 「← 返回」鍵(2026-06-11) */
+.im-modal-f-link{background:transparent;border:none;color:var(--accent);cursor:pointer;
+                 padding:0;font-family:inherit;text-align:left;transition:.12s}
+.im-modal-f-link:hover{text-decoration:underline}
+.im-back{display:inline-flex;align-items:center;gap:.3rem;margin:0 0 .8rem;
+         background:rgba(124,138,242,.1);border:1px solid rgba(124,138,242,.35);
+         color:var(--text);border-radius:7px;padding:.32rem .7rem;font-size:.78rem;
+         font-weight:600;cursor:pointer;font-family:inherit;transition:.12s}
+.im-back:hover{background:rgba(124,138,242,.2)}
 /* modal 內焦點階層(沿用 .im-focus / .im-axes,去掉外卡片邊框) */
 .im-modal-focus .im-focus{background:transparent;border:none;padding:0;margin:0}
 /* 子產業標題可點 → 切換上方趨勢圖 */
@@ -1275,7 +1286,7 @@ dialog#im-modal::backdrop{background:rgba(0,0,0,.6)}
                 vertical-align:middle;margin-right:.25rem}
 .im-mc-net-lbl{margin-left:auto}
 .im-mc-body{display:flex;gap:.7rem;align-items:stretch}
-.im-mc-side{flex:0 0 210px;max-height:360px;overflow-y:auto;overflow-x:hidden;
+.im-mc-side{flex:0 0 210px;max-height:520px;overflow-y:auto;overflow-x:hidden;
             overscroll-behavior:contain;display:flex;flex-direction:column;gap:.18rem;
             scrollbar-width:none}
 .im-mc-side::-webkit-scrollbar{display:none}
@@ -1285,8 +1296,10 @@ dialog#im-modal::backdrop{background:rgba(0,0,0,.6)}
 .im-mc-side-hd{font-size:.68rem;color:var(--muted);padding:.1rem .2rem .25rem;
                position:sticky;top:0;background:var(--card)}
 .im-mc-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:.1rem}
-.im-mc-chart{width:100%;height:210px}
-.im-mc-chart-net{height:120px}
+/* modal 放大後圖表同步加高(210/120 是 84vh 小 modal 時代的尺寸) */
+.im-mc-chart{width:100%;height:300px}
+.im-mc-chart-net{height:150px}
+@media(max-height:820px){.im-mc-chart{height:230px}.im-mc-chart-net{height:120px}}
 /* 每張圖上方標題列 + 模式切換(指數/個股、當日/累計)*/
 .im-mc-clabel{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;
               font-size:.72rem;color:var(--muted);margin:.25rem 0 0}
@@ -1307,8 +1320,11 @@ dialog#im-modal::backdrop{background:rgba(0,0,0,.6)}
 .im-mc-hint b{color:var(--accent)}
 @media(max-width:720px){
   .im-mc-body{flex-direction:column}
-  .im-mc-side{flex:none;max-height:118px;flex-direction:row;flex-wrap:wrap;gap:.25rem}
+  /* 行高對齊 pill 高度(約 2.1rem/列):卡在 2.5 列會出現「半截 pill」 */
+  .im-mc-side{flex:none;max-height:9.6rem;flex-direction:row;flex-wrap:wrap;gap:.25rem}
   .im-mc-side-hd{width:100%}
+  .im-mc-chart{height:200px}
+  .im-mc-chart-net{height:110px}
 }
 
 /* ── 蜘蛛網關聯圖 ── */
@@ -1326,6 +1342,10 @@ dialog#im-modal::backdrop{background:rgba(0,0,0,.6)}
 .im-graph{position:relative;width:100%;height:min(80vh,820px);background:
           radial-gradient(ellipse at center,rgba(108,142,245,.05),transparent 70%),var(--card);
           border:1px solid var(--border);border-radius:12px;overflow:hidden}
+/* 窄螢幕:SVG 以 720px 1:1 渲染,容器橫向滑動(JS 加 class;見 _initIndmapGraph) */
+.im-graph-pan{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;
+              scrollbar-width:none}
+.im-graph-pan::-webkit-scrollbar{display:none}
 .im-graph-hint{position:absolute;inset:0;display:flex;align-items:center;
                justify-content:center;color:var(--muted);font-size:.85rem}
 .im-svg{width:100%;height:100%;display:block}

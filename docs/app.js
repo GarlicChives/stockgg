@@ -103,7 +103,15 @@ function _imBindModalScroll() {
   dlg.addEventListener('close', () => { _imDisposeCharts(); });
 }
 
-/* 跨產業關聯 modal:點個股 → 列出它出現的所有焦點 */
+/* 跨產業關聯 modal:點個股 → 列出它出現的所有焦點。
+ * 2026-06-11:從焦點 modal 內點進來時 prepend「← 返回」(原本 body 整個被
+ * 換掉、沒有任何退路,只能關 modal 重點節點);焦點名稱本身也可點 → 直接
+ * 跳到該焦點的趨勢 modal(跨產業聯想的自然下一步)。 */
+function _imFocusIdxByName(name) {
+  const nodes = (window.IIA_INDMAP_GRAPH || {}).nodes || [];
+  for (const nd of nodes) if (nd.name === name) return nd.i;
+  return -1;
+}
 function imShowCross(ticker) {
   const map = window.IIA_INDMAP_CROSS || {};
   const e = map[ticker];
@@ -112,20 +120,31 @@ function imShowCross(ticker) {
   if (!e || !body || !title) return;
   title.innerHTML = '<span class="im-tk">' + _imEsc(ticker) + '</span> ' +
     _imEsc(e.n || '');
+  const back = (_imCurFocus >= 0 && _imCurFocusName)
+    ? '<button type="button" class="im-back" onclick="imOpenFocus(' + _imCurFocus +
+      ')">← 返回 ' + _imEsc(_imCurFocusName) + '</button>'
+    : '';
   const hits = e.h || [];
+  const linkF = (f) => {
+    const idx = _imFocusIdxByName(f);
+    return idx >= 0
+      ? '<button type="button" class="im-modal-f im-modal-f-link" onclick="imOpenFocus(' +
+        idx + ')" title="看 ' + _imEsc(f) + ' 的趨勢圖與上中下游">' + _imEsc(f) + ' ↗</button>'
+      : '<span class="im-modal-f">' + _imEsc(f) + '</span>';
+  };
   if (hits.length <= 1) {
-    body.innerHTML = '<p class="im-modal-note">' + _imEsc(e.n || ticker) +
+    body.innerHTML = back + '<p class="im-modal-note">' + _imEsc(e.n || ticker) +
       ' 目前只出現在 <b>1</b> 個焦點產業' +
       (hits.length ? '：<b>' + _imEsc(hits[0].f) + '</b>（' +
         _imEsc(hits[0].s) + '）' : '') +
       '。尚無跨產業聯想。</p>';
   } else {
     const rows = hits.map(h =>
-      '<li class="im-modal-row"><span class="im-modal-f">' + _imEsc(h.f) +
-      '</span><span class="im-modal-s">' + _imEsc(h.s) + '</span></li>'
+      '<li class="im-modal-row">' + linkF(h.f) +
+      '<span class="im-modal-s">' + _imEsc(h.s) + '</span></li>'
     ).join('');
-    body.innerHTML = '<p class="im-modal-lead">橫跨 <b>' + hits.length +
-      '</b> 個焦點產業，可作為投資聯想的交集：</p>' +
+    body.innerHTML = back + '<p class="im-modal-lead">橫跨 <b>' + hits.length +
+      '</b> 個焦點產業，可作為投資聯想的交集（點焦點名稱可跳轉）：</p>' +
       '<ul class="im-modal-list">' + rows + '</ul>';
   }
   _imBindModalScroll();
@@ -136,6 +155,7 @@ function imShowCross(ticker) {
  * 同一個 modal 容納兩塊資訊(不是 modal 內再開 modal)。 */
 let _imCharts = { price: null, net: null };
 let _imCurFocus = -1;
+let _imCurFocusName = '';   // imShowCross「← 返回」用
 let _imCurSub = null;       // null = 整個焦點;數字 = subs_payload.subs index
 let _imPeriod = '6m';
 let _imTickerDis = new Set();   // 左欄被排除(不納入加權)的 ticker(本地,不動題材 modal)
@@ -149,7 +169,7 @@ function imOpenFocus(i, name) {
   if (!src || !body || !title) return;
   const fname = name || src.dataset.name || '焦點產業';
   title.innerHTML = '🗺️ ' + _imEsc(fname);
-  _imCurFocus = i; _imCurSub = null; _imTickerDis = new Set();
+  _imCurFocus = i; _imCurFocusName = fname; _imCurSub = null; _imTickerDis = new Set();
   _imChartMode = 'index'; _imNetMode = 'daily';
   const subInfo = (window.IIA_INDMAP_SUBS || {})[i];
   const hasChart = subInfo && (subInfo.all || []).length > 0;
@@ -187,7 +207,7 @@ function imOpenFocus(i, name) {
         '<div id="im-mc-empty" class="im-mc-empty" style="display:none">此題材的成分股暫無足夠歷史資料</div>' +
       '</div>' +
     '</div>' +
-    '<div class="im-mc-hint">點<b>左側個股</b>排除/納入加權;<b>指數/個股</b>、<b>當日/累計</b>可切換圖;點下方<b>子產業標題</b>📈切換題材</div>' +
+    '<div class="im-mc-hint">點<b>成分股</b>排除/納入加權;<b>指數/個股</b>、<b>當日/累計</b>可切換圖;點下方<b>子產業標題</b>📈切換題材;點<b>階層裡的個股</b>看它橫跨的所有焦點</div>' +
     '</div>'
   ) : '';
   body.innerHTML = chartHtml + '<div class="im-modal-focus">' + src.innerHTML + '</div>';
@@ -196,13 +216,17 @@ function imOpenFocus(i, name) {
   if (hasChart) _imRenderSubChart(i, null);
 }
 
-/* 點子產業標題 → 趨勢圖切到該子產業 */
+/* 點子產業標題 → 趨勢圖切到該子產業。
+ * 切完把 modal 捲回圖表頂部(2026-06-11):子產業標題在下方階層區,點完
+ * 圖在可視範圍外默默換掉,user 完全看不到變化、以為沒反應。 */
 function imPickSub(i, subIdx) {
   if (i !== _imCurFocus) return;
   _imCurSub = subIdx; _imTickerDis = new Set();   // 換子產業 = 換一組標的,排除清空
   document.querySelectorAll('.im-modal-focus .im-sub-pick').forEach(b =>
     b.classList.toggle('active', +b.dataset.sub === subIdx));
   _imRenderSubChart(i, subIdx);
+  const body = document.querySelector('#im-modal .im-modal-body');
+  if (body) body.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 /* 左欄點個股 → 從加權指數排除/納入 */
@@ -436,23 +460,33 @@ function _initIndmapGraph() {
   _indmapRendered = true;
   host.innerHTML = '';
 
-  // viewBox 寬度跟著容器寬高比走 → 圖滿版填滿容器(不留左右黑邊)
-  const H = 680;
+  // viewBox 直接取容器實際尺寸 → SVG 單位 = CSS px(label 字級 1:1 不縮放),
+  // 圖滿版填滿容器(不留左右黑邊)。2026-06-11 改:原固定 H=680 在高視窗會被
+  // 放大、低視窗被壓縮,label 跟著失真。
+  // 窄螢幕(手機):49 顆節點塞 314px 寬會縮成 0.45 倍、字 5px 不可讀 →
+  // 改固定 720px 寬 1:1 渲染,容器 overflow-x 橫向滑動(地圖式操作)。
   const cw = host.clientWidth || 1200, ch = host.clientHeight || 680;
-  const W = Math.round(Math.max(700, Math.min(2200, H * (cw / ch))));
+  const narrow = cw < 600;
+  const H = narrow ? Math.round(Math.max(480, ch))   // 配合容器高,免垂直裁切
+            : Math.round(Math.max(560, Math.min(960, ch)));
+  const W = narrow ? 720
+            : Math.round(Math.max(700, Math.min(2200, H * (cw / ch))));
   const nodes = g.nodes, edges = g.edges || [], hot = g.hot || 2.0;
   _imLayout(nodes, edges, W, H);
 
-  // 節點半徑:成交熱度(tv 億)sqrt 縮放
-  nodes.forEach(nd => { nd.r = 10 + Math.min(24, Math.sqrt(Math.max(nd.tv, 0)) * 1.05); });
+  // 節點半徑:成交熱度(tv 億)sqrt 縮放(2026-06-11 縮小上限 24→19、係數
+  // 1.05→0.85:49 顆大圓 + 下方 label 在 1260×720 必擠,縮圓換留白)
+  nodes.forEach(nd => { nd.r = 8 + Math.min(19, Math.sqrt(Math.max(nd.tv, 0)) * 0.85); });
 
-  // 解重疊:力導向會把點推到邊界堆疊 → 幾輪依半徑把太近的點推開
-  for (let pass = 0; pass < 70; pass++) {
+  // 解重疊:力導向會把點推到邊界堆疊 → 幾輪依半徑把太近的點推開。
+  // 間距含 label 淨空(節點下方有一行 12px 文字,padding 12→30 才不會
+  // 「字壓在隔壁圓上」);底界同樣多留 20px 給最後一排的 label。
+  for (let pass = 0; pass < 90; pass++) {
     for (let i = 0; i < nodes.length; i++) {
       for (let j = i + 1; j < nodes.length; j++) {
         const a = nodes[i], b = nodes[j];
         let dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 0.01;
-        const min = a.r + b.r + 12;
+        const min = a.r + b.r + 30;
         if (d < min) {
           const push = (min - d) / 2; dx /= d; dy /= d;
           a.x -= dx * push; a.y -= dy * push; b.x += dx * push; b.y += dy * push;
@@ -460,13 +494,21 @@ function _initIndmapGraph() {
       }
     }
     nodes.forEach(n => {
-      n.x = Math.max(n.r + 4, Math.min(W - n.r - 4, n.x));
-      n.y = Math.max(n.r + 4, Math.min(H - n.r - 4, n.y));
+      n.x = Math.max(n.r + 6, Math.min(W - n.r - 6, n.x));
+      n.y = Math.max(n.r + 6, Math.min(H - n.r - 20, n.y));
     });
   }
 
   const svg = document.createElementNS(SVGNS, 'svg');
   svg.setAttribute('class', 'im-svg');
+  if (narrow) {
+    // 1:1 px 渲染 + 容器橫向捲動(CSS .im-graph 在窄螢幕 overflow-x:auto)
+    svg.style.width = W + 'px';
+    svg.style.height = H + 'px';
+    host.classList.add('im-graph-pan');
+    // 起始置中,左右都有得滑
+    requestAnimationFrame(() => { host.scrollLeft = Math.max(0, (W - cw) / 2); });
+  }
   const vb = { x: 0, y: 0, w: W, h: H };
   const setVB = () => svg.setAttribute('viewBox', vb.x + ' ' + vb.y + ' ' + vb.w + ' ' + vb.h);
   setVB();
@@ -495,7 +537,8 @@ function _initIndmapGraph() {
     if (y + th > hb.height - 8) y = cy - th - 14;
     x = Math.max(8, Math.min(x, hb.width - tw - 8));
     y = Math.max(8, Math.min(y, hb.height - th - 8));
-    tip.style.left = x + 'px'; tip.style.top = y + 'px';
+    // 窄螢幕容器可橫向捲動:absolute 座標屬於內容空間,要補 scrollLeft
+    tip.style.left = (x + host.scrollLeft) + 'px'; tip.style.top = y + 'px';
   };
 
   // edges:供應鏈有向邊(e=[from, to, strength, relation];from=上游 → to=下游)。
@@ -561,13 +604,17 @@ function _initIndmapGraph() {
         (m.c >= 0 ? 'im-up' : 'im-down') + '">' + (m.c >= 0 ? '+' : '') + m.c + '%</b></span>'
       ).join('') + '</div>';
     }
-    s += '<div class="im-tip-hint">點擊展開成分股</div>';
+    // hint 講清楚動作對象是「圓圈本身」(原「點擊展開成分股」會被誤讀成
+    // 「點 tooltip 裡列的那幾檔股票」,但 tooltip pointer-events:none 根本點不到)
+    s += '<div class="im-tip-hint">點這顆圓 → 看趨勢圖與上中下游成分</div>';
     tip.innerHTML = s; tip.hidden = false;
     placeTip(evt);   // 統一夾邊 + 翻轉,避免被容器 overflow:hidden 切掉
   };
 
-  // nodes
+  // nodes;label 抽到獨立頂層 <g>(2026-06-11):text 原本在各自 node group
+  // 內,後畫的鄰圓會直接壓住前面節點的字 → 「文字遮擋」主因之一。
   const gNodes = document.createElementNS(SVGNS, 'g');
+  const gLabels = document.createElementNS(SVGNS, 'g');
   for (const nd of nodes) {
     const hc = _imHeatColor(nd.chg);
     const grp = document.createElementNS(SVGNS, 'g');
@@ -586,11 +633,12 @@ function _initIndmapGraph() {
     const label = (nd.name || '').length > 9 ? nd.name.slice(0, 8) + '…' : nd.name;
     const txt = document.createElementNS(SVGNS, 'text');
     txt.setAttribute('class', 'im-label');
-    txt.setAttribute('y', (nd.r + 13).toFixed(1));
+    txt.setAttribute('x', nd.x.toFixed(1));
+    txt.setAttribute('y', (nd.y + nd.r + 13).toFixed(1));
     txt.setAttribute('text-anchor', 'middle');
     txt.setAttribute('fill', hc.na ? '#7a8696' : '#cdd6e2');
     txt.textContent = label;
-    grp.appendChild(txt);
+    gLabels.appendChild(txt);
 
     grp.addEventListener('mouseenter', e => showTip(nd, e));
     grp.addEventListener('mousemove', e => showTip(nd, e));
@@ -599,6 +647,7 @@ function _initIndmapGraph() {
     gNodes.appendChild(grp);
   }
   svg.appendChild(gNodes);
+  svg.appendChild(gLabels);
   host.appendChild(svg);
   // 滿版靜態呈現:不做滾輪縮放、不做拖曳平移(圖已填滿容器、節點全可見);
   // 互動只保留 hover tooltip + 點節點開 modal。滾輪維持頁面正常捲動。
