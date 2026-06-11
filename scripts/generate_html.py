@@ -646,11 +646,23 @@ def _industry_section_html(
             f"{html_lib.escape(t)}&nbsp;{html_lib.escape(n)}</button>"
             for t, n in universal.items()
         )
+        # chip 數超過門檻(泛分類常 100+)→ 預設摺疊成約兩列 + 「展開全部」
+        # (2026-06-12:整面 chip 牆佔掉半個首屏,訪客還沒看到題材卡先被嚇到)
+        _UNIV_COLLAPSE_N = 24
+        _collapsed = len(universal) > _UNIV_COLLAPSE_N
+        _panel_id = f"univ-{level}"
         univ_html = (
-            '<div class="univ-panel">'
+            f'<div class="univ-panel{" univ-collapsed" if _collapsed else ""}" id="{_panel_id}">'
             '<span class="univ-label">多題材股:</span>'
             f'{chips}'
             '</div>'
+            + (
+                f'<div class="univ-more-row"><button class="univ-more" type="button" '
+                f'data-full="展開全部 {len(universal)} 檔 ▾" '
+                f"onclick=\"toggleUnivExpand('{_panel_id}',this)\">"
+                f'展開全部 {len(universal)} 檔 ▾</button></div>'
+                if _collapsed else ""
+            )
         )
 
     # badges = per-cluster 焦點股排序觸發(只動該題材內的 pill 順序,不影響外層 cluster 排序)。
@@ -1027,7 +1039,29 @@ _RISK_TRIG = {
     "holder_dist": ("大戶持股下降", "集保大戶持股比週減,疑似高檔出貨"),
     "breadth_div": ("量價背離", "指數創高但上漲家數縮減,上攻動能虛弱"),
     "nh_count": ("創新高家數萎縮", "指數仍高但能創新高的股票變少,常是轉弱前兆"),
+    # ingest 端模型特徵常帶視窗天數後綴(vol20 / churn5 / xsec_disp5…)。
+    # 下面是「去掉尾碼數字後」的 base 名映射(_risk_trig_label 先查完整名、
+    # 再查 base 名),新視窗變體不用逐一補
+    "vol": ("波動明顯放大", "近期大盤上沖下洗加劇,常見於變盤前後"),
+    "xsec_disp": ("個股漲跌分歧擴大", "個股之間漲跌差距拉大、齊漲結構鬆動,資金集中少數標的,行情末段常見"),
+    "disp": ("個股漲跌分歧擴大", "個股之間漲跌差距拉大、齊漲結構鬆動,資金集中少數標的,行情末段常見"),
 }
+
+
+def _risk_trig_label(raw: str | None) -> tuple[str, str]:
+    """模型訊號內部代號 → 訪客可讀的中文標籤。
+
+    查找順序:完整名(churn5 若有專屬條目)→ 去尾碼數字的 base 名
+    (churn5→churn、vol20→vol、xsec_disp5→xsec_disp)→ 通用 fallback。
+    **絕不把內部代號原樣丟到公開 UI**(2026-06-12 修:風控頁警示卡曾直接
+    顯示 vol20 / churn5 / xsec_disp5,違反「公開 UI 不外洩開發者視角」鐵則)。
+    """
+    raw = raw or ""
+    entry = _RISK_TRIG.get(raw)
+    if not entry:
+        base = re.sub(r"_?\d+$", "", raw)
+        entry = _RISK_TRIG.get(base)
+    return entry if entry else ("其他過熱訊號", "模型偵測到的市場過熱跡象")
 _RISK_LEVEL = {
     "safe": ("安全", "risk-safe", "☀"),
     "warn": ("警戒", "risk-warn", "⚠"),
@@ -1136,9 +1170,7 @@ def build_risk_page(snapshot: dict | None, history: list[dict]) -> str:
                  if isinstance(x.get("value"), (int, float))]
         max_v = max(_vals) if _vals else 1.0
         for t in trig:
-            raw = t.get("name")
-            entry = _RISK_TRIG.get(raw)
-            short, mean = entry if entry else (raw or "訊號", "")
+            short, mean = _risk_trig_label(t.get("name"))
             st = t.get("status", "warn")
             deg = "警戒" if st == "danger" else "注意"
             val = t.get("value")

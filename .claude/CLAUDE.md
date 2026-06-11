@@ -86,6 +86,7 @@ Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
 - **互動點**:
   - 廣泛概念股 chip 濾除(universal toggle)→ FLIP 動畫重排 cluster(threshold:cluster 數 >20 用 >3,否則 >1)
   - 外層 sort chip(成交金額/平均漲跌/平均乖離/平均 PE/平均殖利率/平均 β)→ per sub-tab state,重複點切 desc/asc
+  - **2026-06-12 全站訪客實測修正**:(1) 多題材股 chip 牆 > 24 顆(泛分類 100+)render 時加 `.univ-collapsed`(約兩列)+`.univ-more` 「展開全部 N 檔」(`toggleUnivExpand`);(2) 題材 chart modal / 個股 modal 開啟時鍵盤 ←/→ = 畫面箭頭(document keydown,INPUT/TEXTAREA focus 時不攔);(3) 風控警示卡內部代號根除:`_risk_trig_label()` 完整名→去尾碼數字 base 名(vol20→vol、xsec_disp5→xsec_disp)→通用 fallback,絕不顯 raw 代號(曾直接外洩 vol20/churn5/xsec_disp5);(4) **手機橫向溢出全站歸零**(原本每頁可右拖 118-647px):`nav.tabs` 自捲、`.fs-tab-pane.active` / `.ranks .card`(table 是 .card 直接子元素)overflow-x:auto、`.cluster-hdr` ≤680px 改 wrap(資訊保留不砍)、`.mt-body` 手機改 display:none 切換(visibility:hidden 仍佔 layout 撐寬頁面)
   - 內層 cluster header badge(漲跌/乖離/PE/殖利/β)→ per-cluster focal pill 排序,setFocalSort(cardId, key);預設 chg desc
   - chart 時間粒度 chip(1M/3M/6M/1Y/ALL)→ 過濾 series 後 rebase to 100;1Y 維度需要 ticker_close_history 400 天 backfill 完整
   - chart modal:左欄 ticker 列表 (vertical, by tv desc, 可 disable),右欄兩 chart 對齊(共用 priceScale minimumWidth) + 雙向 crosshair sync + 開啟動畫 + 三大法人 daily/cumulative 切換

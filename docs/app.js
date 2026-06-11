@@ -1369,6 +1369,15 @@ function _expandCard(el) {
   el.addEventListener('transitionend', te);
 }
 
+/* 多題材股 chip 牆展開/收合(泛分類 100+ 顆預設摺疊;generate_html 在
+ * chip 數 > 門檻時 render .univ-collapsed + .univ-more 按鈕) */
+function toggleUnivExpand(panelId, btn) {
+  const p = document.getElementById(panelId);
+  if (!p) return;
+  const collapsed = p.classList.toggle('univ-collapsed');
+  btn.textContent = collapsed ? btn.dataset.full : '收合 ▴';
+}
+
 function toggleMultiTheme(ticker, level) {
   const next = (_multiThemeSel[level] === ticker) ? null : ticker;
   _multiThemeSel[level] = next;
@@ -2479,4 +2488,17 @@ function toggleSentinelInline(btn) {
 }
 
 /* downloadRankCSV 隨焦點排行 tab 2026-05-19 移除 */
+
+/* 鍵盤 ←/→ 導覽(2026-06-12):題材 chart modal / 個股 modal 開啟時,
+ * 方向鍵 = 畫面上的 ←/→ 箭頭(訪客慣性:圖庫式 modal 都能用鍵盤翻頁)。
+ * Esc 關閉是 <dialog> 原生行為,不用另外處理。 */
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+  const dir = e.key === 'ArrowLeft' ? 'prev' : 'next';
+  const tc = document.getElementById('theme-chart-dialog');
+  if (tc && tc.open) { tcNavTheme(dir); e.preventDefault(); return; }
+  const am = document.getElementById('art-modal');
+  if (am && am.open) { artNavTicker(dir); e.preventDefault(); }
+});
 
