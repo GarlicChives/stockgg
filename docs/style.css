@@ -128,6 +128,12 @@ header{position:sticky;top:0;z-index:200;
               border:1px solid rgba(229,57,53,.45);
               border-left:3px solid #e53935}
 .rally-banner .crash-banner-txt b{color:#e53935}
+/* 普通日每日精選說明列(2026-06-11 統一精選閘):低調一行,非警示 */
+.distill-note{margin:0 0 .85rem;padding:.5rem .8rem;border-radius:8px;
+              background:rgba(124,138,242,.07);
+              border:1px solid rgba(124,138,242,.28);
+              font-size:.78rem;line-height:1.55;color:var(--muted)}
+.distill-note b{color:var(--text);font-weight:700}
 
 /* ── Card ── */
 .card{background:var(--card);border:1px solid var(--border);border-radius:12px;

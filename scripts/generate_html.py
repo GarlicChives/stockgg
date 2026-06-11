@@ -2674,20 +2674,45 @@ def build_focus_stock_page(
     return nav_html + panes_html
 
 
-# ── 大跌盤「精選閘」(2026-06-08) ──────────────────────────────────────────────
-# crash 日焦點題材會偏多(35+),user 要濃縮成「真正抗跌、且可能是下一波主流
-# (相對惜售追捧)」的少數題材。決議:**只看價格抗跌**(不加法人淨買閘 —— 法人
-# 淨流在大跌盤被權值股如 2330 機械性主導、且同股跨多題材重複計入,失真),
-# **只在大跌盤日(tw_crash_mode)啟用**,平盤/多頭日維持顯示全部題材。
-CRASH_DISTILL_MAX = 8                  # 上限題材數
-CRASH_DISTILL_MIN_RESILIENCE = 0.5     # 抗跌率 focal/(focal+sentinel) ≥ 此值
-# 加權漲跌門檻 = 大盤(TWII)當日漲跌 + 此 buffer(贏大盤至少幾個百分點)。
-# 動態鬆緊:溫和崩盤(TWII -1.5)gate 自動收到 -0.5;重挫日(TWII -5)gate 放到
-# -4.0。抗跌率 ≥0.5 那道閘本身就是絕對地板(過半成分守 -3% 上 → 不會是 -5% 災難
-# 題材),兩者搭配避免「贏大盤但絕對很慘」的退化情形。
-CRASH_DISTILL_BEAT_MARKET = 1.0
-# TWII 當日漲跌取不到(snaps 缺 ^TWII chg)時退回的絕對 fallback 門檻。
-CRASH_DISTILL_FALLBACK_WCHG = -2.5
+# ── 每日精選閘(2026-06-11 統一版,取代 06-08 crash 閘 / 06-09 rally 閘三分支)──
+# 此前精選只在 crash / rally 兩種極端盤啟用,普通日是規則真空:題材形成門檻僅
+# 「同前綴 2 顆種子」,中等強度日(如 06-11 平盤混合日)隨便就 25-35 個題材全量
+# 上架、同家族佔多欄。user 拍板 2026-06-11:**每天**動態精選、最多只留最強 10 個。
+# 三套規則(crash 抗跌率 / rally 齊漲率 / normal 無閘)本質是同一件事 ——
+# 「過半成員贏市場 + 加權贏市場」,統一成一套對所有盤勢連續適用的公式:
+#   錨(market anchor):雙指數皆跌取較弱者(必須贏真正在崩的那邊;焦點 universe
+#     偏中小/櫃買),否則取較強者(必須贏真正在漲的那邊)。06-10 拍板的 min/max
+#     錨邏輯的推廣。
+#   buffer(連續動態):錨 ≥ 0 → 2pp;錨 ≤ −3 → 1pp;中間線性內插。大跌日
+#     「贏大盤 1pp」已是強訊號,平/漲日要贏 2pp 才算主流;線性過渡避免微跌/微漲
+#     日門檻跳動(原 crash 1.0 / rally 2.0 在 0 軸兩側會跳 1pp)。
+#   雙閘(成員 = focal + sentinel,chg=None 不入計算):
+#     1. 領先率 = 成員 chg ≥ 錨 的佔比 ≥ DISTILL_MIN_LEAD_RATIO —— 排除靠 1-2 檔
+#        拉高加權、其餘平庸的假強勢(crash 抗跌率與 rally 齊漲率的統一推廣)。
+#     2. 成交值加權平均漲跌 ≥ 錨 + buffer。
+#   傘狀去重(_distill_pick)後取前 DISTILL_MAX;過閘不足 DISTILL_MIN 時從未過閘
+#   者依強度補足(公開站鐵則:永遠不空),展示文字改述「相對最強」。
+# 決議沿用:**只看價格結果**,排除三大法人籌碼(法人淨流被權值股機械主導 + 同股
+# 跨多題材重複計入,失真;user 定 2026-06-08/09)。
+# 行為近似等價驗證:06-10 crash 日 gate 同為 −3.43;06-09 rally 日公式完全相同;
+# 06-11 平盤混合日(TWII −0.18 / TPEX +0.29)模擬 29 → 過閘 8 → 去重 4
+# (觸控面板IC / 被動元件(吸收電容器+MLCC)/ 記憶體模組(吸收NAND+SSD)/ 消費性MCU)。
+DISTILL_MAX = 10           # 每日精選上限(user 2026-06-11)
+DISTILL_MIN = 3            # 保底題材數(過閘不足時依強度補足,永遠不空)
+DISTILL_MIN_LEAD_RATIO = 0.5   # 領先率門檻(過半成員自身贏錨)
+DISTILL_BEAT_FULL = 2.0    # buffer 上端(錨 ≥ 0)
+DISTILL_BEAT_FLOOR = 1.0   # buffer 下端(錨 ≤ TAPER_AT)
+DISTILL_BEAT_TAPER_AT = -3.0   # 錨低於此值 buffer 鬆到 FLOOR;0~此值間線性內插
+
+
+def _distill_beat(anchor: float) -> float:
+    """buffer 隨錨連續調整:≥0 → 2pp,≤−3 → 1pp,中間線性。"""
+    if anchor >= 0:
+        return DISTILL_BEAT_FULL
+    if anchor <= DISTILL_BEAT_TAPER_AT:
+        return DISTILL_BEAT_FLOOR
+    span = DISTILL_BEAT_FULL - DISTILL_BEAT_FLOOR
+    return DISTILL_BEAT_FULL + anchor * (span / -DISTILL_BEAT_TAPER_AT)
 
 
 def _distill_pick(scored: list, max_n: int) -> list:
@@ -2725,90 +2750,39 @@ def _distill_pick(scored: list, max_n: int) -> list:
     return picked
 
 
-def _crash_distill_clusters(clusters: list, stocks_info: dict,
-                            market_chg: float | None = None) -> list:
-    """大跌盤日把焦點題材濃縮成「真抗跌題材」。
-
-    兩道硬閘(都看 cluster 全成員 focal+sentinel,chg/tv 取自 stocks_info):
-      1. 抗跌率 focal/(focal+sentinel) ≥ CRASH_DISTILL_MIN_RESILIENCE
-         —— 過半成員守在 -3% 以上,排除「靠 1-2 龍頭撐、其餘崩」的假抗跌。
-      2. 成交值加權平均漲跌 ≥ 動態門檻 = market_chg + CRASH_DISTILL_BEAT_MARKET
-         (贏大盤至少 buffer 個百分點;market_chg=None 時退 FALLBACK_WCHG)。
-    過閘者經 _distill_pick(由強到弱 + 重疊抑制、傘狀代表)取前
-    CRASH_DISTILL_MAX;順序仍交給下游既有 sort(外層 TV sort chip)。
-    回傳原 cluster 物件子集。
-    """
-    wchg_gate = (market_chg + CRASH_DISTILL_BEAT_MARKET
-                 if market_chg is not None else CRASH_DISTILL_FALLBACK_WCHG)
-    scored = []
-    for c in clusters:
-        members = list(c.focal) + list(getattr(c, "sentinel", []) or [])
-        ntot = len(members)
-        if not ntot:
-            continue
-        resil = len(c.focal) / ntot
-        num = den = 0.0
-        for s in members:
-            info = stocks_info.get(s.ticker) or {}
-            chg = info.get("change_pct")
-            tv = float(info.get("trading_value") or 0)
-            if chg is not None and tv > 0:
-                num += chg * tv
-                den += tv
-        wchg = (num / den) if den > 0 else None
-        if (resil >= CRASH_DISTILL_MIN_RESILIENCE
-                and wchg is not None and wchg >= wchg_gate):
-            scored.append((wchg, c))
-    scored.sort(key=lambda x: -x[0])
-    return _distill_pick(scored, CRASH_DISTILL_MAX)
-
-
-# ── 大漲盤「精選閘」(2026-06-09) ──────────────────────────────────────────────
-# 大漲盤(普遍齊漲)時焦點題材同樣會爆量、且同一強勢股橫跨多題材 → user 難以聚焦。
-# 鏡像 crash 精選閘,但**方向相反**:crash 找「抗跌」、rally 找「真領漲、可能是下一波
-# 主流(相對惜售追捧)」。決議同 crash:**只看價格結果**(排除三大法人籌碼 —— 大漲盤
-# 法人淨流被權值股機械主導 + 同股跨多題材重複計入,失真),**只在大漲盤日啟用**,
-# 平盤/弱勢日顯示全部題材。
-#
-# 大漲盤偵測為 stockgg 自有(ingest 每日都寫 breadth,不需 ingest 改動;crash 那套
-# `tw_crash_mode` 是 ingest 翻的種子門檻,rally 不動種子、純做展示層精選):
-#   breadth_ratio ≥ RALLY_BREADTH_THRESHOLD 且 TWII 當日漲幅 ≥ RALLY_MIN_INDEX_CHG。
-#   雙條件 —— breadth 65% 不像 crash <20% 那樣罕見(普通上漲日就有),須加指數強度
-#   閘才算「超級大漲盤」,否則溫和上漲日會誤觸、過度精簡反而擾民。
+# 大漲盤 banner 偵測門檻(rally 偵測為 stockgg 自有,ingest 每日都寫 breadth:
+# breadth ≥ RALLY_BREADTH_THRESHOLD 且 TWII 漲幅 ≥ RALLY_MIN_INDEX_CHG 才渲
+# 🚀 banner。注意 2026-06-11 起這只決定 banner 敘事,精選閘本身每天都跑)。
 RALLY_BREADTH_THRESHOLD = 0.65   # 上漲家數佔比 ≥ 此值(配合指數強度才算大漲盤)
-RALLY_MIN_INDEX_CHG = 1.5        # TWII 當日漲幅 ≥ 此值(% ;確認是「超級」大漲盤)
-RALLY_DISTILL_MAX = 8            # 上限題材數
-RALLY_MIN_LEAD_RATIO = 0.5       # 齊漲率 = 成員 chg ≥ 大盤 的佔比 ≥ 此值
-# 重疊抑制(crash / rally 共用,_distill_pick):同源家族(overlap coefficient ≥
-# 門檻)只佔一個聚焦欄位,代表題材取較廣傘狀 —— 直擊 user 的「多題材股過多」。
+RALLY_MIN_INDEX_CHG = 1.5        # TWII 當日漲幅 ≥ 此值(%;確認是「超級」大漲盤)
+# 重疊抑制(_distill_pick):同源家族(overlap coefficient ≥ 門檻)只佔一個聚焦
+# 欄位,代表題材取較廣傘狀 —— 直擊「多題材股過多」。
 DISTILL_OVERLAP_MAX = 0.67
-# 加權漲跌門檻 = 大盤(TWII)當日漲跌 + 此 buffer(贏大盤至少幾個百分點)。
-# 動態鬆緊:溫和上漲(TWII +1.5)gate 收到 +3.5;噴出日(TWII +5)gate 放到 +7.0,
-# 始終只留「明顯領先大盤」的真主流。齊漲率 ≥0.5 那道閘把「靠 1-2 飆股拉高加權、
-# 其餘平庸跟漲」的假領漲擋掉(過半成員自身就贏大盤)。
-RALLY_BEAT_MARKET = 2.0
-# TWII 當日漲跌取不到時退回的絕對 fallback(rally 偵測本就要 TWII chg,理論上不會走到)。
-RALLY_FALLBACK_WCHG = RALLY_MIN_INDEX_CHG + RALLY_BEAT_MARKET
 
 
-def _rally_distill_clusters(clusters: list, stocks_info: dict,
-                            market_chg: float | None = None) -> list:
-    """大漲盤日把焦點題材濃縮成「真領漲題材」(下一波主流候選)。
+def _distill_daily_clusters(clusters: list, stocks_info: dict,
+                            twii_chg: float | None,
+                            tpex_chg: float | None) -> tuple[list, dict]:
+    """每日精選閘(統一版):任何盤勢都把焦點題材濃縮成最強 ≤DISTILL_MAX 個。
 
-    兩道硬閘(都看 cluster 全成員 focal+sentinel,chg/tv 取自 stocks_info;
-    change_pct=None 不納入計算,不當 0、不當平盤):
-      1. 齊漲率 = 成員 chg ≥ 大盤當日漲跌 的佔比 ≥ RALLY_MIN_LEAD_RATIO
-         —— 過半成員「自己就贏大盤」,排除「靠 1-2 飆股拉高加權、其餘只是跟漲」
-         的假領漲(crash 抗跌率的鏡像)。
-      2. 成交值加權平均漲跌 ≥ 動態門檻 = market_chg + RALLY_BEAT_MARKET
-         (贏大盤至少 buffer 個百分點;market_chg=None 時退 FALLBACK_WCHG)。
-    過閘者按加權漲跌 desc 取前 RALLY_DISTILL_MAX(最強的留下);顯示順序仍交給
-    下游既有 sort(外層 TV sort chip)。回傳原 cluster 物件子集。
+    規則見上方常數區塊註解。回傳 (picked, stats):
+      picked = 原 cluster 物件子集(已傘狀去重;顯示順序仍交給外層 TV sort chip)
+      stats  = {total, passed, picked, anchor, anchor_name, beat, gate, filled}
+               給 banner / 精選說明列內插真值(門檻字眼不寫死)。
     """
-    wchg_gate = (market_chg + RALLY_BEAT_MARKET
-                 if market_chg is not None else RALLY_FALLBACK_WCHG)
-    lead_bar = market_chg if market_chg is not None else RALLY_MIN_INDEX_CHG
-    scored = []
+    avail = [(v, n) for v, n in ((twii_chg, "加權"), (tpex_chg, "櫃買"))
+             if v is not None]
+    if not avail:
+        anchor, anchor_name = 0.0, None    # 指數缺值:退絕對門檻(0 + 2pp)
+    elif all(v < 0 for v, _ in avail):
+        anchor, anchor_name = min(avail)   # 雙跌:贏真正在崩的那邊
+    else:
+        anchor, anchor_name = max(avail)   # 其餘:贏較強的那邊
+    beat = _distill_beat(anchor)
+    gate = anchor + beat
+
+    scored: list = []      # 過雙閘者 (wchg, cluster)
+    bench: list = []       # 未過閘者 (wchg, cluster),保底補位用
     for c in clusters:
         members = list(c.focal) + list(getattr(c, "sentinel", []) or [])
         if not members:
@@ -2819,23 +2793,36 @@ def _rally_distill_clusters(clusters: list, stocks_info: dict,
             info = stocks_info.get(s.ticker) or {}
             chg = info.get("change_pct")
             if chg is None:
-                continue                      # NULL 不判齊漲、不入加權
+                continue                  # NULL 不判領先、不入加權(不當 0)
             lead_den += 1
-            if chg >= lead_bar:
+            if chg >= anchor:
                 lead_n += 1
             tv = float(info.get("trading_value") or 0)
             if tv > 0:
                 num += chg * tv
                 den += tv
-        if lead_den == 0:
+        if lead_den == 0 or den <= 0:
             continue
-        lead_ratio = lead_n / lead_den
-        wchg = (num / den) if den > 0 else None
-        if (lead_ratio >= RALLY_MIN_LEAD_RATIO
-                and wchg is not None and wchg >= wchg_gate):
+        wchg = num / den
+        if lead_n / lead_den >= DISTILL_MIN_LEAD_RATIO and wchg >= gate:
             scored.append((wchg, c))
+        else:
+            bench.append((wchg, c))
     scored.sort(key=lambda x: -x[0])
-    return _distill_pick(scored, RALLY_DISTILL_MAX)
+    bench.sort(key=lambda x: -x[0])
+
+    picked = _distill_pick(scored, DISTILL_MAX)
+    filled = False
+    if len(picked) < DISTILL_MIN:
+        # 保底:過閘 + 未過閘串接重選(過閘者仍排前),補足到 DISTILL_MIN。
+        picked = _distill_pick(scored + bench, DISTILL_MIN)
+        filled = True
+    stats = {
+        "total": len(clusters), "passed": len(scored), "picked": len(picked),
+        "anchor": anchor, "anchor_name": anchor_name,
+        "beat": beat, "gate": gate, "filled": filled,
+    }
+    return picked, stats
 
 
 def build_focus_html(
@@ -2852,6 +2839,7 @@ def build_focus_html(
     focus_daily_subs: dict[str, set[str]] | None = None,
     focus_sorted_dates: list[str] | None = None,
     tw_breadth: dict | None = None,
+    distill_stats: dict | None = None,
 ) -> tuple[str, dict]:
     """Build the 熱門題材 tab — 只渲染子產業 ranked list。
 
@@ -2995,7 +2983,7 @@ def build_focus_html(
     #
     # **全門檻字眼從驅動邏輯的常數內插**(2026-06-08),避免調參後文字與真實邏輯
     # 脫節(例:beat_market 1.0→1.5、resilience 0.5→0.6、ingest 門檻變動)。
-    #   - stockgg 自有:CRASH_DISTILL_MIN_RESILIENCE / _BEAT_MARKET / FOCUS_SENTINEL_THRESHOLD
+    #   - stockgg 自有:distill_stats(統一精選閘真值)/ DISTILL_MIN_LEAD_RATIO
     #   - ingest 自有(breadth 門檻 / 種子抗跌門檻):優先讀 tw_breadth payload
     #     (ingest 若有寫 threshold / seed_gain),缺則 fallback 到目前已知值。
     # 極端盤 banner(只在「焦點」pane 頂渲)。crash / rally 各一套文字,**全門檻字眼
@@ -3003,6 +2991,22 @@ def build_focus_html(
     # 完全由 populate 算出的 tw_breadth["mode"] 決定。
     crash_banner = ""
     _bmode = (tw_breadth or {}).get("mode")
+    # 統一精選閘真值(2026-06-11):banner / 精選說明列的門檻字眼全部從
+    # distill_stats + 常數內插,不寫死。
+    _ds = distill_stats or {}
+    _lp = int(round(DISTILL_MIN_LEAD_RATIO * 100))
+    _lead_w = "過半" if _lp == 50 else f"逾 {_lp}%"
+    _anchor_v = _ds.get("anchor")
+    _aname = _ds.get("anchor_name") or "大盤"
+    _anchor_s = (f"{_anchor_v:+.2f}%".replace("-", "−")
+                 if _anchor_v is not None else "—")
+    _beat_s = f"{_ds.get('beat', DISTILL_BEAT_FULL):.1f}".rstrip("0").rstrip(".")
+    # 雙閘文字(crash / rally / 普通日共用;基準指數帶名稱與當日值,訪客可驗證)
+    _gate_phrase = (f'{_lead_w}成分當日表現勝過{_aname}指數（{_anchor_s}）、'
+                    f'且整體成交值加權漲跌再領先逾 {_beat_s} 個百分點')
+    # 保底補位日(過閘不足 DISTILL_MIN)的補述,三種盤勢通用
+    _fill_note = ('；今日通過門檻的題材不足,已依相對強度補足顯示'
+                  if _ds.get("filled") else '')
     if _bmode in ("crash", "rally") and tw_breadth.get("up") is not None:
         _r = tw_breadth.get("ratio")
         _pct = f"{_r * 100:.1f}%" if isinstance(_r, (int, float)) else "—"
@@ -3014,11 +3018,6 @@ def build_focus_html(
             _bthr_s = f"{_bthr_v * 100:.0f}%"
             _sgain = tw_breadth.get("seed_gain")
             _sgain_s = f"{abs(_sgain):g}%" if isinstance(_sgain, (int, float)) else "3%"
-            # stockgg-owned 門檻:直接從常數算文字
-            _rp = int(round(CRASH_DISTILL_MIN_RESILIENCE * 100))
-            _resil_w = "過半" if _rp == 50 else f"逾 {_rp}%"
-            _snt = f"{abs(FOCUS_SENTINEL_THRESHOLD):g}"
-            _beat = f"{CRASH_DISTILL_BEAT_MARKET:g}"
             # 觸發軌判別(2026-06-10 雙軌 OR):breadth < 門檻 → 廣度軌(原文字);
             # 否則為分化崩盤軌(breadth < div_breadth 且 min(TWII,TPEX) ≤ div_index,
             # 如 TWII −0.64 / TPEX −4.43 的權值撐盤中小崩日)→ 改述分化原因,
@@ -3049,16 +3048,12 @@ def build_focus_html(
                 f'{_cause}'
                 f'個股收錄今日逆勢上漲或跌幅小於 {_sgain_s} 的相對抗跌股；'
                 f'下方再<b>精選為 {len(hl_clusters)} 個真抗跌題材</b>'
-                f'（{_resil_w}成分守住 −{_snt}% 以上、'
-                f'且整體成交值加權漲跌贏較弱的大盤指數逾 {_beat} 個百分點）。'
+                f'（{_gate_phrase}{_fill_note}）。'
                 '</div></div>'
             )
         else:  # rally
             _rthr = int(round(RALLY_BREADTH_THRESHOLD * 100))     # breadth 門檻
             _ithr = f"{RALLY_MIN_INDEX_CHG:g}"                    # 指數強度門檻
-            _lp = int(round(RALLY_MIN_LEAD_RATIO * 100))
-            _lead_w = "過半" if _lp == 50 else f"逾 {_lp}%"
-            _beat = f"{RALLY_BEAT_MARKET:g}"
             crash_banner = (
                 '<div class="rally-banner" role="status">'
                 '<span class="crash-banner-icon">🚀</span>'
@@ -3066,11 +3061,23 @@ def build_focus_html(
                 f'<b>大漲盤模式</b>　今日上市櫃 <b>{_pct}</b> 個股上漲'
                 f'（{_up}/{_tot} 家），普遍齊漲（達 {_rthr}% 且大盤漲逾 {_ithr}%）。'
                 f'題材爆量易失焦,下方<b>精選為 {len(hl_clusters)} 個真領漲題材</b>'
-                f'（{_lead_w}成分自身就贏大盤、'
-                f'且整體成交值加權漲跌贏較強的大盤指數逾 {_beat} 個百分點）—— '
+                f'（{_gate_phrase}{_fill_note}）—— '
                 '相對惜售追捧、可能是下一波主流。'
                 '</div></div>'
             )
+    elif _ds and _ds.get("total", 0) > _ds.get("picked", 0):
+        # 普通日精選說明列(2026-06-11):低調一行,讓訪客知道有精選在運作、
+        # 門檻是什麼(數字帶基準)。沒有精選效果(題材本來就 ≤ 上限且全過閘)
+        # 或 distill_stats 缺(防禦)時不渲。
+        if _ds.get("filled"):
+            _note_txt = (f'今日 {_ds["total"]} 個熱門題材中,無題材明顯領先大盤'
+                         f'（門檻:{_gate_phrase}），顯示相對最強 '
+                         f'{len(hl_clusters)} 個。')
+        else:
+            _note_txt = (f'已自 {_ds["total"]} 個熱門題材精選 '
+                         f'<b>{len(hl_clusters)} 個最強</b>：{_gate_phrase}；'
+                         f'同質題材已合併，最多顯示 {DISTILL_MAX} 個。')
+        crash_banner = f'<div class="distill-note" role="note">📌 {_note_txt}</div>'
     panes_html = (
         f'<div class="sub-tab-pane active" id="stab-hl">{crash_banner}{hl_html}</div>'
         f'<div class="sub-tab-pane" id="stab-pan">{pan_html}</div>'
@@ -3192,6 +3199,7 @@ async def generate():
     # (tw_crash_mode 真 → ingest 端焦點種子已改抗跌門檻;此處只負責讀來渲
     #  banner。欄位缺 = 該 snapshot 還沒被新版 ingest 寫過 → banner 不渲,無害)。
     tw_breadth: dict = {}
+    _twii_extra: dict = {}
     for row in await conn.fetch("""
         SELECT DISTINCT ON (symbol)
             symbol, close_price, change_pct, snapshot_date, extra
@@ -3207,37 +3215,106 @@ async def generate():
             "chg": float(row["change_pct"]) if row["change_pct"] is not None else None,
         }
         snap_dates[row["symbol"]] = row["snapshot_date"]
-        # 大盤模式判定(只看 ^TWII):crash 由 ingest 翻 tw_crash_mode(同時改了種子
-        # 門檻);rally 為 stockgg 自有(純展示層精選,不動種子)—— breadth ≥ 門檻
-        # 且 TWII 漲幅 ≥ 門檻。兩者都把 breadth payload + mode 帶下去,distill / banner
-        # 依 mode 分支;平盤/弱勢日 tw_breadth 維持空 → 不精選、不渲 banner。
+        # ^TWII extra 先暫存,mode 判定移到指數漲跌校正之後(2026-06-11,
+        # 見下方「指數漲跌單一真實來源」—— snapshot 的 change_pct 不可信)。
         if row["symbol"] == "^TWII" and isinstance(extra, dict):
-            _ratio = extra.get("tw_breadth_ratio")
-            _twii_chg = float(row["change_pct"]) if row["change_pct"] is not None else None
-            _mode = None
-            if extra.get("tw_crash_mode"):
-                _mode = "crash"
-            elif (isinstance(_ratio, (int, float)) and _ratio >= RALLY_BREADTH_THRESHOLD
-                  and _twii_chg is not None and _twii_chg >= RALLY_MIN_INDEX_CHG):
-                _mode = "rally"
-            if _mode:
-                tw_breadth = {
-                    "mode": _mode,
-                    "up": extra.get("tw_breadth_up"),
-                    "total": extra.get("tw_breadth_total"),
-                    "ratio": _ratio,
-                    # ingest-owned crash 門檻(forward-compat;缺則 banner fallback)
-                    "threshold": extra.get("tw_breadth_threshold"),
-                    "seed_gain": extra.get("tw_seed_crash_gain"),
-                    # 分化崩盤軌門檻(ingest 雙軌 OR 起寫;缺則 banner fallback 30%/3%)
-                    "div_breadth": extra.get("tw_crash_div_breadth"),
-                    "div_index": extra.get("tw_crash_div_index"),
-                }
-    # 兩指數當日漲跌補進 payload(banner 分化軌文字 + 判定用;^TWOII 列可能晚於
-    # ^TWII 處理,故 loop 結束後補)。
-    if tw_breadth:
-        tw_breadth["twii_chg"] = (snaps.get("^TWII") or {}).get("chg")
-        tw_breadth["tpex_chg"] = (snaps.get("^TWOII") or {}).get("chg")
+            _twii_extra = extra
+
+    # ── 大盤 / 櫃買指數歷史(Q21)──────────────────────────────────────────
+    # 1095 天 OHLCV,供 cluster chart modal 三線 overlay + 產業地圖 modal。
+    # 2026-06-11 起提前到此處 fetch:兼作「指數漲跌單一真實來源」的計算基礎。
+    market_index_payload: dict[str, list[dict]] = {"TWII": [], "TPEX": []}
+    _idx_sym_map = {"^TWII": "TWII", "^TWOII": "TPEX"}
+    try:
+        _idx_rows = await conn.fetch(
+            "SELECT snapshot_date, symbol, open, high, low, close_price, volume, change_pct "
+            "FROM market_snapshots "
+            "WHERE symbol = ANY($1::text[]) "
+            "AND snapshot_date >= current_date - INTERVAL '1095 days' "
+            "ORDER BY symbol, snapshot_date",
+            ["^TWII", "^TWOII"],
+        )
+        def _fnum(v):
+            return _jc(v, 2)  # round 2 + 整數收斂(volume 的 .0 尾巴)
+        for r in _idx_rows:
+            _k = _idx_sym_map.get(r["symbol"])
+            if not _k or r["close_price"] is None:
+                continue
+            # d 必須是 YYYY-MM-DD(對齊 ticker_close 日期 + lightweight-charts
+            # time 格式);db.py 會把 timestamp 欄 coerce 成 datetime,故用
+            # strftime 取日期,不可用 isoformat()(會帶 T00:00:00+00:00)。
+            _d = r["snapshot_date"]
+            _d = _d.strftime("%Y-%m-%d") if hasattr(_d, "strftime") else str(_d)[:10]
+            # `close` 欄沿用舊名(cluster modal _computeIndexSeries 讀 p.close);
+            # 新增 open / high / low / volume 給趨勢 tab K 線用(ingest 76f6728
+            # 起 backfill 1 年 OHL,早期歷史與 today 暫無 OHL 的 row 三欄為 None)
+            market_index_payload[_k].append({
+                "d": _d,
+                "close":  _fnum(r["close_price"]),
+                "open":   _fnum(r.get("open")),
+                "high":   _fnum(r.get("high")),
+                "low":    _fnum(r.get("low")),
+                "volume": _fnum(r.get("volume")),
+            })
+        _twii_ohl = sum(1 for r in market_index_payload["TWII"] if r.get("open") is not None)
+        _tpex_ohl = sum(1 for r in market_index_payload["TPEX"] if r.get("open") is not None)
+        print(f"  market_index (Q21): TWII={len(market_index_payload['TWII'])}d "
+              f"(OHL {_twii_ohl}d) "
+              f"TPEX={len(market_index_payload['TPEX'])}d (OHL {_tpex_ohl}d)")
+    except Exception as exc:
+        print(f"  ⚠ Q21 market index history failed: {exc}")
+
+    # ── 指數漲跌「單一真實來源」校正(2026-06-11)─────────────────────────
+    # ingest market_data 寫的 change_pct 偶發對「錯誤的前一交易日」計算
+    # (06-11 ^TWII 對 06-09 收盤算出 −3.48%,實際對 06-10 應為 −0.18%),
+    # 而同一表的 close_price 序列本身正確。依「值錯了先稽核所有管線、建單一
+    # 真實來源」原則:漲跌一律由 Q21 收盤序列末兩日自算,覆寫 snaps 的 chg
+    # → mode 判定 / 精選錨 / 市場 tab 顯示 / banner 全部消費同一個正確值。
+    # snapshot 日期與序列末日不一致(回補延遲等)時不覆寫,維持原值。
+    for _sym, _key in (("TWII", "^TWII"), ("TPEX", "^TWOII")):
+        _rows = [r for r in market_index_payload.get(_sym, []) if r.get("close")]
+        _snap = snaps.get(_key)
+        if len(_rows) < 2 or not _snap:
+            continue
+        _sd = snap_dates.get(_key)
+        _sd_str = (_sd.strftime("%Y-%m-%d") if hasattr(_sd, "strftime")
+                   else str(_sd)[:10]) if _sd else None
+        if _sd_str != _rows[-1]["d"]:
+            continue
+        _hist_chg = round((_rows[-1]["close"] / _rows[-2]["close"] - 1) * 100, 2)
+        if _snap.get("chg") is not None and abs(_snap["chg"] - _hist_chg) > 0.05:
+            print(f"  ⚠ {_key} change_pct 不一致:snapshot={_snap['chg']:+.2f}% "
+                  f"vs 收盤序列={_hist_chg:+.2f}% → 採序列值")
+        _snap["chg"] = _hist_chg
+
+    # 大盤模式判定(校正後的 chg 才可信):crash 由 ingest 翻 tw_crash_mode(同時
+    # 改了種子門檻);rally 為 stockgg 自有 —— breadth ≥ 門檻且 TWII 漲幅 ≥ 門檻。
+    # 兩者都把 breadth payload + mode 帶下去給 banner 敘事(2026-06-11 起精選閘
+    # 每天都跑、不再依 mode 分支;tw_breadth 空只代表非極端盤,不渲 crash/rally banner)。
+    if isinstance(_twii_extra, dict) and _twii_extra:
+        _ratio = _twii_extra.get("tw_breadth_ratio")
+        _twii_chg_now = (snaps.get("^TWII") or {}).get("chg")
+        _mode = None
+        if _twii_extra.get("tw_crash_mode"):
+            _mode = "crash"
+        elif (isinstance(_ratio, (int, float)) and _ratio >= RALLY_BREADTH_THRESHOLD
+              and _twii_chg_now is not None and _twii_chg_now >= RALLY_MIN_INDEX_CHG):
+            _mode = "rally"
+        if _mode:
+            tw_breadth = {
+                "mode": _mode,
+                "up": _twii_extra.get("tw_breadth_up"),
+                "total": _twii_extra.get("tw_breadth_total"),
+                "ratio": _ratio,
+                # ingest-owned crash 門檻(forward-compat;缺則 banner fallback)
+                "threshold": _twii_extra.get("tw_breadth_threshold"),
+                "seed_gain": _twii_extra.get("tw_seed_crash_gain"),
+                # 分化崩盤軌門檻(ingest 雙軌 OR 起寫;缺則 banner fallback 30%/3%)
+                "div_breadth": _twii_extra.get("tw_crash_div_breadth"),
+                "div_index": _twii_extra.get("tw_crash_div_index"),
+                "twii_chg": _twii_chg_now,
+                "tpex_chg": (snaps.get("^TWOII") or {}).get("chg"),
+            }
 
     snap_date = snap_dates.get("^GSPC") or snap_dates.get("^IXIC") or (
         max(snap_dates.values()) if snap_dates else None
@@ -3406,38 +3483,20 @@ async def generate():
     }
     focus_hl_clusters = detect_focus_clusters(focus_seed_tickers, focus_members_info)
     print(f"  focus_hl_clusters: {len(focus_hl_clusters)} (v2: seeds={len(focus_seed_tickers)}, members={len(focus_members_info)})")
-    # 極端盤精選閘(只看價格結果,排除法人籌碼):
-    #   crash 日 → 濃縮成 ≤8 真抗跌題材(_crash_distill_clusters)
-    #   rally 日 → 濃縮成 ≤8 真領漲題材(_rally_distill_clusters)
-    # tw_breadth 空 = 平盤/弱勢日,不套精選,顯示全部題材。
-    _mode = (tw_breadth or {}).get("mode")
-    if _mode in ("crash", "rally"):
-        _before = len(focus_hl_clusters)
-        # 動態門檻錨(2026-06-10 改,原單用 TWII):分化盤(TWII −0.64 / TPEX −4.43
-        # 之類)單錨 TWII 會讓 crash gate 失真(+0.36 幾乎全滅)。crash 錨到較弱指數
-        # min(TWII,TPEX)、rally 錨到較強指數 max(...) —— 焦點 universe 偏中小型/櫃買,
-        # 「贏大盤」基準取真正在崩/在噴的那邊;雙指數同向日與原行為幾乎等價。
-        _twii_chg = (snaps.get("^TWII") or {}).get("chg")
-        _tpex_chg = (snaps.get("^TWOII") or {}).get("chg")
-        _avail = [v for v in (_twii_chg, _tpex_chg) if v is not None]
-        if _mode == "crash":
-            _mkt_chg = min(_avail) if _avail else None
-            focus_hl_clusters = _crash_distill_clusters(
-                focus_hl_clusters, stocks_info, market_chg=_mkt_chg)
-            _gate = (_mkt_chg + CRASH_DISTILL_BEAT_MARKET
-                     if _mkt_chg is not None else CRASH_DISTILL_FALLBACK_WCHG)
-            print(f"  crash distill: {_before} → {len(focus_hl_clusters)} 真抗跌題材"
-                  f"(≤{CRASH_DISTILL_MAX};錨=min(TWII={_twii_chg},TPEX={_tpex_chg})"
-                  f" gate 加權漲跌≥{_gate:.2f})")
-        else:
-            _mkt_chg = max(_avail) if _avail else None
-            focus_hl_clusters = _rally_distill_clusters(
-                focus_hl_clusters, stocks_info, market_chg=_mkt_chg)
-            _gate = (_mkt_chg + RALLY_BEAT_MARKET
-                     if _mkt_chg is not None else RALLY_FALLBACK_WCHG)
-            print(f"  rally distill: {_before} → {len(focus_hl_clusters)} 真領漲題材"
-                  f"(≤{RALLY_DISTILL_MAX};錨=max(TWII={_twii_chg},TPEX={_tpex_chg})"
-                  f" gate 加權漲跌≥{_gate:.2f})")
+    # 每日精選閘(2026-06-11 統一版,任何盤勢都跑;只看價格結果,排除法人籌碼)。
+    # crash/rally banner 敘事仍由 tw_breadth["mode"] 決定,但精選本身不再分支:
+    # 錨/buffer 隨雙指數連續調整(雙跌取較弱、否則取較強;buffer 2pp→1pp 線性)。
+    _twii_chg = (snaps.get("^TWII") or {}).get("chg")
+    _tpex_chg = (snaps.get("^TWOII") or {}).get("chg")
+    _before = len(focus_hl_clusters)
+    focus_hl_clusters, distill_stats = _distill_daily_clusters(
+        focus_hl_clusters, stocks_info, _twii_chg, _tpex_chg)
+    print(f"  daily distill: {_before} → {len(focus_hl_clusters)} 題材"
+          f"(過閘 {distill_stats['passed']},≤{DISTILL_MAX}"
+          f"{',保底補位' if distill_stats['filled'] else ''};"
+          f"錨={distill_stats['anchor_name']}{distill_stats['anchor']:+.2f}"
+          f" gate 加權漲跌≥{distill_stats['gate']:.2f},"
+          f"TWII={_twii_chg},TPEX={_tpex_chg})")
     # main_clusters 仍計算(供未來/ ingest backport 用),但公開站 2026-05-16 起
     # 不在 UI 顯示;前哨觀察(watch)同步從卡片移除 → 不再需要查 watch change_pct
     # 也不再 yfinance 補 watch close,純粹靠 stocks_info(top-N from SQL)。
@@ -4083,50 +4142,8 @@ async def generate():
             }
         print(f"  chip_signals: {len(chip_signals)} tickers with 近3日籌碼")
 
-    # 大盤(^TWII)+ 櫃買(^TWOII)指數 400 天 daily close — Q21,從 ingest
-    # 寫入的 market_snapshots 讀,供 chart 第二張三線 overlay(都 rebase to
-    # 100 看相對強弱)。2026-05 起資料收集移回 ingest,stockgg 不再 render-time
-    # 抓 yfinance;今日 close 由 ingest 每日 fetch_and_store 寫入,無需 patch。
-    market_index_payload: dict[str, list[dict]] = {"TWII": [], "TPEX": []}
-    _idx_sym_map = {"^TWII": "TWII", "^TWOII": "TPEX"}
-    try:
-        _idx_rows = await conn.fetch(
-            "SELECT snapshot_date, symbol, open, high, low, close_price, volume, change_pct "
-            "FROM market_snapshots "
-            "WHERE symbol = ANY($1::text[]) "
-            "AND snapshot_date >= current_date - INTERVAL '1095 days' "
-            "ORDER BY symbol, snapshot_date",
-            ["^TWII", "^TWOII"],
-        )
-        def _fnum(v):
-            return _jc(v, 2)  # round 2 + 整數收斂(volume 的 .0 尾巴)
-        for r in _idx_rows:
-            _k = _idx_sym_map.get(r["symbol"])
-            if not _k or r["close_price"] is None:
-                continue
-            # d 必須是 YYYY-MM-DD(對齊 ticker_close 日期 + lightweight-charts
-            # time 格式);db.py 會把 timestamp 欄 coerce 成 datetime,故用
-            # strftime 取日期,不可用 isoformat()(會帶 T00:00:00+00:00)。
-            _d = r["snapshot_date"]
-            _d = _d.strftime("%Y-%m-%d") if hasattr(_d, "strftime") else str(_d)[:10]
-            # `close` 欄沿用舊名(cluster modal _computeIndexSeries 讀 p.close);
-            # 新增 open / high / low / volume 給趨勢 tab K 線用(ingest 76f6728
-            # 起 backfill 1 年 OHL,早期歷史與 today 暫無 OHL 的 row 三欄為 None)
-            market_index_payload[_k].append({
-                "d": _d,
-                "close":  _fnum(r["close_price"]),
-                "open":   _fnum(r.get("open")),
-                "high":   _fnum(r.get("high")),
-                "low":    _fnum(r.get("low")),
-                "volume": _fnum(r.get("volume")),
-            })
-        _twii_ohl = sum(1 for r in market_index_payload["TWII"] if r.get("open") is not None)
-        _tpex_ohl = sum(1 for r in market_index_payload["TPEX"] if r.get("open") is not None)
-        print(f"  market_index (Q21): TWII={len(market_index_payload['TWII'])}d "
-              f"(OHL {_twii_ohl}d) "
-              f"TPEX={len(market_index_payload['TPEX'])}d (OHL {_tpex_ohl}d)")
-    except Exception as exc:
-        print(f"  ⚠ Q21 market index history failed: {exc}")
+    # 大盤 / 櫃買指數歷史(Q21)已提前到 snaps populate 之後 fetch(2026-06-11
+    # 「指數漲跌單一真實來源」改動,見該處註解),此處 market_index_payload 已就緒。
 
     # ── Q36 / Q37 風控儀錶板(🛡️ 風控 tab,取代舊趨勢頁;ingest b67fa04)────
     # Q36 = snapshot 最新一筆(今日建議部位 + 4 組訊號 + 回測背書 meta);
@@ -4199,6 +4216,7 @@ async def generate():
         focus_daily_subs=focus_daily_subs,
         focus_sorted_dates=focus_sorted_dates,
         tw_breadth=tw_breadth,
+        distill_stats=distill_stats,
     )
 
     notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)
