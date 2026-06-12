@@ -216,6 +216,16 @@ const ALLOWED: Set<string> = new Set([
   //   from = 上游/供應端、to = 下游/需求端;strength 1..3(3=核心直接供應)。
   //   取代原本「交集股連線」—— 那不是供應鏈關係。~數十~百條、週更慢變,整表撈。
   "select from_focus_tag, from_focus_name, to_focus_tag, to_focus_name, relation, strength from industry_supply_edges order by strength desc, from_focus_name",
+
+  // Q40 — 動能策略模擬器每日 NAV(📈 策略模擬頁主圖三線:nav / twii / etf
+  //   同一列都有;positions 為當前持股 jsonb array
+  //   [{t,name,shares,entry,close,stop,pnl_pct,adds,half,since}];
+  //   ingest 195ac88 起每晚 22:05 全量重算 trade_sim_nav / trade_sim_trades
+  //   後觸發 deploy)。
+  "select sim_date, nav, cash, twii, etf, positions from trade_sim_nav order by sim_date desc limit 200",
+
+  // Q41 — 策略模擬器交易明細(近 60 筆;頁面顯示近 20 筆,多抓備裕)。
+  "select sim_date, ticker, name, side, shares, price, reason, pnl from trade_sim_trades order by sim_date desc, id desc limit 60",
 ])
 
 function normalize(q: string): string {

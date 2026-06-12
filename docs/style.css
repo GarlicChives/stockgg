@@ -1188,6 +1188,47 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
   .risk-chart{height:240px}
 }
 
+/* ── 📈 策略模擬(動能策略 paper trading,2026-06-12;Q40/Q41)──────────── */
+.sim-page{display:flex;flex-direction:column;gap:1rem}
+.sim-page .card{margin:0}
+.sim-daterange{font-weight:400;font-size:.72rem;color:var(--muted);margin-left:.5rem}
+.sim-stats{display:flex;gap:.7rem;flex-wrap:wrap;margin:.2rem 0 .8rem}
+.sim-stat{flex:1 1 180px;background:rgba(255,255,255,.03);border:1px solid var(--border);
+          border-radius:8px;padding:.55rem .8rem;display:flex;flex-direction:column;gap:.15rem}
+.sim-stat-name{font-size:.72rem;color:var(--muted);font-weight:600}
+.sim-stat-name i{display:inline-block;width:.7rem;height:.18rem;border-radius:1px;
+                 margin-right:.35rem;vertical-align:middle}
+.sim-stat-ret{font-size:1.25rem;font-weight:700;font-variant-numeric:tabular-nums}
+.sim-stat-dd{font-size:.7rem;color:var(--muted)}
+.sim-chart{width:100%;height:320px}
+.sim-rebase-note{margin-left:auto;font-size:.7rem;opacity:.8}
+.sim-pos-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:.6rem}
+.sim-pos-card{background:rgba(255,255,255,.03);border:1px solid var(--border);
+              border-radius:8px;padding:.6rem .8rem}
+.sim-pos-head{display:flex;justify-content:space-between;align-items:baseline;
+              font-size:.88rem;margin-bottom:.25rem}
+.sim-pos-pnl{font-weight:700;font-variant-numeric:tabular-nums}
+.sim-pos-row{font-size:.76rem;color:var(--muted);line-height:1.5}
+.sim-pos-sub{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-top:.2rem}
+.sim-pos-tag{font-size:.64rem;font-weight:700;padding:.06rem .4rem;border-radius:4px;
+             background:rgba(124,138,242,.12);color:var(--accent)}
+.sim-cash{margin:.7rem 0 0;font-size:.78rem;color:var(--muted)}
+.sim-tr-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.sim-tr-tbl{width:100%;border-collapse:collapse}
+.sim-tr-tbl th{font-size:.72rem;color:var(--muted);font-weight:600;text-align:left;
+               padding:.45rem .6rem;border-bottom:1px solid var(--border)}
+.sim-tr-tbl td{font-size:.8rem;padding:.45rem .6rem;border-bottom:1px solid rgba(255,255,255,.05);
+               white-space:nowrap}
+.sim-tr-tbl th.r,.sim-tr-tbl td.r{text-align:right;font-variant-numeric:tabular-nums}
+/* 方法論註記:沿用 crash-banner 版型(琥珀警示框) */
+.sim-method{display:flex;gap:.6rem;align-items:flex-start;
+            padding:.7rem .85rem;border-radius:8px;
+            background:rgba(245,166,35,.08);
+            border:1px solid rgba(245,166,35,.4);
+            border-left:3px solid #f5a623}
+.sim-method .crash-banner-txt b{color:#f5a623}
+@media(max-width:600px){.sim-chart{height:240px}}
+
 /* ── 🗺️ 產業地圖(焦點產業階層 + 跨產業關聯,2026-06-07)──────────────── */
 .im-page{display:flex;flex-direction:column;gap:1rem;width:100%;margin:0 auto}
 .im-intro{background:var(--card);border:1px solid var(--border);border-radius:12px;

@@ -28,6 +28,8 @@ function showTab(name) {
   if (name === 'risk' && !_riskRendered) _initRiskChart();
   // 🗺️ 產業地圖 tab:lazy-init 蜘蛛網關聯圖(只第一次切過去 init)
   if (name === 'indmap' && !_indmapRendered) _initIndmapGraph();
+  // 📈 策略模擬 tab:lazy-init NAV 三線圖(只第一次切過去 init)
+  if (name === 'tradesim' && !_tradesimRendered) _initTradeSimChart();
 }
 
 /* ── 🛡️ 風控 tab — lazy-init「依建議部位 vs 買進持有」淨值雙線圖 ──────
@@ -58,6 +60,38 @@ function _initRiskChart() {
     chart.timeScale().fitContent();
     _riskRendered = true;
   }).catch(e => console.error('risk chart load failed', e));
+}
+
+/* ── 📈 策略模擬 — NAV / 加權指數 / 00981A 三線圖(rebase=100)──────
+ * payload window.IIA_TRADESIM = { series: [{d, nav, twii, etf}, ...] }
+ * 三值都已在 server 端 rebase 成 100 基期,這裡純畫線。 */
+let _tradesimRendered = false;
+
+function _initTradeSimChart() {
+  const data = window.IIA_TRADESIM;
+  if (!data || !data.series || !data.series.length) return;
+  _loadLightweightCharts().then(() => {
+    const el = document.getElementById('sim-nav-chart');
+    if (!el) return;
+    const chart = LightweightCharts.createChart(el, {
+      layout: { background: { type: 'solid', color: 'transparent' },
+                textColor: '#7c8290', attributionLogo: false },
+      grid: { vertLines: { color: 'rgba(255,255,255,.04)' },
+              horzLines: { color: 'rgba(255,255,255,.04)' } },
+      rightPriceScale: { borderColor: 'rgba(255,255,255,.08)' },
+      timeScale: { borderColor: 'rgba(255,255,255,.08)', timeVisible: false },
+      crosshair: { mode: 1 }, autoSize: true,
+    });
+    const mk = (color) => chart.addLineSeries({ color, lineWidth: 2, priceLineVisible: false });
+    const pick = (key) => data.series
+      .filter(p => p[key] != null)
+      .map(p => ({ time: p.d, value: p[key] }));
+    mk('#60a5fa').setData(pick('nav'));    // 策略淨值
+    mk('#f59e0b').setData(pick('twii'));   // 加權指數
+    mk('#10b981').setData(pick('etf'));    // 00981A
+    chart.timeScale().fitContent();
+    _tradesimRendered = true;
+  }).catch(e => console.error('trade sim chart load failed', e));
 }
 
 /* ── 🗺️ 產業地圖 — 焦點產業關聯「蜘蛛網」圖 ────────────────────────

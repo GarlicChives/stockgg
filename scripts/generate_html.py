@@ -1232,6 +1232,218 @@ def build_risk_page(snapshot: dict | None, history: list[dict]) -> str:
     return '<div class="risk-page">' + "".join(H) + '</div>'
 
 
+# ── 📈 策略模擬(動能策略 paper trading;ingest 195ac88,Q40/Q41)──────────────
+# ingest 每晚 22:05 cron 全量重算 trade_sim_nav / trade_sim_trades 後觸發 deploy。
+# 對照數字(報酬% / MaxDD)一律由三條序列即時算,不寫死。
+
+def _sim_reason_label(r: str | None) -> str:
+    """交易理由 → 訪客可讀文字(內部代號不外洩:entry/add1/add2/trail…)。"""
+    if not r:
+        return "—"
+    m = {
+        "entry": "首次進場",
+        "add1": "加碼(第 1 段)",
+        "add2": "加碼(第 2 段)",
+        "驗收未過": "尾盤驗收未過,出場",
+        "停損出": "觸及停損,出場",
+        "線下出": "大盤跌破月線,出場",
+    }
+    if r in m:
+        return m[r]
+    if r.startswith("trail"):
+        return r.replace("trail", "移動停利", 1)
+    return r
+
+
+def _sim_max_dd(vals: list[float]) -> float:
+    """最大回撤 %(序列為 rebase 後淨值);回傳正數,如 12.3 = -12.3%。"""
+    peak = float("-inf")
+    mdd = 0.0
+    for v in vals:
+        if v > peak:
+            peak = v
+        if peak > 0:
+            dd = (peak - v) / peak * 100
+            if dd > mdd:
+                mdd = dd
+    return mdd
+
+
+def build_trade_sim_page(nav_rows: list[dict], trades: list[dict]) -> str:
+    """📈 策略模擬頁:NAV vs 加權指數 vs 00981A 三線圖 + 當前持股 + 近 20 筆交易
+    + 誠實方法論註記。nav_rows = Q40(sim_date desc),trades = Q41(desc)。"""
+    if not nav_rows:
+        return ('<p class="muted-note">策略模擬資料尚未生成(每晚 22:05 後更新,'
+                '首次上線前此頁為空)。</p>')
+
+    esc = html_lib.escape
+    rows = sorted((dict(r) for r in nav_rows),
+                  key=lambda r: str(r["sim_date"])[:10])
+    series = []          # [{d, nav, twii, etf}] rebase=100(起點 = 序列首日)
+    base = None
+    for r in rows:
+        d = str(r["sim_date"])[:10]
+        nav, twii, etf = r.get("nav"), r.get("twii"), r.get("etf")
+        if nav is None:
+            continue
+        if base is None:
+            if not (twii and etf):
+                continue   # 起點需三值齊備才能公平 rebase
+            base = (float(nav), float(twii), float(etf))
+        series.append({
+            "d": d,
+            "nav": _jc(float(nav) / base[0] * 100, 2),
+            "twii": _jc(float(twii) / base[1] * 100, 2) if twii else None,
+            "etf": _jc(float(etf) / base[2] * 100, 2) if etf else None,
+        })
+    if not series:
+        return ('<p class="muted-note">策略模擬資料尚未生成(每晚 22:05 後更新)。</p>')
+
+    start_d, end_d = series[0]["d"], series[-1]["d"]
+    latest = rows[-1]
+
+    # ── 對照數字(由序列即時算)──
+    def _ret(key):
+        v = series[-1].get(key)
+        return (v - 100) if isinstance(v, (int, float)) else None
+
+    def _dd(key):
+        vals = [p[key] for p in series if isinstance(p.get(key), (int, float))]
+        return _sim_max_dd(vals) if vals else None
+
+    def _stat_card(label, color, ret, dd):
+        rs, rcls = fmt_pct(ret)
+        dds = f"-{dd:.1f}%" if dd is not None else "—"
+        return (f'<div class="sim-stat"><span class="sim-stat-name">'
+                f'<i style="background:{color}"></i>{esc(label)}</span>'
+                f'<span class="sim-stat-ret {rcls}">{rs}</span>'
+                f'<span class="sim-stat-dd">最大回撤 {dds}</span></div>')
+
+    stats_html = (
+        '<div class="sim-stats">'
+        + _stat_card("策略淨值", "#60a5fa", _ret("nav"), _dd("nav"))
+        + _stat_card("加權指數", "#f59e0b", _ret("twii"), _dd("twii"))
+        + _stat_card("00981A(主動式 ETF)", "#10b981", _ret("etf"), _dd("etf"))
+        + '</div>'
+    )
+
+    # ── 當前持股 ──
+    pos = latest.get("positions")
+    if isinstance(pos, str):
+        try:
+            pos = json.loads(pos)
+        except Exception:
+            pos = []
+    pos = pos or []
+    cash = latest.get("cash")
+    nav_now = latest.get("nav")
+    cash_s = f"{int(float(cash)):,}" if cash is not None else "—"
+    nav_s = f"{int(float(nav_now)):,}" if nav_now is not None else "—"
+    if pos:
+        cards = []
+        for p in pos:
+            pnl = p.get("pnl_pct")
+            ps, pcls = fmt_pct(pnl)
+            stop = p.get("stop")
+            adds = p.get("adds") or 0
+            half = p.get("half")
+            since = p.get("since") or ""
+            tags = []
+            if adds:
+                tags.append(f"已加碼 {adds} 段")
+            if half:
+                tags.append("已減半(移動停利)")
+            tag_html = "".join(f'<span class="sim-pos-tag">{esc(t)}</span>' for t in tags)
+            cards.append(
+                '<div class="sim-pos-card">'
+                f'<div class="sim-pos-head"><b>{esc(str(p.get("t") or ""))} '
+                f'{esc(str(p.get("name") or ""))}</b>'
+                f'<span class="sim-pos-pnl {pcls}">{ps}</span></div>'
+                f'<div class="sim-pos-row">{int(p.get("shares") or 0) // 1000} 張 · '
+                f'進場 {_jc(p.get("entry"), 2) if p.get("entry") is not None else "—"} · '
+                f'現價 {_jc(p.get("close"), 2) if p.get("close") is not None else "—"} · '
+                f'停損 {_jc(stop, 2) if stop is not None else "—"}</div>'
+                f'<div class="sim-pos-row sim-pos-sub">持有自 {esc(str(since)[:10])}'
+                f'{tag_html}</div>'
+                '</div>'
+            )
+        pos_html = ('<div class="sim-pos-list">' + "".join(cards) + '</div>'
+                    f'<p class="sim-cash">現金 {cash_s} 元 / 總淨值 {nav_s} 元</p>')
+    else:
+        pos_html = (f'<p class="muted-note">目前空手(全現金 {cash_s} 元)—— '
+                    '可能是大盤趨勢開關關閉,或近日無符合進場條件的標的。</p>')
+
+    # ── 近 20 筆交易 ──
+    tr_rows = []
+    for t in list(trades)[:20]:
+        d = str(t.get("sim_date") or "")[:10]
+        side = (t.get("side") or "").lower()
+        side_s, side_cls = ("買進", "up") if side == "buy" else ("賣出", "down")
+        shares = t.get("shares") or 0
+        price = _jc(t.get("price"), 2)
+        pnl = t.get("pnl")
+        if pnl is None:
+            pnl_s, pnl_cls = "—", "neutral"
+        else:
+            pnl_v = int(float(pnl))
+            pnl_s = f"{pnl_v:+,}"
+            pnl_cls = "up" if pnl_v > 0 else ("down" if pnl_v < 0 else "flat")
+        tr_rows.append(
+            f'<tr><td>{esc(d)}</td>'
+            f'<td>{esc(str(t.get("ticker") or ""))} {esc(str(t.get("name") or ""))}</td>'
+            f'<td class="{side_cls}">{side_s}</td>'
+            f'<td class="r">{int(shares) // 1000}</td>'
+            f'<td class="r">{price if price is not None else "—"}</td>'
+            f'<td>{esc(_sim_reason_label(t.get("reason")))}</td>'
+            f'<td class="r {pnl_cls}">{pnl_s}</td></tr>'
+        )
+    trades_html = (
+        '<table class="sim-tr-tbl"><thead><tr><th>日期</th><th>標的</th><th>動作</th>'
+        '<th class="r">張數</th><th class="r">價格</th><th>理由</th>'
+        '<th class="r">損益(元)</th></tr></thead><tbody>'
+        + ("".join(tr_rows) or '<tr><td colspan="7" class="muted-note">尚無交易</td></tr>')
+        + '</tbody></table>'
+    )
+
+    # ── 誠實方法論註記(必放;規則描述與 ingest 引擎同步)──
+    method_html = (
+        '<div class="sim-method"><span class="crash-banner-icon">⚠️</span>'
+        '<div class="crash-banner-txt">'
+        '<b>這是模擬,不是實盤。</b>'
+        '初始資金 100 萬元(現股),已計手續費 0.1425% 與證交稅 0.3%;'
+        '成交採「觸價限價」模型 —— 開盤跳空超過掛價就視為買不到,不會用想像價成交。'
+        '策略規則:選股雷達交集股為候選、前一日收盤 ~ +3% 區間掛單進場、'
+        '尾盤驗收(收盤太弱當日出場)、獲利達標分段加碼、移動停利分層出場、'
+        '大盤跌破月線(MA20)即停止進場並出清。'
+        f'回測段(自 {esc(start_d)} 起)與每日更新段用同一套引擎計算,'
+        '無事後挑選;數字含已實現 + 未實現損益。'
+        '本頁僅為策略研究紀錄,不構成投資建議。'
+        '</div></div>'
+    )
+
+    payload = json.dumps({"series": series}, ensure_ascii=False, separators=(",", ":"))
+    return (
+        '<div class="sim-page">'
+        '<div class="card">'
+        f'<div class="sec">📈 動能策略模擬器 <span class="sim-daterange">'
+        f'{esc(start_d)} ~ {esc(end_d)} · 每晚 22:05 後更新</span></div>'
+        + stats_html
+        + '<div id="sim-nav-chart" class="sim-chart"></div>'
+        '<div class="risk-chart-legend">'
+        '<span><i style="background:#60a5fa"></i>策略淨值</span>'
+        '<span><i style="background:#f59e0b"></i>加權指數</span>'
+        '<span><i style="background:#10b981"></i>00981A(主動式 ETF)</span>'
+        f'<span class="sim-rebase-note">三線皆以 {esc(start_d)} = 100 重設基期</span>'
+        '</div></div>'
+        '<div class="card"><div class="sec">目前持股</div>' + pos_html + '</div>'
+        '<div class="card"><div class="sec">近 20 筆交易</div>'
+        '<div class="sim-tr-wrap">' + trades_html + '</div></div>'
+        + method_html
+        + f'<script>window.IIA_TRADESIM={payload};</script>'
+        '</div>'
+    )
+
+
 def build_industry_map_page(rows: list[dict],
                             stocks_info: dict | None = None,
                             supply_edges: list[dict] | None = None) -> str:
@@ -4229,6 +4441,25 @@ async def generate():
     except Exception as exc:
         print(f"  ⚠ Q36/Q37 risk_dashboard query failed: {exc}")
 
+    # ── Q40 / Q41 動能策略模擬器(📈 策略模擬 tab;ingest 195ac88)────────
+    # trade_sim_nav = 每日 NAV + twii/etf 對照 + 當前持股 jsonb;
+    # trade_sim_trades = 交易明細。ingest 每晚 22:05 全量重算後觸發 deploy。
+    sim_nav_rows: list[dict] = []
+    sim_trades: list[dict] = []
+    try:
+        sim_nav_rows = [dict(r) for r in await conn.fetch(
+            "SELECT sim_date, nav, cash, twii, etf, positions FROM trade_sim_nav "
+            "ORDER BY sim_date DESC LIMIT 200"
+        )]
+        sim_trades = [dict(r) for r in await conn.fetch(
+            "SELECT sim_date, ticker, name, side, shares, price, reason, pnl "
+            "FROM trade_sim_trades ORDER BY sim_date DESC, id DESC LIMIT 60"
+        )]
+        print(f"  trade_sim (Q40/Q41): nav={len(sim_nav_rows)} day, "
+              f"trades={len(sim_trades)}")
+    except Exception as exc:
+        print(f"  ⚠ Q40/Q41 trade_sim query failed: {exc}")
+
     # Q38 / Q39 產業地圖已在前面(_hist_tickers 構建前)fetch,讓 industry-map
     # ticker 也納入 ticker_close / ticker_net_inst 歷史(供 modal 內子產業趨勢圖)。
 
@@ -4254,6 +4485,7 @@ async def generate():
     notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)
     catalyst_html = build_catalyst_html(catalyst_events, stocks_info)
     risk_html   = build_risk_page(risk_snapshot, risk_history)
+    tradesim_html = build_trade_sim_page(sim_nav_rows, sim_trades)
     indmap_html = build_industry_map_page(indmap_rows, stocks_info, indmap_edges)
 
     # ── 主動式 ETF(2026-05-20 對應 ingest f5faa21)──
@@ -4534,6 +4766,7 @@ async def generate():
     <button class="tab-btn"        data-tab="notes"    onclick="showTab('notes')">市場話題</button>
     <button class="tab-btn"        data-tab="market"   onclick="showTab('market')">國際金融</button>
     <button class="tab-btn"        data-tab="risk"     onclick="showTab('risk')">🛡️ 風控</button>
+    <button class="tab-btn"        data-tab="tradesim" onclick="showTab('tradesim')">📈 策略模擬</button>
   </nav>
   <div class="search-box">
     <input type="search" id="site-search" placeholder="搜尋 ticker / 公司"
@@ -4612,6 +4845,11 @@ async def generate():
   <!-- Tab: 🛡️ 風控儀錶板(取代舊趨勢頁,2026-06-06;資料 = ingest Q36/Q37) -->
   <div id="tab-risk" class="tab-pane">
     {risk_html}
+  </div>
+
+  <!-- Tab: 📈 策略模擬(動能策略 paper trading;資料 = ingest Q40/Q41,每晚 22:05 重算) -->
+  <div id="tab-tradesim" class="tab-pane">
+    {tradesim_html}
   </div>
 
 </div>
