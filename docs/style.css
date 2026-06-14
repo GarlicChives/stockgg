@@ -1220,6 +1220,14 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .sim-pos-tag{font-size:.64rem;font-weight:700;padding:.06rem .4rem;border-radius:4px;
              background:rgba(124,138,242,.12);color:var(--accent)}
 .sim-cash{margin:.7rem 0 0;font-size:.78rem;color:var(--muted)}
+/* 交易明細控制列(00981A 停泊 toggle) */
+.sim-tr-ctrl{display:flex;justify-content:flex-end;margin:0 0 .5rem}
+.sim-park-btn{font-family:inherit;font-size:.72rem;font-weight:600;padding:.22rem .7rem;
+              border-radius:5px;cursor:pointer;background:transparent;color:var(--muted);
+              border:1px dashed var(--border);transition:.12s}
+.sim-park-btn:hover{color:var(--text);border-color:var(--accent)}
+.sim-park-btn.active{background:rgba(16,185,129,.14);color:#34d399;
+                     border-style:solid;border-color:rgba(16,185,129,.45)}
 .sim-tr-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .sim-tr-tbl{width:100%;border-collapse:collapse}
 .sim-tr-tbl th{font-size:.72rem;color:var(--muted);font-weight:600;text-align:left;

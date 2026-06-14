@@ -100,27 +100,48 @@ function _initTradeSimChart() {
   }).catch(e => console.error('trade sim chart load failed', e));
 }
 
-/* 📈 策略模擬交易明細分頁(每 20 筆一頁;server 已給每 row data-page) */
+/* 📈 策略模擬交易明細:filter-aware 分頁(每 20 筆一頁)+ 00981A 停泊 toggle。
+ * _simShow981=true 顯示全部(含停泊 ETF);false 只顯個股交易。
+ * simRenderTrades 為單一權威:依 filter 取可見列 → 切目前頁 → 更新 pager。 */
+const _SIM_PER_PAGE = 20;
 let _simTradePage = 0;
-function simStepTradePage(dir) { simSetTradePage(_simTradePage + dir); }
-function simSetTradePage(p) {
-  const pager = document.getElementById('sim-pager');
-  if (!pager) return;
-  const pages = +pager.dataset.pages || 1;
-  p = Math.max(0, Math.min(p, pages - 1));
-  _simTradePage = p;
-  document.querySelectorAll('.sim-tr-row').forEach(r =>
-    r.hidden = (+r.dataset.page !== p));
-  const total = document.querySelectorAll('.sim-tr-row').length;
+let _simShow981 = true;
+function _simFilteredRows() {
+  return [...document.querySelectorAll('.sim-tr-row')]
+    .filter(r => _simShow981 || r.dataset.etf981 !== '1');
+}
+function simRenderTrades() {
+  const all = [...document.querySelectorAll('.sim-tr-row')];
+  const filtered = _simFilteredRows();
+  const pages = Math.max(1, Math.ceil(filtered.length / _SIM_PER_PAGE));
+  _simTradePage = Math.max(0, Math.min(_simTradePage, pages - 1));
+  all.forEach(r => { r.hidden = true; });
+  const start = _simTradePage * _SIM_PER_PAGE;
+  filtered.slice(start, start + _SIM_PER_PAGE).forEach(r => { r.hidden = false; });
   const info = document.getElementById('sim-pg-info');
-  if (info) info.textContent = '第 ' + (p + 1) + ' / ' + pages + ' 頁(共 ' + total + ' 筆)';
-  pager.querySelectorAll('.sim-pg-btn').forEach(b => {
-    const dir = +b.dataset.dir;
-    b.disabled = (dir < 0 && p === 0) || (dir > 0 && p === pages - 1);
-  });
-  // 換頁後捲回表格頂部(避免停在上一頁的底部位置)
+  if (info) info.textContent = '第 ' + (_simTradePage + 1) + ' / ' + pages
+    + ' 頁(共 ' + filtered.length + ' 筆)';
+  const pager = document.getElementById('sim-pager');
+  if (pager) {
+    pager.hidden = pages <= 1;   // 過濾後不足一頁 → 隱藏分頁列
+    pager.querySelectorAll('.sim-pg-btn').forEach(b => {
+      const dir = +b.dataset.dir;
+      b.disabled = (dir < 0 && _simTradePage === 0) || (dir > 0 && _simTradePage === pages - 1);
+    });
+  }
+}
+function simStepTradePage(dir) {
+  _simTradePage += dir;
+  simRenderTrades();
   const wrap = document.querySelector('#tab-tradesim .sim-tr-wrap');
   if (wrap) wrap.scrollIntoView({ block: 'nearest' });
+}
+function simToggle981(btn) {
+  _simShow981 = !_simShow981;
+  btn.classList.toggle('active', _simShow981);
+  btn.textContent = _simShow981 ? '含 00981A 停泊交易' : '僅個股交易';
+  _simTradePage = 0;
+  simRenderTrades();
 }
 
 /* ── 🗺️ 產業地圖 — 焦點產業關聯「蜘蛛網」圖 ────────────────────────

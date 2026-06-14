@@ -1397,7 +1397,8 @@ def build_trade_sim_page(nav_rows: list[dict], trades: list[dict]) -> str:
         pos_html = (f'<p class="muted-note">目前空手(全現金 {cash_s} 元)—— '
                     '可能是大盤趨勢開關關閉,或近日無符合進場條件的標的。</p>')
 
-    # ── 交易明細(全數列出,前端每 20 筆一分頁)──
+    # ── 交易明細(全數列出,前端每 20 筆一分頁;00981A 停泊交易可 toggle 隱藏)──
+    _PARK_TK = "00981A"   # 現金停泊 ETF;非個股,出手頻率統計排除
     _trades = list(trades)
     tr_rows = []
     for i, t in enumerate(_trades):
@@ -1413,14 +1414,15 @@ def build_trade_sim_page(nav_rows: list[dict], trades: list[dict]) -> str:
             pnl_v = int(float(pnl))
             pnl_s = f"{pnl_v:+,}"
             pnl_cls = "up" if pnl_v > 0 else ("down" if pnl_v < 0 else "flat")
-        # data-page:0-based 頁碼,前端 simSetTradePage 控制顯隱(預設只顯第 0 頁)
-        page = i // 20
-        hidden = "" if page == 0 else " hidden"
+        # 初始只顯前 20 列(no-JS 友善);JS simRenderTrades 取代後依 filter 重算。
+        hidden = "" if i < 20 else " hidden"
+        _is_park = str(t.get("ticker") or "") == _PARK_TK
+        park_attr = ' data-etf981="1"' if _is_park else ''
         # 持有天數:賣出列才有(買入列 NULL → 顯「—」)
         hd = t.get("hold_days")
         hd_s = f"{int(hd)}" if hd is not None else "—"
         tr_rows.append(
-            f'<tr class="sim-tr-row" data-page="{page}"{hidden}><td>{esc(d)}</td>'
+            f'<tr class="sim-tr-row"{park_attr}{hidden}><td>{esc(d)}</td>'
             f'<td>{esc(str(t.get("ticker") or ""))} {esc(str(t.get("name") or ""))}</td>'
             f'<td class="{side_cls}">{side_s}</td>'
             f'<td class="r">{int(shares) // 1000}</td>'
@@ -1431,6 +1433,13 @@ def build_trade_sim_page(nav_rows: list[dict], trades: list[dict]) -> str:
         )
     _n_trades = len(_trades)
     _n_pages = (_n_trades + 19) // 20
+    # 出手頻率(周轉率):個股出手次數(買+賣,排除停泊 ETF)/ 交易日數。
+    _n_indiv = sum(1 for t in _trades if str(t.get("ticker") or "") != _PARK_TK)
+    _n_days = len(series)
+    _freq = (_n_indiv / _n_days) if _n_days else 0
+    _freq_txt = (f'共 {_n_trades} 筆 · 個股 {_n_indiv} 筆 · '
+                 f'平均每交易日 {_freq:.2f} 次出手')
+
     trades_html = (
         '<table class="sim-tr-tbl"><thead><tr><th>日期</th><th>標的</th><th>動作</th>'
         '<th class="r">張數</th><th class="r">價格</th><th class="r">持有天數</th>'
@@ -1438,11 +1447,18 @@ def build_trade_sim_page(nav_rows: list[dict], trades: list[dict]) -> str:
         + ("".join(tr_rows) or '<tr><td colspan="8" class="muted-note">尚無交易</td></tr>')
         + '</tbody></table>'
     )
-    # 分頁列(>1 頁才渲;前端 simSetTradePage(p) 切換)
+    # 00981A 停泊交易 toggle(預設 ON=顯示全部;OFF=只秀個股交易)
+    park_toggle = (
+        '<button type="button" class="sim-park-btn active" id="sim-park-btn" '
+        'onclick="simToggle981(this)" '
+        'title="關閉後只顯示個股交易,隱藏現金停泊 ETF(00981A)的進出">'
+        '含 00981A 停泊交易</button>'
+    )
+    # 分頁列(總筆數 >20 才渲;前端 simRenderTrades 依 filter 動態算頁數)
     pager_html = ""
     if _n_pages > 1:
         pager_html = (
-            '<div class="sim-pager" id="sim-pager" data-pages="' + str(_n_pages) + '">'
+            '<div class="sim-pager" id="sim-pager">'
             '<button class="sim-pg-btn" type="button" data-dir="-1" '
             'onclick="simStepTradePage(-1)" disabled>‹ 上一頁</button>'
             '<span class="sim-pg-info" id="sim-pg-info">第 1 / ' + str(_n_pages)
@@ -1541,7 +1557,8 @@ def build_trade_sim_page(nav_rows: list[dict], trades: list[dict]) -> str:
         '<div class="card"><div class="sec">目前持股</div>' + pos_html + '</div>'
         + winloss_html
         + f'<div class="card"><div class="sec">交易明細 '
-        f'<span class="sim-daterange">共 {_n_trades} 筆</span></div>'
+        f'<span class="sim-daterange">{esc(_freq_txt)}</span></div>'
+        '<div class="sim-tr-ctrl">' + park_toggle + '</div>'
         '<div class="sim-tr-wrap">' + trades_html + '</div>' + pager_html + '</div>'
         + method_html
         + f'<script>window.IIA_TRADESIM={payload};</script>'
