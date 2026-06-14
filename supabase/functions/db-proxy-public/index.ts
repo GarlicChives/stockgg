@@ -225,8 +225,9 @@ const ALLOWED: Set<string> = new Set([
   //   取代原本 stockgg 從 Q13 ticker_close_history 撈 00991A(更新落後)的暫解)。
   "select sim_date, nav, cash, twii, etf, etf2, positions from trade_sim_nav order by sim_date desc limit 200",
 
-  // Q41 — 策略模擬器交易明細(近 60 筆;頁面顯示近 20 筆,多抓備裕)。
-  "select sim_date, ticker, name, side, shares, price, reason, pnl from trade_sim_trades order by sim_date desc, id desc limit 60",
+  // Q41 — 策略模擬器交易明細(全期,前端每 20 筆一分頁 + 損益排行;2026-06-14
+  //   從 limit 60 調高到 500 涵蓋全期,目前約 122 筆、會增長)。
+  "select sim_date, ticker, name, side, shares, price, reason, pnl from trade_sim_trades order by sim_date desc, id desc limit 500",
 ])
 
 function normalize(q: string): string {

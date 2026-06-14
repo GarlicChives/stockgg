@@ -1397,9 +1397,10 @@ def build_trade_sim_page(nav_rows: list[dict], trades: list[dict]) -> str:
         pos_html = (f'<p class="muted-note">目前空手(全現金 {cash_s} 元)—— '
                     '可能是大盤趨勢開關關閉,或近日無符合進場條件的標的。</p>')
 
-    # ── 近 20 筆交易 ──
+    # ── 交易明細(全數列出,前端每 20 筆一分頁)──
+    _trades = list(trades)
     tr_rows = []
-    for t in list(trades)[:20]:
+    for i, t in enumerate(_trades):
         d = str(t.get("sim_date") or "")[:10]
         side = (t.get("side") or "").lower()
         side_s, side_cls = ("買進", "up") if side == "buy" else ("賣出", "down")
@@ -1412,8 +1413,11 @@ def build_trade_sim_page(nav_rows: list[dict], trades: list[dict]) -> str:
             pnl_v = int(float(pnl))
             pnl_s = f"{pnl_v:+,}"
             pnl_cls = "up" if pnl_v > 0 else ("down" if pnl_v < 0 else "flat")
+        # data-page:0-based 頁碼,前端 simSetTradePage 控制顯隱(預設只顯第 0 頁)
+        page = i // 20
+        hidden = "" if page == 0 else " hidden"
         tr_rows.append(
-            f'<tr><td>{esc(d)}</td>'
+            f'<tr class="sim-tr-row" data-page="{page}"{hidden}><td>{esc(d)}</td>'
             f'<td>{esc(str(t.get("ticker") or ""))} {esc(str(t.get("name") or ""))}</td>'
             f'<td class="{side_cls}">{side_s}</td>'
             f'<td class="r">{int(shares) // 1000}</td>'
@@ -1421,6 +1425,8 @@ def build_trade_sim_page(nav_rows: list[dict], trades: list[dict]) -> str:
             f'<td>{esc(_sim_reason_label(t.get("reason")))}</td>'
             f'<td class="r {pnl_cls}">{pnl_s}</td></tr>'
         )
+    _n_trades = len(_trades)
+    _n_pages = (_n_trades + 19) // 20
     trades_html = (
         '<table class="sim-tr-tbl"><thead><tr><th>日期</th><th>標的</th><th>動作</th>'
         '<th class="r">張數</th><th class="r">價格</th><th>理由</th>'
@@ -1428,17 +1434,79 @@ def build_trade_sim_page(nav_rows: list[dict], trades: list[dict]) -> str:
         + ("".join(tr_rows) or '<tr><td colspan="7" class="muted-note">尚無交易</td></tr>')
         + '</tbody></table>'
     )
+    # 分頁列(>1 頁才渲;前端 simSetTradePage(p) 切換)
+    pager_html = ""
+    if _n_pages > 1:
+        pager_html = (
+            '<div class="sim-pager" id="sim-pager" data-pages="' + str(_n_pages) + '">'
+            '<button class="sim-pg-btn" type="button" data-dir="-1" '
+            'onclick="simStepTradePage(-1)" disabled>‹ 上一頁</button>'
+            '<span class="sim-pg-info" id="sim-pg-info">第 1 / ' + str(_n_pages)
+            + ' 頁(共 ' + str(_n_trades) + ' 筆)</span>'
+            '<button class="sim-pg-btn" type="button" data-dir="1" '
+            'onclick="simStepTradePage(1)">下一頁 ›</button>'
+            '</div>'
+        )
 
-    # ── 誠實方法論註記(必放;規則描述與 ingest 引擎同步)──
+    # ── 前五賺最多 / 前五賠最多個股(依 ticker 彙總 sell 的 pnl)──
+    _by_ticker: dict[str, dict] = {}
+    for t in _trades:
+        if (t.get("side") or "").lower() != "sell":
+            continue
+        pnl = t.get("pnl")
+        if pnl is None:
+            continue
+        tk = str(t.get("ticker") or "")
+        if not tk:
+            continue
+        slot = _by_ticker.setdefault(tk, {"name": str(t.get("name") or ""), "pnl": 0.0, "n": 0})
+        slot["pnl"] += float(pnl)
+        slot["n"] += 1
+    _ranked = sorted(_by_ticker.items(), key=lambda kv: kv[1]["pnl"], reverse=True)
+
+    def _rank_rows(items):
+        out = []
+        for tk, v in items:
+            pv = int(v["pnl"])
+            cls = "up" if pv > 0 else ("down" if pv < 0 else "flat")
+            out.append(
+                f'<li class="sim-rank-row"><span class="sim-rank-tk">{esc(tk)} '
+                f'{esc(v["name"])}</span>'
+                f'<span class="sim-rank-pnl {cls}">{pv:+,}</span>'
+                f'<span class="sim-rank-n">{v["n"]} 筆賣出</span></li>'
+            )
+        return "".join(out)
+
+    winloss_html = ""
+    if _ranked:
+        winners = [kv for kv in _ranked[:5] if kv[1]["pnl"] > 0]
+        losers = [kv for kv in _ranked[::-1][:5] if kv[1]["pnl"] < 0]
+        winloss_html = (
+            '<div class="card"><div class="sec">已實現損益排行 '
+            '<span class="sim-daterange">依標的累計賣出損益(含現金停泊 ETF)</span></div>'
+            '<div class="sim-winloss">'
+            '<div class="sim-wl-col"><div class="sim-wl-h sim-wl-win">🏆 賺最多 Top 5</div>'
+            '<ul class="sim-rank-list">'
+            + (_rank_rows(winners) or '<li class="muted-note">尚無獲利了結</li>')
+            + '</ul></div>'
+            '<div class="sim-wl-col"><div class="sim-wl-h sim-wl-lose">💧 賠最多 Top 5</div>'
+            '<ul class="sim-rank-list">'
+            + (_rank_rows(losers) or '<li class="muted-note">尚無虧損了結</li>')
+            + '</ul></div>'
+            '</div></div>'
+        )
+
+    # ── 誠實方法論註記(必放;規則描述與 ingest 引擎 v4 同步,2026-06-14)──
     method_html = (
         '<div class="sim-method"><span class="crash-banner-icon">⚠️</span>'
         '<div class="crash-banner-txt">'
         '<b>這是模擬,不是實盤。</b>'
-        '初始資金 100 萬元(現股),已計手續費 0.1425% 與證交稅 0.3%;'
+        '初始資金 300 萬元(現股),已計手續費 0.1425% 與證交稅 0.3%;'
         '成交採「觸價限價」模型 —— 開盤跳空超過掛價就視為買不到,不會用想像價成交。'
         '策略規則:選股雷達交集股為候選、前一日收盤 ~ +3% 區間掛單進場、'
-        '尾盤驗收(收盤太弱當日出場)、獲利達標分段加碼、移動停利分層出場、'
-        '大盤跌破月線(MA20)即停止進場並出清。'
+        '獲利達標分段加碼、移動停利分層出場;'
+        '大盤跌破月線(MA20)即停止進場,閒置現金停泊 00981A,'
+        '站回月線隔日賣回轉個股(不強制出清現有部位)。'
         f'回測段(自 {esc(start_d)} 起)與每日更新段用同一套引擎計算,'
         '無事後挑選;數字含已實現 + 未實現損益。'
         '本頁僅為策略研究紀錄,不構成投資建議。'
@@ -1464,8 +1532,10 @@ def build_trade_sim_page(nav_rows: list[dict], trades: list[dict]) -> str:
         + '</span>'
         '</div></div>'
         '<div class="card"><div class="sec">目前持股</div>' + pos_html + '</div>'
-        '<div class="card"><div class="sec">近 20 筆交易</div>'
-        '<div class="sim-tr-wrap">' + trades_html + '</div></div>'
+        + winloss_html
+        + f'<div class="card"><div class="sec">交易明細 '
+        f'<span class="sim-daterange">共 {_n_trades} 筆</span></div>'
+        '<div class="sim-tr-wrap">' + trades_html + '</div>' + pager_html + '</div>'
         + method_html
         + f'<script>window.IIA_TRADESIM={payload};</script>'
         '</div>'
@@ -4481,7 +4551,7 @@ async def generate():
         )]
         sim_trades = [dict(r) for r in await conn.fetch(
             "SELECT sim_date, ticker, name, side, shares, price, reason, pnl "
-            "FROM trade_sim_trades ORDER BY sim_date DESC, id DESC LIMIT 60"
+            "FROM trade_sim_trades ORDER BY sim_date DESC, id DESC LIMIT 500"
         )]
         print(f"  trade_sim (Q40/Q41): nav={len(sim_nav_rows)} day, "
               f"trades={len(sim_trades)}")

@@ -100,6 +100,29 @@ function _initTradeSimChart() {
   }).catch(e => console.error('trade sim chart load failed', e));
 }
 
+/* 📈 策略模擬交易明細分頁(每 20 筆一頁;server 已給每 row data-page) */
+let _simTradePage = 0;
+function simStepTradePage(dir) { simSetTradePage(_simTradePage + dir); }
+function simSetTradePage(p) {
+  const pager = document.getElementById('sim-pager');
+  if (!pager) return;
+  const pages = +pager.dataset.pages || 1;
+  p = Math.max(0, Math.min(p, pages - 1));
+  _simTradePage = p;
+  document.querySelectorAll('.sim-tr-row').forEach(r =>
+    r.hidden = (+r.dataset.page !== p));
+  const total = document.querySelectorAll('.sim-tr-row').length;
+  const info = document.getElementById('sim-pg-info');
+  if (info) info.textContent = '第 ' + (p + 1) + ' / ' + pages + ' 頁(共 ' + total + ' 筆)';
+  pager.querySelectorAll('.sim-pg-btn').forEach(b => {
+    const dir = +b.dataset.dir;
+    b.disabled = (dir < 0 && p === 0) || (dir > 0 && p === pages - 1);
+  });
+  // 換頁後捲回表格頂部(避免停在上一頁的底部位置)
+  const wrap = document.querySelector('#tab-tradesim .sim-tr-wrap');
+  if (wrap) wrap.scrollIntoView({ block: 'nearest' });
+}
+
 /* ── 🗺️ 產業地圖 — 焦點產業關聯「蜘蛛網」圖 ────────────────────────
  * window.IIA_INDMAP_GRAPH = { nodes:[{i,name,kind,chg,cov,tv,n,mv:[{t,n,c}]}],
  *                             edges:[[a,b,w]], hot: 門檻 }
