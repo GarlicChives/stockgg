@@ -81,6 +81,9 @@ function _initTradeSimChart() {
       rightPriceScale: { borderColor: 'rgba(255,255,255,.08)' },
       timeScale: { borderColor: 'rgba(255,255,255,.08)', timeVisible: false },
       crosshair: { mode: 1 }, autoSize: true,
+      // 禁滾輪縮放 / 雙擊縮放 / 拖曳平移(user 要求 2026-06-14):這是固定
+      // 區間的比較圖,滾輪應留給頁面捲動,不要被圖吃掉縮放
+      handleScroll: false, handleScale: false,
     });
     const mk = (color) => chart.addLineSeries({ color, lineWidth: 2, priceLineVisible: false });
     const pick = (key) => data.series
@@ -89,6 +92,9 @@ function _initTradeSimChart() {
     mk('#60a5fa').setData(pick('nav'));    // 策略淨值
     mk('#f59e0b').setData(pick('twii'));   // 加權指數
     mk('#10b981').setData(pick('etf'));    // 00981A
+    if (data.series.some(p => p.etf991 != null)) {
+      mk('#c084fc').setData(pick('etf991')); // 00991A
+    }
     chart.timeScale().fitContent();
     _tradesimRendered = true;
   }).catch(e => console.error('trade sim chart load failed', e));
