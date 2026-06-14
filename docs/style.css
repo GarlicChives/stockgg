@@ -1229,6 +1229,9 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .sim-tr-tbl th.r,.sim-tr-tbl td.r{text-align:right;font-variant-numeric:tabular-nums}
 /* 損益排行(前五賺/賠最多) */
 .sim-winloss{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+/* min-width:0 —— grid item 預設 min-width:auto 不讓內容收縮,長標的名會把整列
+   撐出 viewport(2026-06-14);配 .sim-rank-tk 的 ellipsis 才生效 */
+.sim-wl-col{min-width:0}
 @media(max-width:600px){.sim-winloss{grid-template-columns:1fr}}
 .sim-wl-h{font-size:.82rem;font-weight:700;margin-bottom:.5rem}
 .sim-wl-win{color:#ef5350}

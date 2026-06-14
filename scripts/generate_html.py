@@ -1416,12 +1416,16 @@ def build_trade_sim_page(nav_rows: list[dict], trades: list[dict]) -> str:
         # data-page:0-based 頁碼,前端 simSetTradePage 控制顯隱(預設只顯第 0 頁)
         page = i // 20
         hidden = "" if page == 0 else " hidden"
+        # 持有天數:賣出列才有(買入列 NULL → 顯「—」)
+        hd = t.get("hold_days")
+        hd_s = f"{int(hd)}" if hd is not None else "—"
         tr_rows.append(
             f'<tr class="sim-tr-row" data-page="{page}"{hidden}><td>{esc(d)}</td>'
             f'<td>{esc(str(t.get("ticker") or ""))} {esc(str(t.get("name") or ""))}</td>'
             f'<td class="{side_cls}">{side_s}</td>'
             f'<td class="r">{int(shares) // 1000}</td>'
             f'<td class="r">{price if price is not None else "—"}</td>'
+            f'<td class="r">{hd_s}</td>'
             f'<td>{esc(_sim_reason_label(t.get("reason")))}</td>'
             f'<td class="r {pnl_cls}">{pnl_s}</td></tr>'
         )
@@ -1429,9 +1433,9 @@ def build_trade_sim_page(nav_rows: list[dict], trades: list[dict]) -> str:
     _n_pages = (_n_trades + 19) // 20
     trades_html = (
         '<table class="sim-tr-tbl"><thead><tr><th>日期</th><th>標的</th><th>動作</th>'
-        '<th class="r">張數</th><th class="r">價格</th><th>理由</th>'
-        '<th class="r">損益(元)</th></tr></thead><tbody>'
-        + ("".join(tr_rows) or '<tr><td colspan="7" class="muted-note">尚無交易</td></tr>')
+        '<th class="r">張數</th><th class="r">價格</th><th class="r">持有天數</th>'
+        '<th>理由</th><th class="r">損益(元)</th></tr></thead><tbody>'
+        + ("".join(tr_rows) or '<tr><td colspan="8" class="muted-note">尚無交易</td></tr>')
         + '</tbody></table>'
     )
     # 分頁列(>1 頁才渲;前端 simSetTradePage(p) 切換)
@@ -4582,7 +4586,7 @@ async def generate():
             "ORDER BY sim_date DESC LIMIT 200"
         )]
         sim_trades = [dict(r) for r in await conn.fetch(
-            "SELECT sim_date, ticker, name, side, shares, price, reason, pnl "
+            "SELECT sim_date, ticker, name, side, shares, price, reason, pnl, hold_days "
             "FROM trade_sim_trades ORDER BY sim_date DESC, id DESC LIMIT 500"
         )]
         print(f"  trade_sim (Q40/Q41): nav={len(sim_nav_rows)} day, "

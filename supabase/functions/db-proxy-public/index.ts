@@ -226,8 +226,9 @@ const ALLOWED: Set<string> = new Set([
   "select sim_date, nav, cash, twii, etf, etf2, positions from trade_sim_nav order by sim_date desc limit 200",
 
   // Q41 — 策略模擬器交易明細(全期,前端每 20 筆一分頁 + 損益排行;2026-06-14
-  //   從 limit 60 調高到 500 涵蓋全期,目前約 122 筆、會增長)。
-  "select sim_date, ticker, name, side, shares, price, reason, pnl from trade_sim_trades order by sim_date desc, id desc limit 500",
+  //   從 limit 60 調高到 500 涵蓋全期,目前約 122 筆、會增長。hold_days = 該筆
+  //   賣出的持有天數,買入列為 NULL,ingest 已寫入)。
+  "select sim_date, ticker, name, side, shares, price, reason, pnl, hold_days from trade_sim_trades order by sim_date desc, id desc limit 500",
 ])
 
 function normalize(q: string): string {
