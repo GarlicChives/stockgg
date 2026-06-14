@@ -1269,44 +1269,41 @@ def _sim_max_dd(vals: list[float]) -> float:
     return mdd
 
 
-def build_trade_sim_page(nav_rows: list[dict], trades: list[dict],
-                         etf991_closes: dict[str, float] | None = None) -> str:
+def build_trade_sim_page(nav_rows: list[dict], trades: list[dict]) -> str:
     """📈 策略模擬頁:NAV vs 加權指數 vs 00981A vs 00991A 四線圖 + 當前持股
     + 近 20 筆交易 + 誠實方法論註記。nav_rows = Q40(sim_date desc),trades = Q41。
-    etf991_closes = {date: 00991A 收盤}(Q13 ticker_close_history,date→close)。
+    四條序列(nav / twii / etf=00981A / etf2=00991A)都在 trade_sim_nav 同列,
+    ingest 每晚同基準日對齊寫入(etf2 = ingest d8edc6e 加,取代原 Q13 暫解)。
 
     對照「報酬%」一律取**最後一個非空 rebase 值**(不是序列末筆)——trade_sim_nav
-    的 etf 欄最新一天偶為 NULL(00981A 非焦點股、ticker_close 更新落後),直接讀
-    末筆會讓 00981A 報酬顯「—」(2026-06-14 修)。"""
+    的 etf 欄最新一天偶為 NULL,直接讀末筆會讓報酬顯「—」(2026-06-14 修)。"""
     if not nav_rows:
         return ('<p class="muted-note">策略模擬資料尚未生成(每晚 22:05 後更新,'
                 '首次上線前此頁為空)。</p>')
 
     esc = html_lib.escape
-    etf991_closes = etf991_closes or {}
     rows = sorted((dict(r) for r in nav_rows),
                   key=lambda r: str(r["sim_date"])[:10])
     series = []          # [{d, nav, twii, etf, etf991}] rebase=100(起點 = 序列首日)
     base = None
-    base991 = None       # 00991A 在基準日的收盤(分開找,可能晚於序列首日才有)
+    base991 = None       # 00991A 在基準日的收盤
     for r in rows:
         d = str(r["sim_date"])[:10]
-        nav, twii, etf = r.get("nav"), r.get("twii"), r.get("etf")
+        nav, twii, etf, etf2 = r.get("nav"), r.get("twii"), r.get("etf"), r.get("etf2")
         if nav is None:
             continue
         if base is None:
             if not (twii and etf):
                 continue   # 起點需三值齊備才能公平 rebase
             base = (float(nav), float(twii), float(etf))
-            base991 = etf991_closes.get(d)   # 同基準日的 00991A 收盤(可能缺)
-        c991 = etf991_closes.get(d)
+            base991 = float(etf2) if etf2 else None   # 同基準日的 00991A 收盤
         series.append({
             "d": d,
             "nav": _jc(float(nav) / base[0] * 100, 2),
             "twii": _jc(float(twii) / base[1] * 100, 2) if twii else None,
             "etf": _jc(float(etf) / base[2] * 100, 2) if etf else None,
-            "etf991": (_jc(float(c991) / float(base991) * 100, 2)
-                       if (c991 and base991) else None),
+            "etf991": (_jc(float(etf2) / base991 * 100, 2)
+                       if (etf2 and base991) else None),
         })
     if not series:
         return ('<p class="muted-note">策略模擬資料尚未生成(每晚 22:05 後更新)。</p>')
@@ -4479,7 +4476,7 @@ async def generate():
     sim_trades: list[dict] = []
     try:
         sim_nav_rows = [dict(r) for r in await conn.fetch(
-            "SELECT sim_date, nav, cash, twii, etf, positions FROM trade_sim_nav "
+            "SELECT sim_date, nav, cash, twii, etf, etf2, positions FROM trade_sim_nav "
             "ORDER BY sim_date DESC LIMIT 200"
         )]
         sim_trades = [dict(r) for r in await conn.fetch(
@@ -4490,29 +4487,6 @@ async def generate():
               f"trades={len(sim_trades)}")
     except Exception as exc:
         print(f"  ⚠ Q40/Q41 trade_sim query failed: {exc}")
-
-    # 00991A 比較線(2026-06-14):trade_sim_nav 只有 00981A(etf 欄),00991A
-    # 改從 Q13 ticker_close_history 拿(已 allowlist,無新 query)。00991A 非焦點
-    # 股、ticker_close 更新落後幾日,線尾可能短於 nav/twii——可接受(比較參考線);
-    # 待 ingest 在 trade_sim_nav 加 00991A 欄後改走新鮮單一來源(見回報 prompt)。
-    sim_etf991_closes: dict[str, float] = {}
-    try:
-        _r991 = await conn.fetch(
-            "SELECT ticker, rank_date, close, shares_out, volume, high, open, low "
-            "FROM ticker_close_history WHERE ticker = ANY($1::text[]) "
-            "AND rank_date >= current_date - INTERVAL '400 days' "
-            "ORDER BY ticker, rank_date",
-            ["00991A"],
-        )
-        for r in _r991:
-            if r["close"] is None:
-                continue
-            _d = r["rank_date"]
-            d_str = _d.strftime("%Y-%m-%d") if hasattr(_d, "strftime") else str(_d)[:10]
-            sim_etf991_closes[d_str] = float(r["close"])
-        print(f"  trade_sim 00991A 比較線: {len(sim_etf991_closes)} 交易日")
-    except Exception as exc:
-        print(f"  ⚠ 00991A close history query failed: {exc}")
 
     # Q38 / Q39 產業地圖已在前面(_hist_tickers 構建前)fetch,讓 industry-map
     # ticker 也納入 ticker_close / ticker_net_inst 歷史(供 modal 內子產業趨勢圖)。
@@ -4539,7 +4513,7 @@ async def generate():
     notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)
     catalyst_html = build_catalyst_html(catalyst_events, stocks_info)
     risk_html   = build_risk_page(risk_snapshot, risk_history)
-    tradesim_html = build_trade_sim_page(sim_nav_rows, sim_trades, sim_etf991_closes)
+    tradesim_html = build_trade_sim_page(sim_nav_rows, sim_trades)
     indmap_html = build_industry_map_page(indmap_rows, stocks_info, indmap_edges)
 
     # ── 主動式 ETF(2026-05-20 對應 ingest f5faa21)──
