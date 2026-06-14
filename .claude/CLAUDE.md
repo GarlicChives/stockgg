@@ -95,6 +95,7 @@ Thin presentation layer。只渲染 HTML + 部署 Cloudflare Workers。
   - 個股 modal(持股主動式 ETF 表)、CSV 下載、site search、share button
 - **看高做低股**(選股雷達 sub-tab,2026-06-04 新增;`_is_bowl_breakout`)= 碗型底帶量突破:近 120 日收盤二次擬合開口向上(a>0)+ 底部落中段 30~70% + R²≥0.35(平滑像碗)+ 碗深(左緣-谷底)/左緣 ≥0.13 + 今日收盤由左緣頸線下翻上 + 今日成交金額 > 視窗(不含今日)均成交金額 ×3.0。資料源 = ticker_close_full(Q13)+ 今日 stocks_info,**無新 DB query**。參數來自 1336 組密格交叉、近一年事件驅動回測(進場次日開盤、停損頸線、停利月線)的全場最佳(Sharpe 0.39、大賺小賠 R≈11)。**碗型底突破是單日事件 → 多數交易日該 sub-tab 為空**。W底因回測太弱(PF~2)不納入。量 gate 用成交金額(close×volume)非股數,對齊出量股定義
 - **2026-06-04 回測調參**(既有條件):出量股門檻 ×3→**×5**(前5日均成交金額);新高股 252日→**150日**;潛力B 糾結 2.5%→**3.5%**、量 ×2→**×1.5**。皆為近一年回測最佳(註:這些是「篩選門檻」;回測另含 +8% 追價進場 / 紅K低停損,屬 user 個人下單交易管理,**不在篩選器內**)
+- **品質濾網**(交集股 sub-tab,2026-06-14 ingest 轉達;`.fs-quality-btn` 在條件篩選列尾、靠右虛線框、ON 為 accent 實心)= 策略模擬器(trade_sim 版本 C)候選資格的視覺化 toggle:ON 只顯「同時 含成長(`is_growth`)+ 月線乖離 `ma20_bias`&lt;10 + 當日漲幅 `change_pct`&lt;3 + 不爆量 `vol_mult`&lt;2」者。**純前端**:`build_focus_stock_page._row` 對交集股 row 算好 `data-qpass="1/0"`(四欄任一缺值=不過,保守),JS `toggleFsQuality` 只做顯隱;**與既有「符合條件」鈕共用 `_applyFsFilters()` 做 AND 疊加**(原 `toggleFsFilter` 也改呼叫它)。鈕文字帶 `通過 X/全部 Y`(server 預算 `_n_qpass`),計數即時更新 `fs-int-count`。**毋需動 db-proxy / query**(四欄 cand dict 已有)。背景:回測證明純交集股不論排序皆跑輸大盤,加這 4 濾網後才有 edge(+90% vs 純交集股 +20~25%)
 - **潛力股**(選股雷達 sub-tab,2026-05-23 更新)三條件 OR(均過全站季線 gate):
   - A(多頭排列):MA5 > MA10 > MA20 且 close < MA20 × 1.15
   - B(糾結突破):MA5/10/20 三線糾結((max-min)/mean < **3.5%**) + close > all MAs + close ≤ MA20 × 1.05 + 近 5 日均成交金額 > 近 30 日均 × **1.5**

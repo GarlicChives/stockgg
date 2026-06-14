@@ -2883,6 +2883,19 @@ def build_focus_stock_page(
             f'data-match="{len(c["matched"])}" '
             f'data-matched="{",".join(_MATCH_KEY.get(m, "") for m in c["matched"])}"'
         )
+        # 品質濾網(交集股):策略模擬器(trade_sim 版本 C)的候選資格 ——
+        # 含成長 + 月線乖離 <10% + 當日漲幅 <3% + 不爆量(vol_mult <2)四閘全過。
+        # server 端先算好布林,前端只做顯隱(toggleFsQuality);任一欄缺值 →
+        # 無法確認通過 → 視為不過(保守,= 策略實際能評估的標的)。
+        if mode == "intersect":
+            _chg = (stocks_info.get(tk) or {}).get("change_pct")
+            qpass = (
+                bool(c.get("is_growth"))
+                and bias is not None and bias < 10
+                and _chg is not None and _chg < 3
+                and vm is not None and vm < 2
+            )
+            attrs += f' data-qpass="{1 if qpass else 0}"'
         tds = [
             # 標的 cell:用 _stk_pill(同熱門題材樣式,代號+名稱+股價(漲跌));
             # clickable=False — row 本身 onclick showArtModal 已 handle
@@ -2956,6 +2969,15 @@ def build_focus_stock_page(
     )
     # 交集股條件篩選列(預設全 disabled;多選 AND;順序同 sub-tab;有交集股才顯示)
     _filter_conds = [("vol", "出量"), ("pot", "潛力"), ("nh", "新高"), ("gr", "成長"), ("chip", "籌碼"), ("kgzd", "看高做低")]
+    # 品質濾網 = 策略模擬器(trade_sim 版本 C)候選資格;通過數預先算好放 chip
+    _n_qpass = sum(
+        1 for c in intersect_stocks
+        if bool(c.get("is_growth"))
+        and c.get("ma20_bias") is not None and c["ma20_bias"] < 10
+        and (stocks_info.get(c["ticker"]) or {}).get("change_pct") is not None
+        and (stocks_info.get(c["ticker"]) or {}).get("change_pct") < 3
+        and c.get("vol_mult") is not None and c["vol_mult"] < 2
+    )
     _int_filter_bar = ((
         '<div class="fs-filter-bar">'
         '<span class="fs-filter-label">篩選符合條件</span>'
@@ -2964,6 +2986,13 @@ def build_focus_stock_page(
             f'onclick="toggleFsFilter(this)">{lbl}</button>'
             for k, lbl in _filter_conds
         )
+        # 品質濾網 toggle:獨立按鈕,與條件鈕 AND 疊加。tooltip 說明 = 策略候選資格。
+        + '<button type="button" class="fs-filter-btn fs-quality-btn" id="fs-quality-btn" '
+          'onclick="toggleFsQuality(this)" '
+          'title="只顯示策略模擬器(版本 C)實際會考慮的候選股:'
+          '同時「有成長(月營收/EPS YoY 正)、月線乖離 &lt;10%、當日漲幅 &lt;3%、不爆量(量能 &lt;5日均 ×2)」。'
+          '回測顯示純交集股不論排序皆跑輸大盤,加這 4 濾網後才有超額報酬。">'
+          f'🎯 品質濾網 <span class="fs-quality-n">通過 {_n_qpass}/{len(intersect_stocks)}</span></button>'
         + '</div>'
     ) if intersect_stocks else '')
 

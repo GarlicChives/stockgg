@@ -1044,6 +1044,13 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .fs-filter-btn.active[data-cond="nh"]{background:rgba(239,83,80,.16);color:#f47471;border-color:rgba(239,83,80,.5)}
 .fs-filter-btn.active[data-cond="gr"]{background:rgba(245,158,11,.16);color:#e0922e;border-color:rgba(245,158,11,.5)}
 .fs-filter-btn.active[data-cond="chip"]{background:rgba(78,197,214,.16);color:#4ec5d6;border-color:rgba(78,197,214,.5)}
+/* 品質濾網:獨立按鈕,靠右、左側分隔線與條件鈕區隔;ON 用 accent 實心強調
+   (它是「策略候選資格」,語意比單一條件鈕更重) */
+.fs-quality-btn{margin-left:auto;border-style:dashed}
+.fs-quality-btn .fs-quality-n{font-weight:400;opacity:.8;margin-left:.25rem}
+.fs-quality-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);border-style:solid}
+.fs-quality-btn.active .fs-quality-n{opacity:.95}
+@media(max-width:600px){.fs-quality-btn{margin-left:0}}
 .fs-table tr.fs-row[hidden]{display:none}
 .fs-table td{padding:.5rem .7rem;font-size:.82rem;
                border-bottom:1px solid rgba(42,46,64,.4);vertical-align:middle}

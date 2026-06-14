@@ -1162,24 +1162,25 @@ function sortFsTable(th) {
   rows.forEach(r => tbody.appendChild(r));
 }
 
-/* toggleFsFilter: 交集股「符合條件」篩選列。多選 AND —— row 的 data-matched
- * 必須涵蓋所有 active 條件才顯示;再點 active 鈕即取消(toggle);
- * 無任何 active = 全部顯示。 */
-function toggleFsFilter(btn) {
-  btn.classList.toggle('active');
-  const active = [...document.querySelectorAll('#fstab-int .fs-filter-btn.active')]
+/* 交集股篩選:兩種 filter 疊加(AND)——
+ *   (1) 「符合條件」鈕(data-cond,多選 AND,比對 row 的 data-matched)
+ *   (2) 「品質濾網」鈕(fs-quality-btn,比對 row 的 data-qpass="1",
+ *        = 策略模擬器版本 C 候選資格,server 端已算好布林)
+ * 兩者各自 toggle .active,共用 _applyFsFilters() 重算顯隱 + 計數 + 動畫。 */
+function _applyFsFilters() {
+  const conds = [...document.querySelectorAll('#fstab-int .fs-filter-btn.active:not(.fs-quality-btn)')]
     .map(b => b.dataset.cond);
+  const qOn = !!document.querySelector('#fs-quality-btn.active');
   let visible = 0;
   document.querySelectorAll('#fstab-int .fs-row').forEach(row => {
     const matched = (row.dataset.matched || '').split(',').filter(Boolean);
-    const show = active.every(c => matched.includes(c));
+    const show = conds.every(c => matched.includes(c))
+              && (!qOn || row.dataset.qpass === '1');
     row.hidden = !show;
     if (show) visible++;
   });
-  // 計數即時更新(交集股「共 N 檔」)
   const cnt = document.getElementById('fs-int-count');
   if (cnt) cnt.textContent = visible;
-  // 動畫:篩選後可見列 fade-in-up
   document.querySelectorAll('#fstab-int .fs-row:not([hidden])').forEach(row => {
     row.animate(
       [{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'none' }],
@@ -1187,6 +1188,16 @@ function toggleFsFilter(btn) {
   });
   // 個股 modal scope 同步由 MutationObserver 統一處理(showArtModal 內 observe
   // _artScopeContainer 的 hidden / childList 變化),這裡無需顯式呼叫。
+}
+
+function toggleFsFilter(btn) {
+  btn.classList.toggle('active');
+  _applyFsFilters();
+}
+
+function toggleFsQuality(btn) {
+  btn.classList.toggle('active');
+  _applyFsFilters();
 }
 
 /* Merged cluster name — 計算螢幕對應 visible 閾值並產出 "+N ▾" / "收合 ▴" */
