@@ -1525,7 +1525,7 @@ def build_trade_sim_page(nav_rows: list[dict], trades: list[dict]) -> str:
         '初始資金 300 萬元(現股),已計手續費 0.1425% 與證交稅 0.3%;'
         '成交採「觸價限價」模型 —— 開盤跳空超過掛價就視為買不到,不會用想像價成交。'
         '策略規則:選股雷達「交集股」(命中 ≥2 條件)再篩出「有成長(月營收/EPS '
-        'YoY 正)、未過度延伸(離月線 &lt;10%)、非追高(當日漲幅 &lt;3%)、非爆量」者為'
+        'YoY 正)、未過度延伸也不過弱(離月線 −5%~+10%)、非追高(當日漲幅 &lt;3%)、非爆量」者為'
         '候選,離一年高點最遠者優先;前一日收盤 ~ +3% 區間掛單進場(分批,跳空追高'
         '只進 1/3);獲利達 +3%/+6% 分段加碼並上移停損;停損 -7%(收盤跌破隔日出);'
         '獲利單峰值回落 10% 先出一半、剩餘跌破停損線或月線出場;大盤(^TWII)跌破'
@@ -2904,15 +2904,15 @@ def build_focus_stock_page(
             f'data-match="{len(c["matched"])}" '
             f'data-matched="{",".join(_MATCH_KEY.get(m, "") for m in c["matched"])}"'
         )
-        # 品質濾網(交集股):策略模擬器(trade_sim 版本 C)的候選資格 ——
-        # 含成長 + 月線乖離 <10% + 當日漲幅 <3% + 不爆量(vol_mult <2)四閘全過。
+        # 品質濾網(交集股):策略模擬器(trade_sim 版本 C / v4)的候選資格 ——
+        # 含成長 + 月線乖離 ∈[-5%,+10%) + 當日漲幅 <3% + 不爆量(vol_mult <2)四閘全過。
         # server 端先算好布林,前端只做顯隱(toggleFsQuality);任一欄缺值 →
         # 無法確認通過 → 視為不過(保守,= 策略實際能評估的標的)。
         if mode == "intersect":
             _chg = (stocks_info.get(tk) or {}).get("change_pct")
             qpass = (
                 bool(c.get("is_growth"))
-                and bias is not None and bias < 10
+                and bias is not None and -5 <= bias < 10
                 and _chg is not None and _chg < 3
                 and vm is not None and vm < 2
             )
@@ -2990,11 +2990,11 @@ def build_focus_stock_page(
     )
     # 交集股條件篩選列(預設全 disabled;多選 AND;順序同 sub-tab;有交集股才顯示)
     _filter_conds = [("vol", "出量"), ("pot", "潛力"), ("nh", "新高"), ("gr", "成長"), ("chip", "籌碼"), ("kgzd", "看高做低")]
-    # 品質濾網 = 策略模擬器(trade_sim 版本 C)候選資格;通過數預先算好放 chip
+    # 品質濾網 = 策略模擬器(trade_sim 版本 C / v4)候選資格;通過數預先算好放 chip
     _n_qpass = sum(
         1 for c in intersect_stocks
         if bool(c.get("is_growth"))
-        and c.get("ma20_bias") is not None and c["ma20_bias"] < 10
+        and c.get("ma20_bias") is not None and -5 <= c["ma20_bias"] < 10
         and (stocks_info.get(c["ticker"]) or {}).get("change_pct") is not None
         and (stocks_info.get(c["ticker"]) or {}).get("change_pct") < 3
         and c.get("vol_mult") is not None and c["vol_mult"] < 2
@@ -3011,7 +3011,7 @@ def build_focus_stock_page(
         + '<button type="button" class="fs-filter-btn fs-quality-btn" id="fs-quality-btn" '
           'onclick="toggleFsQuality(this)" '
           'title="只顯示策略模擬器(版本 C)實際會考慮的候選股:'
-          '同時「有成長(月營收/EPS YoY 正)、月線乖離 &lt;10%、當日漲幅 &lt;3%、不爆量(量能 &lt;5日均 ×2)」。'
+          '同時「有成長(月營收/EPS YoY 正)、月線乖離 −5%~+10%(排除深跌弱勢)、當日漲幅 &lt;3%、不爆量(量能 &lt;5日均 ×2)」。'
           '回測顯示純交集股不論排序皆跑輸大盤,加這 4 濾網後才有超額報酬。">'
           f'🎯 品質濾網 <span class="fs-quality-n">通過 {_n_qpass}/{len(intersect_stocks)}</span></button>'
         + '</div>'
