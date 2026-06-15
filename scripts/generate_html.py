@@ -2098,13 +2098,31 @@ def _stamp_badge(ts_str: str | None, label: str = "資料更新") -> str:
     return _stamp_badge_multi([(label, ts_str)])
 
 
-def _stamp_badge_multi(pairs: list[tuple[str, str | None]]) -> str:
-    """多組 (label, 時間) 併成同一行右上 badge(用 · 分隔);全空則不渲染。"""
-    items = [(lbl, ts) for lbl, ts in pairs if ts]
+def _data_date_str(dt) -> str | None:
+    """純日期欄(DATE,如 ticker_holder_dist.data_date,存 00:00Z)→ YYYY-MM-DD。
+    不做時區換算(它是「涵蓋週的最後交易日」,非 timestamptz),避免 +8 誤移日。"""
+    if not isinstance(dt, datetime):
+        return None
+    return dt.strftime("%Y-%m-%d")
+
+
+def _stamp_badge_multi(pairs: list) -> str:
+    """多組併成同一行右上 badge(用 · 分隔);全空則不渲染。
+    每組 = (label, value) 或 (label, value, tooltip);帶 tooltip 者該組獨立
+    title(覆蓋整列預設 title)—— 供「集保大戶(週)」與「每日籌碼(時間)」
+    兩種不同節奏的資料各自說明。"""
+    items = [p for p in pairs if len(p) >= 2 and p[1]]
     if not items:
         return ""
-    inner = '<span class="ds-sep">·</span>'.join(
-        f'<span class="ds-label">{lbl}</span><time>{ts}</time>' for lbl, ts in items)
+    parts = []
+    for p in items:
+        lbl, val = p[0], p[1]
+        tip = p[2] if len(p) >= 3 and p[2] else None
+        seg = f'<span class="ds-label">{lbl}</span><time>{val}</time>'
+        if tip:
+            seg = f'<span class="ds-item" title="{html_lib.escape(tip)}">{seg}</span>'
+        parts.append(seg)
+    inner = '<span class="ds-sep">·</span>'.join(parts)
     return f'<div class="data-stamp" title="資料寫入時間（台北時間）">{inner}</div>'
 
 
@@ -4802,9 +4820,25 @@ async def generate():
         "WHERE ticker = ANY($1::text[]) AND rank_date >= current_date - INTERVAL '14 days'",
         _hist_tickers) if _hist_tickers else None
     ts_reports  = await _max_ts("SELECT MAX(created_at) FROM analysis_reports")
+    # Q42 集保大戶最新涵蓋週(data_date = 該週最後交易日;週級,與每日籌碼分流)
+    async def _max_date(query: str) -> str | None:
+        try:
+            return _data_date_str(await conn.fetchval(query))
+        except Exception as exc:
+            print(f"  ⚠ data-date query failed ({query[:48]}...): {exc}")
+            return None
+    ts_holder = await _max_date("SELECT MAX(data_date) FROM ticker_holder_dist")
     focus_stamp_html  = _stamp_badge(ts_rankings)
-    # 選股雷達:rankings 與籌碼更新時間併同一行右上(籌碼不另佔一列)
-    fstock_stamp_html = _stamp_badge_multi([("資料更新", ts_rankings), ("籌碼資料更新", ts_chip)])
+    # 選股雷達:三組併同一行右上 ——
+    #   每日籌碼(融資融券 + 三大法人 + 當沖,每交易日盤後 ~21:10)= 時間
+    #   集保大戶(TDCC 股權分散,週級、約每週末公布)= 截至週日期(自帶 tooltip)
+    _holder_tip = ("集保大戶股權分散為週級資料,約每週末公布;"
+                   "每日籌碼(融資融券 / 三大法人 / 當沖)則每交易日盤後更新。")
+    fstock_stamp_html = _stamp_badge_multi([
+        ("資料更新", ts_rankings),
+        ("籌碼資料更新", ts_chip),
+        ("集保大戶 截至", f"{ts_holder}(週)" if ts_holder else None, _holder_tip),
+    ])
     notes_stamp_html  = _stamp_badge(ts_reports)
     market_stamp_html = _stamp_badge(ts_reports)
 

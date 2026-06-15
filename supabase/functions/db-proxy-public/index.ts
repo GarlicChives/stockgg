@@ -229,6 +229,11 @@ const ALLOWED: Set<string> = new Set([
   //   從 limit 60 調高到 500 涵蓋全期,目前約 122 筆、會增長。hold_days = 該筆
   //   賣出的持有天數,買入列為 NULL,ingest 已寫入)。
   "select sim_date, ticker, name, side, shares, price, reason, pnl, hold_days from trade_sim_trades order by sim_date desc, id desc limit 500",
+
+  // Q42 — 集保大戶資料最新涵蓋週(選股雷達「集保大戶 截至 YYYY-MM-DD(週)」
+  //   badge;data_date = 該週最後交易日,週級節奏,與每日籌碼 badge 分流。
+  //   2026-06-15 ingest 767b6b9 收尾)。
+  "select max(data_date) from ticker_holder_dist",
 ])
 
 function normalize(q: string): string {

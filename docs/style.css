@@ -106,6 +106,8 @@ header{position:sticky;top:0;z-index:200;
 .data-stamp .ds-label{opacity:.78}
 .data-stamp .ds-sep{opacity:.4}
 .data-stamp time{font-weight:600;letter-spacing:.01em}
+/* 自帶 tooltip 的組(如「集保大戶」週級說明):虛線底提示可 hover */
+.data-stamp .ds-item{cursor:help;border-bottom:1px dotted rgba(255,255,255,.25)}
 
 /* ── Sub-tabs (焦點股) ── */
 .sub-tabs{display:flex;gap:.35rem;margin-bottom:.9rem}
