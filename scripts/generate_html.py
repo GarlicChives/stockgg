@@ -1269,14 +1269,40 @@ def _sim_max_dd(vals: list[float]) -> float:
     return mdd
 
 
-def build_trade_sim_page(nav_rows: list[dict], trades: list[dict]) -> str:
-    """📈 策略模擬頁:NAV vs 加權指數 vs 00981A vs 00991A 四線圖 + 當前持股
-    + 近 20 筆交易 + 誠實方法論註記。nav_rows = Q40(sim_date desc),trades = Q41。
-    四條序列(nav / twii / etf=00981A / etf2=00991A)都在 trade_sim_nav 同列,
-    ingest 每晚同基準日對齊寫入(etf2 = ingest d8edc6e 加,取代原 Q13 暫解)。
+def _sim_perf(vals: list[float]) -> dict:
+    """從 rebase 後淨值序列(可含 None)算績效指標,定義對齊 ingest
+    src/backtest/metrics.py 慣例(日報酬、年化 252、夏普 rf=0、Calmar=年化/|MDD|):
+      total = 期末/期初 − 1
+      ann   = (期末/期初)^(252/報酬期數) − 1
+      mdd   = 最大回撤(正小數)
+      sharpe= mean(日報酬)/std(日報酬) × √252(母體標準差;std=0 → None)
+      calmar= ann / |mdd|
+    回傳值皆為小數(0.12 = 12%);資料不足回 {}。"""
+    pts = [float(v) for v in vals if isinstance(v, (int, float))]
+    if len(pts) < 2:
+        return {}
+    rets = [pts[i] / pts[i - 1] - 1 for i in range(1, len(pts)) if pts[i - 1]]
+    total = pts[-1] / pts[0] - 1
+    n = len(rets)
+    ann = (pts[-1] / pts[0]) ** (252 / n) - 1 if n else None
+    mean = sum(rets) / n if n else 0.0
+    var = sum((r - mean) ** 2 for r in rets) / n if n else 0.0
+    sd = var ** 0.5
+    sharpe = (mean / sd * (252 ** 0.5)) if sd > 0 else None
+    mdd = _sim_max_dd(pts) / 100  # 轉小數
+    calmar = (ann / mdd) if (ann is not None and mdd > 0) else None
+    return {"total": total, "ann": ann, "mdd": mdd, "sharpe": sharpe, "calmar": calmar}
 
-    對照「報酬%」一律取**最後一個非空 rebase 值**(不是序列末筆)——trade_sim_nav
-    的 etf 欄最新一天偶為 NULL,直接讀末筆會讓報酬顯「—」(2026-06-14 修)。"""
+
+STRAT_NAME = "拉回買策略"   # 目前公開站唯一策略;多策略 sub-tab 架構見頁尾 wrap
+
+
+def build_trade_sim_page(nav_rows: list[dict], trades: list[dict]) -> str:
+    """📈 策略模擬頁:NAV vs 加權指數 vs 00981A 三線圖 + 績效指標表(勝率 / 夏普 /
+    Calmar 等)+ 當前持股 + 交易明細 + 誠實方法論註記。
+    nav_rows = Q40(sim_date desc),trades = Q41。
+    2026-06-17(ingest 7be2400):移除 00991A 對照(時間太短不具參考性)、策略命名
+    「拉回買策略」、上方加多策略 sub-tab 架構(目前一個 tab)、淨值圖下方加指標表。"""
     if not nav_rows:
         return ('<p class="muted-note">策略模擬資料尚未生成(每晚 22:05 後更新,'
                 '首次上線前此頁為空)。</p>')
@@ -1284,26 +1310,22 @@ def build_trade_sim_page(nav_rows: list[dict], trades: list[dict]) -> str:
     esc = html_lib.escape
     rows = sorted((dict(r) for r in nav_rows),
                   key=lambda r: str(r["sim_date"])[:10])
-    series = []          # [{d, nav, twii, etf, etf991}] rebase=100(起點 = 序列首日)
+    series = []          # [{d, nav, twii, etf}] rebase=100(起點 = 序列首日)
     base = None
-    base991 = None       # 00991A 在基準日的收盤
     for r in rows:
         d = str(r["sim_date"])[:10]
-        nav, twii, etf, etf2 = r.get("nav"), r.get("twii"), r.get("etf"), r.get("etf2")
+        nav, twii, etf = r.get("nav"), r.get("twii"), r.get("etf")
         if nav is None:
             continue
         if base is None:
             if not (twii and etf):
                 continue   # 起點需三值齊備才能公平 rebase
             base = (float(nav), float(twii), float(etf))
-            base991 = float(etf2) if etf2 else None   # 同基準日的 00991A 收盤
         series.append({
             "d": d,
             "nav": _jc(float(nav) / base[0] * 100, 2),
             "twii": _jc(float(twii) / base[1] * 100, 2) if twii else None,
             "etf": _jc(float(etf) / base[2] * 100, 2) if etf else None,
-            "etf991": (_jc(float(etf2) / base991 * 100, 2)
-                       if (etf2 and base991) else None),
         })
     if not series:
         return ('<p class="muted-note">策略模擬資料尚未生成(每晚 22:05 後更新)。</p>')
@@ -1311,44 +1333,66 @@ def build_trade_sim_page(nav_rows: list[dict], trades: list[dict]) -> str:
     start_d, end_d = series[0]["d"], series[-1]["d"]
     latest = rows[-1]
 
-    # ── 對照數字(由序列即時算)──
-    def _last_val(key):
-        """最後一個非空 rebase 值(序列末筆可能因 NULL 缺值)。"""
-        for p in reversed(series):
-            v = p.get(key)
-            if isinstance(v, (int, float)):
-                return v
-        return None
+    # ── 績效指標表(淨值圖下方;定義對齊 ingest src/backtest/metrics.py)──
+    # 勝率 / 獲利因子(PF)只有「策略」有(benchmark 無交易 → 顯「—」);
+    # 總報酬 / 年化 / 最大回撤 / 夏普 / Calmar 三者皆從各自 NAV 序列算。
+    def _ser(key):
+        return [p[key] for p in series if isinstance(p.get(key), (int, float))]
+    _sells = [float(t.get("pnl")) for t in trades
+              if (t.get("side") or "").lower() == "sell" and t.get("pnl") is not None]
+    _wins = [p for p in _sells if p > 0]
+    _losses = [p for p in _sells if p < 0]
+    _winrate = (len(_wins) / len(_sells)) if _sells else None
+    _pf = (sum(_wins) / abs(sum(_losses))) if _losses else (None if not _wins else float("inf"))
 
-    def _ret(key):
-        v = _last_val(key)
-        return (v - 100) if v is not None else None
+    def _pct(v, plus=True):
+        if v is None:
+            return '<span class="muted">—</span>'
+        s, cls = fmt_pct(v * 100)
+        return f'<span class="{cls}">{s}</span>'
 
-    def _dd(key):
-        vals = [p[key] for p in series if isinstance(p.get(key), (int, float))]
-        return _sim_max_dd(vals) if vals else None
+    def _num(v, nd=2):
+        return f"{v:.{nd}f}" if isinstance(v, (int, float)) else '<span class="muted">—</span>'
 
-    def _stat_card(label, color, ret, dd):
-        rs, rcls = fmt_pct(ret)
-        dds = f"-{dd:.1f}%" if dd is not None else "—"
-        return (f'<div class="sim-stat"><span class="sim-stat-name">'
-                f'<i style="background:{color}"></i>{esc(label)}</span>'
-                f'<span class="sim-stat-ret {rcls}">{rs}</span>'
-                f'<span class="sim-stat-dd">最大回撤 {dds}</span></div>')
+    def _metric_row(label, color, vals, winrate=None, pf=None):
+        m = _sim_perf(vals)
+        mdd_s = (f'<span class="down">-{m["mdd"]*100:.1f}%</span>'
+                 if m.get("mdd") is not None else '<span class="muted">—</span>')
+        wr_s = (f'{winrate*100:.1f}%' if isinstance(winrate, (int, float))
+                else '<span class="muted">—</span>')
+        if pf is None:
+            pf_s = '<span class="muted">—</span>'
+        elif pf == float("inf"):
+            pf_s = '∞'
+        else:
+            pf_s = f'{pf:.2f}'
+        return (
+            f'<tr><td class="sim-m-name"><i style="background:{color}"></i>{esc(label)}</td>'
+            f'<td class="r">{_pct(m.get("total"))}</td>'
+            f'<td class="r">{_pct(m.get("ann"))}</td>'
+            f'<td class="r">{mdd_s}</td>'
+            f'<td class="r">{_num(m.get("sharpe"))}</td>'
+            f'<td class="r">{_num(m.get("calmar"))}</td>'
+            f'<td class="r">{wr_s}</td>'
+            f'<td class="r">{pf_s}</td></tr>'
+        )
 
-    _has991 = any(isinstance(p.get("etf991"), (int, float)) for p in series)
-    # 00991A 最後有資料日(可能落後 nav 末日:非焦點 ETF、ticker_close 更新較慢)
-    _last991_d = next((p["d"] for p in reversed(series)
-                       if isinstance(p.get("etf991"), (int, float))), None)
-    _991_lag = bool(_last991_d and _last991_d < end_d)
-    stats_html = (
-        '<div class="sim-stats">'
-        + _stat_card("策略淨值", "#60a5fa", _ret("nav"), _dd("nav"))
-        + _stat_card("加權指數", "#f59e0b", _ret("twii"), _dd("twii"))
-        + _stat_card("00981A(主動式 ETF)", "#10b981", _ret("etf"), _dd("etf"))
-        + (_stat_card("00991A(主動式 ETF)", "#c084fc", _ret("etf991"), _dd("etf991"))
-           if _has991 else "")
-        + '</div>'
+    metrics_html = (
+        '<div class="sim-metrics-wrap"><table class="sim-metrics">'
+        '<thead><tr><th>標的</th><th class="r">總報酬</th><th class="r">年化</th>'
+        '<th class="r">最大回撤</th><th class="r">夏普</th>'
+        '<th class="r" title="Calmar = 年化報酬 ÷ |最大回撤|">風報比</th>'
+        '<th class="r">勝率</th>'
+        '<th class="r" title="獲利因子 PF = 總獲利 ÷ |總虧損|">獲利因子</th></tr></thead>'
+        '<tbody>'
+        + _metric_row(STRAT_NAME, "#60a5fa", _ser("nav"), _winrate, _pf)
+        + _metric_row("加權指數", "#f59e0b", _ser("twii"))
+        + _metric_row("00981A(主動式 ETF)", "#10b981", _ser("etf"))
+        + '</tbody></table></div>'
+        '<p class="sim-metrics-note">勝率 / 獲利因子由平倉交易(賣出 pnl)計算,'
+        '指數與 ETF 為買進持有對照、無此兩欄;夏普 / 風報比年化以 252 交易日計。'
+        f'⚠ 年化 / 夏普 / 風報比為約 {esc(start_d)} 起 ~ 半年樣本的外推值,'
+        '樣本期短會顯著放大,待回測期拉長後才趨於穩定,僅供相對比較。</p>'
     )
 
     # ── 當前持股 ──
@@ -1537,23 +1581,21 @@ def build_trade_sim_page(nav_rows: list[dict], trades: list[dict]) -> str:
     )
 
     payload = json.dumps({"series": series}, ensure_ascii=False, separators=(",", ":"))
-    return (
-        '<div class="sim-page">'
+    # 策略內容(淨值圖 + 指標表 + 持股 + 交易明細 + 方法論);未來多策略時
+    # 每策略各一份此 block 包進對應 .strat-pane。
+    strat_body = (
         '<div class="card">'
-        f'<div class="sec">📈 動能策略模擬器 <span class="sim-daterange">'
+        f'<div class="sec">{esc(STRAT_NAME)} · 淨值走勢 <span class="sim-daterange">'
         f'{esc(start_d)} ~ {esc(end_d)} · 每晚 22:05 後更新</span></div>'
-        + stats_html
         + '<div id="sim-nav-chart" class="sim-chart"></div>'
         '<div class="risk-chart-legend">'
-        '<span><i style="background:#60a5fa"></i>策略淨值</span>'
+        '<span><i style="background:#60a5fa"></i>' + esc(STRAT_NAME) + '</span>'
         '<span><i style="background:#f59e0b"></i>加權指數</span>'
         '<span><i style="background:#10b981"></i>00981A(主動式 ETF)</span>'
-        + ('<span><i style="background:#c084fc"></i>00991A(主動式 ETF)</span>'
-           if _has991 else "")
-        + f'<span class="sim-rebase-note">皆以 {esc(start_d)} = 100 重設基期'
-        + (f'；00991A 資料截至 {esc(_last991_d)}' if _991_lag else "")
-        + '</span>'
-        '</div></div>'
+        f'<span class="sim-rebase-note">皆以 {esc(start_d)} = 100 重設基期</span>'
+        '</div>'
+        + metrics_html
+        + '</div>'
         '<div class="card"><div class="sec">目前持股</div>' + pos_html + '</div>'
         + winloss_html
         + f'<div class="card"><div class="sec">交易明細 '
@@ -1561,6 +1603,19 @@ def build_trade_sim_page(nav_rows: list[dict], trades: list[dict]) -> str:
         '<div class="sim-tr-ctrl">' + park_toggle + '</div>'
         '<div class="sim-tr-wrap">' + trades_html + '</div>' + pager_html + '</div>'
         + method_html
+    )
+    # 多策略 sub-tab 架構(目前僅「拉回買策略」一個;之後 ingest 把各策略
+    # strategy-keyed NAV/trades 寫進公開 DB 後,加 button + pane 即可擴充)。
+    strat_nav = (
+        '<div class="strat-tabs">'
+        f'<button class="strat-tab-btn active" type="button" data-strat="pullback" '
+        f'onclick="showStrategyTab(\'pullback\')">{esc(STRAT_NAME)}</button>'
+        '</div>'
+    )
+    return (
+        '<div class="sim-page">'
+        + strat_nav
+        + '<div class="strat-pane active" id="strat-pullback">' + strat_body + '</div>'
         + f'<script>window.IIA_TRADESIM={payload};</script>'
         '</div>'
     )

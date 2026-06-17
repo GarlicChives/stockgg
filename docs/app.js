@@ -89,12 +89,9 @@ function _initTradeSimChart() {
     const pick = (key) => data.series
       .filter(p => p[key] != null)
       .map(p => ({ time: p.d, value: p[key] }));
-    mk('#60a5fa').setData(pick('nav'));    // 策略淨值
+    mk('#60a5fa').setData(pick('nav'));    // 拉回買策略
     mk('#f59e0b').setData(pick('twii'));   // 加權指數
     mk('#10b981').setData(pick('etf'));    // 00981A
-    if (data.series.some(p => p.etf991 != null)) {
-      mk('#c084fc').setData(pick('etf991')); // 00991A
-    }
     chart.timeScale().fitContent();
     _tradesimRendered = true;
   }).catch(e => console.error('trade sim chart load failed', e));
@@ -142,6 +139,15 @@ function simToggle981(btn) {
   btn.textContent = _simShow981 ? '含 00981A 停泊交易' : '僅個股交易';
   _simTradePage = 0;
   simRenderTrades();
+}
+
+/* 多策略 sub-tab 切換(目前僅「拉回買策略」;架構備未來新策略)。
+ * 切到某策略 → 顯該 .strat-pane、其餘隱;圖已 render 過則不重畫。 */
+function showStrategyTab(key) {
+  document.querySelectorAll('.strat-tab-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.strat === key));
+  document.querySelectorAll('.strat-pane').forEach(p =>
+    p.classList.toggle('active', p.id === 'strat-' + key));
 }
 
 /* ── 🗺️ 產業地圖 — 焦點產業關聯「蜘蛛網」圖 ────────────────────────
