@@ -1222,6 +1222,33 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .sim-m-name i{display:inline-block;width:.7rem;height:.18rem;border-radius:1px;
               margin-right:.4rem;vertical-align:middle}
 .sim-metrics-note{margin:.5rem 0 0;font-size:.7rem;color:var(--muted);line-height:1.5}
+/* 💰 融資甜蜜點摺疊區(Track B) */
+.sim-lev{margin-top:.9rem;border:1px solid var(--border);border-radius:8px;
+         background:rgba(255,255,255,.02)}
+.sim-lev summary{cursor:pointer;padding:.6rem .8rem;font-size:.86rem;font-weight:600;
+                 list-style:none;display:flex;align-items:center;gap:.5rem}
+.sim-lev summary::-webkit-details-marker{display:none}
+.sim-lev summary::after{content:"▾";margin-left:auto;color:var(--muted);transition:.15s}
+.sim-lev[open] summary::after{transform:rotate(180deg)}
+.sim-lev-tag{font-size:.62rem;font-weight:700;padding:.06rem .4rem;border-radius:4px;
+             background:rgba(124,138,242,.15);color:var(--accent)}
+.sim-lev-body{padding:0 .8rem .8rem}
+.sim-lev-method{margin:.2rem 0 .7rem;font-size:.76rem;color:var(--muted);line-height:1.6}
+.sim-lev-pending{margin:.4rem 0;font-size:.8rem;color:var(--muted);
+                 padding:.7rem;border:1px dashed var(--border);border-radius:7px;text-align:center}
+.sim-lev-twrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.sim-lev-tbl{width:100%;border-collapse:collapse;font-size:.78rem}
+.sim-lev-tbl th{font-size:.7rem;color:var(--muted);font-weight:600;text-align:left;
+                padding:.4rem .55rem;border-bottom:1px solid var(--border);white-space:nowrap}
+.sim-lev-tbl td{padding:.4rem .55rem;border-bottom:1px solid rgba(255,255,255,.05);
+                white-space:nowrap;font-variant-numeric:tabular-nums}
+.sim-lev-tbl th.r,.sim-lev-tbl td.r{text-align:right}
+.sim-lev-tbl tr.lev-base{background:rgba(255,255,255,.04)}
+.sim-lev-tbl tr.lev-sweet{background:rgba(16,185,129,.12)}
+.lev-rowtag{font-size:.6rem;font-weight:700;padding:.04rem .32rem;border-radius:3px;margin-left:.3rem}
+.lev-rowtag-base{background:rgba(255,255,255,.1);color:var(--muted)}
+.lev-rowtag-sweet{background:rgba(16,185,129,.25);color:#34d399}
+.sim-lev-caveat{margin:.6rem 0 0;font-size:.74rem;line-height:1.55;color:#f47471;font-weight:600}
 .sim-daterange{font-weight:400;font-size:.72rem;color:var(--muted);margin-left:.5rem}
 .sim-stats{display:flex;gap:.7rem;flex-wrap:wrap;margin:.2rem 0 .8rem}
 .sim-stat{flex:1 1 180px;background:rgba(255,255,255,.03);border:1px solid var(--border);

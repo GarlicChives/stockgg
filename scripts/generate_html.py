@@ -1297,12 +1297,111 @@ def _sim_perf(vals: list[float]) -> dict:
 STRAT_NAME = "拉回買策略"   # 目前公開站唯一策略;多策略 sub-tab 架構見頁尾 wrap
 
 
-def build_trade_sim_page(nav_rows: list[dict], trades: list[dict]) -> str:
+def _build_leverage_html(sweep: list[dict] | None) -> str:
+    """💰 融資甜蜜點摺疊區(Track B,ingest acfe16d)。
+
+    sweep = leverage_cap 掃描列(strategy-keyed,ingest 端 leverage_sweep 寫入後
+    經新 query 帶入);每列契約:
+      {cap, ret, sharpe, calmar, mdd, maint_floor, interest,
+       is_baseline(1.0x 無槓桿基準), is_sweet(甜蜜點)}
+    cap=槓桿上限、ret/mdd 為小數(0.9=90%)、interest=利息金額(NTD)、
+    maint_floor=期間最低維持率(小數,1.67=167%)。
+
+    sweep 為 None / 空(目前公開 DB 尚無此資料)→ 顯「資料準備中」placeholder,
+    版面架構先到位。caveat(紅字)務必呈現:
+      - knife-edge:甜蜜點再高一級槓桿夏普就跌破無槓桿 → 標「單一窗不可盡信」
+      - all-worse:全部融資列夏普都低於無槓桿 → 標「只放大絕對金額不划算」
+    """
+    method = (
+        '<p class="sim-lev-method">在無槓桿策略上,擇時(大盤站上月線)用融資放大'
+        '曝險,融資成本 6.5%/年按日曆計息;掃不同槓桿上限,找「放大絕對金額但'
+        '不傷夏普」的甜蜜點。</p>'
+    )
+    if not sweep:
+        body = (method + '<p class="sim-lev-pending">📊 融資槓桿掃描資料準備中'
+                '(ingest 端 leverage_sweep 待寫入公開 DB,屆時自動呈現掃描表與'
+                '甜蜜點分析)。</p>')
+        return ('<details class="sim-lev"><summary>💰 融資甜蜜點'
+                '<span class="sim-lev-tag">Track B</span></summary>'
+                f'<div class="sim-lev-body">{body}</div></details>')
+
+    rows = sorted(sweep, key=lambda r: float(r.get("cap") or 0))
+    _base = next((r for r in rows if r.get("is_baseline")
+                  or abs(float(r.get("cap") or 0) - 1.0) < 1e-9), None)
+    _base_sharpe = _base.get("sharpe") if _base else None
+
+    def _f(v, nd=2, pct=False, sign=False):
+        if not isinstance(v, (int, float)):
+            return '<span class="muted">—</span>'
+        if pct:
+            s, cls = fmt_pct(v * 100)
+            return f'<span class="{cls}">{s}</span>'
+        return f"{v:+.{nd}f}" if sign else f"{v:.{nd}f}"
+
+    trs = []
+    for r in rows:
+        cap = float(r.get("cap") or 0)
+        is_base = bool(r.get("is_baseline") or abs(cap - 1.0) < 1e-9)
+        is_sweet = bool(r.get("is_sweet"))
+        cls = "lev-base" if is_base else ("lev-sweet" if is_sweet else "")
+        tag = (' <span class="lev-rowtag lev-rowtag-base">無槓桿</span>' if is_base
+               else (' <span class="lev-rowtag lev-rowtag-sweet">甜蜜點</span>' if is_sweet else ''))
+        intr = r.get("interest")
+        intr_s = _aetf_money(intr) if isinstance(intr, (int, float)) and intr else '—'
+        mf = r.get("maint_floor")
+        mf_s = f"{mf*100:.0f}%" if isinstance(mf, (int, float)) else '<span class="muted">—</span>'
+        trs.append(
+            f'<tr class="{cls}"><td>{cap:.1f}x{tag}</td>'
+            f'<td class="r">{_f(r.get("ret"), pct=True)}</td>'
+            f'<td class="r">{_f(r.get("sharpe"))}</td>'
+            f'<td class="r">{_f(r.get("calmar"))}</td>'
+            f'<td class="r">{_f(r.get("mdd"), pct=True)}</td>'
+            f'<td class="r">{mf_s}</td>'
+            f'<td class="r">{intr_s}</td></tr>'
+        )
+    table = (
+        '<div class="sim-lev-twrap"><table class="sim-lev-tbl">'
+        '<thead><tr><th>槓桿上限</th><th class="r">報酬</th><th class="r">夏普</th>'
+        '<th class="r">風報比</th><th class="r">最大回撤</th>'
+        '<th class="r" title="期間最低維持率">維持率底</th>'
+        '<th class="r">利息</th></tr></thead><tbody>'
+        + "".join(trs) + '</tbody></table></div>'
+    )
+
+    # caveat(紅字,務必呈現):依夏普與無槓桿基準比較判型
+    _lev = [r for r in rows if float(r.get("cap") or 0) > 1.0
+            and isinstance(r.get("sharpe"), (int, float))]
+    caveat = ""
+    if isinstance(_base_sharpe, (int, float)) and _lev:
+        if all(r["sharpe"] < _base_sharpe for r in _lev):
+            caveat = ('全部融資檔位的夏普都低於無槓桿 —— 融資在此策略只放大絕對'
+                      '金額、卻傷風險調整後報酬,不划算。')
+        else:
+            _sweet = next((r for r in rows if r.get("is_sweet")), None)
+            if _sweet and isinstance(_sweet.get("sharpe"), (int, float)):
+                _sc = float(_sweet.get("cap") or 0)
+                _higher = [r for r in _lev if float(r.get("cap") or 0) > _sc]
+                if _higher and min(_higher, key=lambda r: float(r["cap"]))["sharpe"] < _base_sharpe:
+                    caveat = ('此甜蜜點為尖峰(knife-edge):再高一級槓桿夏普就跌破'
+                              '無槓桿。單一回測窗不可盡信,需多 regime 驗證。')
+    if not caveat:
+        caveat = ('融資掃描僅單一回測窗結果,槓桿會等比放大虧損與斷頭風險,'
+                  '需多 regime 驗證後才可參考。')
+
+    return ('<details class="sim-lev"><summary>💰 融資甜蜜點'
+            '<span class="sim-lev-tag">Track B</span></summary>'
+            f'<div class="sim-lev-body">{method}{table}'
+            f'<p class="sim-lev-caveat">⚠ {caveat}</p></div></details>')
+
+
+def build_trade_sim_page(nav_rows: list[dict], trades: list[dict],
+                         leverage_sweep: list[dict] | None = None) -> str:
     """📈 策略模擬頁:NAV vs 加權指數 vs 00981A 三線圖 + 績效指標表(勝率 / 夏普 /
-    Calmar 等)+ 當前持股 + 交易明細 + 誠實方法論註記。
-    nav_rows = Q40(sim_date desc),trades = Q41。
-    2026-06-17(ingest 7be2400):移除 00991A 對照(時間太短不具參考性)、策略命名
-    「拉回買策略」、上方加多策略 sub-tab 架構(目前一個 tab)、淨值圖下方加指標表。"""
+    Calmar 等)+ 💰 融資甜蜜點(Track B)+ 當前持股 + 交易明細 + 誠實方法論註記。
+    nav_rows = Q40(sim_date desc),trades = Q41,leverage_sweep = Track B 掃描列
+    (目前公開 DB 無 → None → 顯資料準備中 placeholder)。
+    2026-06-17(ingest 7be2400/acfe16d):移除 00991A 對照、策略命名「拉回買策略」、
+    上方多策略 sub-tab 架構、淨值圖下方指標表 + 融資甜蜜點摺疊區。"""
     if not nav_rows:
         return ('<p class="muted-note">策略模擬資料尚未生成(每晚 22:05 後更新,'
                 '首次上線前此頁為空)。</p>')
@@ -1595,6 +1694,7 @@ def build_trade_sim_page(nav_rows: list[dict], trades: list[dict]) -> str:
         f'<span class="sim-rebase-note">皆以 {esc(start_d)} = 100 重設基期</span>'
         '</div>'
         + metrics_html
+        + _build_leverage_html(leverage_sweep)
         + '</div>'
         '<div class="card"><div class="sec">目前持股</div>' + pos_html + '</div>'
         + winloss_html
