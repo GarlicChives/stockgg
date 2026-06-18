@@ -1565,10 +1565,15 @@ def _build_backtest_html(payload: dict | None = None) -> str:
         "twii": ec.get("twii") or [], "etf981": ec.get("etf981") or [],
     }, ensure_ascii=False, separators=(",", ":"))
 
+    # 交易筆數放進永遠可見的標題行(指標表 9 欄在手機會橫向溢出、交易筆數是最右欄
+    # 被捲動切掉看不到 → 此處與「交易日」並列確保隨時可讀,且對齊回測 metrics.n_trades)
+    _nt = m.get("n_trades")
+    _nt_s = f" · {int(_nt):,} 筆交易" if isinstance(_nt, (int, float)) else ""
+
     return (
         '<div class="card sim-bt-box">'
         f'<div class="sec">📊 1 年回測績效 <span class="sim-daterange">'
-        f'{esc(start_d)} ~ {esc(end_d)} · {len(dates)} 交易日 · 含交易成本真實回測</span></div>'
+        f'{esc(start_d)} ~ {esc(end_d)} · {len(dates)} 交易日{_nt_s} · 含交易成本真實回測</span></div>'
         + metrics_html
         + '<div id="sim-bt-chart" class="sim-chart"></div>'
         '<div class="risk-chart-legend">'
