@@ -2736,8 +2736,16 @@ def build_focus_stock_page(
     today_str: str,
     yest_intersect_set: set[str],
     chip_signals: dict[str, dict] | None = None,
+    radar_conds: dict[str, list] | None = None,
 ) -> str:
     """焦點股 tab:來源 = 熱門題材「焦點」(hl_sub)的 focal union。
+
+    **2026-06-18(ingest acfe16d)**:5 條件(出量/潛力/新高/成長/籌碼)與品質濾網
+    的判定來源從 inline 自算改為**直接讀策略單一真實來源 `focus_radar_history`
+    的 `per_ticker_conds`**(radar_conds 參數),達成「公開站顯示 = 策略實際買的」。
+    inline 的 vol×5 / 新高150日 / 潛力A/B/C / 三區籌碼 與策略 radar 口徑分歧
+    (實證對回測 immaterial),且公開站獨有的「看高做低(碗型底帶量突破)」與拉回買
+    策略「量倍<2 反追高濾網」本質衝突 → **不計入交集**(僅保留為獨立顯示 tab)。
     3 sub-tab(順序:交集股 / 出量股 / 潛力股):
     - 交集股:同時符合 2 項(含)以上條件,依符合條件數 desc(同數量再月線乖離 desc);多「符合條件」欄
     - 出量股:今日成交金額 > 前 5 交易日均(不含今日)× 2,依出量倍數 desc
@@ -2776,8 +2784,16 @@ def build_focus_stock_page(
     # 籌碼股:散戶 / 大戶持股比「週減」的零界噪音緩衝(個百分點)。TDCC 集保
     # 級距金額換算的週變化有 ±0.1~0.3pp bucketing 噪音 → 週減須逾此值才認列。
     _HOLDER_NOISE = 0.3
+    # 2026-06-18:cands 宇宙 = cluster focal/sentinel 聯集 ∪ **radar 評估過的 ticker**。
+    # 原本只掃 cluster 聯集(~10-30 檔),但策略雷達評估的是整個焦點宇宙(數百檔),
+    # 許多 radar ≥2 條件、策略實際會買的股(如 5498/6510)沒進任何顯示用 cluster →
+    # 漏出交集股。改為把 radar per_ticker_conds 的 ticker 一併納入掃描(clusters 留空,
+    # 季線 gate / 價量資料齊備性仍照常把不合格者濾掉)。
+    _cluster_tks = set(focal_to_clusters) | set(sentinel_to_clusters)
+    _radar_extra = [t for t in (radar_conds or {}) if t not in _cluster_tks]
     _scan = ([(t, cl, False) for t, cl in focal_to_clusters.items()]
-             + [(t, cl, True) for t, cl in sentinel_to_clusters.items()])
+             + [(t, cl, True) for t, cl in sentinel_to_clusters.items()]
+             + [(t, [], False) for t in _radar_extra])
     for tk, clusters, is_sentinel in _scan:
         info = stocks_info.get(tk, {})
         today_close = _f(info.get("close_price"))
@@ -2893,9 +2909,17 @@ def build_focus_stock_page(
         # 早盤漲停股移除(2026-05-25):無 intraday tick 資料無法精準分 0930
         # 前後,日 OHLC 近似版誤判太多,user 決定移除整個 sub-tab + chip + 條件。
 
+        # ── 條件來源 = 策略單一真實來源 focus_radar_history.per_ticker_conds ──
+        # 覆寫上方 inline 計算的 5 旗標(達成公開站 = 策略實際買的;見函式 docstring)。
+        # is_kgzd 維持 inline(僅供「看高做低」獨立 tab,不計入交集)。
+        # 潛力 token 可能是 pot / potA / potB / potC,任一即算潛力。
+        conds = set(radar_conds.get(tk, [])) if radar_conds else set()
+        is_volume    = "vol" in conds
+        is_new_high  = "nh" in conds
+        is_growth    = "growth" in conds
+        is_chip      = "chip" in conds
+        is_potential = any(str(c).startswith("pot") for c in conds)
         matched: list[str] = []
-        if is_kgzd:
-            matched.append("看高做低")
         if is_volume:
             matched.append("出量")
         if is_potential:
@@ -2943,8 +2967,10 @@ def build_focus_stock_page(
         key=lambda c: (-len(c["matched"]), _by_bias(c)),
     )
     kgzd_stocks      = sorted([c for c in cands if c["is_kgzd"]], key=_by_bias)
+    # vol_mult 為 inline 計算的顯示值;radar 判定 is_volume 但該檔 vol_mult 偶為
+    # None(Q13 量資料缺)→ 用 0 墊底排序,不讓 None 比較炸掉(2026-06-18)
     volume_stocks    = sorted([c for c in cands if c["is_volume"]],
-                              key=lambda c: -c["vol_mult"])
+                              key=lambda c: -(c["vol_mult"] or 0))
     potential_stocks = sorted([c for c in cands if c["is_potential"]], key=_by_bias)
     new_high_stocks  = sorted([c for c in cands if c["is_new_high"]], key=_by_bias)
     growth_stocks    = sorted([c for c in cands if c["is_growth"]], key=_by_bias)
@@ -3130,18 +3156,18 @@ def build_focus_stock_page(
         )
 
     int_html = _table(intersect_stocks, "intersect",
-                      "今日無焦點股同時符合 2 項以上條件")
+                      "今日無焦點股同時符合 2 項以上策略條件")
     kgzd_html = _table(kgzd_stocks, "kgzd",
                        "今日無焦點股形成碗型底並帶量突破頸線")
     vol_html = _table(volume_stocks, "volume",
-                      "今日無焦點股出量(成交金額 > 前 5 日均 × 5)")
+                      "今日策略雷達無焦點股判定為出量")
     pot_html = _table(potential_stocks, "potential",
-                      "今日無焦點股符合潛力條件")
+                      "今日策略雷達無焦點股判定具潛力")
     nh_html  = _table(new_high_stocks, "newhigh",
-                      "今日無焦點股盤中觸及 150 日新高")
+                      "今日策略雷達無焦點股判定創新高")
     gr_html  = _table(growth_stocks, "growth",
-                      "今日無焦點股符合成長條件(月營收連 3 月 + 4 損益科目金額 YoY 皆正)")
-    chip_html = _table(chip_stocks, "chip", "今日無焦點股符合籌碼條件")
+                      "今日策略雷達無焦點股判定具成長")
+    chip_html = _table(chip_stocks, "chip", "今日策略雷達無焦點股判定籌碼集中")
 
     nav_html = (
         '<div class="sub-tabs">'
@@ -3162,7 +3188,8 @@ def build_focus_stock_page(
         '</div>'
     )
     # 交集股條件篩選列(預設全 disabled;多選 AND;順序同 sub-tab;有交集股才顯示)
-    _filter_conds = [("vol", "出量"), ("pot", "潛力"), ("nh", "新高"), ("gr", "成長"), ("chip", "籌碼"), ("kgzd", "看高做低")]
+    # 看高做低不計入交集(2026-06-18)→ 篩選列也移除(留著會永遠篩出 0)
+    _filter_conds = [("vol", "出量"), ("pot", "潛力"), ("nh", "新高"), ("gr", "成長"), ("chip", "籌碼")]
     # 品質濾網 = 策略模擬器(trade_sim 版本 C / v4)候選資格;通過數預先算好放 chip
     _n_qpass = sum(
         1 for c in intersect_stocks
@@ -3202,34 +3229,31 @@ def build_focus_stock_page(
 
     panes_html = (
         '<div class="fs-tab-pane active" id="fstab-int">'
-        + _pane_head('同時符合 2 項(含)以上條件的焦點股,依符合條件數由多至少排序。',
+        + _pane_head('同時符合 2 項(含)以上策略條件(出量 / 潛力 / 新高 / 成長 / 籌碼)'
+                     '的焦點股,條件取自策略雷達、與模擬器實際買進口徑一致,'
+                     '依符合條件數由多至少排序。',
                      intersect_stocks, True)
         + _int_filter_bar + int_html + '</div>'
         + '<div class="fs-tab-pane" id="fstab-vol">'
-        + _pane_head('今日成交金額 &gt; 前 5 交易日均(不含今日)× 5,依出量倍數排序。',
+        + _pane_head('策略雷達判定為「出量(帶量)」的焦點股,依出量倍數排序。',
                      volume_stocks)
         + vol_html + '</div>'
         + '<div class="fs-tab-pane" id="fstab-pot">'
-        + _pane_head('五日均價 &gt; 十日均價 &gt; 月均價,且股價低於月均價 1.15 倍;'
-                     '或五日 / 十日 / 月均線糾結、股價站上所有均線但距離不太遠、'
-                     '近 5 日均成交金額 &gt; 近 30 日均 × 2;或前一交易日入選交集股、'
-                     '今日跌逾 3.5% 但仍高於月線、且成交金額萎縮至前一交易日 ¼ '
-                     '以下。依月線乖離率排序。',
+        + _pane_head('策略雷達判定具「潛力(均線型態 / 回踩)」的焦點股,'
+                     '依月線乖離率排序。',
                      potential_stocks)
         + pot_html + '</div>'
         + '<div class="fs-tab-pane" id="fstab-nh">'
-        + _pane_head('今日盤中最高價觸及 150 日新高(≥ 過去 150 日最高價)的焦點股,'
-                     '依月線乖離率排序。', new_high_stocks)
+        + _pane_head('策略雷達判定「創波段新高」的焦點股,依月線乖離率排序。',
+                     new_high_stocks)
         + nh_html + '</div>'
         + '<div class="fs-tab-pane" id="fstab-gr">'
-        + _pane_head('月營收連 3 月 YoY &gt; 0,且近一季毛利 / 營業利益 / 稅前淨利 / '
-                     '稅後淨利金額年增率皆 &gt; 0,依月線乖離率排序。', growth_stocks)
+        + _pane_head('策略雷達判定具「成長(月營收 / 損益 YoY 正)」的焦點股,'
+                     '依月線乖離率排序。', growth_stocks)
         + gr_html + '</div>'
         + '<div class="fs-tab-pane" id="fstab-chip">'
-        + _pane_head('散戶持股比週減(必須),且【投信買超 ≥ 5%量 / 外資買超 ≥ 10%量 / '
-                     '大戶持股比週增 ≥ 1.5】至少一項,並排除外資賣超 ≥ 10%量 / 投信賣超 '
-                     '≥ 5%量 / 大戶持股比週減;依大戶持股比週增排序。散戶 / 大戶持股比採 '
-                     'TDCC 集保週資料近似運算,週減幅 ≤ 0.3 個百分點視為噪音不計',
+        + _pane_head('策略雷達判定「籌碼集中(法人買超 / 大戶吸籌)」的焦點股,'
+                     '依大戶持股比週增排序。',
                      chip_stocks)
         + chip_html + '</div>'
         + '<div class="fs-tab-pane" id="fstab-kgzd">'
@@ -5006,6 +5030,7 @@ async def generate():
         focus_hl_clusters, stocks_info, ticker_close_full,
         stock_meta, aetf_holdings_by_ticker, _today_str, _yest_intersect,
         chip_signals,
+        radar_conds=(radar_today or {}).get("per_ticker_conds") or {},
     )
 
     # ── 個股 modal data:2026-05-20 取代「intro + analyst」為「持股主動式 ETF」表 ──
