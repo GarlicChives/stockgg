@@ -1225,6 +1225,12 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .sim-next-cond{font-size:.64rem;font-weight:600;padding:.05rem .4rem;border-radius:4px;
                background:rgba(255,255,255,.06);color:var(--muted)}
 .sim-next-note{margin:.7rem 0 0;font-size:.7rem;color:var(--muted);line-height:1.55}
+/* 📊 1 年回測績效區塊(沿用 .sim-metrics / .sim-chart;左側 accent 條強調為實證) */
+.sim-bt-box{border-left:3px solid #10b981}
+.sim-bt-playbook{margin-top:.8rem}
+.sim-bt-pb-h{font-size:.82rem;font-weight:700;margin-bottom:.4rem;color:var(--text)}
+.sim-bt-playbook ol{margin:0;padding-left:1.3rem;display:flex;flex-direction:column;gap:.3rem}
+.sim-bt-playbook li{font-size:.78rem;color:var(--muted);line-height:1.55}
 /* 多策略 sub-tab(策略模擬頁;沿用全站 sub-tab 視覺語彙) */
 .strat-tabs{display:flex;flex-wrap:wrap;gap:.4rem}
 .strat-tab-btn{font-family:inherit;font-size:.84rem;font-weight:600;padding:.4rem .9rem;

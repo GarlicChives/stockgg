@@ -28,8 +28,9 @@ function showTab(name) {
   if (name === 'risk' && !_riskRendered) _initRiskChart();
   // 🗺️ 產業地圖 tab:lazy-init 蜘蛛網關聯圖(只第一次切過去 init)
   if (name === 'indmap' && !_indmapRendered) _initIndmapGraph();
-  // 📈 策略模擬 tab:lazy-init NAV 三線圖(只第一次切過去 init)
+  // 📈 策略模擬 tab:lazy-init NAV 三線圖 + 1 年回測曲線(只第一次切過去 init)
   if (name === 'tradesim' && !_tradesimRendered) _initTradeSimChart();
+  if (name === 'tradesim' && !_tradebtRendered) _initTradeBtChart();
 }
 
 /* ── 🛡️ 風控 tab — lazy-init「依建議部位 vs 買進持有」淨值雙線圖 ──────
@@ -95,6 +96,37 @@ function _initTradeSimChart() {
     chart.timeScale().fitContent();
     _tradesimRendered = true;
   }).catch(e => console.error('trade sim chart load failed', e));
+}
+
+/* 📊 1 年回測績效曲線(payload window.IIA_TRADEBT = {dates[], strategy[], twii[],
+ * etf981[]},平行陣列、起始=100;ingest 靜態回測檔)。比照即時 NAV 圖樣式。 */
+let _tradebtRendered = false;
+function _initTradeBtChart() {
+  const d = window.IIA_TRADEBT;
+  if (!d || !d.dates || !d.dates.length) return;
+  _loadLightweightCharts().then(() => {
+    const el = document.getElementById('sim-bt-chart');
+    if (!el) return;
+    const chart = LightweightCharts.createChart(el, {
+      layout: { background: { type: 'solid', color: 'transparent' },
+                textColor: '#7c8290', attributionLogo: false },
+      grid: { vertLines: { color: 'rgba(255,255,255,.04)' },
+              horzLines: { color: 'rgba(255,255,255,.04)' } },
+      rightPriceScale: { borderColor: 'rgba(255,255,255,.08)' },
+      timeScale: { borderColor: 'rgba(255,255,255,.08)', timeVisible: false },
+      crosshair: { mode: 1 }, autoSize: true,
+      handleScroll: false, handleScale: false,
+    });
+    const mk = (color) => chart.addLineSeries({ color, lineWidth: 2, priceLineVisible: false });
+    const series = (arr) => d.dates
+      .map((dt, i) => ({ time: dt, value: arr && arr[i] != null ? arr[i] : null }))
+      .filter(p => p.value != null);
+    mk('#60a5fa').setData(series(d.strategy));   // 拉回買策略
+    mk('#f59e0b').setData(series(d.twii));        // 加權指數
+    mk('#10b981').setData(series(d.etf981));      // 00981A
+    chart.timeScale().fitContent();
+    _tradebtRendered = true;
+  }).catch(e => console.error('trade backtest chart load failed', e));
 }
 
 /* 📈 策略模擬交易明細:filter-aware 分頁(每 20 筆一頁)+ 00981A 停泊 toggle。

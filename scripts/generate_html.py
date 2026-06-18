@@ -38,6 +38,8 @@ from src.utils.config import RANKINGS_TOP_N
 
 OUT_FILE = Path(__file__).resolve().parents[1] / "docs" / "index.html"
 _THEME_DICT_PATH = Path(__file__).resolve().parents[1] / "data" / "theme_dictionary.json"
+# 策略 1 年回測績效(靜態檔,ingest 端產;策略模擬頁「📊 1 年回測績效」區塊讀)
+_BACKTEST_PATH = Path(__file__).resolve().parents[1] / "data" / "pullback_public.json"
 HIGHLIGHT_MAIN = "近一年焦點"  # main industry 名稱(ingest 端 commit 254e47e 起)
 
 _ETF_TW_RE = re.compile(r'^00\d')
@@ -1471,6 +1473,110 @@ def _build_leverage_html(sweep: list[dict] | None) -> str:
             f'<p class="sim-lev-caveat">⚠ {caveat}</p></div></details>')
 
 
+def _build_backtest_html() -> str:
+    """📊 1 年回測績效(讀靜態 data/pullback_public.json,ingest 端 50+ 因子掃描後
+    產出的真實回測,含交易成本)。指標表 + 報酬曲線(策略 vs 加權 vs 00981A,起始
+    =100)+ 策略說明 6 條 + caveat/cost_note。與即時 paper-trading 區塊並存(一個
+    1 年實證、一個即時模擬)。檔缺/壞則回 '' 不渲染(不影響整頁)。"""
+    try:
+        d = json.loads(_BACKTEST_PATH.read_text(encoding="utf-8"))
+    except Exception as exc:
+        print(f"  ⚠ 回測 JSON 讀取失敗(略過 1 年回測區塊): {exc}")
+        return ""
+    esc = html_lib.escape
+    m = d.get("metrics") or {}
+    bm = d.get("benchmarks") or {}
+    ec = d.get("equity_curve") or {}
+    dates = ec.get("dates") or []
+    if not (m and dates):
+        return ""
+    start_d, end_d = dates[0], dates[-1]
+
+    def _pct(v):
+        if not isinstance(v, (int, float)):
+            return '<span class="muted">—</span>'
+        s, cls = fmt_pct(v)
+        return f'<span class="{cls}">{s}</span>'
+
+    def _mdd(v):
+        return (f'<span class="down">{v:.1f}%</span>'
+                if isinstance(v, (int, float)) else '<span class="muted">—</span>')
+
+    def _num(v):
+        return f"{v:.2f}" if isinstance(v, (int, float)) else '<span class="muted">—</span>'
+
+    _dash = '<span class="muted">—</span>'
+    # 勝率是比率、非漲跌 → 純文字不帶 +號/漲跌色
+    _wr = m.get("win_rate_pct")
+    _wr_s = f"{_wr:.1f}%" if isinstance(_wr, (int, float)) else _dash
+    # 策略列(全欄)+ benchmark 列(無 年化/勝率/PF/筆數 → —)
+    rows_html = (
+        f'<tr><td class="sim-m-name"><i style="background:#60a5fa"></i>拉回買策略</td>'
+        f'<td class="r">{_pct(m.get("total_return_pct"))}</td>'
+        f'<td class="r">{_pct(m.get("annual_return_pct"))}</td>'
+        f'<td class="r">{_mdd(m.get("max_drawdown_pct"))}</td>'
+        f'<td class="r">{_num(m.get("sharpe"))}</td>'
+        f'<td class="r">{_num(m.get("calmar"))}</td>'
+        f'<td class="r">{_wr_s}</td>'
+        f'<td class="r">{_num(m.get("profit_factor"))}</td>'
+        f'<td class="r">{int(m["n_trades"]):,}</td></tr>'
+    )
+    for key, label, color in (("twii", "加權指數", "#f59e0b"),
+                              ("etf981", "00981A(主動式 ETF)", "#10b981")):
+        b = bm.get(key) or {}
+        rows_html += (
+            f'<tr><td class="sim-m-name"><i style="background:{color}"></i>{esc(label)}</td>'
+            f'<td class="r">{_pct(b.get("ret"))}</td>'
+            f'<td class="r">{_dash}</td>'
+            f'<td class="r">{_mdd(b.get("mdd"))}</td>'
+            f'<td class="r">{_num(b.get("sharpe"))}</td>'
+            f'<td class="r">{_num(b.get("calmar"))}</td>'
+            f'<td class="r">{_dash}</td><td class="r">{_dash}</td><td class="r">{_dash}</td></tr>'
+        )
+    metrics_html = (
+        '<div class="sim-metrics-wrap"><table class="sim-metrics">'
+        '<thead><tr><th>標的</th><th class="r">總報酬</th><th class="r">年化</th>'
+        '<th class="r">最大回撤</th><th class="r">夏普</th>'
+        '<th class="r" title="Calmar = 年化報酬 ÷ |最大回撤|">風報比</th>'
+        '<th class="r">勝率</th>'
+        '<th class="r" title="獲利因子 = 總獲利 ÷ |總虧損|">獲利因子</th>'
+        '<th class="r">交易筆數</th></tr></thead>'
+        f'<tbody>{rows_html}</tbody></table></div>'
+    )
+
+    playbook = d.get("playbook_brief") or []
+    pb_html = ("".join(f'<li>{esc(p)}</li>' for p in playbook))
+    pb_block = (f'<div class="sim-bt-playbook"><div class="sim-bt-pb-h">策略說明(精簡版)</div>'
+                f'<ol>{pb_html}</ol></div>') if pb_html else ""
+
+    caveat = d.get("caveat") or ""
+    cost = d.get("cost_note") or ""
+    note = (f'<p class="sim-metrics-note">⚠ {esc(caveat)}'
+            + (f' · {esc(cost)}' if cost else '') + '</p>')
+
+    payload = json.dumps({
+        "dates": dates, "strategy": ec.get("strategy") or [],
+        "twii": ec.get("twii") or [], "etf981": ec.get("etf981") or [],
+    }, ensure_ascii=False, separators=(",", ":"))
+
+    return (
+        '<div class="card sim-bt-box">'
+        f'<div class="sec">📊 1 年回測績效 <span class="sim-daterange">'
+        f'{esc(start_d)} ~ {esc(end_d)} · {len(dates)} 交易日 · 含交易成本真實回測</span></div>'
+        + metrics_html
+        + '<div id="sim-bt-chart" class="sim-chart"></div>'
+        '<div class="risk-chart-legend">'
+        '<span><i style="background:#60a5fa"></i>拉回買策略</span>'
+        '<span><i style="background:#f59e0b"></i>加權指數</span>'
+        '<span><i style="background:#10b981"></i>00981A(主動式 ETF)</span>'
+        f'<span class="sim-rebase-note">皆以 {esc(start_d)} = 100 起算</span>'
+        '</div>'
+        + pb_block + note
+        + f'<script>window.IIA_TRADEBT={payload};</script>'
+        + '</div>'
+    )
+
+
 def build_trade_sim_page(nav_rows: list[dict], trades: list[dict],
                          leverage_sweep: list[dict] | None = None,
                          next_rows: list[dict] | None = None,
@@ -1782,8 +1888,9 @@ def build_trade_sim_page(nav_rows: list[dict], trades: list[dict],
     # 每策略各一份此 block 包進對應 .strat-pane。
     strat_body = (
         _build_trade_next_html(next_rows, radar_seeds)
+        + _build_backtest_html()
         + '<div class="card">'
-        f'<div class="sec">{esc(STRAT_NAME)} · 淨值走勢 <span class="sim-daterange">'
+        f'<div class="sec">{esc(STRAT_NAME)} · 淨值走勢(即時模擬)<span class="sim-daterange">'
         f'{esc(start_d)} ~ {esc(end_d)} · 每晚 22:05 後更新</span></div>'
         + '<div id="sim-nav-chart" class="sim-chart"></div>'
         '<div class="risk-chart-legend">'
