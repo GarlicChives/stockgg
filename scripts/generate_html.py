@@ -1588,17 +1588,47 @@ def _build_backtest_html(payload: dict | None = None) -> str:
     )
 
 
+def _build_bt_trades_html(n_trades: int = 0) -> str:
+    """📋 逐筆交易明細(可摺疊 + lazy-load)。n_trades=0(Q45 無資料 / 失敗)→ 不渲染。
+    區塊只放「展開」按鈕 + 空 body;點開才由 app.js `btTradesToggle` lazy-fetch
+    docs/bt_trades_pullback.json(定位陣列 [entry_date,exit_date,ticker,name,
+    entry_price,exit_price,pnl_pct,hold_days,reason]),client-side 建表 + 每 20 筆
+    DOM 分頁。reason 代號→中文對照在 app.js(`_BT_REASON`),不外洩英文代號。
+    3000+ 筆不進首屏,記憶體與首屏體積零負擔。"""
+    if not n_trades or n_trades <= 0:
+        return ""
+    return (
+        '<div class="card sim-bt-trades">'
+        '<button class="bt-tr-toggle" type="button" aria-expanded="false" '
+        'onclick="btTradesToggle(this)">'
+        f'<span class="bt-tr-caret">▸</span> 逐筆交易明細'
+        f'<span class="bt-tr-count">{n_trades:,} 筆</span></button>'
+        '<div class="bt-tr-body" hidden>'
+        '<div class="bt-tr-status">展開中…</div>'
+        '<div class="bt-tr-tablewrap"></div>'
+        '<div class="bt-tr-pager" hidden>'
+        '<button class="bt-tr-pg" type="button" data-dir="-1" '
+        'onclick="btTradesStep(-1)">‹ 上一頁</button>'
+        '<span class="bt-tr-pginfo"></span>'
+        '<button class="bt-tr-pg" type="button" data-dir="1" '
+        'onclick="btTradesStep(1)">下一頁 ›</button>'
+        '</div></div></div>'
+    )
+
+
 def build_trade_sim_page(next_rows: list[dict] | None = None,
                          radar_seeds: set[str] | None = None,
-                         backtest_payload: dict | None = None) -> str:
+                         backtest_payload: dict | None = None,
+                         bt_trades_n: int = 0) -> str:
     """📈 策略模擬頁:🎯 隔日買進標的(trade_sim_next)+ 📊 1 年回測績效
     (無限資金、含成本真實回測;主來源 = Supabase strategy_backtest_public Q44 payload,
     每日滾動最近一年,見 _build_backtest_html;缺則 fallback 靜態檔)。
     2026-06-18:**移除原 300萬 即時 paper-trading 版**(NAV 趨勢圖 / 目前持股 /
     損益排行 / 即時交易明細 / 出手頻率)—— user 改採「無限資金 1 年回測」為公開面
     (300萬 有限資金引擎經 ingest 判定過擬合)。隔日買進標的**保留**(與資金模型無關
-    的當前候選股短清單)。逐筆交易明細改 lazy-load(Step 2,待 ingest 提供逐筆檔)。
-    nav_rows / trades / leverage_sweep 等即時版參數已移除。"""
+    的當前候選股短清單)。`bt_trades_n` > 0 時(Q45 逐筆已落地 docs/bt_trades_pullback
+    .json)渲染可摺疊「逐筆交易明細」區塊 —— 點開才 lazy-fetch + DOM 每 20 筆分頁,
+    3000+ 筆不灌進首屏。nav_rows / leverage_sweep 等即時版參數已移除。"""
     esc = html_lib.escape
     strat_nav = (
         '<div class="strat-tabs">'
@@ -1607,7 +1637,8 @@ def build_trade_sim_page(next_rows: list[dict] | None = None,
         '</div>'
     )
     strat_body = (_build_trade_next_html(next_rows, radar_seeds)
-                  + _build_backtest_html(backtest_payload))
+                  + _build_backtest_html(backtest_payload)
+                  + _build_bt_trades_html(bt_trades_n))
     if not strat_body.strip():
         strat_body = ('<p class="muted-note">策略資料準備中'
                       '(隔日買進標的 / 1 年回測尚未生成)。</p>')
@@ -4748,6 +4779,49 @@ async def generate():
     except Exception as exc:
         print(f"  ⚠ Q44 strategy_backtest query failed → 靜態檔 fallback: {exc}")
 
+    # Q45 — 1 年回測「逐筆交易明細」(strategy_backtest_trades)。落地成
+    # docs/bt_trades_pullback.json(gitignore、隨部署上傳),前端點開才 lazy-fetch +
+    # DOM 分頁,不灌進首屏 index.html(3000+ 筆 inline 會撐爆)。每筆轉成定位陣列
+    # [entry_date, exit_date, ticker, name, entry_price, exit_price, pnl_pct,
+    #  hold_days, reason](最省體積;reason 留代號,前端 map 中文)。
+    bt_trades_n = 0
+    try:
+        _btt_row = await conn.fetchrow(
+            "select trades from strategy_backtest_trades where slug = 'pullback'")
+        _btt = None
+        if _btt_row and _btt_row.get("trades"):
+            _raw = _btt_row["trades"]
+            _btt = json.loads(_raw) if isinstance(_raw, str) else dict(_raw)
+        if _btt and (_btt.get("trades") or []):
+            _arr = _btt.get("trades") or []
+            _compact = [[
+                t.get("entry_date"), t.get("exit_date"),
+                t.get("ticker"), t.get("name"),
+                _jc(t.get("entry_price"), 2), _jc(t.get("exit_price"), 2),
+                _jc(t.get("pnl_pct"), 2),
+                (int(t["hold_days"]) if isinstance(t.get("hold_days"), (int, float)) else None),
+                t.get("reason"),
+            ] for t in _arr]
+            bt_trades_n = len(_compact)
+            _btt_stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            _btt_path = OUT_FILE.parent / "bt_trades_pullback.json"
+            _btt_path.write_text(
+                json.dumps({"b": _btt_stamp, "n": bt_trades_n,
+                            "w": _btt.get("window") or {}, "t": _compact},
+                           ensure_ascii=False, separators=(",", ":")),
+                encoding="utf-8")
+            print(f"  bt_trades_pullback.json (Q45): {bt_trades_n} 筆, "
+                  f"{_btt_path.stat().st_size:,} bytes")
+        else:
+            # 沒資料 → 移除可能殘留的舊檔(避免前端 lazy-fetch 拿到 stale)
+            _btt_path = OUT_FILE.parent / "bt_trades_pullback.json"
+            if _btt_path.exists():
+                _btt_path.unlink()
+            print("  ⚠ Q45 strategy_backtest_trades 無資料 → 不渲逐筆區塊")
+    except Exception as exc:
+        # 逐筆是 degraded UX(非核心),失敗只警示不中斷整頁 render
+        print(f"  ⚠ Q45 strategy_backtest_trades query failed(逐筆區塊略過): {exc}")
+
     # Q38 / Q39 產業地圖已在前面(_hist_tickers 構建前)fetch,讓 industry-map
     # ticker 也納入 ticker_close / ticker_net_inst 歷史(供 modal 內子產業趨勢圖)。
 
@@ -4783,7 +4857,7 @@ async def generate():
             _radar_seed_set.add(_s.ticker)
     tradesim_html = build_trade_sim_page(
         next_rows=sim_next, radar_seeds=_radar_seed_set,
-        backtest_payload=backtest_payload)
+        backtest_payload=backtest_payload, bt_trades_n=bt_trades_n)
     indmap_html = build_industry_map_page(indmap_rows, stocks_info, indmap_edges)
 
     # ── 主動式 ETF(2026-05-20 對應 ingest f5faa21)──

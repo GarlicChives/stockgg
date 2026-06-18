@@ -244,6 +244,13 @@ const ALLOWED: Set<string> = new Set([
   //   滾動最近一年,payload jsonb schema 同舊 pullback_public.json;2026-06-18
   //   ingest 226a5d6)。策略模擬頁「📊 1 年回測績效」區塊主來源,取代靜態檔。
   "select payload from strategy_backtest_public where slug = 'pullback'",
+
+  // Q45 — 1 年回測「逐筆交易明細」(strategy_backtest_trades;ingest eee712e,每日
+  //   與 Q44 摘要同步)。trades jsonb = {slug,window,n_trades,trades:[{entry_date,
+  //   exit_date,ticker,name,entry_price,exit_price,pnl_pct,hold_days,reason},...]}
+  //   一列=一筆完整往返(無 side/shares,無限資金等權模型)。generate_html 落地成
+  //   docs/bt_trades_pullback.json 供前端 lazy-fetch + DOM 分頁,不灌進首屏。
+  "select trades from strategy_backtest_trades where slug = 'pullback'",
 ])
 
 function normalize(q: string): string {

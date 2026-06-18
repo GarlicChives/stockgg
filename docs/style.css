@@ -1281,6 +1281,41 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .lev-rowtag-base{background:rgba(255,255,255,.1);color:var(--muted)}
 .lev-rowtag-sweet{background:rgba(16,185,129,.25);color:#34d399}
 .sim-lev-caveat{margin:.6rem 0 0;font-size:.74rem;line-height:1.55;color:#f47471;font-weight:600}
+/* 📋 1 年回測逐筆交易明細(可摺疊 + lazy-load + DOM 分頁) */
+.sim-bt-trades{border-left:3px solid #10b981}
+.bt-tr-toggle{display:flex;align-items:center;gap:.5rem;width:100%;background:none;border:none;
+              cursor:pointer;font-family:inherit;font-size:.92rem;font-weight:700;
+              color:var(--accent);padding:.1rem 0;letter-spacing:.04em}
+.bt-tr-caret{display:inline-block;transition:transform .15s;color:var(--muted);font-size:.8rem}
+.bt-tr-toggle.open .bt-tr-caret{transform:rotate(90deg)}
+.bt-tr-count{margin-left:auto;font-size:.72rem;font-weight:600;color:var(--muted);
+             font-variant-numeric:tabular-nums}
+.bt-tr-body{margin-top:.7rem}
+.bt-tr-body[hidden]{display:none}
+.bt-tr-status{font-size:.78rem;color:var(--muted);padding:.6rem 0;text-align:center}
+.bt-tr-status[hidden]{display:none}
+.bt-tr-tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.bt-tr-table{width:100%;border-collapse:collapse;font-size:.78rem}
+.bt-tr-table th{font-size:.7rem;color:var(--muted);font-weight:600;text-align:left;
+                padding:.4rem .55rem;border-bottom:1px solid var(--border);white-space:nowrap}
+.bt-tr-table td{padding:.42rem .55rem;border-bottom:1px solid rgba(255,255,255,.05);
+                white-space:nowrap;font-variant-numeric:tabular-nums}
+.bt-tr-table th.r,.bt-tr-table td.r{text-align:right}
+.bt-tr-table tbody tr{cursor:pointer;transition:background .1s}
+.bt-tr-table tbody tr:hover{background:rgba(124,138,242,.08)}
+.bt-tr-dt{color:var(--muted);font-size:.72rem}
+.bt-tr-arrow{margin:0 .25rem;opacity:.6}
+.bt-tr-nm{font-weight:600;color:var(--text)}
+.bt-tr-tk{margin-left:.35rem;font-size:.66rem;color:var(--muted);font-weight:500}
+.bt-tr-rs{color:var(--muted);font-size:.74rem}
+.bt-tr-pager{display:flex;align-items:center;justify-content:center;gap:.8rem;margin-top:.7rem}
+.bt-tr-pager[hidden]{display:none}
+.bt-tr-pg{font-family:inherit;font-size:.76rem;font-weight:600;padding:.32rem .8rem;
+          border-radius:6px;cursor:pointer;background:var(--card);color:var(--text);
+          border:1px solid var(--border);transition:.12s}
+.bt-tr-pg:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.bt-tr-pg:disabled{opacity:.4;cursor:default}
+.bt-tr-pginfo{font-size:.74rem;color:var(--muted);font-variant-numeric:tabular-nums}
 .sim-daterange{font-weight:400;font-size:.72rem;color:var(--muted);margin-left:.5rem}
 .sim-stats{display:flex;gap:.7rem;flex-wrap:wrap;margin:.2rem 0 .8rem}
 .sim-stat{flex:1 1 180px;background:rgba(255,255,255,.03);border:1px solid var(--border);

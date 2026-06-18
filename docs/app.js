@@ -182,6 +182,112 @@ function showStrategyTab(key) {
     p.classList.toggle('active', p.id === 'strat-' + key));
 }
 
+/* 📋 1 年回測逐筆交易明細:點開才 lazy-fetch docs/bt_trades_pullback.json
+ * (定位陣列 [entry_date,exit_date,ticker,name,entry_price,exit_price,
+ *  pnl_pct,hold_days,reason]),client-side 建表 + 每 20 筆 DOM 分頁。
+ * 3000+ 筆不進首屏;reason 代號→中文(_BT_REASON),不外洩英文代號。 */
+const _BT_REASON = {
+  stop_loss: '停損出場',       // 災難停損 −8%
+  trail: '移動停利',           // 自峰值回落 10%
+  impatience: '時間停損',      // 持有 5 天未達 +7%
+  open: '持有中',              // 期末尚未出場(報酬為浮動未實現)
+  regime_exit: '大盤轉弱出場',  // 公開版未啟用,fallback
+};
+const _BT_PER_PAGE = 20;
+let _btTrades = null, _btPage = 0, _btLoaded = false, _btLoading = false;
+
+function btTradesToggle(btn) {
+  const wrap = btn.closest('.sim-bt-trades');
+  const body = wrap.querySelector('.bt-tr-body');
+  const open = btn.getAttribute('aria-expanded') === 'true';
+  btn.setAttribute('aria-expanded', String(!open));
+  btn.classList.toggle('open', !open);
+  body.hidden = open;
+  if (!open && !_btLoaded && !_btLoading) _btLoadTrades(body);
+}
+
+function _btLoadTrades(body) {
+  _btLoading = true;
+  const status = body.querySelector('.bt-tr-status');
+  status.hidden = false;
+  status.textContent = '載入逐筆交易中…';
+  // 指數退避 retry(比照 kline.json,因 Cloudflare 邊緣傳播偶有延遲)
+  const delays = [0, 2000, 5000, 10000, 20000, 30000];
+  (async () => {
+    let lastErr;
+    for (let i = 0; i < delays.length; i++) {
+      if (delays[i]) await new Promise(r => setTimeout(r, delays[i]));
+      try {
+        const r = await fetch('bt_trades_pullback.json', { cache: 'no-cache' });
+        if (!r.ok) throw new Error('bt_trades ' + r.status);
+        const j = await r.json();
+        _btTrades = (j && j.t) || [];
+        _btLoaded = true; _btLoading = false;
+        status.hidden = true;
+        _btRender(body);
+        return;
+      } catch (e) {
+        lastErr = e;
+        console.warn('bt_trades attempt ' + (i + 1) + ' failed: ' + e.message);
+      }
+    }
+    _btLoading = false;
+    status.hidden = false;
+    status.textContent = '逐筆交易載入失敗,請稍後重整再試';
+  })();
+}
+
+function _btFmtPct(v) {  // 報酬%:紅(正/賺)綠(負/賠),沿用 .up/.down/.flat
+  if (v == null || isNaN(v)) return '<span class="muted">—</span>';
+  const cls = v > 0 ? 'up' : (v < 0 ? 'down' : 'flat');
+  return '<span class="' + cls + '">' + (v > 0 ? '+' : '') + v.toFixed(2) + '%</span>';
+}
+
+function _btRender(body) {
+  const wrap = body.querySelector('.bt-tr-tablewrap');
+  const pager = body.querySelector('.bt-tr-pager');
+  const info = body.querySelector('.bt-tr-pginfo');
+  const all = _btTrades || [];
+  const pages = Math.max(1, Math.ceil(all.length / _BT_PER_PAGE));
+  _btPage = Math.max(0, Math.min(_btPage, pages - 1));
+  const start = _btPage * _BT_PER_PAGE;
+  let rows = '';
+  for (const t of all.slice(start, start + _BT_PER_PAGE)) {
+    const tk = t[2], nm = t[3] || '';
+    const reason = _BT_REASON[t[8]] || '—';
+    const hd = (t[7] == null) ? '—' : t[7];
+    rows += "<tr onclick='showArtModal(" + JSON.stringify(tk) + ','
+      + JSON.stringify(nm.slice(0, 12)) + ",event)'>"
+      + '<td class="bt-tr-dt">' + _imEsc(t[0]) + '<span class="bt-tr-arrow">→</span>'
+      + _imEsc(t[1]) + '</td>'
+      + '<td class="bt-tr-nm">' + _imEsc(nm)
+      + '<span class="bt-tr-tk">' + _imEsc(tk) + '</span></td>'
+      + '<td class="r">' + (t[4] == null ? '—' : t[4]) + '</td>'
+      + '<td class="r">' + (t[5] == null ? '—' : t[5]) + '</td>'
+      + '<td class="r">' + _btFmtPct(t[6]) + '</td>'
+      + '<td class="r">' + hd + '</td>'
+      + '<td class="bt-tr-rs">' + _imEsc(reason) + '</td></tr>';
+  }
+  wrap.innerHTML = '<table class="bt-tr-table"><thead><tr>'
+    + '<th>進場→出場</th><th>標的</th><th class="r">進場價</th><th class="r">出場價</th>'
+    + '<th class="r">報酬%</th><th class="r">持有天</th><th>出場原因</th>'
+    + '</tr></thead><tbody>' + rows + '</tbody></table>';
+  info.textContent = '第 ' + (_btPage + 1) + ' / ' + pages + ' 頁(共 '
+    + all.length.toLocaleString() + ' 筆)';
+  pager.hidden = pages <= 1;
+  pager.querySelectorAll('.bt-tr-pg').forEach(b => {
+    const dir = +b.dataset.dir;
+    b.disabled = (dir < 0 && _btPage === 0) || (dir > 0 && _btPage === pages - 1);
+  });
+}
+
+function btTradesStep(dir) {
+  if (!_btLoaded) return;
+  _btPage += dir;
+  const body = document.querySelector('.sim-bt-trades .bt-tr-body');
+  if (body) { _btRender(body); body.scrollIntoView({ block: 'nearest' }); }
+}
+
 /* ── 🗺️ 產業地圖 — 焦點產業關聯「蜘蛛網」圖 ────────────────────────
  * window.IIA_INDMAP_GRAPH = { nodes:[{i,name,kind,chg,cov,tv,n,mv:[{t,n,c}]}],
  *                             edges:[[a,b,w]], hot: 門檻 }
