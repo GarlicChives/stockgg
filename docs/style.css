@@ -1211,6 +1211,7 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .sim-next-top{display:flex;align-items:baseline;gap:.4rem;margin-bottom:.2rem}
 .sim-next-tk{font-size:.86rem;font-weight:700;flex:1;min-width:0;overflow:hidden;
              text-overflow:ellipsis;white-space:nowrap}
+.sim-next-px{font-size:.82rem;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;flex:0 0 auto}
 .sim-next-chg{font-size:.82rem;font-weight:700;font-variant-numeric:tabular-nums;flex:0 0 auto}
 .sim-next-hotbadge{font-size:.6rem;font-weight:700;padding:.04rem .35rem;border-radius:4px;
                    background:rgba(245,166,35,.22);color:#f5a623;margin-left:auto;flex:0 0 auto}

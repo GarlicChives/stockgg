@@ -985,6 +985,7 @@ const _ART_SCOPE_SELECTORS = [
   '.fs-list',                    // 選股雷達 list-style sub-tab
   '.fs-table tbody',             // 選股雷達 table-style sub-tab(交集股等)
   '.aetf-cp-row',                // ETF 異動列(若 stk-pill chip 在內)
+  '.sim-next-list',              // 策略模擬「明日買進標的」5 張卡(左右箭頭切換)
 ];
 
 function _detectArtScope(evt) {

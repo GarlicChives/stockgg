@@ -1342,6 +1342,12 @@ def _build_trade_next_html(next_rows: list[dict] | None,
             chg = float(chg) if chg not in (None, "") else None  # DB 可能回字串
         except (TypeError, ValueError):
             chg = None
+        # 收盤價(ref_close,as_of_date 收盤後計算);去尾零顯示(3610 / 34.85 / 75.9)
+        try:
+            _px = float(r.get("ref_close")) if r.get("ref_close") not in (None, "") else None
+        except (TypeError, ValueError):
+            _px = None
+        px_s = (f"{_px:.2f}".rstrip("0").rstrip(".") if _px is not None else None)
         chips = "".join(f'<span class="sim-next-cond">{esc_c}</span>'
                         for esc_c in (html_lib.escape(x) for x in _conds_labels(r.get("conds"))))
         hot = tk in seeds
@@ -1357,7 +1363,8 @@ def _build_trade_next_html(next_rows: list[dict] | None,
             f"onclick='showArtModal({json.dumps(tk)},{json.dumps(nm[:12])},event)'>"
             f'<div class="sim-next-top">'
             f'<span class="sim-next-tk">{html_lib.escape(tk)} {html_lib.escape(nm)}</span>'
-            f'<span class="sim-next-chg {chg_cls}">{html_lib.escape(chg_s)}</span></div>'
+            + (f'<span class="sim-next-px">{html_lib.escape(px_s)}</span>' if px_s else '')
+            + f'<span class="sim-next-chg {chg_cls}">{html_lib.escape(chg_s)}</span></div>'
             f'<div class="sim-next-off2">距120日高 <b>{html_lib.escape(offh_s)}</b>{hot_badge}</div>'
             + (f'<div class="sim-next-conds">{chips}</div>' if chips else '')
             + '</div>'
