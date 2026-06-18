@@ -3104,7 +3104,9 @@ def build_focus_stock_page(
             f'data-matched="{",".join(_MATCH_KEY.get(m, "") for m in c["matched"])}"'
         )
         # 品質濾網(交集股):策略模擬器(trade_sim 版本 C / v4)的候選資格 ——
-        # 含成長 + 月線乖離 ∈[-5%,+10%) + 當日漲幅 <3% + 不爆量(vol_mult <2)四閘全過。
+        # 含成長 + 月線乖離 ∈[-5%,+10%) + 當日漲幅 <3% + 不爆量(vol_mult <2)
+        # + 日成交值 ≥3 億流動性閘(2026-06-18 追加,對齊回測 min_tv=3億 / trade_sim;
+        #   公開站原無此閘 → 會顯示策略不買的低量股)五閘全過。
         # server 端先算好布林,前端只做顯隱(toggleFsQuality);任一欄缺值 →
         # 無法確認通過 → 視為不過(保守,= 策略實際能評估的標的)。
         if mode == "intersect":
@@ -3114,6 +3116,7 @@ def build_focus_stock_page(
                 and bias is not None and -5 <= bias < 10
                 and _chg is not None and _chg < 3
                 and vm is not None and vm < 2
+                and c.get("today_tv") is not None and c["today_tv"] >= 300_000_000
             )
             attrs += f' data-qpass="{1 if qpass else 0}"'
         tds = [
@@ -3198,6 +3201,7 @@ def build_focus_stock_page(
         and (stocks_info.get(c["ticker"]) or {}).get("change_pct") is not None
         and (stocks_info.get(c["ticker"]) or {}).get("change_pct") < 3
         and c.get("vol_mult") is not None and c["vol_mult"] < 2
+        and c.get("today_tv") is not None and c["today_tv"] >= 300_000_000
     )
     _int_filter_bar = ((
         '<div class="fs-filter-bar">'
@@ -3211,7 +3215,7 @@ def build_focus_stock_page(
         + '<button type="button" class="fs-filter-btn fs-quality-btn" id="fs-quality-btn" '
           'onclick="toggleFsQuality(this)" '
           'title="只顯示策略模擬器(版本 C)實際會考慮的候選股:'
-          '同時「有成長(月營收/EPS YoY 正)、月線乖離 −5%~+10%(排除深跌弱勢)、當日漲幅 &lt;3%、不爆量(量能 &lt;5日均 ×2)」。'
+          '同時「有成長(月營收/EPS YoY 正)、月線乖離 −5%~+10%(排除深跌弱勢)、當日漲幅 &lt;3%、不爆量(量能 &lt;5日均 ×2)、日成交值 ≥3 億(流動性)」。'
           '回測顯示純交集股不論排序皆跑輸大盤,加這 4 濾網後才有超額報酬。">'
           f'🎯 品質濾網 <span class="fs-quality-n">通過 {_n_qpass}/{len(intersect_stocks)}</span></button>'
         + '</div>'
