@@ -1,7 +1,7 @@
 # Project: stockgg (public daily-briefing site)
 
 > **新 session 開頭**:讀 `~/Desktop/StockGG-ingest/SYSTEM.md`(兩 repo 全景:資料流、排程、職責、踩坑)。
-> 本檔只覆蓋 stockgg 自己的 do/don't,且**刻意精簡**;關鍵檔案的完整說明、SQL allowlist Q1–Q45
+> 本檔只覆蓋 stockgg 自己的 do/don't,且**刻意精簡**;關鍵檔案的完整說明、SQL allowlist Q1–Q46
 > 對照、前端互動細節、各功能設計根因與變更史 → 全在 `ARCHITECTURE.md`(按需讀,不常駐 context)。
 
 ## 本 repo 角色
@@ -45,7 +45,7 @@ companion repo `StockGG-ingest`(本機 `~/Desktop/StockGG-ingest`,私有)跑。
   (2026-06-18 設 Access 時踩到)。Access policy 在 Zero Trust 區改、別碰 Worker 本身。
   被洗掉就重跑 `bash scripts/deploy_site.sh`。
 - **改 `generate_html.py` 的 `conn.fetch*` query** → 必同步擴 db-proxy allowlist + redeploy。
-- **生成檔不 commit**(index.html / history.json / kline.json / bt_trades_pullback.json 全 gitignore,
+- **生成檔不 commit**(index.html / history.json / kline.json / bt_summary.json / bt_detail.json 全 gitignore,
   CI fresh regen 後只 deploy 不 commit)。
 
 ## 關鍵檔案(導航;完整說明見 `ARCHITECTURE.md`)
@@ -55,12 +55,12 @@ companion repo `StockGG-ingest`(本機 `~/Desktop/StockGG-ingest`,私有)跑。
 - `docs/app.js` — 全站 JS(直接編輯;個股 modal 的 `artModalData` 等資料 const 仍 inline 在 index.html)。
 - `src/analysis/focus_themes.py` — 題材叢集偵測(`detect_industry_clusters` 泛分類 / `detect_focus_clusters` v3 焦點,前綴群組化)。
 - `src/utils/db.py` — async DB client(`SUPABASE_ANON_KEY` + `db-proxy-public`;內建 5xx retry)。
-- `supabase/functions/db-proxy-public/index.ts` — Edge Function + SQL allowlist(目前 **42 條**,Q1–Q45;每個 Q 的 SQL/語意對照在 ARCHITECTURE.md)。
+- `supabase/functions/db-proxy-public/index.ts` — Edge Function + SQL allowlist(目前 **43 條**,Q1–Q46;每個 Q 的 SQL/語意對照在 ARCHITECTURE.md)。
 - `data/theme_dictionary.json` — statementdog 主/子產業字典(ticker-centric;`main='近一年焦點'` 給焦點 sub-tab)。
 - `data/pullback_public.json` — 拉回買 1 年回測 **fallback 靜態檔**(主來源已改 DB Q44 `strategy_backtest_public`)。
 - `.github/workflows/market_briefing.yml` — render + deploy workflow(cron 07:30/18:15/23:15 TW;push 不觸發)。
 - `wrangler.jsonc` — Workers 靜態資產服務(`assets.directory: docs`);`not_found_handling:"single-page-application"`(根 404 護欄,**勿移除**)。
-- 生成輸出 / lazy payload(全 gitignore、CI 上傳不 commit):`docs/index.html`、`docs/history.json`(~15MB)、`docs/kline.json`(~8MB,個股日 K)、`docs/bt_trades_pullback.json`(~227KB,回測逐筆)。
+- 生成輸出 / lazy payload(全 gitignore、CI 上傳不 commit):`docs/index.html`、`docs/history.json`(~15MB)、`docs/kline.json`(~8MB,個股日 K)、`docs/bt_summary.json`(~60KB,回測 by_stock 100 檔卡+chart_trades)、`docs/bt_detail.json`(~660KB,by_ticker 全往返,點某檔開 modal 用)。
 
 > **需要這些的細節就讀 `ARCHITECTURE.md`**:每個 Q 的 SQL 與設計根因、精選閘公式(`_distill_daily_clusters`)、crash/rally banner、kline「今日根錨定」、history/kline 的 cache-bust 踩坑、404 排查法全文、主動式 ETF 頁、產業地圖蜘蛛網、策略模擬頁(Q40–Q45 演進)、選股雷達 5 條件 / 潛力股 / 看高做低 / 品質濾網 / chip 系統 / 前哨 section、📈 趨勢頁 risk chip。
 
@@ -92,7 +92,7 @@ bash scripts/deploy_db_proxy_public.sh      # Edge Function redeploy
 - [ ] 改了 `generate_html.py` 的 `conn.fetch/fetchrow/fetchval`?是 → 同步擴
   `db-proxy-public` 的 `ALLOWED` 並 redeploy。
 - [ ] 改了 CSS 或 HTML 結構?是 → 本機 `uv run python scripts/generate_html.py` + 親眼看一次。
-- [ ] 改了 chart / lazy-load 相關?是 → 確認對應 payload 檔(history.json / kline.json / bt_trades_pullback.json)也一併 regen。
+- [ ] 改了 chart / lazy-load 相關?是 → 確認對應 payload 檔(history.json / kline.json / bt_summary.json / bt_detail.json)也一併 regen。
 - [ ] **commit 前必檢**:`grep -rc "<<<<<<<" scripts/generate_html.py docs/app.js docs/style.css` 各須是 0
   (generate_html 已加 `<!-- build {build_stamp} -->` 讓每次 regen HTML hash 必變,迫使 wrangler 重傳)。
 - [ ] 改了 SEO meta?是 → 用 Twitter Card Validator / FB Debugger 看 preview。

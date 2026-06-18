@@ -36,6 +36,8 @@ docs/kline.json
 docs/index.html
 docs/history.json
 docs/bt_trades_pullback.json
+docs/bt_summary.json
+docs/bt_detail.json
 
 # 驗證截圖 / 雜項(不准進 public repo)
 *.png

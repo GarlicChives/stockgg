@@ -251,6 +251,13 @@ const ALLOWED: Set<string> = new Set([
   //   一列=一筆完整往返(無 side/shares,無限資金等權模型)。generate_html 落地成
   //   docs/bt_trades_pullback.json 供前端 lazy-fetch + DOM 分頁,不灌進首屏。
   "select trades from strategy_backtest_trades where slug = 'pullback'",
+
+  // Q46 — 逐筆「per-ticker 全往返明細」(strategy_backtest_trades_detail;ingest
+  //   03a3cdb..0a2a622,by_stock_lazy 新 schema)。detail jsonb =
+  //   {by_ticker:{<ticker>:[{seq,entry_date,entry_price,exit_date,exit_price,
+  //   pnl_pct,hold_days,reason},...]}}。generate_html build 時一次抓整包、落地成
+  //   docs/bt_detail/<ticker>.json(per-ticker)供前端點哪檔才 lazy-fetch 哪檔。
+  "select detail from strategy_backtest_trades_detail where slug = 'pullback'",
 ])
 
 function normalize(q: string): string {

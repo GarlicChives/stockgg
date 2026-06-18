@@ -1220,6 +1220,9 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .sim-next-conds{display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.3rem}
 .sim-next-cond{font-size:.64rem;font-weight:600;padding:.05rem .4rem;border-radius:4px;
                background:rgba(255,255,255,.06);color:var(--muted)}
+/* 再進場買單徽章(琥珀,與雷達 conds 區隔)*/
+.sim-next-re{font-size:.64rem;font-weight:700;padding:.05rem .4rem;border-radius:4px;
+             background:rgba(245,166,35,.18);color:#f5a623}
 .sim-next-note{margin:.7rem 0 0;font-size:.7rem;color:var(--muted);line-height:1.55}
 /* 📊 1 年回測績效區塊(沿用 .sim-metrics / .sim-chart;左側 accent 條強調為實證) */
 .sim-bt-box{border-left:3px solid #10b981}
@@ -1321,6 +1324,22 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .bt-top-nm{font-weight:600;white-space:nowrap}
 .bt-top-tk{font-size:.6rem;color:var(--muted)}
 .bt-top-v{font-variant-numeric:tabular-nums;font-weight:700}
+/* 2026-06-19 by_stock_lazy:報酬最強「股票卡」grid(點開看該股全往返 + K線買賣)*/
+.bt-stk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.35rem}
+.bt-stk-card{display:flex;flex-direction:column;gap:.12rem;padding:.4rem .5rem;cursor:pointer;
+             border:1px solid var(--border);border-radius:7px;background:rgba(124,138,242,.05);
+             font:inherit;color:var(--text);text-align:left;width:100%;transition:.1s}
+.bt-stk-card:hover{border-color:var(--accent);background:rgba(124,138,242,.12)}
+.bt-stk-r1{display:flex;align-items:baseline;gap:.3rem}
+.bt-stk-nm{font-size:.82rem;font-weight:700;white-space:nowrap}
+.bt-stk-tk{font-size:.62rem;color:var(--muted)}
+.bt-stk-tot{font-size:.86rem;font-weight:800;font-variant-numeric:tabular-nums}
+.bt-stk-meta{font-size:.64rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* trades 模式 modal 下半:該股全往返表(scrollable)*/
+.art-trades-section{margin-top:.5rem}
+.bt-stk-tablewrap{max-height:300px;overflow:auto;-webkit-overflow-scrolling:touch;
+                  border:1px solid var(--border);border-radius:6px}
+.bt-tr-seq{color:var(--muted);font-size:.72rem}
 .bt-tr-tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .bt-tr-table{width:100%;border-collapse:collapse;font-size:.78rem}
 .bt-tr-table th{font-size:.7rem;color:var(--muted);font-weight:600;text-align:left;

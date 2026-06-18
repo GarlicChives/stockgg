@@ -192,15 +192,17 @@ function showStrategyTab(key) {
  *  pnl_pct,hold_days,reason]),client-side 建表 + 每 20 筆 DOM 分頁。
  * 3000+ 筆不進首屏;reason 代號→中文(_BT_REASON),不外洩英文代號。 */
 const _BT_REASON = {
-  stop_loss: '停損出場',       // 災難停損 −8%
-  trail: '移動停利',           // 自峰值回落 10%
-  impatience: '時間停損',      // 持有 5 天未達 +7%
-  open: '持有中',              // 期末尚未出場(報酬為浮動未實現)
-  regime_exit: '大盤轉弱出場',  // 公開版未啟用,fallback
+  trail: '移動停利(峰值回落10%)',
+  stop_loss: '災難停損(−8%)',
+  impatience: '時間停損(5天未達7%)',
+  open: '持有中',
+  regime_exit: '大盤轉弱(未啟用)',
 };
-const _BT_PER_PAGE = 20;
-let _btTrades = null, _btPage = 0, _btLoaded = false, _btLoading = false;
-let _btTopTrades = [];   // 報酬最強排序後的 50 筆(供 modal 左右輪巡;每筆獨立含買賣標記)
+// by_stock_lazy schema(ingest 03a3cdb..0a2a622)。ct/detail positional 約定:
+// [0]seq [1]entry_date [2]entry_price [3]exit_date [4]exit_price [5]pnl_pct [6]hold_days [7]reason
+let _btSummary = null;   // {nt,ns,stocks:[{tk,nm,tot,best,n,wr,ct:[[...]]}]}(已按 total_pnl 降序 top100)
+let _btDetail = null;    // {<ticker>:[[...全往返...]]}
+let _btLoaded = false, _btLoading = false;
 
 function btTradesToggle(btn) {
   const wrap = btn.closest('.sim-bt-trades');
@@ -217,25 +219,25 @@ function _btLoadTrades(body) {
   const status = body.querySelector('.bt-tr-status');
   status.hidden = false;
   status.textContent = '載入逐筆交易中…';
-  // 指數退避 retry(比照 kline.json,因 Cloudflare 邊緣傳播偶有延遲)
   const delays = [0, 2000, 5000, 10000, 20000, 30000];
+  const getJson = async (url) => {
+    const r = await fetch(url, { cache: 'no-cache' });
+    if (!r.ok) throw new Error(url + ' ' + r.status);
+    return r.json();
+  };
   (async () => {
-    let lastErr;
     for (let i = 0; i < delays.length; i++) {
       if (delays[i]) await new Promise(r => setTimeout(r, delays[i]));
       try {
-        const r = await fetch('bt_trades_pullback.json', { cache: 'no-cache' });
-        if (!r.ok) throw new Error('bt_trades ' + r.status);
-        const j = await r.json();
-        _btTrades = (j && j.t) || [];
+        const [sum, det] = await Promise.all([getJson('bt_summary.json'), getJson('bt_detail.json')]);
+        _btSummary = sum || {};
+        _btDetail = (det && det.d) || {};
         _btLoaded = true; _btLoading = false;
         status.hidden = true;
-        _btRenderSummary(body);
-        _btRender(body);
+        _btRenderSection(body);
         return;
       } catch (e) {
-        lastErr = e;
-        console.warn('bt_trades attempt ' + (i + 1) + ' failed: ' + e.message);
+        console.warn('bt load attempt ' + (i + 1) + ' failed: ' + e.message);
       }
     }
     _btLoading = false;
@@ -244,8 +246,6 @@ function _btLoadTrades(body) {
   })();
 }
 
-/* 逐筆統計摘要(load 後算一次):平均持有天數 + 分佈、平均每檔報酬 + 分佈、最強 10 檔。
- * 定義對齊 ingest:持有天數「排除持有中(open)」、每檔報酬「含持有中」、最強含全部。 */
 function _btBars(buckets, colored) {
   const max = Math.max(1, ...buckets.map(b => b.count));
   return '<div class="bt-hist-bars">' + buckets.map(b => {
@@ -258,45 +258,45 @@ function _btBars(buckets, colored) {
   }).join('') + '</div>';
 }
 
-function _btRenderSummary(body) {
+/* 展開逐筆:統計摘要(全 detail 重算)+ 報酬最強 N 檔股票卡(點開看該股全往返 + K線買賣) */
+function _btRenderSection(body) {
   const sum = body.querySelector('.bt-tr-summary');
   if (!sum) return;
-  const all = _btTrades || [];
-  const closed = all.filter(t => t[8] !== 'open' && t[7] != null);  // 持有天數:排除持有中
-  const rets = all.filter(t => typeof t[6] === 'number');           // 報酬:含持有中
-  const avgHold = closed.length ? closed.reduce((s, t) => s + t[7], 0) / closed.length : 0;
-  const avgRet = rets.length ? rets.reduce((s, t) => s + t[6], 0) / rets.length : 0;
-  // 持有天數分佈(已平倉)
+  // 攤平所有往返算統計(detail 全筆)
+  const all = [];
+  for (const tk in _btDetail) for (const t of _btDetail[tk]) all.push(t);
+  const closed = all.filter(t => t[7] !== 'open' && t[6] != null);  // 持有天數:排除持有中
+  const rets = all.filter(t => typeof t[5] === 'number');            // 報酬:含持有中
+  const avgHold = closed.length ? closed.reduce((s, t) => s + t[6], 0) / closed.length : 0;
+  const avgRet = rets.length ? rets.reduce((s, t) => s + t[5], 0) / rets.length : 0;
   const hd = [{ label: '0', count: 0 }, { label: '1-2', count: 0 }, { label: '3-5', count: 0 },
               { label: '6-10', count: 0 }, { label: '11-20', count: 0 }, { label: '21+', count: 0 }];
   closed.forEach(t => {
-    const d = t[7];
+    const d = t[6];
     if (d <= 0) hd[0].count++; else if (d <= 2) hd[1].count++; else if (d <= 5) hd[2].count++;
     else if (d <= 10) hd[3].count++; else if (d <= 20) hd[4].count++; else hd[5].count++;
   });
-  // 每檔報酬分佈(含持有中);neg=該桶上界 ≤0 → 綠
   const rb = [{ label: '<-10', count: 0, neg: true }, { label: '-10~-5', count: 0, neg: true },
               { label: '-5~0', count: 0, neg: true }, { label: '0~5', count: 0 },
               { label: '5~10', count: 0 }, { label: '10~20', count: 0 }, { label: '20+', count: 0 }];
   rets.forEach(t => {
-    const p = t[6];
+    const p = t[5];
     if (p < -10) rb[0].count++; else if (p < -5) rb[1].count++; else if (p <= 0) rb[2].count++;
     else if (p <= 5) rb[3].count++; else if (p <= 10) rb[4].count++;
     else if (p <= 20) rb[5].count++; else rb[6].count++;
   });
-  // 最強 100 檔(含已出場 / 持有中);小方格 grid、由左而右由上而下、無排名編號
-  const top = [...rets].sort((a, b) => b[6] - a[6]).slice(0, 100);
-  _btTopTrades = top;   // 供 modal 左右輪巡(每筆獨立交易,含各自買賣標記)
-  const topHtml = top.map((t, i) => {
-    const tk = t[2], nm = t[3] || '';
-    const v = t[6];
-    const cls = v > 0 ? 'up' : (v < 0 ? 'down' : 'flat');
-    const vs = (v > 0 ? '+' : '') + v.toFixed(2) + '%';
-    // 點擊走 showTradeKline(idx):K 線標註本筆買賣 + 100 筆左右輪巡
-    return "<button type='button' class='bt-top-cell' onclick='showTradeKline(" + i + ")'>"
-      + '<span class="bt-top-nm">' + _imEsc(nm) + '</span>'
-      + '<span class="bt-top-r2"><span class="bt-top-tk">' + _imEsc(tk) + '</span>'
-      + '<span class="bt-top-v ' + cls + '">' + vs + '</span></span></button>';
+  // 報酬最強股票卡(summary.stocks 已按 total_pnl_pct 降序 top100)
+  const stocks = (_btSummary && _btSummary.stocks) || [];
+  const cardsHtml = stocks.map(s => {
+    const totCls = (typeof s.tot === 'number') ? (s.tot > 0 ? 'up' : (s.tot < 0 ? 'down' : 'flat')) : 'flat';
+    const tot = (typeof s.tot === 'number') ? (s.tot > 0 ? '+' : '') + s.tot.toFixed(1) + '%' : '—';
+    const best = (typeof s.best === 'number') ? '+' + s.best.toFixed(1) + '%' : '—';
+    return "<button type='button' class='bt-stk-card' onclick='btOpenStock(" + JSON.stringify(s.tk) + ")'>"
+      + '<span class="bt-stk-r1"><span class="bt-stk-nm">' + _imEsc(s.nm || '')
+      + '</span><span class="bt-stk-tk">' + _imEsc(s.tk || '') + '</span></span>'
+      + '<span class="bt-stk-tot ' + totCls + '">' + tot + '</span>'
+      + '<span class="bt-stk-meta">' + (s.n == null ? '—' : s.n) + ' 筆 · 勝率 '
+      + (s.wr == null ? '—' : s.wr + '%') + ' · 最佳 ' + best + '</span></button>';
   }).join('');
   const arCls = avgRet > 0 ? 'up' : (avgRet < 0 ? 'down' : 'flat');
   sum.innerHTML =
@@ -304,16 +304,17 @@ function _btRenderSummary(body) {
     + '<div class="bt-sum-stat"><span class="bt-sum-k">平均持有天數</span>'
     + '<span class="bt-sum-v">' + avgHold.toFixed(1) + ' 天</span>'
     + '<span class="bt-sum-sub">已平倉 ' + closed.length.toLocaleString() + ' 筆(不含持有中)</span></div>'
-    + '<div class="bt-sum-stat"><span class="bt-sum-k">平均每檔報酬</span>'
+    + '<div class="bt-sum-stat"><span class="bt-sum-k">平均每筆報酬</span>'
     + '<span class="bt-sum-v ' + arCls + '">' + (avgRet > 0 ? '+' : '') + avgRet.toFixed(2) + '%</span>'
     + '<span class="bt-sum-sub">全 ' + rets.length.toLocaleString() + ' 筆(含持有中)</span></div>'
     + '</div>'
     + '<div class="bt-sum-charts">'
     + '<div class="bt-hist"><div class="bt-hist-h">持有天數分佈(已平倉)</div>' + _btBars(hd, false) + '</div>'
-    + '<div class="bt-hist"><div class="bt-hist-h">每檔報酬分佈 %(含持有中)</div>' + _btBars(rb, true) + '</div>'
+    + '<div class="bt-hist"><div class="bt-hist-h">每筆報酬分佈 %(含持有中)</div>' + _btBars(rb, true) + '</div>'
     + '</div>'
-    + '<div class="bt-top"><div class="bt-top-h">報酬最強 ' + top.length + ' 檔(含已出場 / 持有中)</div>'
-    + '<div class="bt-top-grid">' + topHtml + '</div></div>';
+    + '<div class="bt-top"><div class="bt-top-h">報酬最強 ' + stocks.length
+    + ' 檔(點開看該股全部往返 + K線買賣標記)</div>'
+    + '<div class="bt-stk-grid">' + cardsHtml + '</div></div>';
 }
 
 function _btFmtPct(v) {  // 報酬%:紅(正/賺)綠(負/賠),沿用 .up/.down/.flat
@@ -322,49 +323,66 @@ function _btFmtPct(v) {  // 報酬%:紅(正/賺)綠(負/賠),沿用 .up/.down/.f
   return '<span class="' + cls + '">' + (v > 0 ? '+' : '') + v.toFixed(2) + '%</span>';
 }
 
-function _btRender(body) {
-  const wrap = body.querySelector('.bt-tr-tablewrap');
-  const pager = body.querySelector('.bt-tr-pager');
-  const info = body.querySelector('.bt-tr-pginfo');
-  const all = _btTrades || [];
-  const pages = Math.max(1, Math.ceil(all.length / _BT_PER_PAGE));
-  _btPage = Math.max(0, Math.min(_btPage, pages - 1));
-  const start = _btPage * _BT_PER_PAGE;
+/* 點某檔股票卡 → art-modal(trades 模式):K線標 chart_trades 買賣 + 該股全往返表 + hover 高亮 */
+function btOpenStock(ticker) {
+  const stocks = (_btSummary && _btSummary.stocks) || [];
+  const s = stocks.find(x => x.tk === ticker);
+  const name = s ? (s.nm || '') : '';
+  if (_artScopeObserver) { _artScopeObserver.disconnect(); _artScopeObserver = null; }
+  _artScopeContainer = null;
+  _artScope = [{ ticker: ticker, name: name }];   // 單一(不左右輪巡)
+  _artScopeIdx = 0;
+  _artMode = 'trades';
+  _artCurrentTicker = ticker;
+  _artCurrentName = name;
+  _artMarkers = { ticker: ticker, trades: (s && s.ct) || [] };
+  _renderArtModalBody(ticker, name);
+  document.getElementById('art-modal').showModal();
+}
+
+/* trades 模式 modal 下半:該股全往返表(scrollable)。hover 列 → K線高亮對應買賣 */
+function _btStockTableHtml(ticker) {
+  const arr = (_btDetail && _btDetail[ticker]) || null;
+  if (!arr || !arr.length) return '<p class="bt-tr-status">該股逐筆資料載入失敗</p>';
   let rows = '';
-  for (const t of all.slice(start, start + _BT_PER_PAGE)) {
-    const tk = t[2], nm = t[3] || '';
-    const reason = _BT_REASON[t[8]] || '—';
-    const hd = (t[7] == null) ? '—' : t[7];
-    rows += "<tr onclick='showArtModal(" + JSON.stringify(tk) + ','
-      + JSON.stringify(nm.slice(0, 12)) + ",event)'>"
-      + '<td class="bt-tr-dt">' + _imEsc(t[0]) + '<span class="bt-tr-arrow">→</span>'
-      + _imEsc(t[1]) + '</td>'
-      + '<td class="bt-tr-nm">' + _imEsc(nm)
-      + '<span class="bt-tr-tk">' + _imEsc(tk) + '</span></td>'
+  for (const t of arr) {
+    const reason = _BT_REASON[t[7]] || '—';
+    const hd = (t[6] == null) ? '—' : t[6];
+    rows += "<tr onmouseenter='btHoverTrade(" + JSON.stringify(t[1]) + ',' + JSON.stringify(t[3])
+      + ',' + (t[2] == null ? 'null' : t[2]) + ',' + (t[4] == null ? 'null' : t[4]) + ")'"
+      + " onmouseleave='btHoverClear()'>"
+      + '<td class="r bt-tr-seq">' + (t[0] == null ? '—' : t[0]) + '</td>'
+      + '<td class="bt-tr-dt">' + _imEsc(t[1]) + '<span class="bt-tr-arrow">→</span>'
+      + _imEsc(t[3] || '持有中') + '</td>'
+      + '<td class="r">' + (t[2] == null ? '—' : t[2]) + '</td>'
       + '<td class="r">' + (t[4] == null ? '—' : t[4]) + '</td>'
-      + '<td class="r">' + (t[5] == null ? '—' : t[5]) + '</td>'
-      + '<td class="r">' + _btFmtPct(t[6]) + '</td>'
+      + '<td class="r">' + _btFmtPct(t[5]) + '</td>'
       + '<td class="r">' + hd + '</td>'
       + '<td class="bt-tr-rs">' + _imEsc(reason) + '</td></tr>';
   }
-  wrap.innerHTML = '<table class="bt-tr-table"><thead><tr>'
-    + '<th>進場→出場</th><th>標的</th><th class="r">進場價</th><th class="r">出場價</th>'
+  return '<div class="bt-stk-tablewrap"><table class="bt-tr-table"><thead><tr>'
+    + '<th class="r">#</th><th>進場→出場</th><th class="r">進場價</th><th class="r">出場價</th>'
     + '<th class="r">報酬%</th><th class="r">持有天</th><th>出場原因</th>'
-    + '</tr></thead><tbody>' + rows + '</tbody></table>';
-  info.textContent = '第 ' + (_btPage + 1) + ' / ' + pages + ' 頁(共 '
-    + all.length.toLocaleString() + ' 筆)';
-  pager.hidden = pages <= 1;
-  pager.querySelectorAll('.bt-tr-pg').forEach(b => {
-    const dir = +b.dataset.dir;
-    b.disabled = (dir < 0 && _btPage === 0) || (dir > 0 && _btPage === pages - 1);
-  });
+    + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
 }
 
-function btTradesStep(dir) {
-  if (!_btLoaded) return;
-  _btPage += dir;
-  const body = document.querySelector('.sim-bt-trades .bt-tr-body');
-  if (body) { _btRender(body); body.scrollIntoView({ block: 'nearest' }); }
+function _btMkSort(a, b) { return a.time < b.time ? -1 : (a.time > b.time ? 1 : 0); }
+
+/* hover 表格列 → 在 K線疊加該筆買賣的高亮(琥珀)標記;滑開復原基礎標記 */
+function btHoverTrade(entryDate, exitDate, entryPx, exitPx) {
+  if (!_klineCandleSeries) return;
+  const ed = entryDate ? String(entryDate).slice(0, 10) : null;
+  const xd = exitDate ? String(exitDate).slice(0, 10) : null;
+  const extra = [];
+  if (ed) extra.push({ time: ed, position: 'belowBar', color: '#facc15', shape: 'arrowUp',
+                       text: '買' + (entryPx != null ? ' ' + entryPx : '') });
+  if (xd) extra.push({ time: xd, position: 'aboveBar', color: '#facc15', shape: 'arrowDown',
+                       text: '賣' + (exitPx != null ? ' ' + exitPx : '') });
+  try { _klineCandleSeries.setMarkers(_btBaseMarkers.concat(extra).sort(_btMkSort)); } catch (e) {}
+}
+function btHoverClear() {
+  if (!_klineCandleSeries) return;
+  try { _klineCandleSeries.setMarkers(_btBaseMarkers); } catch (e) {}
 }
 
 /* ── 🗺️ 產業地圖 — 焦點產業關聯「蜘蛛網」圖 ────────────────────────
@@ -983,8 +1001,12 @@ let _artCurrentTicker = null;
 let _artCurrentName = '';
 let _artScopeContainer = null;      // DOM ref:來源 container,filter 變動時 re-scan 用
 let _artScopeObserver = null;       // MutationObserver:監聽 container 變化自動 refresh
-// 買賣標記(僅「報酬最強」逐筆 cell 開啟時設;K 線上標 entry/exit)。normal 開啟一律 null。
-let _artMarkers = null;             // {ticker, entryDate, exitDate, entryPx, exitPx} | null
+// art-modal 模式:'etf'(預設,下半=主動式 ETF 持股)| 'trades'(報酬最強股票卡開啟,下半=該股全往返表)。
+let _artMode = 'etf';
+// trades 模式買賣標記;K 線標 chart_trades(≤10)。normal('etf')開啟一律 null。
+let _artMarkers = null;             // {ticker, trades:[[seq,ed,ep,xd,xp,pnl,hold,reason],...]} | null
+let _klineCandleSeries = null;      // 當前 K 線蠟燭 series(hover 高亮 setMarkers 用)
+let _btBaseMarkers = [];            // trades 模式基礎買賣標記(hover 疊加/復原基準)
 
 const _ART_SCOPE_SELECTORS = [
   '.cluster-focal-stocks',       // 熱門題材 cluster focal/sentinel pill
@@ -1045,10 +1067,11 @@ function _refreshArtScope() {
   _updateArtCounter();
 }
 
-function showArtModal(ticker, name, evt, tradeMarkers) {
+function showArtModal(ticker, name, evt) {
   _artCurrentTicker = ticker;
   _artCurrentName = name || '';
-  _artMarkers = tradeMarkers || null;   // normal 開啟(無第4參)→ 清掉,不殘留上次標記
+  _artMode = 'etf';        // 一般開啟 = ETF 模式;trades 模式只走 btOpenStock
+  _artMarkers = null;      // 清掉,不殘留 trades 模式標記
   _artScopeContainer = _detectArtScope(evt);
   // dispose 上次 observer(若 modal 連續開不同 container)
   if (_artScopeObserver) { _artScopeObserver.disconnect(); _artScopeObserver = null; }
@@ -1091,7 +1114,9 @@ function _renderArtModalBody(ticker, name) {
       '<div class="art-kline-chart" id="art-kline-chart"></div>' +
       '<div class="art-kline-empty" id="art-kline-empty" style="display:none">載入 K 線中…</div>' +
     '</div>' +
-    '<div class="art-etf-section">' + etfHtml + '</div>'
+    (_artMode === 'trades'
+      ? '<div class="art-trades-section">' + _btStockTableHtml(ticker) + '</div>'
+      : '<div class="art-etf-section">' + etfHtml + '</div>')
   );
   _updateArtCounter();
   _loadStockKline(ticker);
@@ -1112,38 +1137,7 @@ function _updateArtCounter() {
   if (next) next.disabled = navDisabled;
 }
 
-/* 逐筆 row → 買賣標記物件 */
-function _btMk(t) {
-  return {
-    ticker: t[2],
-    entryDate: t[0] ? String(t[0]).slice(0, 10) : null,
-    exitDate: t[1] ? String(t[1]).slice(0, 10) : null,
-    entryPx: (typeof t[4] === 'number') ? t[4] : null,
-    exitPx: (typeof t[5] === 'number') ? t[5] : null,
-  };
-}
-
-/* 報酬最強 cell:開個股 modal,K 線標註本筆買賣 + 左右輪巡全部 N 筆。
-   scope 直接用 _btTopTrades(不 dedupe;同檔多筆交易各自獨立、各帶自己的買賣標記),
-   依 index 輪巡。artNavTicker 切換時會同步換 _artMarkers。 */
-function showTradeKline(idx) {
-  const t = _btTopTrades[idx];
-  if (!t) return;
-  if (_artScopeObserver) { _artScopeObserver.disconnect(); _artScopeObserver = null; }
-  _artScopeContainer = null;
-  _artScope = _btTopTrades.map(tt => ({
-    ticker: tt[2], name: (tt[3] || '').slice(0, 12), markers: _btMk(tt),
-  }));
-  _artScopeIdx = idx;
-  const cur = _artScope[idx];
-  _artCurrentTicker = cur.ticker;
-  _artCurrentName = cur.name;
-  _artMarkers = cur.markers;
-  _renderArtModalBody(cur.ticker, cur.name);
-  document.getElementById('art-modal').showModal();
-}
-
-/* 左右導覽:環狀切到 prev/next ticker(同 scope 內)*/
+/* 左右導覽:環狀切到 prev/next ticker(同 scope 內;ETF 模式)*/
 function artNavTicker(dir) {
   if (_artScope.length < 2) return;
   const n = _artScope.length;
@@ -1153,7 +1147,6 @@ function artNavTicker(dir) {
   const cur = _artScope[_artScopeIdx];
   _artCurrentTicker = cur.ticker;
   _artCurrentName = cur.name;
-  _artMarkers = cur.markers || null;   // trade scope 帶各自買賣標記;一般 scope 無 → 清空
   _renderArtModalBody(cur.ticker, cur.name);
 }
 
@@ -1165,8 +1158,8 @@ let _klinePeriod = '6m';
 const _KLINE_PERIOD_DAYS = { '1m': 30, '3m': 90, '6m': 180, '1y': 365, '2y': 730 };
 
 function _loadStockKline(ticker) {
-  // 一般 6m;有買賣標記(報酬最強 cell)時用 1y,確保進場點(回測窗≈1年內)落在可視範圍
-  _klinePeriod = (_artMarkers && _artMarkers.ticker === ticker) ? '1y' : '6m';
+  // 一般 6m;trades 模式(報酬最強股票卡)用 1y,確保 chart_trades(回測窗≈1年內)落在可視範圍
+  _klinePeriod = (_artMode === 'trades') ? '1y' : '6m';
   // 切換 ticker 必須先 dispose 上一檔 chart,避免新 ticker render 時舊 chart 還在
   if (_klineChart) {
     try { _klineChart.remove(); } catch (e) {}
@@ -1284,20 +1277,27 @@ function _renderStockKline() {
     wickUpColor: '#ef5350', wickDownColor: '#26a69a',
   });
   candleSeries.setData(candles);
-  // 報酬最強 cell:K 線標註本筆買進(紅↑)/ 賣出(綠↓);time 須落在可視蠟燭範圍內。
-  if (_artMarkers && _artMarkers.ticker === _artCurrentTicker && candles.length) {
-    const m = _artMarkers, t0 = candles[0].time, t1 = candles[candles.length - 1].time;
+  // trades 模式:標 chart_trades(≤10)買進{seq}(紅↑)/ 賣出{seq}(綠↓);time 須落在可視範圍。
+  // 存 _klineCandleSeries/_btBaseMarkers 供表格列 hover 疊加高亮。
+  _klineCandleSeries = candleSeries;
+  _btBaseMarkers = [];
+  if (_artMode === 'trades' && _artMarkers && _artMarkers.ticker === _artCurrentTicker && candles.length) {
+    const t0 = candles[0].time, t1 = candles[candles.length - 1].time;
     const mk = [];
-    if (m.entryDate && m.entryDate >= t0 && m.entryDate <= t1)
-      mk.push({ time: m.entryDate, position: 'belowBar', color: '#ef5350', shape: 'arrowUp',
-                text: '買' + (m.entryPx != null ? ' ' + m.entryPx : '') });
-    if (m.exitDate && m.exitDate >= t0 && m.exitDate <= t1)
-      mk.push({ time: m.exitDate, position: 'aboveBar', color: '#26a69a', shape: 'arrowDown',
-                text: '賣' + (m.exitPx != null ? ' ' + m.exitPx : '') });
-    if (mk.length) {
-      mk.sort((a, b) => (a.time < b.time ? -1 : (a.time > b.time ? 1 : 0)));
-      candleSeries.setMarkers(mk);
+    for (const ct of (_artMarkers.trades || [])) {
+      const seq = ct[0];
+      const ed = ct[1] ? String(ct[1]).slice(0, 10) : null;
+      const xd = ct[3] ? String(ct[3]).slice(0, 10) : null;
+      if (ed && ed >= t0 && ed <= t1)
+        mk.push({ time: ed, position: 'belowBar', color: '#ef5350', shape: 'arrowUp',
+                  text: '買' + (seq != null ? seq : '') });
+      if (xd && xd >= t0 && xd <= t1)
+        mk.push({ time: xd, position: 'aboveBar', color: '#26a69a', shape: 'arrowDown',
+                  text: '賣' + (seq != null ? seq : '') });
     }
+    mk.sort(_btMkSort);
+    _btBaseMarkers = mk;
+    candleSeries.setMarkers(mk);
   }
   const volSeries = _klineChart.addHistogramSeries({
     priceFormat: { type: 'volume' },

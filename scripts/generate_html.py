@@ -1350,6 +1350,13 @@ def _build_trade_next_html(next_rows: list[dict] | None,
         px_s = (f"{_px:.2f}".rstrip("0").rstrip(".") if _px is not None else None)
         chips = "".join(f'<span class="sim-next-cond">{esc_c}</span>'
                         for esc_c in (html_lib.escape(x) for x in _conds_labels(r.get("conds"))))
+        # 再進場買單(ingest 0a2a622:reentry/reentry_kind)— 與雷達 conds 徽章區隔(琥珀)
+        _re_chip = ''
+        if r.get("reentry"):
+            _rek = r.get("reentry_kind")
+            _re_chip = ('<span class="sim-next-re">再進場·'
+                        f'{html_lib.escape(str(_rek))}</span>' if _rek
+                        else '<span class="sim-next-re">再進場</span>')
         hot = tk in seeds
         hot_badge = ('<span class="sim-next-hotbadge" title="同時出現在當日選股雷達熱門題材">'
                      '★ 雷達在榜</span>' if hot else '')
@@ -1374,7 +1381,7 @@ def _build_trade_next_html(next_rows: list[dict] | None,
             f'<span class="sim-next-tk">{html_lib.escape(tk)} {html_lib.escape(nm)}</span>'
             + pxchg_html + '</div>'
             f'<div class="sim-next-off2">距120日高 <b>{html_lib.escape(offh_s)}</b>{hot_badge}</div>'
-            + (f'<div class="sim-next-conds">{chips}</div>' if chips else '')
+            + (f'<div class="sim-next-conds">{_re_chip}{chips}</div>' if (_re_chip or chips) else '')
             + '</div>'
         )
     return (
@@ -1503,6 +1510,7 @@ def _build_backtest_html(payload: dict | None = None) -> str:
             print(f"  ⚠ 回測 DB payload 與靜態檔皆無(略過 1 年回測區塊): {exc}")
             return ""
     esc = html_lib.escape
+    _sname = esc(d.get("name") or STRAT_NAME)   # 策略名動態讀 payload(勿硬寫舊值)
     m = d.get("metrics") or {}
     bm = d.get("benchmarks") or {}
     ec = d.get("equity_curve") or {}
@@ -1530,7 +1538,7 @@ def _build_backtest_html(payload: dict | None = None) -> str:
     _wr_s = f"{_wr:.1f}%" if isinstance(_wr, (int, float)) else _dash
     # 策略列(全欄)+ benchmark 列(無 年化/勝率/PF/筆數 → —)
     rows_html = (
-        f'<tr><td class="sim-m-name"><i style="background:#60a5fa"></i>拉回買策略</td>'
+        f'<tr><td class="sim-m-name"><i style="background:#60a5fa"></i>{_sname}</td>'
         f'<td class="r">{_pct(m.get("total_return_pct"))}</td>'
         f'<td class="r">{_pct(m.get("annual_return_pct"))}</td>'
         f'<td class="r">{_mdd(m.get("max_drawdown_pct"))}</td>'
@@ -1590,7 +1598,7 @@ def _build_backtest_html(payload: dict | None = None) -> str:
         + metrics_html
         + '<div id="sim-bt-chart" class="sim-chart"></div>'
         '<div class="risk-chart-legend">'
-        '<span><i style="background:#60a5fa"></i>拉回買策略</span>'
+        f'<span><i style="background:#60a5fa"></i>{_sname}</span>'
         '<span><i style="background:#f59e0b"></i>加權指數</span>'
         '<span><i style="background:#10b981"></i>00981A(主動式 ETF)</span>'
         f'<span class="sim-rebase-note">皆以 {esc(start_d)} = 100 起算</span>'
@@ -1602,16 +1610,15 @@ def _build_backtest_html(payload: dict | None = None) -> str:
 
 
 def _build_bt_trades_html(n_trades: int = 0) -> str:
-    """📋 逐筆交易明細(可摺疊 + lazy-load)。n_trades=0(Q45 無資料 / 失敗)→ 不渲染。
-    區塊只放「展開」按鈕 + 空 body;點開才由 app.js `btTradesToggle` lazy-fetch
-    docs/bt_trades_pullback.json(定位陣列 [entry_date,exit_date,ticker,name,
-    entry_price,exit_price,pnl_pct,hold_days,reason]),client-side 建表 + 每 20 筆
-    DOM 分頁。reason 代號→中文對照在 app.js(`_BT_REASON`),不外洩英文代號。
-    3000+ 筆不進首屏,記憶體與首屏體積零負擔。"""
+    """📋 逐筆交易明細(預設展開 + lazy-load,by_stock_lazy)。n_trades=0 → 不渲染。
+    區塊只放標題列 + 空 body;showTab('tradesim') 首次切入由 app.js `_btLoadTrades`
+    lazy-fetch docs/bt_summary.json(100 檔卡 + chart_trades)+ docs/bt_detail.json
+    (by_ticker 全往返)。body 由 `_btRenderSection` 填:統計柱狀圖 + 報酬最強股票卡;
+    點某檔卡 → `btOpenStock` 開 modal(K線標 chart_trades + 該股全往返表 + hover 高亮)。
+    reason 代號→中文對照在 app.js(`_BT_REASON`),不外洩英文代號。"""
     if not n_trades or n_trades <= 0:
         return ""
-    # 2026-06-18 user:預設展開(不收合)。渲染為 open 態(caret 轉 90°、body 不 hidden);
-    # 實際 fetch 由 showTab('tradesim') 首次切入時自動觸發(保留「沒進策略頁不抓 227KB」)。
+    # 預設展開(open 態:caret 轉 90°、body 不 hidden);fetch 由切入策略頁自動觸發。
     return (
         '<div class="card sim-bt-trades">'
         '<button class="bt-tr-toggle open" type="button" aria-expanded="true" '
@@ -1621,14 +1628,7 @@ def _build_bt_trades_html(n_trades: int = 0) -> str:
         '<div class="bt-tr-body">'
         '<div class="bt-tr-status">展開中…</div>'
         '<div class="bt-tr-summary"></div>'
-        '<div class="bt-tr-tablewrap"></div>'
-        '<div class="bt-tr-pager" hidden>'
-        '<button class="bt-tr-pg" type="button" data-dir="-1" '
-        'onclick="btTradesStep(-1)">‹ 上一頁</button>'
-        '<span class="bt-tr-pginfo"></span>'
-        '<button class="bt-tr-pg" type="button" data-dir="1" '
-        'onclick="btTradesStep(1)">下一頁 ›</button>'
-        '</div></div></div>'
+        '</div></div>'
     )
 
 
@@ -4795,12 +4795,29 @@ async def generate():
     except Exception as exc:
         print(f"  ⚠ Q44 strategy_backtest query failed → 靜態檔 fallback: {exc}")
 
-    # Q45 — 1 年回測「逐筆交易明細」(strategy_backtest_trades)。落地成
-    # docs/bt_trades_pullback.json(gitignore、隨部署上傳),前端點開才 lazy-fetch +
-    # DOM 分頁,不灌進首屏 index.html(3000+ 筆 inline 會撐爆)。每筆轉成定位陣列
-    # [entry_date, exit_date, ticker, name, entry_price, exit_price, pnl_pct,
-    #  hold_days, reason](最省體積;reason 留代號,前端 map 中文)。
+    # Q45/Q46 — 逐筆交易明細(by_stock_lazy,ingest 03a3cdb..0a2a622)。
+    #   Q45 summary(stocks top100 + 每檔 chart_trades≤10)→ docs/bt_summary.json;
+    #   Q46 detail(by_ticker 全往返,~1.8MB)→ docs/bt_detail.json(positional 壓縮)。
+    #   皆 gitignore、隨部署上傳。前端展開逐筆才 lazy-fetch 兩檔(summary 渲卡片、
+    #   detail 算統計柱狀圖 + 點某檔開 modal 的全往返表)。
+    #   positional 約定:[seq, entry_date, entry_price, exit_date, exit_price,
+    #                    pnl_pct, hold_days, reason]
+    def _ct_compact(t):
+        return [
+            (int(t["seq"]) if isinstance(t.get("seq"), (int, float)) else None),
+            t.get("entry_date"), _jc(t.get("entry_price"), 2),
+            t.get("exit_date"), _jc(t.get("exit_price"), 2),
+            _jc(t.get("pnl_pct"), 2),
+            (int(t["hold_days"]) if isinstance(t.get("hold_days"), (int, float)) else None),
+            t.get("reason"),
+        ]
     bt_trades_n = 0
+    _bt_stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    _sum_path = OUT_FILE.parent / "bt_summary.json"
+    _det_path = OUT_FILE.parent / "bt_detail.json"
+    _old_flat = OUT_FILE.parent / "bt_trades_pullback.json"  # 舊 flat 檔 → 清除
+    if _old_flat.exists():
+        _old_flat.unlink()
     try:
         _btt_row = await conn.fetchrow(
             "select trades from strategy_backtest_trades where slug = 'pullback'")
@@ -4808,35 +4825,54 @@ async def generate():
         if _btt_row and _btt_row.get("trades"):
             _raw = _btt_row["trades"]
             _btt = json.loads(_raw) if isinstance(_raw, str) else dict(_raw)
-        if _btt and (_btt.get("trades") or []):
-            _arr = _btt.get("trades") or []
-            _compact = [[
-                t.get("entry_date"), t.get("exit_date"),
-                t.get("ticker"), t.get("name"),
-                _jc(t.get("entry_price"), 2), _jc(t.get("exit_price"), 2),
-                _jc(t.get("pnl_pct"), 2),
-                (int(t["hold_days"]) if isinstance(t.get("hold_days"), (int, float)) else None),
-                t.get("reason"),
-            ] for t in _arr]
-            bt_trades_n = len(_compact)
-            _btt_stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
-            _btt_path = OUT_FILE.parent / "bt_trades_pullback.json"
-            _btt_path.write_text(
-                json.dumps({"b": _btt_stamp, "n": bt_trades_n,
-                            "w": _btt.get("window") or {}, "t": _compact},
-                           ensure_ascii=False, separators=(",", ":")),
-                encoding="utf-8")
-            print(f"  bt_trades_pullback.json (Q45): {bt_trades_n} 筆, "
-                  f"{_btt_path.stat().st_size:,} bytes")
+        _stocks = (_btt or {}).get("stocks") or []
+        if _stocks:
+            _scards = [{
+                "tk": s.get("ticker"), "nm": s.get("name"),
+                "tot": _jc(s.get("total_pnl_pct"), 1),
+                "best": _jc(s.get("best_pnl_pct"), 1),
+                "n": (int(s["n"]) if isinstance(s.get("n"), (int, float)) else None),
+                "wr": (int(s["win_rate_pct"]) if isinstance(s.get("win_rate_pct"), (int, float)) else None),
+                "ct": [_ct_compact(t) for t in (s.get("chart_trades") or [])],
+            } for s in _stocks]
+            bt_trades_n = int(_btt.get("n_trades_total") or 0)
+            _sum_path.write_text(json.dumps(
+                {"b": _bt_stamp, "nt": bt_trades_n,
+                 "ns": int(_btt.get("n_stocks_total") or len(_scards)), "stocks": _scards},
+                ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+            print(f"  bt_summary.json (Q45): {len(_scards)} 檔 / {bt_trades_n} 筆, "
+                  f"{_sum_path.stat().st_size:,} bytes")
         else:
-            # 沒資料 → 移除可能殘留的舊檔(避免前端 lazy-fetch 拿到 stale)
-            _btt_path = OUT_FILE.parent / "bt_trades_pullback.json"
-            if _btt_path.exists():
-                _btt_path.unlink()
-            print("  ⚠ Q45 strategy_backtest_trades 無資料 → 不渲逐筆區塊")
+            if _sum_path.exists():
+                _sum_path.unlink()
+            print("  ⚠ Q45 by_stock_lazy 無 stocks → 不渲逐筆區塊")
     except Exception as exc:
-        # 逐筆是 degraded UX(非核心),失敗只警示不中斷整頁 render
         print(f"  ⚠ Q45 strategy_backtest_trades query failed(逐筆區塊略過): {exc}")
+
+    if bt_trades_n:
+        try:
+            _d_row = await conn.fetchrow(
+                "select detail from strategy_backtest_trades_detail where slug = 'pullback'")
+            _det = None
+            if _d_row and _d_row.get("detail"):
+                _draw = _d_row["detail"]
+                _det = json.loads(_draw) if isinstance(_draw, str) else dict(_draw)
+            _by = (_det or {}).get("by_ticker") or {}
+            if _by:
+                _dcompact = {tk: [_ct_compact(t) for t in (arr or [])] for tk, arr in _by.items()}
+                _det_path.write_text(json.dumps(
+                    {"b": _bt_stamp, "d": _dcompact},
+                    ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+                print(f"  bt_detail.json (Q46): {len(_dcompact)} 檔, "
+                      f"{_det_path.stat().st_size:,} bytes")
+            else:
+                if _det_path.exists():
+                    _det_path.unlink()
+                print("  ⚠ Q46 detail 無 by_ticker")
+        except Exception as exc:
+            print(f"  ⚠ Q46 strategy_backtest_trades_detail query failed: {exc}")
+    elif _det_path.exists():
+        _det_path.unlink()
 
     # Q38 / Q39 產業地圖已在前面(_hist_tickers 構建前)fetch,讓 industry-map
     # ticker 也納入 ticker_close / ticker_net_inst 歷史(供 modal 內子產業趨勢圖)。
