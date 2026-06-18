@@ -200,6 +200,7 @@ const _BT_REASON = {
 };
 const _BT_PER_PAGE = 20;
 let _btTrades = null, _btPage = 0, _btLoaded = false, _btLoading = false;
+let _btTopTrades = [];   // 報酬最強排序後的 50 筆(供 modal 左右輪巡;每筆獨立含買賣標記)
 
 function btTradesToggle(btn) {
   const wrap = btn.closest('.sim-bt-trades');
@@ -283,20 +284,17 @@ function _btRenderSummary(body) {
     else if (p <= 5) rb[3].count++; else if (p <= 10) rb[4].count++;
     else if (p <= 20) rb[5].count++; else rb[6].count++;
   });
-  // 最強 50 檔(含已出場 / 持有中);小方格 grid、由左而右由上而下
-  const top = [...rets].sort((a, b) => b[6] - a[6]).slice(0, 50);
+  // 最強 100 檔(含已出場 / 持有中);小方格 grid、由左而右由上而下、無排名編號
+  const top = [...rets].sort((a, b) => b[6] - a[6]).slice(0, 100);
+  _btTopTrades = top;   // 供 modal 左右輪巡(每筆獨立交易,含各自買賣標記)
   const topHtml = top.map((t, i) => {
     const tk = t[2], nm = t[3] || '';
     const v = t[6];
     const cls = v > 0 ? 'up' : (v < 0 ? 'down' : 'flat');
     const vs = (v > 0 ? '+' : '') + v.toFixed(2) + '%';
-    // 點擊走 showTradeKline:K 線上標註本筆買進/賣出(entry/exit date+price)
-    return "<button type='button' class='bt-top-cell' onclick='showTradeKline("
-      + JSON.stringify(tk) + ',' + JSON.stringify(nm.slice(0, 12)) + ','
-      + JSON.stringify(t[0]) + ',' + JSON.stringify(t[1]) + ','
-      + JSON.stringify(t[4]) + ',' + JSON.stringify(t[5]) + ")'>"
-      + '<span class="bt-top-r1"><span class="bt-top-rk">' + (i + 1) + '</span>'
-      + '<span class="bt-top-nm">' + _imEsc(nm) + '</span></span>'
+    // 點擊走 showTradeKline(idx):K 線標註本筆買賣 + 100 筆左右輪巡
+    return "<button type='button' class='bt-top-cell' onclick='showTradeKline(" + i + ")'>"
+      + '<span class="bt-top-nm">' + _imEsc(nm) + '</span>'
       + '<span class="bt-top-r2"><span class="bt-top-tk">' + _imEsc(tk) + '</span>'
       + '<span class="bt-top-v ' + cls + '">' + vs + '</span></span></button>';
   }).join('');
@@ -1114,16 +1112,35 @@ function _updateArtCounter() {
   if (next) next.disabled = navDisabled;
 }
 
-/* 報酬最強 cell 專用:開個股 modal 並在 K 線標註本筆買進/賣出。
-   單一 scope(不帶 evt → 無左右切換),避免 nav 切到別檔時標記錯位。 */
-function showTradeKline(ticker, name, entryDate, exitDate, entryPx, exitPx) {
-  showArtModal(ticker, name, null, {
-    ticker: ticker,
-    entryDate: entryDate ? String(entryDate).slice(0, 10) : null,
-    exitDate: exitDate ? String(exitDate).slice(0, 10) : null,
-    entryPx: (typeof entryPx === 'number') ? entryPx : null,
-    exitPx: (typeof exitPx === 'number') ? exitPx : null,
-  });
+/* 逐筆 row → 買賣標記物件 */
+function _btMk(t) {
+  return {
+    ticker: t[2],
+    entryDate: t[0] ? String(t[0]).slice(0, 10) : null,
+    exitDate: t[1] ? String(t[1]).slice(0, 10) : null,
+    entryPx: (typeof t[4] === 'number') ? t[4] : null,
+    exitPx: (typeof t[5] === 'number') ? t[5] : null,
+  };
+}
+
+/* 報酬最強 cell:開個股 modal,K 線標註本筆買賣 + 左右輪巡全部 N 筆。
+   scope 直接用 _btTopTrades(不 dedupe;同檔多筆交易各自獨立、各帶自己的買賣標記),
+   依 index 輪巡。artNavTicker 切換時會同步換 _artMarkers。 */
+function showTradeKline(idx) {
+  const t = _btTopTrades[idx];
+  if (!t) return;
+  if (_artScopeObserver) { _artScopeObserver.disconnect(); _artScopeObserver = null; }
+  _artScopeContainer = null;
+  _artScope = _btTopTrades.map(tt => ({
+    ticker: tt[2], name: (tt[3] || '').slice(0, 12), markers: _btMk(tt),
+  }));
+  _artScopeIdx = idx;
+  const cur = _artScope[idx];
+  _artCurrentTicker = cur.ticker;
+  _artCurrentName = cur.name;
+  _artMarkers = cur.markers;
+  _renderArtModalBody(cur.ticker, cur.name);
+  document.getElementById('art-modal').showModal();
 }
 
 /* 左右導覽:環狀切到 prev/next ticker(同 scope 內)*/
@@ -1136,6 +1153,7 @@ function artNavTicker(dir) {
   const cur = _artScope[_artScopeIdx];
   _artCurrentTicker = cur.ticker;
   _artCurrentName = cur.name;
+  _artMarkers = cur.markers || null;   // trade scope 帶各自買賣標記;一般 scope 無 → 清空
   _renderArtModalBody(cur.ticker, cur.name);
 }
 
