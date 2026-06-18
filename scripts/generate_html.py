@@ -1610,13 +1610,15 @@ def _build_bt_trades_html(n_trades: int = 0) -> str:
     3000+ 筆不進首屏,記憶體與首屏體積零負擔。"""
     if not n_trades or n_trades <= 0:
         return ""
+    # 2026-06-18 user:預設展開(不收合)。渲染為 open 態(caret 轉 90°、body 不 hidden);
+    # 實際 fetch 由 showTab('tradesim') 首次切入時自動觸發(保留「沒進策略頁不抓 227KB」)。
     return (
         '<div class="card sim-bt-trades">'
-        '<button class="bt-tr-toggle" type="button" aria-expanded="false" '
+        '<button class="bt-tr-toggle open" type="button" aria-expanded="true" '
         'onclick="btTradesToggle(this)">'
         f'<span class="bt-tr-caret">▸</span> 逐筆交易明細'
         f'<span class="bt-tr-count">{n_trades:,} 筆</span></button>'
-        '<div class="bt-tr-body" hidden>'
+        '<div class="bt-tr-body">'
         '<div class="bt-tr-status">展開中…</div>'
         '<div class="bt-tr-summary"></div>'
         '<div class="bt-tr-tablewrap"></div>'

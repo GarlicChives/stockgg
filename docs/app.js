@@ -31,6 +31,11 @@ function showTab(name) {
   // 📈 策略模擬 tab:lazy-init NAV 三線圖 + 1 年回測曲線(只第一次切過去 init)
   if (name === 'tradesim' && !_tradesimRendered) _initTradeSimChart();
   if (name === 'tradesim' && !_tradebtRendered) _initTradeBtChart();
+  // 逐筆交易明細預設展開:首次切入策略頁自動 lazy-fetch(沒進策略頁就不抓 227KB)
+  if (name === 'tradesim' && !_btLoaded && !_btLoading) {
+    const _btBody = document.querySelector('.sim-bt-trades .bt-tr-body');
+    if (_btBody) _btLoadTrades(_btBody);
+  }
 }
 
 /* ── 🛡️ 風控 tab — lazy-init「依建議部位 vs 買進持有」淨值雙線圖 ──────
@@ -285,12 +290,15 @@ function _btRenderSummary(body) {
     const v = t[6];
     const cls = v > 0 ? 'up' : (v < 0 ? 'down' : 'flat');
     const vs = (v > 0 ? '+' : '') + v.toFixed(2) + '%';
-    return "<button type='button' class='bt-top-cell' onclick='showArtModal(" + JSON.stringify(tk) + ','
-      + JSON.stringify(nm.slice(0, 12)) + ",event)'>"
-      + '<span class="bt-top-rk">' + (i + 1) + '</span>'
-      + '<span class="bt-top-nm">' + _imEsc(nm) + '</span>'
-      + '<span class="bt-top-tk">' + _imEsc(tk) + '</span>'
-      + '<span class="bt-top-v ' + cls + '">' + vs + '</span></button>';
+    // 點擊走 showTradeKline:K 線上標註本筆買進/賣出(entry/exit date+price)
+    return "<button type='button' class='bt-top-cell' onclick='showTradeKline("
+      + JSON.stringify(tk) + ',' + JSON.stringify(nm.slice(0, 12)) + ','
+      + JSON.stringify(t[0]) + ',' + JSON.stringify(t[1]) + ','
+      + JSON.stringify(t[4]) + ',' + JSON.stringify(t[5]) + ")'>"
+      + '<span class="bt-top-r1"><span class="bt-top-rk">' + (i + 1) + '</span>'
+      + '<span class="bt-top-nm">' + _imEsc(nm) + '</span></span>'
+      + '<span class="bt-top-r2"><span class="bt-top-tk">' + _imEsc(tk) + '</span>'
+      + '<span class="bt-top-v ' + cls + '">' + vs + '</span></span></button>';
   }).join('');
   const arCls = avgRet > 0 ? 'up' : (avgRet < 0 ? 'down' : 'flat');
   sum.innerHTML =
@@ -977,6 +985,8 @@ let _artCurrentTicker = null;
 let _artCurrentName = '';
 let _artScopeContainer = null;      // DOM ref:來源 container,filter 變動時 re-scan 用
 let _artScopeObserver = null;       // MutationObserver:監聽 container 變化自動 refresh
+// 買賣標記(僅「報酬最強」逐筆 cell 開啟時設;K 線上標 entry/exit)。normal 開啟一律 null。
+let _artMarkers = null;             // {ticker, entryDate, exitDate, entryPx, exitPx} | null
 
 const _ART_SCOPE_SELECTORS = [
   '.cluster-focal-stocks',       // 熱門題材 cluster focal/sentinel pill
@@ -1037,9 +1047,10 @@ function _refreshArtScope() {
   _updateArtCounter();
 }
 
-function showArtModal(ticker, name, evt) {
+function showArtModal(ticker, name, evt, tradeMarkers) {
   _artCurrentTicker = ticker;
   _artCurrentName = name || '';
+  _artMarkers = tradeMarkers || null;   // normal 開啟(無第4參)→ 清掉,不殘留上次標記
   _artScopeContainer = _detectArtScope(evt);
   // dispose 上次 observer(若 modal 連續開不同 container)
   if (_artScopeObserver) { _artScopeObserver.disconnect(); _artScopeObserver = null; }
@@ -1103,6 +1114,18 @@ function _updateArtCounter() {
   if (next) next.disabled = navDisabled;
 }
 
+/* 報酬最強 cell 專用:開個股 modal 並在 K 線標註本筆買進/賣出。
+   單一 scope(不帶 evt → 無左右切換),避免 nav 切到別檔時標記錯位。 */
+function showTradeKline(ticker, name, entryDate, exitDate, entryPx, exitPx) {
+  showArtModal(ticker, name, null, {
+    ticker: ticker,
+    entryDate: entryDate ? String(entryDate).slice(0, 10) : null,
+    exitDate: exitDate ? String(exitDate).slice(0, 10) : null,
+    entryPx: (typeof entryPx === 'number') ? entryPx : null,
+    exitPx: (typeof exitPx === 'number') ? exitPx : null,
+  });
+}
+
 /* 左右導覽:環狀切到 prev/next ticker(同 scope 內)*/
 function artNavTicker(dir) {
   if (_artScope.length < 2) return;
@@ -1124,7 +1147,8 @@ let _klinePeriod = '6m';
 const _KLINE_PERIOD_DAYS = { '1m': 30, '3m': 90, '6m': 180, '1y': 365, '2y': 730 };
 
 function _loadStockKline(ticker) {
-  _klinePeriod = '6m';  // 每次開/切換 ticker 重置預設
+  // 一般 6m;有買賣標記(報酬最強 cell)時用 1y,確保進場點(回測窗≈1年內)落在可視範圍
+  _klinePeriod = (_artMarkers && _artMarkers.ticker === ticker) ? '1y' : '6m';
   // 切換 ticker 必須先 dispose 上一檔 chart,避免新 ticker render 時舊 chart 還在
   if (_klineChart) {
     try { _klineChart.remove(); } catch (e) {}
@@ -1242,6 +1266,21 @@ function _renderStockKline() {
     wickUpColor: '#ef5350', wickDownColor: '#26a69a',
   });
   candleSeries.setData(candles);
+  // 報酬最強 cell:K 線標註本筆買進(紅↑)/ 賣出(綠↓);time 須落在可視蠟燭範圍內。
+  if (_artMarkers && _artMarkers.ticker === _artCurrentTicker && candles.length) {
+    const m = _artMarkers, t0 = candles[0].time, t1 = candles[candles.length - 1].time;
+    const mk = [];
+    if (m.entryDate && m.entryDate >= t0 && m.entryDate <= t1)
+      mk.push({ time: m.entryDate, position: 'belowBar', color: '#ef5350', shape: 'arrowUp',
+                text: '買' + (m.entryPx != null ? ' ' + m.entryPx : '') });
+    if (m.exitDate && m.exitDate >= t0 && m.exitDate <= t1)
+      mk.push({ time: m.exitDate, position: 'aboveBar', color: '#26a69a', shape: 'arrowDown',
+                text: '賣' + (m.exitPx != null ? ' ' + m.exitPx : '') });
+    if (mk.length) {
+      mk.sort((a, b) => (a.time < b.time ? -1 : (a.time > b.time ? 1 : 0)));
+      candleSeries.setMarkers(mk);
+    }
+  }
   const volSeries = _klineChart.addHistogramSeries({
     priceFormat: { type: 'volume' },
     priceScaleId: 'vol',
