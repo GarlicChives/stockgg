@@ -29,8 +29,10 @@ companion repo `StockGG-ingest`(本機 `~/Desktop/StockGG-ingest`,私有)跑。
   本機手動部署**只能走 `bash scripts/deploy_site.sh`**(部署前斷言 index.html 完整、部署後 smoke-test
   線上 200)——**嚴禁裸跑 `wrangler deploy`**:index.html 是 gitignored 生成檔,沒先 generate 就部署
   會上傳缺 index.html 的空版本 → 全站根 404(2026-06-18 真因)。CI 已內建同款 guard。
-  **勿一日連發多次 deploy**(production alias 會被搖亂)。站台壞掉先打**版本預覽 URL**
-  `https://<versionId前8碼>-stockgg.v4578469.workers.dev/`判斷是 worker 還是 alias 問題。
+  **勿一日連發多次 deploy**(production alias 會被搖亂)。站台前有 **Cloudflare Access**
+  (email 白名單;未登入 production root 回 **302** 登入頁,不是 200)。站台壞掉先打
+  **版本預覽 URL** `https://<versionId前8碼>-stockgg.v4578469.workers.dev/`(**繞過 Access**、
+  直命中該版本 assets)判斷是 worker/版本問題還是 alias/Access 問題。smoke test 也測這個 URL。
 - **改 `generate_html.py` 的 `conn.fetch*` query** → 必同步擴 db-proxy allowlist + redeploy。
 - **生成檔不 commit**(index.html / history.json / kline.json / bt_trades_pullback.json 全 gitignore,
   CI fresh regen 後只 deploy 不 commit)。

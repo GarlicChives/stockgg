@@ -80,8 +80,10 @@ jobs:
           # 撞 npx interactive prompt 卡住 (2026-05-19 踩到);pin 已測過的版本。
           wranglerVersion: "4.20.0"
 
-      # 部署後 smoke test:線上根路徑必須 200,否則該 run 標紅(GitHub 寄失敗通知),
-      # 讓「壞版本上線」第一時間可見,而不是等使用者回報全站 404。
+      # 部署後 smoke test(liveness)。站台前有 Cloudflare Access:未登入的
+      # production root 回 302(登入頁)而非 200,故接受 200 或 302 皆算活著。
+      # 防「缺 index.html 空版本」的主防線是上面 deploy 前的 verify guard,不是這裡。
+      # 非 200/302(403/404/5xx/000)才讓該 run 標紅、寄失敗通知。
       - name: Smoke test deployed site
         run: |
           URL=https://stockgg.v4578469.workers.dev/
@@ -89,6 +91,6 @@ jobs:
             sleep 3
             code=$(curl -sS -o /dev/null -w "%{http_code}" "$URL" || echo "000")
             echo "attempt ${i}: HTTP ${code}"
-            if [ "$code" = "200" ]; then echo "site OK"; exit 0; fi
+            if [ "$code" = "200" ] || [ "$code" = "302" ]; then echo "site OK (HTTP ${code})"; exit 0; fi
           done
-          echo "::error::deployed site root not 200 — investigate via version-preview URL"; exit 1
+          echo "::error::deployed site root neither 200 nor 302 — investigate via version-preview URL"; exit 1
