@@ -2811,6 +2811,12 @@ def build_focus_stock_page(
         ma20 = sum(closes[-20:]) / 20 if len(closes) >= 20 else None
         ma60 = sum(closes[-60:]) / 60 if len(closes) >= 60 else None
         ma20_bias = ((today_close - ma20) / ma20 * 100) if (today_close and ma20) else None
+        # 距 120 日最高點 %(off_high = 今日收盤 / 過去 120 日最高 close − 1;
+        # 與策略 trade_sim「拉回買」同口徑)。越負 = 拉回越深;0 = 正在創 120 日新高。
+        # 用最近 120 筆 close + 今日收盤取 max(2026-06-18)。
+        _c120 = closes[-120:] + ([today_close] if today_close else [])
+        _high120 = max(_c120) if _c120 else None
+        off_high = ((today_close / _high120 - 1) * 100) if (today_close and _high120) else None
         vol_mult = (today_tv / avg5_tv) if (today_tv and avg5_tv) else None
 
         # 全域過濾:季線以下不做多 — 股價必須站上 60 日均(季線)才列入
@@ -2937,6 +2943,7 @@ def build_focus_stock_page(
             "today_close": today_close,
             "vol_mult": vol_mult,
             "ma10": ma10, "ma20": ma20, "ma20_bias": ma20_bias,
+            "off_high": off_high,
             "pe": _f(meta.get("pe_ttm")),
             "peg": _f(meta.get("peg_ratio")),
             "peg_status": meta.get("peg_status"),
@@ -2961,10 +2968,14 @@ def build_focus_stock_page(
         })
 
     _by_bias = lambda c: -(c["ma20_bias"] if c["ma20_bias"] is not None else float("-inf"))
-    # 交集股預設依「符合條件數」desc(多→少),同數量再依月線乖離 desc
+    # 交集股預設排序「距 120 日高最遠優先」(off_high asc;越負=拉回越深排越前),
+    # 對齊拉回買策略「買最深拉回」(2026-06-18 ingest:原本條件數→乖離 desc 會把
+    # 創新高/最延伸股排最前,正是策略永遠不買的)。off_high 缺值(無 120 日歷史)
+    # 排尾;同 off_high 再依符合條件數多者優先。
+    _by_offhigh = lambda c: (c["off_high"] if c["off_high"] is not None else float("inf"))
     intersect_stocks = sorted(
         [c for c in cands if len(c["matched"]) >= 2],
-        key=lambda c: (-len(c["matched"]), _by_bias(c)),
+        key=lambda c: (_by_offhigh(c), -len(c["matched"])),
     )
     kgzd_stocks      = sorted([c for c in cands if c["is_kgzd"]], key=_by_bias)
     # vol_mult 為 inline 計算的顯示值;radar 判定 is_volume 但該檔 vol_mult 偶為
@@ -3061,7 +3072,11 @@ def build_focus_stock_page(
         cols = [("標的", "tk", 0, ""), ("成交金額", "tv", 1, "r")]
         if mode == "volume":
             cols.append(("出量倍數", "volmult", 1, "r"))
-        cols += [("月線乖離", "bias", 1, "r"), ("PE", "pe", 1, "r"),
+        cols.append(("月線乖離", "bias", 1, "r"))
+        # 交集股加「距120日高」欄(= 預設排序鍵,越負拉回越深;讓拉回買排序可讀)
+        if mode == "intersect":
+            cols.append(("距120日高", "offhigh", 1, "r"))
+        cols += [("PE", "pe", 1, "r"),
                  ("PEG", "peg", 1, "r"),
                  ("毛利率", "gm", 1, "r"), ("營益率", "om", 1, "r"),
                  ("淨利率", "nm", 1, "r"),
@@ -3081,6 +3096,7 @@ def build_focus_stock_page(
         peg_sort = c.get("peg") if (_ps and _ps.startswith("ok_") and c.get("peg") and c["peg"] > 0) else None
         tv = c["today_tv"] or 0
         bias = c["ma20_bias"]
+        offh = c.get("off_high")
         etf_n = _etf_held_count(c["etf_rows"])
         vm = c["vol_mult"]
         gm, om, nm = c["gross_margin"], c["operating_margin"], c["net_margin"]
@@ -3100,6 +3116,7 @@ def build_focus_stock_page(
             f'data-theme="{len(c["clusters"])}" '
             f'data-etf="{etf_n}" '
             f'data-volmult="{f"{vm:.4f}" if vm else ""}" '
+            f'data-offhigh="{f"{offh:.4f}" if offh is not None else ""}" '
             f'data-match="{len(c["matched"])}" '
             f'data-matched="{",".join(_MATCH_KEY.get(m, "") for m in c["matched"])}"'
         )
@@ -3129,6 +3146,15 @@ def build_focus_stock_page(
             tds.append(f'<td class="r"><b>{vm:.2f}×</b></td>' if vm else '<td class="r">—</td>')
         tds += [
             f'<td class="r">{_bias_cell(bias)}</td>',
+        ]
+        # 距120日高(交集股欄):負值=拉回深,用 down(綠)語意;0=創新高用 flat
+        if mode == "intersect":
+            if offh is None:
+                tds.append('<td class="r"><span class="muted">—</span></td>')
+            else:
+                _ocls = "down" if offh < 0 else "flat"
+                tds.append(f'<td class="r"><span class="{_ocls}">{offh:.1f}%</span></td>')
+        tds += [
             f'<td class="r">{pe_str}</td>',
             f'<td class="r">{_peg_cell(c)}</td>',
             f'<td class="r">{_margin_cell(gm, c["gm_dir"])}</td>',
