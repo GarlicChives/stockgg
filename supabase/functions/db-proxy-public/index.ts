@@ -234,6 +234,11 @@ const ALLOWED: Set<string> = new Set([
   //   badge;data_date = 該週最後交易日,週級節奏,與每日籌碼 badge 分流。
   //   2026-06-15 ingest 767b6b9 收尾)。
   "select max(data_date) from ticker_holder_dist",
+
+  // Q43 — 策略隔日買進標的(trade_sim_next;策略每日實際要買的短清單 =
+  //   回測宇宙挑出、依距 120 日高最遠排序的前 N 檔;2026-06-18 ingest)。
+  //   策略模擬頁最上方醒目列出。
+  "select * from trade_sim_next",
 ])
 
 function normalize(q: string): string {

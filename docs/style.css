@@ -1200,6 +1200,31 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 /* ── 📈 策略模擬(動能策略 paper trading,2026-06-12;Q40/Q41)──────────── */
 .sim-page{display:flex;flex-direction:column;gap:1rem}
 .sim-page .card{margin:0}
+/* 🎯 隔日買進標的(trade_sim_next;策略模擬頁最上方醒目區) */
+.sim-next-box{border-left:3px solid var(--accent)}
+.sim-next-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:.6rem}
+.sim-next-card{background:rgba(124,138,242,.06);border:1px solid var(--border);
+               border-radius:9px;padding:.6rem .75rem;cursor:pointer;transition:.12s}
+.sim-next-card:hover{border-color:var(--accent);background:rgba(124,138,242,.12)}
+.sim-next-hot{border:2px solid #f5a623;background:rgba(245,166,35,.10)}
+.sim-next-top{display:flex;align-items:baseline;gap:.4rem;flex-wrap:wrap;margin-bottom:.3rem}
+.sim-next-rank{font-size:.72rem;font-weight:800;color:#fff;background:var(--accent);
+               border-radius:50%;width:1.3rem;height:1.3rem;display:inline-flex;
+               align-items:center;justify-content:center;flex:0 0 auto}
+.sim-next-tk{font-size:.92rem;font-weight:700}
+.sim-next-hotbadge{font-size:.62rem;font-weight:700;padding:.05rem .4rem;border-radius:4px;
+                   background:rgba(245,166,35,.22);color:#f5a623}
+.sim-next-off{margin-left:auto;font-size:.74rem;font-weight:600;color:#26a69a;
+              font-variant-numeric:tabular-nums}
+.sim-next-mid{font-size:.78rem;color:var(--muted);display:flex;align-items:baseline;
+              gap:.4rem;flex-wrap:wrap}
+.sim-next-mid b{color:var(--text);font-variant-numeric:tabular-nums}
+.sim-next-band-note{font-size:.66rem;opacity:.7}
+.sim-next-tv{margin-left:auto}
+.sim-next-conds{display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem}
+.sim-next-cond{font-size:.64rem;font-weight:600;padding:.05rem .4rem;border-radius:4px;
+               background:rgba(255,255,255,.06);color:var(--muted)}
+.sim-next-note{margin:.7rem 0 0;font-size:.7rem;color:var(--muted);line-height:1.55}
 /* 多策略 sub-tab(策略模擬頁;沿用全站 sub-tab 視覺語彙) */
 .strat-tabs{display:flex;flex-wrap:wrap;gap:.4rem}
 .strat-tab-btn{font-family:inherit;font-size:.84rem;font-weight:600;padding:.4rem .9rem;

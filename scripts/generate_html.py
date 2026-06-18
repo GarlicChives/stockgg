@@ -1296,6 +1296,83 @@ def _sim_perf(vals: list[float]) -> dict:
 
 STRAT_NAME = "拉回買策略"   # 目前公開站唯一策略;多策略 sub-tab 架構見頁尾 wrap
 
+_NEXT_COND = {"vol": "出量", "nh": "新高", "growth": "成長", "chip": "籌碼", "pot": "潛力"}
+
+
+def _build_trade_next_html(next_rows: list[dict] | None,
+                           radar_seeds: set[str] | None) -> str:
+    """🎯 隔日買進標的(trade_sim_next):策略每日實際要買的短清單(回測宇宙挑出、
+    依距 120 日高最遠排序的前 N 檔)。放策略模擬頁最上方。同時出現在當日選股雷達
+    熱門題材種子(radar_seeds)者加 `.sim-next-hot` 高亮外框。"""
+    rows = next_rows or []
+    if not rows:
+        return ''
+    seeds = radar_seeds or set()
+    _aod = str(rows[0].get("as_of_date") or "")[:10]
+
+    def _conds_labels(raw):
+        # conds 在 DB 是字串化 list,如 "['chip', 'growth']";穩健解析
+        items = []
+        if isinstance(raw, (list, tuple)):
+            items = list(raw)
+        elif isinstance(raw, str) and raw.strip():
+            try:
+                import ast
+                v = ast.literal_eval(raw)
+                items = list(v) if isinstance(v, (list, tuple)) else []
+            except Exception:
+                items = [s.strip().strip("'\"") for s in raw.strip("[]").split(",")]
+        out = []
+        for k in items:
+            k = str(k)
+            lbl = _NEXT_COND.get(k) or (("潛力") if k.startswith("pot") else None)
+            if lbl and lbl not in out:
+                out.append(lbl)
+        return out
+
+    cards = []
+    for r in rows:
+        tk = str(r.get("ticker") or "")
+        nm = str(r.get("name") or "")
+        rank = r.get("rank")
+        offh = r.get("off_high")
+        ref = r.get("ref_close")
+        bhi = r.get("band_hi")
+        tv = r.get("tv")
+        chips = "".join(f'<span class="sim-next-cond">{esc_c}</span>'
+                        for esc_c in (html_lib.escape(x) for x in _conds_labels(r.get("conds"))))
+        hot = tk in seeds
+        hot_badge = ('<span class="sim-next-hotbadge" title="同時出現在當日選股雷達熱門題材">'
+                     '★ 雷達在榜</span>' if hot else '')
+        offh_s = (f'{float(offh):.1f}%' if isinstance(offh, (int, float))
+                  else (f'{offh}%' if offh not in (None, "") else '—'))
+        band_s = (f'{_jc(ref, 2)} ~ {_jc(bhi, 2)}'
+                  if ref not in (None, "") and bhi not in (None, "") else '—')
+        tv_s = _aetf_money(float(tv)).lstrip('+') if tv not in (None, "") else '—'
+        cards.append(
+            f'<div class="sim-next-card{" sim-next-hot" if hot else ""}" '
+            f"onclick='showArtModal({json.dumps(tk)},{json.dumps(nm[:12])},event)'>"
+            f'<div class="sim-next-top"><span class="sim-next-rank">{html_lib.escape(str(rank))}</span>'
+            f'<span class="sim-next-tk">{html_lib.escape(tk)} {html_lib.escape(nm)}</span>'
+            f'{hot_badge}'
+            f'<span class="sim-next-off">距120日高 {html_lib.escape(offh_s)}</span></div>'
+            f'<div class="sim-next-mid">進場區間 <b>{html_lib.escape(str(band_s))}</b>'
+            f'<span class="sim-next-band-note">(前收 ~ +3%)</span>'
+            f'<span class="sim-next-tv">成交值 {html_lib.escape(tv_s)}</span></div>'
+            + (f'<div class="sim-next-conds">{chips}</div>' if chips else '')
+            + '</div>'
+        )
+    return (
+        '<div class="card sim-next-box"><div class="sec">🎯 明日買進標的'
+        f'<span class="sim-daterange">{html_lib.escape(_aod)} 收盤後計算 · '
+        f'依距 120 日高最遠取前 {len(rows)} 檔 · 進場區間內掛單</span></div>'
+        '<div class="sim-next-list">' + "".join(cards) + '</div>'
+        '<p class="sim-next-note">★ 標記者同時出現在當日選股雷達「熱門題材焦點股」;'
+        '未標記者為策略宇宙(近一年焦點字典)選出、但當天非熱門題材 —— 策略仍會買,'
+        '只是不會出現在選股雷達頁。此為模擬,非投資建議。</p>'
+        '</div>'
+    )
+
 
 def _build_leverage_html(sweep: list[dict] | None) -> str:
     """💰 融資甜蜜點摺疊區(Track B,ingest acfe16d)。
@@ -1395,13 +1472,17 @@ def _build_leverage_html(sweep: list[dict] | None) -> str:
 
 
 def build_trade_sim_page(nav_rows: list[dict], trades: list[dict],
-                         leverage_sweep: list[dict] | None = None) -> str:
-    """📈 策略模擬頁:NAV vs 加權指數 vs 00981A 三線圖 + 績效指標表(勝率 / 夏普 /
-    Calmar 等)+ 💰 融資甜蜜點(Track B)+ 當前持股 + 交易明細 + 誠實方法論註記。
-    nav_rows = Q40(sim_date desc),trades = Q41,leverage_sweep = Track B 掃描列
-    (目前公開 DB 無 → None → 顯資料準備中 placeholder)。
-    2026-06-17(ingest 7be2400/acfe16d):移除 00991A 對照、策略命名「拉回買策略」、
-    上方多策略 sub-tab 架構、淨值圖下方指標表 + 融資甜蜜點摺疊區。"""
+                         leverage_sweep: list[dict] | None = None,
+                         next_rows: list[dict] | None = None,
+                         radar_seeds: set[str] | None = None) -> str:
+    """📈 策略模擬頁:🎯 隔日買進標的(trade_sim_next,最上方醒目)+ NAV vs 加權 vs
+    00981A 三線圖 + 績效指標表(勝率 / 夏普 / Calmar)+ 💰 融資甜蜜點(Track B)+
+    當前持股 + 交易明細 + 誠實方法論註記。
+    nav_rows = Q40(sim_date desc),trades = Q41,leverage_sweep = Track B 掃描列,
+    next_rows = Q43 trade_sim_next(策略隔日要買的短清單,依距120日高最遠排序),
+    radar_seeds = 當日選股雷達熱門題材種子集(隔日買進標的同時在內者加高亮)。
+    2026-06-17(ingest 7be2400/acfe16d):移除 00991A 對照、命名「拉回買策略」、
+    多策略 sub-tab 架構、指標表 + 融資甜蜜點。2026-06-18:加隔日買進標的區塊。"""
     if not nav_rows:
         return ('<p class="muted-note">策略模擬資料尚未生成(每晚 22:05 後更新,'
                 '首次上線前此頁為空)。</p>')
@@ -1683,7 +1764,8 @@ def build_trade_sim_page(nav_rows: list[dict], trades: list[dict],
     # 策略內容(淨值圖 + 指標表 + 持股 + 交易明細 + 方法論);未來多策略時
     # 每策略各一份此 block 包進對應 .strat-pane。
     strat_body = (
-        '<div class="card">'
+        _build_trade_next_html(next_rows, radar_seeds)
+        + '<div class="card">'
         f'<div class="sec">{esc(STRAT_NAME)} · 淨值走勢 <span class="sim-daterange">'
         f'{esc(start_d)} ~ {esc(end_d)} · 每晚 22:05 後更新</span></div>'
         + '<div id="sim-nav-chart" class="sim-chart"></div>'
@@ -2784,16 +2866,15 @@ def build_focus_stock_page(
     # 籌碼股:散戶 / 大戶持股比「週減」的零界噪音緩衝(個百分點)。TDCC 集保
     # 級距金額換算的週變化有 ±0.1~0.3pp bucketing 噪音 → 週減須逾此值才認列。
     _HOLDER_NOISE = 0.3
-    # 2026-06-18:cands 宇宙 = cluster focal/sentinel 聯集 ∪ **radar 評估過的 ticker**。
-    # 原本只掃 cluster 聯集(~10-30 檔),但策略雷達評估的是整個焦點宇宙(數百檔),
-    # 許多 radar ≥2 條件、策略實際會買的股(如 5498/6510)沒進任何顯示用 cluster →
-    # 漏出交集股。改為把 radar per_ticker_conds 的 ticker 一併納入掃描(clusters 留空,
-    # 季線 gate / 價量資料齊備性仍照常把不合格者濾掉)。
-    _cluster_tks = set(focal_to_clusters) | set(sentinel_to_clusters)
-    _radar_extra = [t for t in (radar_conds or {}) if t not in _cluster_tks]
+    # cands 宇宙 = 熱門題材焦點股(hl_sub cluster focal/sentinel 聯集)= 每日「強於
+    # 大盤」的種子子集。**2026-06-18 決策(user 拍板):選股雷達與策略模擬頁服務
+    # 不同目的,不強求 universe 一致** —— 策略/回測 universe = 字典「近一年焦點」
+    # 703 檔 ∪ rankings(無「每日強於大盤熱門題材」篩選),故策略會買、但當天非熱門
+    # 題材的股(如 5498 凱崴)本就不該出現在選股雷達。先前(607885c)為對齊策略把
+    # radar 全 ticker 併入掃描的 `_radar_extra` 已撤回。5 條件讀 radar / 3億閘 /
+    # 移除看高做低計入交集 / off_high 排序 等一致性修正保留。
     _scan = ([(t, cl, False) for t, cl in focal_to_clusters.items()]
-             + [(t, cl, True) for t, cl in sentinel_to_clusters.items()]
-             + [(t, [], False) for t in _radar_extra])
+             + [(t, cl, True) for t, cl in sentinel_to_clusters.items()])
     for tk, clusters, is_sentinel in _scan:
         info = stocks_info.get(tk, {})
         today_close = _f(info.get("close_price"))
@@ -4838,6 +4919,15 @@ async def generate():
     except Exception as exc:
         print(f"  ⚠ Q40/Q41 trade_sim query failed: {exc}")
 
+    # Q43 — 策略隔日買進標的(trade_sim_next;策略每日實際要買的短清單)
+    sim_next: list[dict] = []
+    try:
+        sim_next = [dict(r) for r in await conn.fetch("select * from trade_sim_next")]
+        sim_next.sort(key=lambda r: int(r.get("rank") or 999))
+        print(f"  trade_sim_next (Q43): {len(sim_next)} 檔隔日買進標的")
+    except Exception as exc:
+        print(f"  ⚠ Q43 trade_sim_next query failed: {exc}")
+
     # Q38 / Q39 產業地圖已在前面(_hist_tickers 構建前)fetch,讓 industry-map
     # ticker 也納入 ticker_close / ticker_net_inst 歷史(供 modal 內子產業趨勢圖)。
 
@@ -4863,7 +4953,16 @@ async def generate():
     notes_html  = build_notes_html(market_notes, podcast_rows, stocks_info)
     catalyst_html = build_catalyst_html(catalyst_events, stocks_info)
     risk_html   = build_risk_page(risk_snapshot, risk_history)
-    tradesim_html = build_trade_sim_page(sim_nav_rows, sim_trades)
+    # 選股雷達當日「熱門題材焦點股」種子集(= hl_sub cluster focal/sentinel 聯集),
+    # 供隔日買進標的高亮「同時出現在當日選股雷達」者。
+    _radar_seed_set: set[str] = set()
+    for _c in (focus_hl_clusters or []):
+        for _s in _c.focal:
+            _radar_seed_set.add(_s.ticker)
+        for _s in (_c.sentinel or []):
+            _radar_seed_set.add(_s.ticker)
+    tradesim_html = build_trade_sim_page(
+        sim_nav_rows, sim_trades, next_rows=sim_next, radar_seeds=_radar_seed_set)
     indmap_html = build_industry_map_page(indmap_rows, stocks_info, indmap_edges)
 
     # ── 主動式 ETF(2026-05-20 對應 ingest f5faa21)──
