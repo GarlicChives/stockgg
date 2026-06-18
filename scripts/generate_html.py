@@ -1332,7 +1332,8 @@ def _build_trade_next_html(next_rows: list[dict] | None,
                 out.append(lbl)
         return out
 
-    cards = []
+    cards = []        # 一般新訊號卡
+    re_cards = []     # 再進場買單卡(換行另起一行,樣式同一般卡)
     for r in rows:
         tk = str(r.get("ticker") or "")
         nm = str(r.get("name") or "")
@@ -1373,8 +1374,8 @@ def _build_trade_next_html(next_rows: list[dict] | None,
         offh_s = (f'{float(offh):.1f}%' if isinstance(offh, (int, float))
                   else (f'{offh}%' if offh not in (None, "") else '—'))
         # 精簡卡(2026-06-18 user):代號名 + 股價(漲跌%) / 距120日高 / 條件 chips,
-        # 移除排名圈、進場區間、成交值(資訊過載)。
-        cards.append(
+        # 移除排名圈、進場區間、成交值(資訊過載)。再進場卡進 re_cards(換行另起一行)。
+        (re_cards if r.get("reentry") else cards).append(
             f'<div class="sim-next-card{" sim-next-hot" if hot else ""}" '
             f"onclick='showArtModal({json.dumps(tk)},{json.dumps(nm[:12])},event)'>"
             f'<div class="sim-next-top">'
@@ -1388,7 +1389,9 @@ def _build_trade_next_html(next_rows: list[dict] | None,
         '<div class="card sim-next-box"><div class="sec">🎯 明日買進標的'
         f'<span class="sim-daterange">{html_lib.escape(_aod)} 收盤後計算 · '
         f'依距 120 日高最遠取前 {len(rows)} 檔 · 進場區間內掛單</span></div>'
-        '<div class="sim-next-list">' + "".join(cards) + '</div>'
+        '<div class="sim-next-list">' + "".join(cards)
+        + (('<div class="sim-next-break"></div>' + "".join(re_cards)) if re_cards else '')
+        + '</div>'
         '<p class="sim-next-note">★ 標記者同時出現在當日選股雷達「熱門題材焦點股」;'
         '未標記者為策略宇宙(近一年焦點字典)選出、但當天非熱門題材 —— 策略仍會買,'
         '只是不會出現在選股雷達頁。此為模擬,非投資建議。</p>'

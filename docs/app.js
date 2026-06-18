@@ -323,20 +323,22 @@ function _btFmtPct(v) {  // 報酬%:紅(正/賺)綠(負/賠),沿用 .up/.down/.f
   return '<span class="' + cls + '">' + (v > 0 ? '+' : '') + v.toFixed(2) + '%</span>';
 }
 
-/* 點某檔股票卡 → art-modal(trades 模式):K線標 chart_trades 買賣 + 該股全往返表 + hover 高亮 */
+/* 點某檔股票卡 → art-modal(trades 模式):K線標 chart_trades 買賣 + 該股全往返表 + hover 高亮。
+   scope = 全部股票卡(報酬最強 top100,已降序)→ 左右箭頭輪巡;切換時同步換 K線標記與表格。 */
 function btOpenStock(ticker) {
   const stocks = (_btSummary && _btSummary.stocks) || [];
-  const s = stocks.find(x => x.tk === ticker);
-  const name = s ? (s.nm || '') : '';
+  const idx = stocks.findIndex(x => x.tk === ticker);
   if (_artScopeObserver) { _artScopeObserver.disconnect(); _artScopeObserver = null; }
   _artScopeContainer = null;
-  _artScope = [{ ticker: ticker, name: name }];   // 單一(不左右輪巡)
-  _artScopeIdx = 0;
+  _artScope = stocks.map(s => ({ ticker: s.tk, name: s.nm || '', ct: s.ct || [] }));
+  _artScopeIdx = idx >= 0 ? idx : 0;
   _artMode = 'trades';
-  _artCurrentTicker = ticker;
-  _artCurrentName = name;
-  _artMarkers = { ticker: ticker, trades: (s && s.ct) || [] };
-  _renderArtModalBody(ticker, name);
+  const cur = _artScope[_artScopeIdx] || { ticker: ticker, name: '', ct: [] };
+  _artCurrentTicker = cur.ticker;
+  _artCurrentName = cur.name;
+  _artMarkers = { ticker: cur.ticker, trades: cur.ct };
+  _renderArtModalBody(cur.ticker, cur.name);
+  _lockBodyScroll();
   document.getElementById('art-modal').showModal();
 }
 
@@ -384,6 +386,14 @@ function btHoverClear() {
   if (!_klineCandleSeries) return;
   try { _klineCandleSeries.setMarkers(_btBaseMarkers); } catch (e) {}
 }
+
+/* art-modal 開啟時鎖外層頁面捲動(滾輪/觸控絕不影響背景);關閉復原。 */
+function _lockBodyScroll() { document.documentElement.style.overflow = 'hidden'; }
+function _unlockBodyScroll() { document.documentElement.style.overflow = ''; }
+(function () {
+  const dlg = document.getElementById('art-modal');
+  if (dlg) dlg.addEventListener('close', _unlockBodyScroll);
+})();
 
 /* ── 🗺️ 產業地圖 — 焦點產業關聯「蜘蛛網」圖 ────────────────────────
  * window.IIA_INDMAP_GRAPH = { nodes:[{i,name,kind,chg,cov,tv,n,mv:[{t,n,c}]}],
@@ -1095,6 +1105,7 @@ function showArtModal(ticker, name, evt) {
     _artScopeIdx = 0;
   }
   _renderArtModalBody(ticker, _artCurrentName);
+  _lockBodyScroll();
   document.getElementById('art-modal').showModal();
 }
 
@@ -1137,7 +1148,7 @@ function _updateArtCounter() {
   if (next) next.disabled = navDisabled;
 }
 
-/* 左右導覽:環狀切到 prev/next ticker(同 scope 內;ETF 模式)*/
+/* 左右導覽:環狀切到 prev/next(同 scope 內)。trades 模式同步換該股買賣標記。 */
 function artNavTicker(dir) {
   if (_artScope.length < 2) return;
   const n = _artScope.length;
@@ -1147,6 +1158,7 @@ function artNavTicker(dir) {
   const cur = _artScope[_artScopeIdx];
   _artCurrentTicker = cur.ticker;
   _artCurrentName = cur.name;
+  if (_artMode === 'trades') _artMarkers = { ticker: cur.ticker, trades: cur.ct || [] };
   _renderArtModalBody(cur.ticker, cur.name);
 }
 
