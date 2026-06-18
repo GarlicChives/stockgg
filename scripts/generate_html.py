@@ -1336,31 +1336,29 @@ def _build_trade_next_html(next_rows: list[dict] | None,
     for r in rows:
         tk = str(r.get("ticker") or "")
         nm = str(r.get("name") or "")
-        rank = r.get("rank")
         offh = r.get("off_high")
-        ref = r.get("ref_close")
-        bhi = r.get("band_hi")
-        tv = r.get("tv")
+        chg = r.get("chg")
+        try:
+            chg = float(chg) if chg not in (None, "") else None  # DB 可能回字串
+        except (TypeError, ValueError):
+            chg = None
         chips = "".join(f'<span class="sim-next-cond">{esc_c}</span>'
                         for esc_c in (html_lib.escape(x) for x in _conds_labels(r.get("conds"))))
         hot = tk in seeds
         hot_badge = ('<span class="sim-next-hotbadge" title="同時出現在當日選股雷達熱門題材">'
                      '★ 雷達在榜</span>' if hot else '')
+        chg_s, chg_cls = fmt_pct(chg)  # 漲紅跌綠、None→「—」neutral
         offh_s = (f'{float(offh):.1f}%' if isinstance(offh, (int, float))
                   else (f'{offh}%' if offh not in (None, "") else '—'))
-        band_s = (f'{_jc(ref, 2)} ~ {_jc(bhi, 2)}'
-                  if ref not in (None, "") and bhi not in (None, "") else '—')
-        tv_s = _aetf_money(float(tv)).lstrip('+') if tv not in (None, "") else '—'
+        # 精簡卡(2026-06-18 user):代號名 + 漲跌% / 距120日高 / 條件 chips,
+        # 移除排名圈、進場區間、成交值(資訊過載)。
         cards.append(
             f'<div class="sim-next-card{" sim-next-hot" if hot else ""}" '
             f"onclick='showArtModal({json.dumps(tk)},{json.dumps(nm[:12])},event)'>"
-            f'<div class="sim-next-top"><span class="sim-next-rank">{html_lib.escape(str(rank))}</span>'
+            f'<div class="sim-next-top">'
             f'<span class="sim-next-tk">{html_lib.escape(tk)} {html_lib.escape(nm)}</span>'
-            f'{hot_badge}'
-            f'<span class="sim-next-off">距120日高 {html_lib.escape(offh_s)}</span></div>'
-            f'<div class="sim-next-mid">進場區間 <b>{html_lib.escape(str(band_s))}</b>'
-            f'<span class="sim-next-band-note">(前收 ~ +3%)</span>'
-            f'<span class="sim-next-tv">成交值 {html_lib.escape(tv_s)}</span></div>'
+            f'<span class="sim-next-chg {chg_cls}">{html_lib.escape(chg_s)}</span></div>'
+            f'<div class="sim-next-off2">距120日高 <b>{html_lib.escape(offh_s)}</b>{hot_badge}</div>'
             + (f'<div class="sim-next-conds">{chips}</div>' if chips else '')
             + '</div>'
         )
@@ -1605,6 +1603,7 @@ def _build_bt_trades_html(n_trades: int = 0) -> str:
         f'<span class="bt-tr-count">{n_trades:,} 筆</span></button>'
         '<div class="bt-tr-body" hidden>'
         '<div class="bt-tr-status">展開中…</div>'
+        '<div class="bt-tr-summary"></div>'
         '<div class="bt-tr-tablewrap"></div>'
         '<div class="bt-tr-pager" hidden>'
         '<button class="bt-tr-pg" type="button" data-dir="-1" '

@@ -224,6 +224,7 @@ function _btLoadTrades(body) {
         _btTrades = (j && j.t) || [];
         _btLoaded = true; _btLoading = false;
         status.hidden = true;
+        _btRenderSummary(body);
         _btRender(body);
         return;
       } catch (e) {
@@ -235,6 +236,77 @@ function _btLoadTrades(body) {
     status.hidden = false;
     status.textContent = '逐筆交易載入失敗,請稍後重整再試';
   })();
+}
+
+/* 逐筆統計摘要(load 後算一次):平均持有天數 + 分佈、平均每檔報酬 + 分佈、最強 10 檔。
+ * 定義對齊 ingest:持有天數「排除持有中(open)」、每檔報酬「含持有中」、最強含全部。 */
+function _btBars(buckets, colored) {
+  const max = Math.max(1, ...buckets.map(b => b.count));
+  return '<div class="bt-hist-bars">' + buckets.map(b => {
+    const h = Math.round(4 + (b.count / max) * 60);
+    const cls = colored ? (b.neg ? 'bt-bar-dn' : 'bt-bar-up') : '';
+    return '<div class="bt-bar-col" title="' + b.label + ':' + b.count + ' 筆">'
+      + '<div class="bt-bar-n">' + b.count + '</div>'
+      + '<div class="bt-bar ' + cls + '" style="height:' + h + 'px"></div>'
+      + '<div class="bt-bar-x">' + b.label + '</div></div>';
+  }).join('') + '</div>';
+}
+
+function _btRenderSummary(body) {
+  const sum = body.querySelector('.bt-tr-summary');
+  if (!sum) return;
+  const all = _btTrades || [];
+  const closed = all.filter(t => t[8] !== 'open' && t[7] != null);  // 持有天數:排除持有中
+  const rets = all.filter(t => typeof t[6] === 'number');           // 報酬:含持有中
+  const avgHold = closed.length ? closed.reduce((s, t) => s + t[7], 0) / closed.length : 0;
+  const avgRet = rets.length ? rets.reduce((s, t) => s + t[6], 0) / rets.length : 0;
+  // 持有天數分佈(已平倉)
+  const hd = [{ label: '0', count: 0 }, { label: '1-2', count: 0 }, { label: '3-5', count: 0 },
+              { label: '6-10', count: 0 }, { label: '11-20', count: 0 }, { label: '21+', count: 0 }];
+  closed.forEach(t => {
+    const d = t[7];
+    if (d <= 0) hd[0].count++; else if (d <= 2) hd[1].count++; else if (d <= 5) hd[2].count++;
+    else if (d <= 10) hd[3].count++; else if (d <= 20) hd[4].count++; else hd[5].count++;
+  });
+  // 每檔報酬分佈(含持有中);neg=該桶上界 ≤0 → 綠
+  const rb = [{ label: '<-10', count: 0, neg: true }, { label: '-10~-5', count: 0, neg: true },
+              { label: '-5~0', count: 0, neg: true }, { label: '0~5', count: 0 },
+              { label: '5~10', count: 0 }, { label: '10~20', count: 0 }, { label: '20+', count: 0 }];
+  rets.forEach(t => {
+    const p = t[6];
+    if (p < -10) rb[0].count++; else if (p < -5) rb[1].count++; else if (p <= 0) rb[2].count++;
+    else if (p <= 5) rb[3].count++; else if (p <= 10) rb[4].count++;
+    else if (p <= 20) rb[5].count++; else rb[6].count++;
+  });
+  // 最強 10 檔(含已出場 / 持有中)
+  const top = [...rets].sort((a, b) => b[6] - a[6]).slice(0, 10);
+  const topHtml = top.map((t, i) => {
+    const tk = t[2], nm = t[3] || '';
+    const rs = _BT_REASON[t[8]] || '—';
+    return "<li onclick='showArtModal(" + JSON.stringify(tk) + ','
+      + JSON.stringify(nm.slice(0, 12)) + ",event)'>"
+      + '<span class="bt-top-rk">' + (i + 1) + '</span>'
+      + '<span class="bt-top-nm">' + _imEsc(nm)
+      + '<span class="bt-tr-tk">' + _imEsc(tk) + '</span></span>'
+      + '<span class="bt-top-rs">' + _imEsc(rs) + '</span>'
+      + '<span class="up">+' + t[6].toFixed(2) + '%</span></li>';
+  }).join('');
+  const arCls = avgRet > 0 ? 'up' : (avgRet < 0 ? 'down' : 'flat');
+  sum.innerHTML =
+    '<div class="bt-sum-stats">'
+    + '<div class="bt-sum-stat"><span class="bt-sum-k">平均持有天數</span>'
+    + '<span class="bt-sum-v">' + avgHold.toFixed(1) + ' 天</span>'
+    + '<span class="bt-sum-sub">已平倉 ' + closed.length.toLocaleString() + ' 筆(不含持有中)</span></div>'
+    + '<div class="bt-sum-stat"><span class="bt-sum-k">平均每檔報酬</span>'
+    + '<span class="bt-sum-v ' + arCls + '">' + (avgRet > 0 ? '+' : '') + avgRet.toFixed(2) + '%</span>'
+    + '<span class="bt-sum-sub">全 ' + rets.length.toLocaleString() + ' 筆(含持有中)</span></div>'
+    + '</div>'
+    + '<div class="bt-sum-charts">'
+    + '<div class="bt-hist"><div class="bt-hist-h">持有天數分佈(已平倉)</div>' + _btBars(hd, false) + '</div>'
+    + '<div class="bt-hist"><div class="bt-hist-h">每檔報酬分佈 %(含持有中)</div>' + _btBars(rb, true) + '</div>'
+    + '</div>'
+    + '<div class="bt-top"><div class="bt-top-h">報酬最強 10 檔(含已出場 / 持有中)</div>'
+    + '<ol class="bt-top-list">' + topHtml + '</ol></div>';
 }
 
 function _btFmtPct(v) {  // 報酬%:紅(正/賺)綠(負/賠),沿用 .up/.down/.flat

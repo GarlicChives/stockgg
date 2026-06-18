@@ -1202,26 +1202,21 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .sim-page .card{margin:0}
 /* 🎯 隔日買進標的(trade_sim_next;策略模擬頁最上方醒目區) */
 .sim-next-box{border-left:3px solid var(--accent)}
-.sim-next-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:.6rem}
+/* 精簡卡(2026-06-18):窄欄密排,只放 代號名 / 漲跌% / 距120日高 / 條件 chips */
+.sim-next-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(176px,1fr));gap:.45rem}
 .sim-next-card{background:rgba(124,138,242,.06);border:1px solid var(--border);
-               border-radius:9px;padding:.6rem .75rem;cursor:pointer;transition:.12s}
+               border-radius:8px;padding:.45rem .6rem;cursor:pointer;transition:.12s}
 .sim-next-card:hover{border-color:var(--accent);background:rgba(124,138,242,.12)}
 .sim-next-hot{border:2px solid #f5a623;background:rgba(245,166,35,.10)}
-.sim-next-top{display:flex;align-items:baseline;gap:.4rem;flex-wrap:wrap;margin-bottom:.3rem}
-.sim-next-rank{font-size:.72rem;font-weight:800;color:#fff;background:var(--accent);
-               border-radius:50%;width:1.3rem;height:1.3rem;display:inline-flex;
-               align-items:center;justify-content:center;flex:0 0 auto}
-.sim-next-tk{font-size:.92rem;font-weight:700}
-.sim-next-hotbadge{font-size:.62rem;font-weight:700;padding:.05rem .4rem;border-radius:4px;
-                   background:rgba(245,166,35,.22);color:#f5a623}
-.sim-next-off{margin-left:auto;font-size:.74rem;font-weight:600;color:#26a69a;
-              font-variant-numeric:tabular-nums}
-.sim-next-mid{font-size:.78rem;color:var(--muted);display:flex;align-items:baseline;
-              gap:.4rem;flex-wrap:wrap}
-.sim-next-mid b{color:var(--text);font-variant-numeric:tabular-nums}
-.sim-next-band-note{font-size:.66rem;opacity:.7}
-.sim-next-tv{margin-left:auto}
-.sim-next-conds{display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem}
+.sim-next-top{display:flex;align-items:baseline;gap:.4rem;margin-bottom:.2rem}
+.sim-next-tk{font-size:.86rem;font-weight:700;flex:1;min-width:0;overflow:hidden;
+             text-overflow:ellipsis;white-space:nowrap}
+.sim-next-chg{font-size:.82rem;font-weight:700;font-variant-numeric:tabular-nums;flex:0 0 auto}
+.sim-next-hotbadge{font-size:.6rem;font-weight:700;padding:.04rem .35rem;border-radius:4px;
+                   background:rgba(245,166,35,.22);color:#f5a623;margin-left:auto;flex:0 0 auto}
+.sim-next-off2{font-size:.73rem;color:var(--muted);display:flex;align-items:baseline;gap:.3rem}
+.sim-next-off2 b{color:var(--text);font-variant-numeric:tabular-nums;font-weight:600}
+.sim-next-conds{display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.3rem}
 .sim-next-cond{font-size:.64rem;font-weight:600;padding:.05rem .4rem;border-radius:4px;
                background:rgba(255,255,255,.06);color:var(--muted)}
 .sim-next-note{margin:.7rem 0 0;font-size:.7rem;color:var(--muted);line-height:1.55}
@@ -1294,6 +1289,34 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .bt-tr-body[hidden]{display:none}
 .bt-tr-status{font-size:.78rem;color:var(--muted);padding:.6rem 0;text-align:center}
 .bt-tr-status[hidden]{display:none}
+/* 逐筆統計摘要:兩數字 + 兩柱狀圖 + 最強 10 檔 */
+.bt-tr-summary{margin-bottom:1rem;display:flex;flex-direction:column;gap:.9rem}
+.bt-sum-stats{display:flex;gap:.7rem;flex-wrap:wrap}
+.bt-sum-stat{flex:1 1 160px;background:rgba(255,255,255,.03);border:1px solid var(--border);
+             border-radius:8px;padding:.55rem .8rem;display:flex;flex-direction:column;gap:.1rem}
+.bt-sum-k{font-size:.72rem;color:var(--muted);font-weight:600}
+.bt-sum-v{font-size:1.3rem;font-weight:700;font-variant-numeric:tabular-nums}
+.bt-sum-sub{font-size:.66rem;color:var(--muted)}
+.bt-sum-charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:.8rem}
+.bt-hist{background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:8px;padding:.6rem .7rem}
+.bt-hist-h{font-size:.74rem;font-weight:600;color:var(--text);margin-bottom:.5rem}
+.bt-hist-bars{display:flex;align-items:flex-end;gap:.35rem;height:88px}
+.bt-bar-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
+            gap:.15rem;min-width:0}
+.bt-bar-n{font-size:.6rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.bt-bar{width:100%;max-width:30px;border-radius:3px 3px 0 0;background:var(--accent)}
+.bt-bar-up{background:var(--up)}
+.bt-bar-dn{background:var(--down)}
+.bt-bar-x{font-size:.58rem;color:var(--muted);white-space:nowrap;text-align:center}
+.bt-top-h{font-size:.74rem;font-weight:600;color:var(--text);margin-bottom:.4rem}
+.bt-top-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.2rem}
+.bt-top-list li{display:flex;align-items:baseline;gap:.5rem;padding:.3rem .5rem;cursor:pointer;
+                border-radius:6px;font-size:.8rem;transition:background .1s}
+.bt-top-list li:hover{background:rgba(124,138,242,.08)}
+.bt-top-rk{font-size:.68rem;font-weight:800;color:var(--muted);width:1.4rem;flex:0 0 auto}
+.bt-top-nm{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt-top-rs{font-size:.68rem;color:var(--muted);flex:0 0 auto}
+.bt-top-list li .up{font-variant-numeric:tabular-nums;flex:0 0 auto}
 .bt-tr-tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .bt-tr-table{width:100%;border-collapse:collapse;font-size:.78rem}
 .bt-tr-table th{font-size:.7rem;color:var(--muted);font-weight:600;text-align:left;
