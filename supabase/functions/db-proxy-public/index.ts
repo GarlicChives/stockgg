@@ -239,6 +239,11 @@ const ALLOWED: Set<string> = new Set([
   //   回測宇宙挑出、依距 120 日高最遠排序的前 N 檔;2026-06-18 ingest)。
   //   策略模擬頁最上方醒目列出。
   "select * from trade_sim_next",
+
+  // Q44 — 1 年回測績效(strategy_backtest_public;ingest 每日 fetch_chip 後重算
+  //   滾動最近一年,payload jsonb schema 同舊 pullback_public.json;2026-06-18
+  //   ingest 226a5d6)。策略模擬頁「📊 1 年回測績效」區塊主來源,取代靜態檔。
+  "select payload from strategy_backtest_public where slug = 'pullback'",
 ])
 
 function normalize(q: string): string {

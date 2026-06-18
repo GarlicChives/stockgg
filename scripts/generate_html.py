@@ -1473,16 +1473,22 @@ def _build_leverage_html(sweep: list[dict] | None) -> str:
             f'<p class="sim-lev-caveat">⚠ {caveat}</p></div></details>')
 
 
-def _build_backtest_html() -> str:
-    """📊 1 年回測績效(讀靜態 data/pullback_public.json,ingest 端 50+ 因子掃描後
-    產出的真實回測,含交易成本)。指標表 + 報酬曲線(策略 vs 加權 vs 00981A,起始
-    =100)+ 策略說明 6 條 + caveat/cost_note。與即時 paper-trading 區塊並存(一個
-    1 年實證、一個即時模擬)。檔缺/壞則回 '' 不渲染(不影響整頁)。"""
-    try:
-        d = json.loads(_BACKTEST_PATH.read_text(encoding="utf-8"))
-    except Exception as exc:
-        print(f"  ⚠ 回測 JSON 讀取失敗(略過 1 年回測區塊): {exc}")
-        return ""
+def _build_backtest_html(payload: dict | None = None) -> str:
+    """📊 1 年回測績效。**主來源 = Supabase `strategy_backtest_public` 表的 payload**
+    (Q44,ingest 每日 fetch_chip 後重算「滾動最近一年」,2026-06-18 起,故報酬曲線
+    每日自動更新);傳入 `payload`(已 fetch 的 jsonb dict)即用之。payload 缺(query
+    失敗 / 空表)→ fallback 讀靜態 data/pullback_public.json(離線 / 過渡保險)。
+    schema 兩者完全相同(metrics / equity_curve / benchmarks / playbook_brief /
+    caveat / cost_note)故渲染邏輯共用。指標表 + 報酬曲線(策略 vs 加權 vs 00981A,
+    起始=100)+ 策略說明 6 條 + caveat/cost_note。皆缺則回 '' 不渲染(不影響整頁)。"""
+    d = payload if isinstance(payload, dict) and payload else None
+    if d is None:
+        try:
+            d = json.loads(_BACKTEST_PATH.read_text(encoding="utf-8"))
+            print("  ⚠ 回測走靜態檔 fallback(DB payload 缺)")
+        except Exception as exc:
+            print(f"  ⚠ 回測 DB payload 與靜態檔皆無(略過 1 年回測區塊): {exc}")
+            return ""
     esc = html_lib.escape
     m = d.get("metrics") or {}
     bm = d.get("benchmarks") or {}
@@ -1578,9 +1584,11 @@ def _build_backtest_html() -> str:
 
 
 def build_trade_sim_page(next_rows: list[dict] | None = None,
-                         radar_seeds: set[str] | None = None) -> str:
+                         radar_seeds: set[str] | None = None,
+                         backtest_payload: dict | None = None) -> str:
     """📈 策略模擬頁:🎯 隔日買進標的(trade_sim_next)+ 📊 1 年回測績效
-    (無限資金、含成本真實回測,data/pullback_public.json,見 _build_backtest_html)。
+    (無限資金、含成本真實回測;主來源 = Supabase strategy_backtest_public Q44 payload,
+    每日滾動最近一年,見 _build_backtest_html;缺則 fallback 靜態檔)。
     2026-06-18:**移除原 300萬 即時 paper-trading 版**(NAV 趨勢圖 / 目前持股 /
     損益排行 / 即時交易明細 / 出手頻率)—— user 改採「無限資金 1 年回測」為公開面
     (300萬 有限資金引擎經 ingest 判定過擬合)。隔日買進標的**保留**(與資金模型無關
@@ -1593,7 +1601,8 @@ def build_trade_sim_page(next_rows: list[dict] | None = None,
         f'onclick="showStrategyTab(\'pullback\')">{esc(STRAT_NAME)}</button>'
         '</div>'
     )
-    strat_body = _build_trade_next_html(next_rows, radar_seeds) + _build_backtest_html()
+    strat_body = (_build_trade_next_html(next_rows, radar_seeds)
+                  + _build_backtest_html(backtest_payload))
     if not strat_body.strip():
         strat_body = ('<p class="muted-note">策略資料準備中'
                       '(隔日買進標的 / 1 年回測尚未生成)。</p>')
@@ -4716,6 +4725,24 @@ async def generate():
     except Exception as exc:
         print(f"  ⚠ Q43 trade_sim_next query failed: {exc}")
 
+    # Q44 — 1 年回測績效 payload(strategy_backtest_public;ingest 每日重算滾動最近
+    # 一年)。query 失敗 / 空表 → backtest_payload=None,_build_backtest_html 自動
+    # fallback 讀靜態 data/pullback_public.json。
+    backtest_payload: dict | None = None
+    try:
+        _bt_row = await conn.fetchrow(
+            "select payload from strategy_backtest_public where slug = 'pullback'")
+        if _bt_row and _bt_row.get("payload"):
+            _bp = _bt_row["payload"]
+            backtest_payload = json.loads(_bp) if isinstance(_bp, str) else dict(_bp)
+            _ec = (backtest_payload.get("equity_curve") or {}).get("dates") or []
+            print(f"  strategy_backtest (Q44): payload ok, {len(_ec)} 交易日"
+                  + (f", 截至 {_ec[-1]}" if _ec else ""))
+        else:
+            print("  ⚠ Q44 strategy_backtest_public 無 'pullback' 列 → 靜態檔 fallback")
+    except Exception as exc:
+        print(f"  ⚠ Q44 strategy_backtest query failed → 靜態檔 fallback: {exc}")
+
     # Q38 / Q39 產業地圖已在前面(_hist_tickers 構建前)fetch,讓 industry-map
     # ticker 也納入 ticker_close / ticker_net_inst 歷史(供 modal 內子產業趨勢圖)。
 
@@ -4750,7 +4777,8 @@ async def generate():
         for _s in (_c.sentinel or []):
             _radar_seed_set.add(_s.ticker)
     tradesim_html = build_trade_sim_page(
-        next_rows=sim_next, radar_seeds=_radar_seed_set)
+        next_rows=sim_next, radar_seeds=_radar_seed_set,
+        backtest_payload=backtest_payload)
     indmap_html = build_industry_map_page(indmap_rows, stocks_info, indmap_edges)
 
     # ── 主動式 ETF(2026-05-20 對應 ingest f5faa21)──
