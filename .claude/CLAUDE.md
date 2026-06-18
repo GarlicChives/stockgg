@@ -33,6 +33,11 @@ companion repo `StockGG-ingest`(本機 `~/Desktop/StockGG-ingest`,私有)跑。
   (email 白名單;未登入 production root 回 **302** 登入頁,不是 200)。站台壞掉先打
   **版本預覽 URL** `https://<versionId前8碼>-stockgg.v4578469.workers.dev/`(**繞過 Access**、
   直命中該版本 assets)判斷是 worker/版本問題還是 alias/Access 問題。smoke test 也測這個 URL。
+- ⚠ **絕不在 Cloudflare dashboard 儲存/編輯這個 Worker**(Quick Edit、設定頁按 Save、
+  以 dashboard 綁 Access 等):這是 Static Assets 專案 → dashboard 手上只有 worker script、
+  沒有 asset manifest,一存就 deploy 出**缺 index.html 的空版本** → 通過 Access 後仍全站 404
+  (2026-06-18 設 Access 時踩到)。要改 Worker 一律走 `wrangler` / `deploy_site.sh`;
+  Access policy 在 Zero Trust 區改、別碰 Worker 本身。被洗掉就重跑 `bash scripts/deploy_site.sh`。
 - **改 `generate_html.py` 的 `conn.fetch*` query** → 必同步擴 db-proxy allowlist + redeploy。
 - **生成檔不 commit**(index.html / history.json / kline.json / bt_trades_pullback.json 全 gitignore,
   CI fresh regen 後只 deploy 不 commit)。

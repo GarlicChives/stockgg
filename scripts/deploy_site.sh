@@ -45,8 +45,9 @@ fi
 
 echo "✓ index.html ${bytes} bytes,結構完整。"
 echo "▶ wrangler deploy ..."
-# 捕捉部署輸出以取出版本 ID。tee 讓你仍看得到即時輸出。
-deploy_out=$(npx wrangler deploy 2>&1 | tee /dev/tty)
+# 捕捉部署輸出以取出版本 ID,再原樣印出(不用 /dev/tty —— 非互動/CI 無控制終端)。
+deploy_out=$(npx wrangler deploy 2>&1)
+printf '%s\n' "$deploy_out"
 
 # 5) post-deploy smoke test。
 #
