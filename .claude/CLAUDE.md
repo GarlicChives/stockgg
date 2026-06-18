@@ -33,11 +33,17 @@ companion repo `StockGG-ingest`(本機 `~/Desktop/StockGG-ingest`,私有)跑。
   (email 白名單;未登入 production root 回 **302** 登入頁,不是 200)。站台壞掉先打
   **版本預覽 URL** `https://<versionId前8碼>-stockgg.v4578469.workers.dev/`(**繞過 Access**、
   直命中該版本 assets)判斷是 worker/版本問題還是 alias/Access 問題。smoke test 也測這個 URL。
-- ⚠ **絕不在 Cloudflare dashboard 儲存/編輯這個 Worker**(Quick Edit、設定頁按 Save、
-  以 dashboard 綁 Access 等):這是 Static Assets 專案 → dashboard 手上只有 worker script、
-  沒有 asset manifest,一存就 deploy 出**缺 index.html 的空版本** → 通過 Access 後仍全站 404
-  (2026-06-18 設 Access 時踩到)。要改 Worker 一律走 `wrangler` / `deploy_site.sh`;
-  Access policy 在 Zero Trust 區改、別碰 Worker 本身。被洗掉就重跑 `bash scripts/deploy_site.sh`。
+- ⚠ **唯一部署路徑 = GitHub Actions「Publish daily site」或本機 `deploy_site.sh`**(兩者都先 generate
+  再 deploy)。**Cloudflare Workers Builds 的 git 自動建置已於 2026-06-18 斷開,且永遠不要重連**:
+  它每次 push 就 clone repo 跑 `wrangler deploy`,但**不會跑 `generate_html.py`** → index.html 是
+  gitignored 缺檔 → 部署出**只有 app.js+style.css 的空版本** → 全站 404。這是「時好時壞」真兇
+  (連 `chore: update daily report [skip ci]` bot commit 都會觸發,`[skip ci]` 擋得了 GitHub Actions
+  擋不了 Workers Builds)。**判斷有沒有被偷部署**:`gh api repos/GarlicChives/stockgg/commits/<sha>/check-runs`
+  若出現 `Workers Builds: stockgg [cloudflare-workers-and-pages]` 就是又被連上了。
+- ⚠ **絕不在 Cloudflare dashboard 儲存/編輯這個 Worker**(Quick Edit、設定頁按 Save 等):同理 —
+  dashboard 手上只有 worker script、沒有 asset manifest,一存就 deploy 出缺 index.html 的空版本
+  (2026-06-18 設 Access 時踩到)。Access policy 在 Zero Trust 區改、別碰 Worker 本身。
+  被洗掉就重跑 `bash scripts/deploy_site.sh`。
 - **改 `generate_html.py` 的 `conn.fetch*` query** → 必同步擴 db-proxy allowlist + redeploy。
 - **生成檔不 commit**(index.html / history.json / kline.json / bt_trades_pullback.json 全 gitignore,
   CI fresh regen 後只 deploy 不 commit)。
