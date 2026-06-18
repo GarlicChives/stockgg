@@ -1247,6 +1247,7 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .sim-m-name i{display:inline-block;width:.7rem;height:.18rem;border-radius:1px;
               margin-right:.4rem;vertical-align:middle}
 .sim-metrics-note{margin:.5rem 0 0;font-size:.7rem;color:var(--muted);line-height:1.5}
+.sim-pending-note{margin:.5rem 0 0;font-size:.74rem;color:#f5a623;line-height:1.5}
 /* 💰 融資甜蜜點摺疊區(Track B) */
 .sim-lev{margin-top:.9rem;border:1px solid var(--border);border-radius:8px;
          background:rgba(255,255,255,.02)}

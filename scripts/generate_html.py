@@ -1510,8 +1510,25 @@ def build_trade_sim_page(nav_rows: list[dict], trades: list[dict],
     if not series:
         return ('<p class="muted-note">策略模擬資料尚未生成(每晚 22:05 後更新)。</p>')
 
+    # 盤中提前手動更新防呆(2026-06-18):正式更新前手動跑會寫出持股估值不全的
+    # NAV row(單日驟降),例 06-17 nav −32.8% 而大盤幾乎沒動。現股多頭策略單日
+    # 不可能 >20%,故把尾端「單日 |NAV 變動| > 20%」的不完整 row 暫時剔除,待當晚
+    # 22:05 正式更新後此 row 修正、防呆自動失效(不會誤刪正常日:真實災難日上限 ~-10%)。
+    _BAD_NAV_JUMP = 0.20
+    _dropped_dates: list[str] = []
+    while len(series) >= 2:
+        _a, _b = series[-2]["nav"], series[-1]["nav"]
+        if _a and _b and abs(_b / _a - 1) > _BAD_NAV_JUMP:
+            _dropped_dates.append(series[-1]["d"])
+            series.pop()
+        else:
+            break
+
     start_d, end_d = series[0]["d"], series[-1]["d"]
-    latest = rows[-1]
+    # latest(持股 / 現金 / 總淨值卡用)取最後一筆「未被剔除」的 row,避免顯示驟降淨值
+    _good_dates = {p["d"] for p in series}
+    latest = next((r for r in reversed(rows)
+                   if str(r["sim_date"])[:10] in _good_dates), rows[-1])
 
     # ── 績效指標表(淨值圖下方;定義對齊 ingest src/backtest/metrics.py)──
     # 勝率 / 獲利因子(PF)只有「策略」有(benchmark 無交易 → 顯「—」);
@@ -1775,6 +1792,9 @@ def build_trade_sim_page(nav_rows: list[dict], trades: list[dict],
         '<span><i style="background:#10b981"></i>00981A(主動式 ETF)</span>'
         f'<span class="sim-rebase-note">皆以 {esc(start_d)} = 100 重設基期</span>'
         '</div>'
+        + (f'<p class="sim-pending-note">⏳ {esc(_dropped_dates[-1])} 為盤中提前更新的'
+           f'不完整資料(淨值估值未齊),已暫不顯示;當晚 22:05 正式更新後自動補上。</p>'
+           if _dropped_dates else '')
         + metrics_html
         + _build_leverage_html(leverage_sweep)
         + '</div>'
