@@ -26,8 +26,11 @@ companion repo `StockGG-ingest`(本機 `~/Desktop/StockGG-ingest`,私有)跑。
 - **公開站永遠不空、永遠呈現最新完整交易日**(rank_date 查詢必帶 `AND rank IS NOT NULL`)。
 - **漲跌% NULL 一律顯「—」**(neutral),絕不 fallback 成 0% 或當平盤(平盤 0 是另一回事)。
 - **部署**:`git push` **不會**觸發 CI;hot-fix 後要 `gh workflow run "Publish daily site"`。
-  **勿一日連發多次 deploy**(production alias 會被搖亂 → 根 404)。站台壞掉先打**版本預覽 URL**
-  `https://<versionId前8碼>-stockgg.v4578469.workers.dev/`(繞過 Access)判斷是 worker 還是 alias 問題。
+  本機手動部署**只能走 `bash scripts/deploy_site.sh`**(部署前斷言 index.html 完整、部署後 smoke-test
+  線上 200)——**嚴禁裸跑 `wrangler deploy`**:index.html 是 gitignored 生成檔,沒先 generate 就部署
+  會上傳缺 index.html 的空版本 → 全站根 404(2026-06-18 真因)。CI 已內建同款 guard。
+  **勿一日連發多次 deploy**(production alias 會被搖亂)。站台壞掉先打**版本預覽 URL**
+  `https://<versionId前8碼>-stockgg.v4578469.workers.dev/`判斷是 worker 還是 alias 問題。
 - **改 `generate_html.py` 的 `conn.fetch*` query** → 必同步擴 db-proxy allowlist + redeploy。
 - **生成檔不 commit**(index.html / history.json / kline.json / bt_trades_pullback.json 全 gitignore,
   CI fresh regen 後只 deploy 不 commit)。
@@ -61,7 +64,8 @@ companion repo `StockGG-ingest`(本機 `~/Desktop/StockGG-ingest`,私有)跑。
 uv sync
 uv run python scripts/generate_html.py     # 重生 HTML (Supabase 偶有 connection pool 耗盡 → 重試)
 open docs/index.html                        # 本機檢視
-gh workflow run "Publish daily site"        # 手動觸發 CI 部署
+gh workflow run "Publish daily site"        # 手動觸發 CI 部署(優先用這個)
+bash scripts/deploy_site.sh                 # 本機手動部署(內建 deploy guard;勿裸跑 wrangler deploy)
 bash scripts/deploy_db_proxy_public.sh      # Edge Function redeploy
 ```
 

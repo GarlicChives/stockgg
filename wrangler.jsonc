@@ -7,12 +7,15 @@
   },
   "assets": {
     "directory": "docs",
-    // 純 SPA(單一 index.html + 分頁切換)。預設 not_found_handling="none" 下,
-    // 每次 deploy 後 manifest 傳播期間 `/`→`/index.html` 的隱式對應偶爾沒解析到
-    // → 根路徑回 404(2026-06-18 反覆出現的根因)。設 single-page-application 後,
-    // 任何沒直接命中的路徑(含傳播期的 `/`)都 fallback 到 index.html,根路徑
-    // 永遠不 404。已上傳的實體 asset(app.js/style.css/history.json/kline.json)
-    // 仍正常命中、不受 fallback 影響。
+    // 純 SPA(單一 index.html + 分頁切換)。任何沒直接命中的路徑都 fallback 到
+    // index.html,避免分頁深連結 404。
+    //
+    // ⚠ 2026-06-18 全站根 404 真因 ≠ 此設定:index.html / history.json / kline.json
+    // 是 gitignored 生成檔,若在「只有 committed app.js+style.css、尚未 generate」
+    // 的狀態下裸跑 `wrangler deploy`,會上傳缺 index.html 的版本 → SPA fallback
+    // 想 fallback 到 index.html 但它根本沒上傳,照樣根 404。根治是「永遠走
+    // scripts/deploy_site.sh / CI 的 deploy guard」,部署前斷言 index.html 完整、
+    // 部署後 smoke-test 線上 200。**勿移除本 fallback,亦勿裸跑 wrangler deploy。**
     "not_found_handling": "single-page-application"
   }
 }

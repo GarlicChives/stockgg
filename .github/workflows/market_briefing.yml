@@ -48,6 +48,24 @@ jobs:
           # 9-pattern SQL allowlist. service_role key never enters this repo.
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
+      # Deploy guard:杜絕「缺 index.html 的空版本」變成 active(2026-06-18 根 404
+      # 根因)。docs/index.html 是 gitignored 生成檔;若 generate 靜默失敗/截斷,
+      # 沒這道檢查就會 deploy 出只有 committed app.js+style.css、缺 index.html 的
+      # 版本 → production alias 切過去全站根 404。
+      - name: Verify generated assets before deploy
+        run: |
+          INDEX=docs/index.html
+          test -f "$INDEX" || { echo "::error::$INDEX missing — refusing to deploy"; exit 1; }
+          bytes=$(wc -c < "$INDEX" | tr -d ' ')
+          if [ "$bytes" -lt 500000 ]; then
+            echo "::error::$INDEX only ${bytes} bytes (<500000) — generation likely failed/truncated"; exit 1
+          fi
+          tail -c 64 "$INDEX" | grep -q "</html>" || { echo "::error::$INDEX not terminated by </html> — truncated"; exit 1; }
+          if grep -lq "<<<<<<<" docs/index.html docs/app.js docs/style.css 2>/dev/null; then
+            echo "::error::conflict marker detected — refusing to deploy"; exit 1
+          fi
+          echo "index.html ${bytes} bytes — OK to deploy"
+
       # 2026-06-11 起建置產物(docs/index.html + docs/history.json)不再
       # commit 回 repo:部署只靠下一步 wrangler 上傳工作目錄,commit 純屬
       # 冗餘,且 15MB+ 的 history.json × 每日多次 bot commit 把 .git 撐到
@@ -61,3 +79,16 @@ jobs:
           # Pin 具體版本 — `wranglerVersion: "4"` 浮動取最新會撈到 4.86.0
           # 撞 npx interactive prompt 卡住 (2026-05-19 踩到);pin 已測過的版本。
           wranglerVersion: "4.20.0"
+
+      # 部署後 smoke test:線上根路徑必須 200,否則該 run 標紅(GitHub 寄失敗通知),
+      # 讓「壞版本上線」第一時間可見,而不是等使用者回報全站 404。
+      - name: Smoke test deployed site
+        run: |
+          URL=https://stockgg.v4578469.workers.dev/
+          for i in 1 2 3 4 5; do
+            sleep 3
+            code=$(curl -sS -o /dev/null -w "%{http_code}" "$URL" || echo "000")
+            echo "attempt ${i}: HTTP ${code}"
+            if [ "$code" = "200" ]; then echo "site OK"; exit 0; fi
+          done
+          echo "::error::deployed site root not 200 — investigate via version-preview URL"; exit 1
