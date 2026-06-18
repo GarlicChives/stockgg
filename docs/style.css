@@ -1203,16 +1203,16 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 /* 🎯 隔日買進標的(trade_sim_next;策略模擬頁最上方醒目區) */
 .sim-next-box{border-left:3px solid var(--accent)}
 /* 精簡卡(2026-06-18):窄欄密排,只放 代號名 / 漲跌% / 距120日高 / 條件 chips */
-.sim-next-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(176px,1fr));gap:.45rem}
+/* 2026-06-18:外框依內容動態縮放(flex-wrap),代號名不截斷(移除 ellipsis)*/
+.sim-next-list{display:flex;flex-wrap:wrap;gap:.45rem}
 .sim-next-card{background:rgba(124,138,242,.06);border:1px solid var(--border);
-               border-radius:8px;padding:.45rem .6rem;cursor:pointer;transition:.12s}
+               border-radius:8px;padding:.45rem .6rem;cursor:pointer;transition:.12s;
+               flex:0 1 auto}
 .sim-next-card:hover{border-color:var(--accent);background:rgba(124,138,242,.12)}
 .sim-next-hot{border:2px solid #f5a623;background:rgba(245,166,35,.10)}
 .sim-next-top{display:flex;align-items:baseline;gap:.4rem;margin-bottom:.2rem}
-.sim-next-tk{font-size:.86rem;font-weight:700;flex:1;min-width:0;overflow:hidden;
-             text-overflow:ellipsis;white-space:nowrap}
-.sim-next-px{font-size:.82rem;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;flex:0 0 auto}
-.sim-next-chg{font-size:.82rem;font-weight:700;font-variant-numeric:tabular-nums;flex:0 0 auto}
+.sim-next-tk{font-size:.86rem;font-weight:700;white-space:nowrap}
+.sim-next-pxchg{font-size:.82rem;font-weight:700;font-variant-numeric:tabular-nums;flex:0 0 auto}
 .sim-next-hotbadge{font-size:.6rem;font-weight:700;padding:.04rem .35rem;border-radius:4px;
                    background:rgba(245,166,35,.22);color:#f5a623;margin-left:auto;flex:0 0 auto}
 .sim-next-off2{font-size:.73rem;color:var(--muted);display:flex;align-items:baseline;gap:.3rem}
@@ -1310,14 +1310,17 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .bt-bar-dn{background:var(--down)}
 .bt-bar-x{font-size:.58rem;color:var(--muted);white-space:nowrap;text-align:center}
 .bt-top-h{font-size:.74rem;font-weight:600;color:var(--text);margin-bottom:.4rem}
-.bt-top-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.2rem}
-.bt-top-list li{display:flex;align-items:baseline;gap:.5rem;padding:.3rem .5rem;cursor:pointer;
-                border-radius:6px;font-size:.8rem;transition:background .1s}
-.bt-top-list li:hover{background:rgba(124,138,242,.08)}
-.bt-top-rk{font-size:.68rem;font-weight:800;color:var(--muted);width:1.4rem;flex:0 0 auto}
-.bt-top-nm{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bt-top-rs{font-size:.68rem;color:var(--muted);flex:0 0 auto}
-.bt-top-list li .up{font-variant-numeric:tabular-nums;flex:0 0 auto}
+/* 2026-06-18:報酬最強改 50 檔小方格 grid(由左而右、由上而下 auto-flow row)*/
+.bt-top-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.35rem}
+.bt-top-cell{display:flex;align-items:baseline;gap:.3rem;padding:.28rem .45rem;cursor:pointer;
+             border:1px solid var(--border);border-radius:6px;background:rgba(124,138,242,.05);
+             font:inherit;font-size:.74rem;color:var(--text);text-align:left;width:100%;
+             transition:.1s}
+.bt-top-cell:hover{border-color:var(--accent);background:rgba(124,138,242,.12)}
+.bt-top-rk{font-size:.6rem;font-weight:800;color:var(--muted);flex:0 0 auto;min-width:1.1rem}
+.bt-top-nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.bt-top-tk{font-size:.6rem;color:var(--muted);flex:0 0 auto}
+.bt-top-v{font-variant-numeric:tabular-nums;font-weight:700;flex:0 0 auto;margin-left:auto}
 .bt-tr-tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .bt-tr-table{width:100%;border-collapse:collapse;font-size:.78rem}
 .bt-tr-table th{font-size:.7rem;color:var(--muted);font-weight:600;text-align:left;

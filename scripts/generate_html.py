@@ -1354,17 +1354,25 @@ def _build_trade_next_html(next_rows: list[dict] | None,
         hot_badge = ('<span class="sim-next-hotbadge" title="同時出現在當日選股雷達熱門題材">'
                      '★ 雷達在榜</span>' if hot else '')
         chg_s, chg_cls = fmt_pct(chg)  # 漲紅跌綠、None→「—」neutral
+        # 股價(漲跌幅)整體漲紅跌綠,如 3610(+2.00%)。chg=None 只顯股價(neutral);
+        # 無股價時退回只顯漲跌幅。
+        if px_s and chg is not None:
+            pxchg_html = (f'<span class="sim-next-pxchg {chg_cls}">'
+                          f'{html_lib.escape(px_s)}({html_lib.escape(chg_s)})</span>')
+        elif px_s:
+            pxchg_html = f'<span class="sim-next-pxchg neutral">{html_lib.escape(px_s)}</span>'
+        else:
+            pxchg_html = f'<span class="sim-next-pxchg {chg_cls}">{html_lib.escape(chg_s)}</span>'
         offh_s = (f'{float(offh):.1f}%' if isinstance(offh, (int, float))
                   else (f'{offh}%' if offh not in (None, "") else '—'))
-        # 精簡卡(2026-06-18 user):代號名 + 漲跌% / 距120日高 / 條件 chips,
+        # 精簡卡(2026-06-18 user):代號名 + 股價(漲跌%) / 距120日高 / 條件 chips,
         # 移除排名圈、進場區間、成交值(資訊過載)。
         cards.append(
             f'<div class="sim-next-card{" sim-next-hot" if hot else ""}" '
             f"onclick='showArtModal({json.dumps(tk)},{json.dumps(nm[:12])},event)'>"
             f'<div class="sim-next-top">'
             f'<span class="sim-next-tk">{html_lib.escape(tk)} {html_lib.escape(nm)}</span>'
-            + (f'<span class="sim-next-px">{html_lib.escape(px_s)}</span>' if px_s else '')
-            + f'<span class="sim-next-chg {chg_cls}">{html_lib.escape(chg_s)}</span></div>'
+            + pxchg_html + '</div>'
             f'<div class="sim-next-off2">距120日高 <b>{html_lib.escape(offh_s)}</b>{hot_badge}</div>'
             + (f'<div class="sim-next-conds">{chips}</div>' if chips else '')
             + '</div>'

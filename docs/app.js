@@ -278,18 +278,19 @@ function _btRenderSummary(body) {
     else if (p <= 5) rb[3].count++; else if (p <= 10) rb[4].count++;
     else if (p <= 20) rb[5].count++; else rb[6].count++;
   });
-  // 最強 10 檔(含已出場 / 持有中)
-  const top = [...rets].sort((a, b) => b[6] - a[6]).slice(0, 10);
+  // 最強 50 檔(含已出場 / 持有中);小方格 grid、由左而右由上而下
+  const top = [...rets].sort((a, b) => b[6] - a[6]).slice(0, 50);
   const topHtml = top.map((t, i) => {
     const tk = t[2], nm = t[3] || '';
-    const rs = _BT_REASON[t[8]] || '—';
-    return "<li onclick='showArtModal(" + JSON.stringify(tk) + ','
+    const v = t[6];
+    const cls = v > 0 ? 'up' : (v < 0 ? 'down' : 'flat');
+    const vs = (v > 0 ? '+' : '') + v.toFixed(2) + '%';
+    return "<button type='button' class='bt-top-cell' onclick='showArtModal(" + JSON.stringify(tk) + ','
       + JSON.stringify(nm.slice(0, 12)) + ",event)'>"
       + '<span class="bt-top-rk">' + (i + 1) + '</span>'
-      + '<span class="bt-top-nm">' + _imEsc(nm)
-      + '<span class="bt-tr-tk">' + _imEsc(tk) + '</span></span>'
-      + '<span class="bt-top-rs">' + _imEsc(rs) + '</span>'
-      + '<span class="up">+' + t[6].toFixed(2) + '%</span></li>';
+      + '<span class="bt-top-nm">' + _imEsc(nm) + '</span>'
+      + '<span class="bt-top-tk">' + _imEsc(tk) + '</span>'
+      + '<span class="bt-top-v ' + cls + '">' + vs + '</span></button>';
   }).join('');
   const arCls = avgRet > 0 ? 'up' : (avgRet < 0 ? 'down' : 'flat');
   sum.innerHTML =
@@ -305,8 +306,8 @@ function _btRenderSummary(body) {
     + '<div class="bt-hist"><div class="bt-hist-h">持有天數分佈(已平倉)</div>' + _btBars(hd, false) + '</div>'
     + '<div class="bt-hist"><div class="bt-hist-h">每檔報酬分佈 %(含持有中)</div>' + _btBars(rb, true) + '</div>'
     + '</div>'
-    + '<div class="bt-top"><div class="bt-top-h">報酬最強 10 檔(含已出場 / 持有中)</div>'
-    + '<ol class="bt-top-list">' + topHtml + '</ol></div>';
+    + '<div class="bt-top"><div class="bt-top-h">報酬最強 ' + top.length + ' 檔(含已出場 / 持有中)</div>'
+    + '<div class="bt-top-grid">' + topHtml + '</div></div>';
 }
 
 function _btFmtPct(v) {  // 報酬%:紅(正/賺)綠(負/賠),沿用 .up/.down/.flat
