@@ -6,6 +6,13 @@
     "enabled": true
   },
   "assets": {
-    "directory": "docs"
+    "directory": "docs",
+    // 純 SPA(單一 index.html + 分頁切換)。預設 not_found_handling="none" 下,
+    // 每次 deploy 後 manifest 傳播期間 `/`→`/index.html` 的隱式對應偶爾沒解析到
+    // → 根路徑回 404(2026-06-18 反覆出現的根因)。設 single-page-application 後,
+    // 任何沒直接命中的路徑(含傳播期的 `/`)都 fallback 到 index.html,根路徑
+    // 永遠不 404。已上傳的實體 asset(app.js/style.css/history.json/kline.json)
+    // 仍正常命中、不受 fallback 影響。
+    "not_found_handling": "single-page-application"
   }
 }
