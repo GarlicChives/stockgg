@@ -1273,6 +1273,83 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
               margin-right:.4rem;vertical-align:middle}
 .sim-metrics-note{margin:.5rem 0 0;font-size:.7rem;color:var(--muted);line-height:1.5}
 .sim-pending-note{margin:.5rem 0 0;font-size:.74rem;color:#f5a623;line-height:1.5}
+/* 📊 總儀表板(策略模擬頁第一個 sub-tab;聚合所有策略)──────────────── */
+.dash-sec{border-left:3px solid var(--accent)}
+/* ① 共識醒目區塊(被 ≥2 策略共選)*/
+.dash-consensus{margin:.6rem 0 .9rem;padding:.7rem .8rem;border-radius:9px;
+                background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.30)}
+.dash-cons-h{font-size:.84rem;font-weight:700;color:#f5a623;margin-bottom:.5rem}
+.dash-cons-list{display:flex;flex-wrap:wrap;gap:.45rem}
+.dash-cons-pill{display:inline-flex;align-items:baseline;gap:.3rem;font-size:.8rem;
+                padding:.28rem .55rem;border-radius:7px;background:rgba(245,166,35,.14);
+                border:1px solid rgba(245,166,35,.28);white-space:nowrap}
+.dash-cons-pill b{font-weight:800;font-variant-numeric:tabular-nums}
+.dash-cons-n{font-size:.62rem;font-weight:700;color:#f5a623;
+             padding:.04rem .35rem;border-radius:4px;background:rgba(245,166,35,.20)}
+.dash-cons-note{margin:.5rem 0 0;font-size:.68rem;color:var(--muted);line-height:1.5}
+/* ① 各策略明日買進標的(策略卡網格)*/
+.dash-strat-grid{display:grid;gap:.7rem;grid-template-columns:repeat(auto-fill,minmax(248px,1fr))}
+.dash-strat-card{background:rgba(255,255,255,.02);border:1px solid var(--border);
+                 border-radius:9px;padding:.6rem .65rem}
+.dash-strat-h{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;
+              gap:.3rem;margin-bottom:.45rem;padding-bottom:.4rem;
+              border-bottom:1px solid rgba(255,255,255,.06)}
+.dash-strat-nm{font-size:.86rem;font-weight:700;color:var(--text)}
+.dash-strat-meta{font-size:.68rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.dash-wl-row{display:flex;align-items:baseline;gap:.4rem;padding:.26rem 0;
+             font-size:.78rem;border-bottom:1px solid rgba(255,255,255,.04)}
+.dash-wl-row:last-child{border-bottom:none}
+.dash-wl-row.is-cons{background:rgba(245,166,35,.07);border-radius:5px;
+                     margin:0 -.3rem;padding-left:.3rem;padding-right:.3rem}
+.dash-wl-rk{flex:0 0 1.1rem;text-align:center;font-size:.66rem;font-weight:700;
+            color:var(--muted);font-variant-numeric:tabular-nums}
+.dash-wl-tk{flex:1 1 auto;font-weight:600;white-space:nowrap;overflow:hidden;
+            text-overflow:ellipsis}
+.dash-wl-cons{margin-left:.25rem;font-size:.7rem}
+.dash-wl-px{flex:0 0 auto;font-variant-numeric:tabular-nums;color:var(--text)}
+.dash-wl-off{flex:0 0 auto;font-size:.68rem;color:var(--muted);
+             font-variant-numeric:tabular-nums}
+.dash-wl-chg{flex:0 0 auto;font-weight:700;font-variant-numeric:tabular-nums}
+.dash-wl-empty{font-size:.78rem;color:var(--muted);padding:.5rem .2rem}
+/* ② 1 年回測績效比較表 */
+.dash-pf-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:.6rem}
+.dash-pf{width:100%;border-collapse:collapse;font-size:.8rem}
+.dash-pf th{font-size:.72rem;color:var(--muted);font-weight:600;text-align:left;
+            padding:.4rem .6rem;border-bottom:1px solid var(--border);white-space:nowrap}
+.dash-pf td{padding:.42rem .6rem;border-bottom:1px solid rgba(255,255,255,.05);
+            white-space:nowrap;font-variant-numeric:tabular-nums}
+.dash-pf th.r,.dash-pf td.r{text-align:right}
+.dash-pf tr:last-child td{border-bottom:none}
+.dash-pf-nm{font-weight:600;color:var(--text)}
+.dash-pf-bm .dash-pf-nm{color:var(--muted);font-weight:500}
+.dash-pf-bar{width:34%;min-width:90px}
+.dash-bar{display:block;height:.5rem;border-radius:3px;background:rgba(255,255,255,.05)}
+.dash-bar-fill{display:block;height:100%;border-radius:3px}
+.dash-bar-fill.up{background:var(--up)} .dash-bar-fill.down{background:var(--down)}
+/* ③ 明日最適前 5 */
+.dash-regime{margin:.5rem 0 .2rem;font-size:.82rem;font-weight:600;color:var(--text)}
+.dash-regime b{color:#f5a623}
+.dash-scoring{margin:.45rem 0 .7rem;font-size:.72rem;color:var(--muted);line-height:1.55}
+.dash-tp-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.dash-tp{width:100%;border-collapse:collapse;font-size:.8rem}
+.dash-tp th{font-size:.72rem;color:var(--muted);font-weight:600;text-align:left;
+            padding:.4rem .6rem;border-bottom:1px solid var(--border);white-space:nowrap}
+.dash-tp td{padding:.5rem .6rem;border-bottom:1px solid rgba(255,255,255,.05);
+            vertical-align:top}
+.dash-tp th.r,.dash-tp td.r{text-align:right}
+.dash-tp tr:last-child td{border-bottom:none}
+.dash-tp-rk{font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums;
+            text-align:center;width:2.2rem}
+.dash-tp-tk{font-weight:600;white-space:nowrap}
+.dash-tp-tk b{font-weight:800;font-variant-numeric:tabular-nums}
+.dash-tp-sub{display:block;font-size:.66rem;font-weight:400;color:var(--muted);
+             margin-top:.15rem;font-variant-numeric:tabular-nums}
+.dash-tp-n{font-weight:700;font-variant-numeric:tabular-nums}
+.dash-tp-score{font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
+.dash-tp-by{white-space:normal}
+.dash-by-chip{display:inline-block;font-size:.64rem;font-weight:600;margin:.1rem .2rem 0 0;
+              padding:.08rem .4rem;border-radius:4px;background:rgba(124,138,242,.13);
+              color:var(--accent);white-space:nowrap}
 /* 💰 融資甜蜜點摺疊區(Track B) */
 .sim-lev{margin-top:.9rem;border:1px solid var(--border);border-radius:8px;
          background:rgba(255,255,255,.02)}

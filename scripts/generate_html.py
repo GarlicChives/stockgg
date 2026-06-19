@@ -1307,10 +1307,10 @@ _STRAT_FALLBACK_NAME = {
     "squeeze": "波動壓縮突破",
 }
 
-# 策略「顯示順序」偏好(**非權威清單**)。哪些 slug 會出現完全由 DB
-# strategy_backtest_public 現有列決定(ingest 寫 DB → 自動上架,本檔零改動);此表僅排序
-# 已知策略(預設 active = 第一個 = pullback)。不在表內的新 slug 仍會渲染,append 末尾依
-# 字母序。故新增策略不需要編輯這裡——刪改也只影響排列、不影響顯不顯示。
+# 策略清單「fallback 序」(僅 Q47 查詢失敗時用)。正常情況哪些 slug 會出現完全由 DB
+# strategy_backtest_public 現有列決定(ingest 寫 DB → 自動上架,本檔零改動),tab 顯示序
+# 則依各策略 payload.metrics.sharpe 由高到低(見 STRAT_ORDER 計算)。此表只在連 slug 清單
+# 都查不到時當保險墊;新增策略不需要編輯這裡。
 _STRAT_PREFERRED_ORDER = ["pullback", "breakout", "lowvol", "rsleader", "masupport", "squeeze"]
 
 # 策略名「(深度…)」尾綴一律不顯示(每個策略本就必經深度回測,標註冗餘)。
@@ -1696,19 +1696,203 @@ def _build_bt_trades_html(n_trades: int = 0, slug: str = "pullback") -> str:
     )
 
 
+def _build_dashboard_html(dash: dict | None) -> str:
+    """📊 總儀表板(ingest build_dashboard;strategy_backtest_public slug='dashboard')——
+    策略模擬頁第一個 sub-tab、純聚合『所有上架冠軍策略』(新冠軍寫 DB 即自動納入,本檔零改)。
+    三段(由上到下):
+      ① 🎯 各策略明日買進標的(策略按夏普降序、標的按策略內排序)+ 被 ≥2 策略共選者拉出醒目區塊;
+      ② 📊 1 年回測績效比較(各策略 ret_1y/sharpe/mdd + 加權指數 + 00981A benchmark);
+      ③ 🏆 明日最適前 5(多策略共識評分 top_picks:排名/標的/被幾策略選/適合度/哪些策略)。
+    payload 缺(舊資料)→ 回 ''(呼叫端據此整個 tab 隱藏)。大盤月線下 watchlist / top_picks
+    為空陣列 → 顯「明日無進場(大盤月線下)」。所有 % 欄(ret_1y/recent20/chg)為百分比數
+    (12.3=12.3%),sharpe 為比值,mdd 為回撤百分比量;與 Q44 payload 同慣例。"""
+    if not isinstance(dash, dict) or not dash:
+        return ""
+    esc = html_lib.escape
+    strategies = dash.get("strategies") or []
+    top_picks = dash.get("top_picks") or []
+    consensus = dash.get("consensus_picks") or []
+    benchmarks = dash.get("benchmarks") or {}
+    regime = dash.get("regime_read") or {}
+    _aod = str(dash.get("as_of_date") or "")[:10]
+    consensus_tk = {str(p.get("ticker")) for p in consensus}
+
+    def _sname(obj):
+        return esc(_clean_strat_name(obj.get("name"))
+                   or _STRAT_FALLBACK_NAME.get(obj.get("slug"), obj.get("slug") or ""))
+
+    def _pct_span(v):
+        s, cls = fmt_pct(v) if isinstance(v, (int, float)) else ("—", "neutral")
+        return f'<span class="{cls}">{esc(s)}</span>'
+
+    def _mdd_span(v):
+        return (f'<span class="down">{v:.1f}%</span>'
+                if isinstance(v, (int, float)) else '<span class="muted">—</span>')
+
+    def _sharpe_s(v):
+        return f"{v:.2f}" if isinstance(v, (int, float)) else "—"
+
+    def _px(v):
+        try:
+            return (f"{float(v):.2f}".rstrip("0").rstrip(".")) if v not in (None, "") else "—"
+        except (TypeError, ValueError):
+            return "—"
+
+    def _off_s(v):
+        return f"{float(v):.1f}%" if isinstance(v, (int, float)) else "—"
+
+    # ── 段 ① 各策略明日買進標的 ──
+    # 共識醒目區塊(被 ≥2 策略共選)— 跨方法一致 = 相對高信賴,擺最前。
+    cons_html = ""
+    if consensus:
+        pills = "".join(
+            f'<span class="dash-cons-pill"><b>{esc(str(p.get("ticker") or ""))}</b> '
+            f'{esc(str(p.get("name") or ""))}'
+            f'<span class="dash-cons-n">{int(p.get("n_strat") or len(p.get("by") or []))} 策略共選</span>'
+            '</span>'
+            for p in consensus)
+        cons_html = (
+            '<div class="dash-consensus"><div class="dash-cons-h">🤝 多策略共同看好</div>'
+            f'<div class="dash-cons-list">{pills}</div>'
+            '<p class="dash-cons-note">不同方法的策略同時選中 = 跨方法一致、相對高信賴。</p></div>')
+
+    strat_cards = []
+    for s in strategies:
+        wl = s.get("watchlist") or []
+        if not wl:
+            rows_html = '<div class="dash-wl-empty">明日無進場(大盤月線下)</div>'
+        else:
+            items = []
+            for row in sorted(wl, key=lambda r: int(r.get("rank") or 999)):
+                tk = str(row.get("ticker") or "")
+                is_cons = tk in consensus_tk
+                items.append(
+                    f'<div class="dash-wl-row{" is-cons" if is_cons else ""}">'
+                    f'<span class="dash-wl-rk">{int(row.get("rank") or 0)}</span>'
+                    f'<span class="dash-wl-tk">{esc(tk)} {esc(str(row.get("name") or ""))}'
+                    + ('<span class="dash-wl-cons" title="多策略共選">🤝</span>' if is_cons else '')
+                    + '</span>'
+                    f'<span class="dash-wl-px">{esc(_px(row.get("ref_close")))}</span>'
+                    f'<span class="dash-wl-off">距高 {esc(_off_s(row.get("off_high")))}</span>'
+                    f'<span class="dash-wl-chg">{_pct_span(row.get("chg"))}</span>'
+                    '</div>')
+            rows_html = "".join(items)
+        strat_cards.append(
+            '<div class="dash-strat-card">'
+            f'<div class="dash-strat-h"><span class="dash-strat-nm">{_sname(s)}</span>'
+            f'<span class="dash-strat-meta">夏普 {_sharpe_s(s.get("sharpe"))} · '
+            f'近20日 {_pct_span(s.get("recent20_pct"))}</span></div>'
+            + rows_html + '</div>')
+    sec1 = (
+        '<div class="card dash-sec"><div class="sec">🎯 各策略明日買進標的'
+        f'<span class="sim-daterange">{esc(_aod)} 收盤後計算 · 策略按夏普由高到低</span></div>'
+        + cons_html
+        + '<div class="dash-strat-grid">' + "".join(strat_cards) + '</div></div>')
+
+    # ── 段 ② 1 年回測績效比較(策略 + benchmark)──
+    _rets = [s.get("ret_1y") for s in strategies if isinstance(s.get("ret_1y"), (int, float))]
+    for _k in ("twii", "etf981"):
+        _bv = (benchmarks.get(_k) or {}).get("ret")
+        if isinstance(_bv, (int, float)):
+            _rets.append(_bv)
+    _maxabs = max((abs(x) for x in _rets), default=1.0) or 1.0
+
+    def _bar(v):
+        if not isinstance(v, (int, float)):
+            return '<span class="dash-bar"></span>'
+        w = min(100.0, abs(v) / _maxabs * 100)
+        cls = "up" if v >= 0 else "down"
+        return (f'<span class="dash-bar"><i class="dash-bar-fill {cls}" '
+                f'style="width:{w:.0f}%"></i></span>')
+
+    perf_rows = "".join(
+        f'<tr><td class="dash-pf-nm">{_sname(s)}</td>'
+        f'<td class="r">{_pct_span(s.get("ret_1y"))}</td>'
+        f'<td class="dash-pf-bar">{_bar(s.get("ret_1y"))}</td>'
+        f'<td class="r">{_sharpe_s(s.get("sharpe"))}</td>'
+        f'<td class="r">{_mdd_span(s.get("mdd"))}</td></tr>'
+        for s in strategies)
+    for _k, _lbl in (("twii", "加權指數(大盤)"), ("etf981", "00981A(主動式 ETF)")):
+        b = benchmarks.get(_k) or {}
+        perf_rows += (
+            f'<tr class="dash-pf-bm"><td class="dash-pf-nm">{esc(_lbl)}</td>'
+            f'<td class="r">{_pct_span(b.get("ret"))}</td>'
+            f'<td class="dash-pf-bar">{_bar(b.get("ret"))}</td>'
+            f'<td class="r">{_sharpe_s(b.get("sharpe"))}</td>'
+            f'<td class="r">{_mdd_span(b.get("mdd"))}</td></tr>')
+    sec2 = (
+        '<div class="card dash-sec"><div class="sec">📊 1 年回測績效比較'
+        '<span class="sim-daterange">含交易成本真實回測 · 並列大盤與主動式 ETF</span></div>'
+        '<div class="dash-pf-wrap"><table class="dash-pf">'
+        '<thead><tr><th>策略 / 基準</th><th class="r">總報酬</th><th></th>'
+        '<th class="r">夏普</th><th class="r">最大回撤</th></tr></thead>'
+        f'<tbody>{perf_rows}</tbody></table></div></div>')
+
+    # ── 段 ③ 明日最適前 5(多策略共識評分)──
+    regime_html = ""
+    if regime and regime.get("hottest_name"):
+        # 與策略卡 / by-chip 一致:去「(深度…)」尾綴(全站慣例,勿讓 regime 行漏出)。
+        _hot_nm = _clean_strat_name(regime.get("hottest_name")) or str(regime.get("hottest_name"))
+        regime_html = (
+            '<div class="dash-regime">🔥 近 20 日最強策略:'
+            f'<b>{esc(_hot_nm)}</b> '
+            f'{_pct_span(regime.get("recent20_pct"))}</div>')
+    if not top_picks:
+        picks_body = '<div class="dash-wl-empty">明日無進場(大盤月線下)</div>'
+    else:
+        prows = []
+        for i, p in enumerate(top_picks, 1):
+            by = p.get("by") or []
+            by_chips = "".join(
+                f'<span class="dash-by-chip">{_sname(b)} #{int(b.get("rank") or 0)}</span>'
+                for b in by)
+            score = p.get("score")
+            prows.append(
+                '<tr>'
+                f'<td class="dash-tp-rk">{i}</td>'
+                f'<td class="dash-tp-tk"><b>{esc(str(p.get("ticker") or ""))}</b> '
+                f'{esc(str(p.get("name") or ""))}'
+                f'<span class="dash-tp-sub">{esc(_px(p.get("ref_close")))} · '
+                f'距高 {esc(_off_s(p.get("off_high")))}</span></td>'
+                f'<td class="r dash-tp-n">{int(p.get("n_strat") or len(by))}</td>'
+                f'<td class="r dash-tp-score">{f"{score:.2f}" if isinstance(score, (int, float)) else "—"}</td>'
+                f'<td class="dash-tp-by">{by_chips}</td>'
+                '</tr>')
+        picks_body = (
+            '<div class="dash-tp-wrap"><table class="dash-tp">'
+            '<thead><tr><th>排名</th><th>標的</th>'
+            '<th class="r" title="被幾個策略同時選中">策略數</th>'
+            '<th class="r" title="多策略共識適合度評分(相對值,越高越契合明日進場)">適合度</th>'
+            '<th>哪些策略(#為該策略內排名)</th></tr></thead>'
+            f'<tbody>{"".join(prows)}</tbody></table></div>')
+    scoring_note = esc(str(dash.get("scoring_note") or ""))
+    caveat = esc(str(dash.get("caveat") or ""))
+    sec3 = (
+        '<div class="card dash-sec"><div class="sec">🏆 明日最適前 5(多策略共識評分)</div>'
+        + regime_html
+        + (f'<p class="dash-scoring">{scoring_note}</p>' if scoring_note else '')
+        + picks_body
+        + (f'<p class="sim-metrics-note">⚠ {caveat}</p>' if caveat else '')
+        + '</div>')
+
+    return sec1 + sec2 + sec3
+
+
 def build_trade_sim_page(strat_data: dict | None = None,
                          strat_order: list[str] | None = None,
-                         radar_seeds: set[str] | None = None) -> str:
-    """📈 策略模擬頁:多策略切換(2026-06-19 ingest 上架 breakout)。每個 slug 一個
-    strat-pane,內含 🎯 隔日買進標的(trade_sim_next)+ 📊 1 年回測績效 + 📋 逐筆明細。
-    `strat_data` = {slug:{payload, sim_next, bt_stats, bt_trades_n}};第一個 slug 預設
-    active,其餘藏起、由 showStrategyTab 切換(各 slug 的回測曲線/逐筆懶載各自獨立)。
-    回測為無限資金、含成本真實回測;payload 缺則該 slug 不渲回測區塊(pullback 另有
-    靜態檔 fallback,見 _build_backtest_html)。"""
+                         radar_seeds: set[str] | None = None,
+                         dashboard: dict | None = None) -> str:
+    """📈 策略模擬頁:總儀表板 + 多策略切換(slug-generic;ingest 寫 DB 即自動上架)。
+    `dashboard` 非空 → 「📊 總儀表板」做第一個 sub-tab、預設 active(聚合所有策略);
+    其後各 slug 一個 strat-pane(內含 🎯 隔日買進標的 + 📊 1 年回測績效 + 📋 逐筆明細),
+    順序由 `strat_order` 決定(夏普由高到低)。`strat_data` = {slug:{payload, sim_next,
+    bt_stats, bt_trades_n}}。無 dashboard 時第一個 slug 預設 active。回測為無限資金、含成本
+    真實回測;payload 缺則該 slug 不渲回測區塊(pullback 另有靜態檔 fallback)。"""
     esc = html_lib.escape
     strat_data = strat_data or {}
     order = [s for s in (strat_order or list(strat_data.keys())) if s in strat_data]
-    if not order:
+    dash_html = _build_dashboard_html(dashboard)
+    if not order and not dash_html:
         return '<div class="sim-page"><p class="muted-note">策略資料準備中。</p></div>'
 
     def _name(slug):
@@ -1716,9 +1900,16 @@ def build_trade_sim_page(strat_data: dict | None = None,
         return _clean_strat_name(pl.get("name")) or _STRAT_FALLBACK_NAME.get(slug, slug)
 
     btns, panes = [], []
+    # 總儀表板(若有)= 第一個 sub-tab、預設 active;沿用 .strat-tab-btn / .strat-pane
+    # 視覺語彙與 showStrategyTab 切換邏輯(JS 端對 dashboard 的 chart/逐筆 lazy-init 皆 no-op)。
+    if dash_html:
+        btns.append('<button class="strat-tab-btn active" type="button" data-strat="dashboard" '
+                    'onclick="showStrategyTab(\'dashboard\')">📊 總儀表板</button>')
+        panes.append('<div class="strat-pane active" id="strat-dashboard" '
+                     'data-slug="dashboard">' + dash_html + '</div>')
     for i, slug in enumerate(order):
         sd = strat_data[slug]
-        active = " active" if i == 0 else ""
+        active = " active" if (i == 0 and not dash_html) else ""
         btns.append(
             f'<button class="strat-tab-btn{active}" type="button" data-strat="{esc(slug)}" '
             f'onclick="showStrategyTab(\'{esc(slug)}\')">{esc(_name(slug))}</button>')
@@ -4817,17 +5008,21 @@ async def generate():
     #   positional 約定:[seq, entry_date, entry_price, exit_date, exit_price,
     #                    pnl_pct, hold_days, reason]
     # 策略清單「動態化」:slug 全集 = strategy_backtest_public 現有列(Q47;ingest 寫 DB
-    # 即自動上架,本檔不需改)。順序 = _STRAT_PREFERRED_ORDER 偏好,未知新 slug append
-    # 末尾(字母序)。查詢失敗才 fallback 偏好序。
+    # 即自動上架,本檔不需改)。"dashboard" 是『所有策略的聚合列』、非單一策略 → 從策略 tab
+    # 清單剔除(單獨渲染為「總儀表板」第一個 sub-tab)。tab 顯示順序 = 各策略
+    # payload.metrics.sharpe 由高到低(冠軍在最左;見迴圈後 STRAT_ORDER 排序)。查詢失敗才
+    # fallback 偏好序。
     try:
         _db_slugs = [r["slug"] for r in await conn.fetch(
             "select slug from strategy_backtest_public order by slug")]
     except Exception as exc:
         print(f"  ⚠ Q47 策略 slug 清單查詢失敗,fallback 偏好序: {exc}")
         _db_slugs = list(_STRAT_PREFERRED_ORDER)
-    _pref = {s: i for i, s in enumerate(_STRAT_PREFERRED_ORDER)}
-    STRAT_ORDER = sorted(set(_db_slugs), key=lambda s: (_pref.get(s, len(_pref)), s))
-    print(f"  策略清單(動態 from strategy_backtest_public): {STRAT_ORDER}")
+    _dash_in_db = "dashboard" in _db_slugs
+    # 去重保序、剔除 dashboard;最終 tab 顯示序在抓完 payload 後依夏普重排。
+    _strat_slugs = [s for s in dict.fromkeys(_db_slugs) if s != "dashboard"]
+    print(f"  策略清單(動態 from strategy_backtest_public): {_strat_slugs}"
+          + ("  + 總儀表板" if _dash_in_db else ""))
 
     def _ct_compact(t):
         return [
@@ -4847,7 +5042,7 @@ async def generate():
             _op.unlink()
 
     strat_data: dict[str, dict] = {}
-    for _slug in STRAT_ORDER:
+    for _slug in _strat_slugs:
         _sd = {"payload": None, "sim_next": [], "bt_stats": {}, "bt_trades_n": 0}
         # Q43 — 明日買進標的
         try:
@@ -4934,6 +5129,34 @@ async def generate():
             _det_path.unlink()
         strat_data[_slug] = _sd
 
+    # 策略 tab 顯示序:payload.metrics.sharpe 由高到低(冠軍最左)。缺 sharpe 者排末尾、
+    # 字母序 tie-break。預設 active tab = 總儀表板(有的話),否則第一個策略。
+    def _sharpe_of(s):
+        m = ((strat_data.get(s) or {}).get("payload") or {}).get("metrics") or {}
+        v = m.get("sharpe")
+        return v if isinstance(v, (int, float)) else float("-inf")
+    STRAT_ORDER = sorted(_strat_slugs, key=lambda s: (-_sharpe_of(s), s))
+    print(f"  策略 tab 顯示序(夏普降序): {STRAT_ORDER}")
+
+    # 總儀表板(ingest build_dashboard;slug='dashboard')— 純聚合所有策略,只讀 payload
+    # (無 sim_next / 逐筆)。Q44 已 slug 參數化(allowlist 涵蓋),不需新增 query。缺(舊
+    # 資料)→ None → build_trade_sim_page 不渲該 tab。
+    dashboard_payload = None
+    if _dash_in_db:
+        try:
+            _dr = await conn.fetchrow(
+                "select payload from strategy_backtest_public where slug = $1", "dashboard")
+            if _dr and _dr.get("payload"):
+                _dp = _dr["payload"]
+                dashboard_payload = json.loads(_dp) if isinstance(_dp, str) else dict(_dp)
+                print(f"  總儀表板 (dashboard): {len(dashboard_payload.get('strategies') or [])} 策略 / "
+                      f"top_picks {len(dashboard_payload.get('top_picks') or [])} / "
+                      f"共識 {len(dashboard_payload.get('consensus_picks') or [])}")
+            else:
+                print("  ⚠ dashboard payload 為空")
+        except Exception as exc:
+            print(f"  ⚠ 總儀表板 dashboard payload fetch 失敗: {exc}")
+
     # Q38 / Q39 產業地圖已在前面(_hist_tickers 構建前)fetch,讓 industry-map
     # ticker 也納入 ticker_close / ticker_net_inst 歷史(供 modal 內子產業趨勢圖)。
 
@@ -4969,7 +5192,7 @@ async def generate():
             _radar_seed_set.add(_s.ticker)
     tradesim_html = build_trade_sim_page(
         strat_data=strat_data, strat_order=STRAT_ORDER,
-        radar_seeds=_radar_seed_set)
+        radar_seeds=_radar_seed_set, dashboard=dashboard_payload)
     indmap_html = build_industry_map_page(indmap_rows, stocks_info, indmap_edges)
 
     # ── 主動式 ETF(2026-05-20 對應 ingest f5faa21)──

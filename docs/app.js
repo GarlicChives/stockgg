@@ -203,12 +203,15 @@ const _btState = {};
 function _bt(slug) {
   return (_btState[slug] = _btState[slug] || { summary: null, detail: null, loaded: false, loading: false });
 }
-// 當前 active 策略 slug(showStrategyTab 設定;未設時由 .strat-tab-btn.active 推導)。
+// 當前 active 策略 slug(showStrategyTab 設定;未設時由 .strat-tab-btn.active 推導,
+// 再退而求其次取第一個 sub-tab——slug-generic 後不硬編 'pullback'(策略清單全動態,
+// 預設 active 可能是「總儀表板 dashboard」)。
 let _curStrat = null;
 function _activeStrat() {
   if (_curStrat) return _curStrat;
-  const b = document.querySelector('.strat-tab-btn.active');
-  _curStrat = (b && b.dataset.strat) || 'pullback';
+  const b = document.querySelector('.strat-tab-btn.active')
+    || document.querySelector('.strat-tab-btn');
+  _curStrat = (b && b.dataset.strat) || 'dashboard';
   return _curStrat;
 }
 
