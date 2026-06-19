@@ -746,6 +746,9 @@ dialog#art-modal.art-fullscreen[open]{animation:artFsOpen .2s ease-out}
 .art-fullscreen .art-trades-section{flex:1 1 0;min-height:0;display:flex;
                                     flex-direction:column}
 .art-fullscreen .bt-stk-tablewrap{flex:1 1 0;min-height:0;max-height:none}
+/* 明日買進標的:不在 top100 者為 ETF 內容,但 scope 鎖全螢幕(尺寸恆定避免輪巡縮放)→
+   下半 ETF section 同樣填滿、內部捲動,與上半 K 線 1:1 */
+.art-fullscreen .art-etf-section{flex:1 1 0;min-height:0;margin-top:0;overflow-y:auto}
 .modal-hdr{display:flex;align-items:center;gap:.6rem;
             padding:.85rem 1.1rem;border-bottom:1px solid var(--border);
             flex-shrink:0}
