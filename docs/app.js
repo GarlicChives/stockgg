@@ -264,8 +264,17 @@ function _btWaitLoaded(timeoutMs) {
    tab 通常已自動載;未載入則先載入再開。萬一該檔不在 _btSummary(理論上不會)→
    退回 showArtModal(下半=主動 ETF),與不在 top100 者的現狀一致。 */
 function simNextOpen(tk, nm) {
-  const inScope = () => !!(_btSummary && _btSummary.stocks && _btSummary.stocks.some(s => s.tk === tk));
-  const finish = () => { if (inScope()) btOpenStock(tk); else showArtModal(tk, nm || '', null); };
+  // scope = 明日買進標的(_SIM_NEXT_BT 顯示序)→ 箭頭只在這幾檔輪巡,與報酬最強 100 分開
+  const finish = () => {
+    const stocks = (_btSummary && _btSummary.stocks) || [];
+    const byTk = {};
+    stocks.forEach(s => { byTk[s.tk] = s; });
+    const order = (window._SIM_NEXT_BT && window._SIM_NEXT_BT.length) ? window._SIM_NEXT_BT : [tk];
+    const scope = order.filter(t => byTk[t]).map(t => ({ ticker: t, name: byTk[t].nm || '', ct: byTk[t].ct || [] }));
+    const idx = scope.findIndex(x => x.ticker === tk);
+    if (idx < 0) { showArtModal(tk, nm || '', null); return; }   // 不在回測範圍 → 維持現狀(ETF modal)
+    _openTradesModal(scope, idx);
+  };
   if (_btLoaded) { finish(); return; }
   const body = document.querySelector('.sim-bt-trades .bt-tr-body');
   if (!_btLoading && body) { _btLoadTrades(body).then(finish); }
@@ -349,20 +358,20 @@ function _btFmtPct(v) {  // 報酬%:紅(正/賺)綠(負/賠),沿用 .up/.down/.f
   return '<span class="' + cls + '">' + (v > 0 ? '+' : '') + v.toFixed(2) + '%</span>';
 }
 
-/* 點某檔股票卡 → art-modal(trades 模式):K線標 chart_trades 買賣 + 該股全往返表 + hover 高亮。
-   scope = 全部股票卡(報酬最強 top100,已降序)→ 左右箭頭輪巡;切換時同步換 K線標記與表格。 */
-function btOpenStock(ticker) {
-  const stocks = (_btSummary && _btSummary.stocks) || [];
-  const idx = stocks.findIndex(x => x.tk === ticker);
+/* trades 模式 modal 開啟核心:給定 scope([{ticker,name,ct}])與起始 idx → 全螢幕 +
+   K線標買賣 + 全往返表 + 左右箭頭只在此 scope 內輪巡。報酬最強與明日買進標的各自帶
+   不同 scope 進來,故箭頭順序彼此獨立、不混在一起。 */
+function _openTradesModal(scope, idx) {
+  if (!scope || !scope.length) return;
   if (_artScopeObserver) { _artScopeObserver.disconnect(); _artScopeObserver = null; }
   _artScopeContainer = null;
-  _artScope = stocks.map(s => ({ ticker: s.tk, name: s.nm || '', ct: s.ct || [] }));
+  _artScope = scope;
   _artScopeIdx = idx >= 0 ? idx : 0;
   _artMode = 'trades';
-  const cur = _artScope[_artScopeIdx] || { ticker: ticker, name: '', ct: [] };
+  const cur = _artScope[_artScopeIdx] || scope[0];
   _artCurrentTicker = cur.ticker;
   _artCurrentName = cur.name;
-  _artMarkers = { ticker: cur.ticker, trades: cur.ct };
+  _artMarkers = { ticker: cur.ticker, trades: cur.ct || [] };
   _renderArtModalBody(cur.ticker, cur.name);
   _lockBodyScroll();
   // 全螢幕版型:K線拉寬 + K線/表格高度 1:1(只在 trades 模式;ETF 模式維持置中卡)
@@ -370,16 +379,29 @@ function btOpenStock(ticker) {
   document.getElementById('art-modal').showModal();
 }
 
+/* 點報酬最強股票卡 → trades modal,scope = 報酬最強 top100(降序)。 */
+function btOpenStock(ticker) {
+  const stocks = (_btSummary && _btSummary.stocks) || [];
+  const scope = stocks.map(s => ({ ticker: s.tk, name: s.nm || '', ct: s.ct || [] }));
+  _openTradesModal(scope, scope.findIndex(x => x.ticker === ticker));
+}
+
 /* trades 模式 modal 下半:該股全往返表(scrollable)。hover 列 → K線高亮對應買賣 */
 function _btStockTableHtml(ticker) {
-  const arr = (_btDetail && _btDetail[ticker]) || null;
-  if (!arr || !arr.length) return '<p class="bt-tr-status">該股逐筆資料載入失敗</p>';
+  const arr0 = (_btDetail && _btDetail[ticker]) || null;
+  if (!arr0 || !arr0.length) return '<p class="bt-tr-status">該股逐筆資料載入失敗</p>';
+  // 倒序:最近的交易日在最上面(依進場日降序,同日 tie-break 用 seq 降序)。seq/K線標記不變。
+  const arr = arr0.slice().sort((a, b) =>
+    (a[1] < b[1] ? 1 : (a[1] > b[1] ? -1 : ((b[0] || 0) - (a[0] || 0)))));
   let rows = '';
   for (const t of arr) {
     const reason = _BT_REASON[t[7]] || '—';
     const hd = (t[6] == null) ? '—' : t[6];
-    rows += "<tr onmouseenter='btHoverTrade(" + JSON.stringify(t[1]) + ',' + JSON.stringify(t[3])
-      + ',' + (t[2] == null ? 'null' : t[2]) + ',' + (t[4] == null ? 'null' : t[4]) + ")'"
+    const _open = (t[7] === 'open');   // 持有中 → hover 不疊賣出標記
+    const _xd = _open ? 'null' : JSON.stringify(t[3]);
+    const _xp = _open ? 'null' : (t[4] == null ? 'null' : t[4]);
+    rows += "<tr onmouseenter='btHoverTrade(" + JSON.stringify(t[1]) + ',' + _xd
+      + ',' + (t[2] == null ? 'null' : t[2]) + ',' + _xp + ")'"
       + " onmouseleave='btHoverClear()'>"
       + '<td class="r bt-tr-seq">' + (t[0] == null ? '—' : t[0]) + '</td>'
       + '<td class="bt-tr-dt">' + _imEsc(t[1]) + '<span class="bt-tr-arrow">→</span>'
@@ -1327,12 +1349,13 @@ function _renderStockKline() {
     const mk = [];
     for (const ct of (_artMarkers.trades || [])) {
       const seq = ct[0];
+      const isOpen = (ct[7] === 'open');   // 持有中:exit_date 是 as-of 日佔位,非真實賣出 → 不標賣
       const ed = ct[1] ? String(ct[1]).slice(0, 10) : null;
       const xd = ct[3] ? String(ct[3]).slice(0, 10) : null;
       if (ed && ed >= t0 && ed <= t1)
         mk.push({ time: ed, position: 'belowBar', color: '#ef5350', shape: 'arrowUp',
                   text: '買' + (seq != null ? seq : '') });
-      if (xd && xd >= t0 && xd <= t1)
+      if (!isOpen && xd && xd >= t0 && xd <= t1)
         mk.push({ time: xd, position: 'aboveBar', color: '#26a69a', shape: 'arrowDown',
                   text: '賣' + (seq != null ? seq : '') });
     }

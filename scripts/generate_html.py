@@ -1336,6 +1336,8 @@ def _build_trade_next_html(next_rows: list[dict] | None,
 
     cards = []        # 一般新訊號卡
     re_cards = []     # 再進場買單卡(換行另起一行,樣式同一般卡)
+    bt_main = []      # 在回測 top100 的明日標的 ticker(顯示序);供 modal 箭頭輪巡用「自己的」scope
+    bt_re = []        # 再進場且在 top100 者(接在 bt_main 後,對齊視覺序)
     for r in rows:
         tk = str(r.get("ticker") or "")
         nm = str(r.get("name") or "")
@@ -1395,6 +1397,7 @@ def _build_trade_next_html(next_rows: list[dict] | None,
                        f'<span class="sim-next-bt-tot {_tot_cls}">{html_lib.escape(_tot_s)}</span>'
                        f'<span class="sim-next-bt-meta">{html_lib.escape(_bt_meta)}</span></div>')
             onclick = f"simNextOpen({json.dumps(tk)},{json.dumps(nm[:12])})"
+            (bt_re if r.get("reentry") else bt_main).append(tk)
         else:
             bt_html = ''
             onclick = f"showArtModal({json.dumps(tk)},{json.dumps(nm[:12])},event)"
@@ -1412,6 +1415,8 @@ def _build_trade_next_html(next_rows: list[dict] | None,
             + '</div>'
         )
     return (
+        # 明日標的「自己的」modal 輪巡 scope(與報酬最強 100 分開)。顯示序 = 一般卡 + 再進場卡。
+        f'<script>window._SIM_NEXT_BT={json.dumps(bt_main + bt_re)};</script>'
         '<div class="card sim-next-box"><div class="sec">🎯 明日買進標的'
         f'<span class="sim-daterange">{html_lib.escape(_aod)} 收盤後計算 · '
         f'依距 120 日高最遠取前 {len(rows)} 檔 · 進場區間內掛單</span></div>'
