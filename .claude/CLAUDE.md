@@ -55,7 +55,7 @@ companion repo `StockGG-ingest`(本機 `~/Desktop/StockGG-ingest`,私有)跑。
 - `docs/app.js` — 全站 JS(直接編輯;個股 modal 的 `artModalData` 等資料 const 仍 inline 在 index.html)。
 - `src/analysis/focus_themes.py` — 題材叢集偵測(`detect_industry_clusters` 泛分類 / `detect_focus_clusters` v3 焦點,前綴群組化)。
 - `src/utils/db.py` — async DB client(`SUPABASE_ANON_KEY` + `db-proxy-public`;內建 5xx retry)。
-- `supabase/functions/db-proxy-public/index.ts` — Edge Function + SQL allowlist(目前 **43 條**,Q1–Q46;每個 Q 的 SQL/語意對照在 ARCHITECTURE.md)。Q43–Q46 已 **slug 參數化**(`where slug = $1`),pullback / breakout 共用同條;多策略由 generate_html loop 各帶 slug fetch。
+- `supabase/functions/db-proxy-public/index.ts` — Edge Function + SQL allowlist(目前 **44 條**,Q1–Q47;每個 Q 的 SQL/語意對照在 ARCHITECTURE.md)。Q43–Q46 已 **slug 參數化**(`where slug = $1`),各策略共用同條;Q47(`select slug from strategy_backtest_public order by slug`)= 策略模擬頁**動態 slug 清單**權威來源。多策略由 generate_html 先跑 Q47 撈全集、再 loop 各帶 slug fetch;新策略 ingest 寫 DB 即自動上架,本 repo 零改動(`STRAT_ORDER` 不再 hardcode,`_STRAT_PREFERRED_ORDER` 僅排序偏好、非清單閘)。
 - `data/theme_dictionary.json` — statementdog 主/子產業字典(ticker-centric;`main='近一年焦點'` 給焦點 sub-tab)。
 - `data/pullback_public.json` — 拉回買 1 年回測 **fallback 靜態檔**(主來源已改 DB Q44 `strategy_backtest_public`)。
 - `.github/workflows/market_briefing.yml` — render + deploy workflow(cron 07:30/18:15/23:15 TW;push 不觸發)。

@@ -260,6 +260,11 @@ const ALLOWED: Set<string> = new Set([
   //   pnl_pct,hold_days,reason},...]}}。generate_html build 時一次抓整包、落地成
   //   docs/bt_detail_<slug>.json 供前端 lazy-fetch。2026-06-19:slug 參數化。
   "select detail from strategy_backtest_trades_detail where slug = $1",
+
+  // Q47 — 策略「動態清單」(2026-06-19 ingest c0f09dd:前端 generic 化)。
+  //   strategy_backtest_public 現有全部 slug = 策略模擬頁切換器的權威來源;ingest 寫 DB
+  //   後公開站日更即自動帶上新策略,generate_html 不需 hardcode slug 清單。
+  "select slug from strategy_backtest_public order by slug",
 ])
 
 function normalize(q: string): string {

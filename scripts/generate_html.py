@@ -1307,6 +1307,12 @@ _STRAT_FALLBACK_NAME = {
     "squeeze": "波動壓縮突破",
 }
 
+# 策略「顯示順序」偏好(**非權威清單**)。哪些 slug 會出現完全由 DB
+# strategy_backtest_public 現有列決定(ingest 寫 DB → 自動上架,本檔零改動);此表僅排序
+# 已知策略(預設 active = 第一個 = pullback)。不在表內的新 slug 仍會渲染,append 末尾依
+# 字母序。故新增策略不需要編輯這裡——刪改也只影響排列、不影響顯不顯示。
+_STRAT_PREFERRED_ORDER = ["pullback", "breakout", "lowvol", "rsleader", "masupport", "squeeze"]
+
 # 策略名「(深度…)」尾綴一律不顯示(每個策略本就必經深度回測,標註冗餘)。
 # DB payload.name 仍可能帶此尾綴 → 渲染前 presentation-layer 去除(全/半形括號皆清)。
 _STRAT_NAME_SUFFIX_RE = re.compile(r"\s*[（(][^（()）]*深度[^（()）]*[）)]\s*$")
@@ -4810,7 +4816,18 @@ async def generate():
     # allowlist 同步擴 + redeploy);不帶 slug 會把兩策略撈在一起混顯。
     #   positional 約定:[seq, entry_date, entry_price, exit_date, exit_price,
     #                    pnl_pct, hold_days, reason]
-    STRAT_ORDER = ["pullback", "breakout", "lowvol", "rsleader", "masupport", "squeeze"]
+    # 策略清單「動態化」:slug 全集 = strategy_backtest_public 現有列(Q47;ingest 寫 DB
+    # 即自動上架,本檔不需改)。順序 = _STRAT_PREFERRED_ORDER 偏好,未知新 slug append
+    # 末尾(字母序)。查詢失敗才 fallback 偏好序。
+    try:
+        _db_slugs = [r["slug"] for r in await conn.fetch(
+            "select slug from strategy_backtest_public order by slug")]
+    except Exception as exc:
+        print(f"  ⚠ Q47 策略 slug 清單查詢失敗,fallback 偏好序: {exc}")
+        _db_slugs = list(_STRAT_PREFERRED_ORDER)
+    _pref = {s: i for i, s in enumerate(_STRAT_PREFERRED_ORDER)}
+    STRAT_ORDER = sorted(set(_db_slugs), key=lambda s: (_pref.get(s, len(_pref)), s))
+    print(f"  策略清單(動態 from strategy_backtest_public): {STRAT_ORDER}")
 
     def _ct_compact(t):
         return [
