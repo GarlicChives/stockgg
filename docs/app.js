@@ -214,18 +214,18 @@ function btTradesToggle(btn) {
   if (!open && !_btLoaded && !_btLoading) _btLoadTrades(body);
 }
 
+// 回傳 Promise<bool>(載入成功與否)— 供 simNextOpen 在 lazy 載入完成後再開 modal。
 function _btLoadTrades(body) {
   _btLoading = true;
-  const status = body.querySelector('.bt-tr-status');
-  status.hidden = false;
-  status.textContent = '載入逐筆交易中…';
+  const status = body && body.querySelector('.bt-tr-status');
+  if (status) { status.hidden = false; status.textContent = '載入逐筆交易中…'; }
   const delays = [0, 2000, 5000, 10000, 20000, 30000];
   const getJson = async (url) => {
     const r = await fetch(url, { cache: 'no-cache' });
     if (!r.ok) throw new Error(url + ' ' + r.status);
     return r.json();
   };
-  (async () => {
+  return (async () => {
     for (let i = 0; i < delays.length; i++) {
       if (delays[i]) await new Promise(r => setTimeout(r, delays[i]));
       try {
@@ -233,17 +233,43 @@ function _btLoadTrades(body) {
         _btSummary = sum || {};
         _btDetail = (det && det.d) || {};
         _btLoaded = true; _btLoading = false;
-        status.hidden = true;
-        _btRenderSection(body);
-        return;
+        if (status) status.hidden = true;
+        if (body) _btRenderSection(body);
+        return true;
       } catch (e) {
         console.warn('bt load attempt ' + (i + 1) + ' failed: ' + e.message);
       }
     }
     _btLoading = false;
-    status.hidden = false;
-    status.textContent = '逐筆交易載入失敗,請稍後重整再試';
+    if (status) { status.hidden = false; status.textContent = '逐筆交易載入失敗,請稍後重整再試'; }
+    return false;
   })();
+}
+
+// 等待進行中的 bt 載入完成(showTab 進 tradesim 時已自動觸發);輪詢到 _btLoaded 或放棄。
+function _btWaitLoaded(timeoutMs) {
+  return new Promise(resolve => {
+    if (_btLoaded || !_btLoading) return resolve(_btLoaded);
+    const t0 = Date.now();
+    const iv = setInterval(() => {
+      if (_btLoaded || !_btLoading || Date.now() - t0 > (timeoutMs || 35000)) {
+        clearInterval(iv); resolve(_btLoaded);
+      }
+    }, 120);
+  });
+}
+
+/* 明日買進標的卡點擊(generate_html 僅對「在回測 top100」的檔掛此 handler):
+   開報酬最強同款 trades modal(K線買賣標 + 全往返表)。bt 為 lazy-load —— 進 tradesim
+   tab 通常已自動載;未載入則先載入再開。萬一該檔不在 _btSummary(理論上不會)→
+   退回 showArtModal(下半=主動 ETF),與不在 top100 者的現狀一致。 */
+function simNextOpen(tk, nm) {
+  const inScope = () => !!(_btSummary && _btSummary.stocks && _btSummary.stocks.some(s => s.tk === tk));
+  const finish = () => { if (inScope()) btOpenStock(tk); else showArtModal(tk, nm || '', null); };
+  if (_btLoaded) { finish(); return; }
+  const body = document.querySelector('.sim-bt-trades .bt-tr-body');
+  if (!_btLoading && body) { _btLoadTrades(body).then(finish); }
+  else { _btWaitLoaded().then(finish); }
 }
 
 function _btBars(buckets, colored) {
@@ -295,8 +321,8 @@ function _btRenderSection(body) {
       + '<span class="bt-stk-r1"><span class="bt-stk-nm">' + _imEsc(s.nm || '')
       + '</span><span class="bt-stk-tk">' + _imEsc(s.tk || '') + '</span></span>'
       + '<span class="bt-stk-tot ' + totCls + '">' + tot + '</span>'
-      + '<span class="bt-stk-meta">' + (s.n == null ? '—' : s.n) + ' 筆 · 勝率 '
-      + (s.wr == null ? '—' : s.wr + '%') + ' · 最佳 ' + best + '</span></button>';
+      + '<span class="bt-stk-meta">' + (s.n == null ? '—' : s.n) + '筆·勝'
+      + (s.wr == null ? '—' : s.wr + '%') + '·最佳' + best + '</span></button>';
   }).join('');
   const arCls = avgRet > 0 ? 'up' : (avgRet < 0 ? 'down' : 'flat');
   sum.innerHTML =

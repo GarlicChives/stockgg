@@ -1241,6 +1241,12 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 /* 再進場買單徽章(琥珀,與雷達 conds 區隔)*/
 .sim-next-re{font-size:.64rem;font-weight:700;padding:.05rem .4rem;border-radius:4px;
              background:rgba(245,166,35,.18);color:#f5a623}
+/* 整合回測 top100 績效(2026-06-19):卡片底部一行「報酬% · N筆·勝N%·最佳+X%」,
+   數字與下方報酬最強卡同源(Q45 bt_summary)。 */
+.sim-next-bt{display:flex;align-items:baseline;gap:.4rem;margin-top:.35rem;
+             padding-top:.3rem;border-top:1px solid var(--border)}
+.sim-next-bt-tot{font-size:.78rem;font-weight:800;font-variant-numeric:tabular-nums;flex:0 0 auto}
+.sim-next-bt-meta{font-size:.62rem;color:var(--muted);white-space:nowrap}
 .sim-next-note{margin:.7rem 0 0;font-size:.7rem;color:var(--muted);line-height:1.55}
 /* 📊 1 年回測績效區塊(沿用 .sim-metrics / .sim-chart;左側 accent 條強調為實證) */
 .sim-bt-box{border-left:3px solid #10b981}
@@ -1352,7 +1358,9 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .bt-stk-nm{font-size:.82rem;font-weight:700;white-space:nowrap}
 .bt-stk-tk{font-size:.62rem;color:var(--muted)}
 .bt-stk-tot{font-size:.86rem;font-weight:800;font-variant-numeric:tabular-nums}
-.bt-stk-meta{font-size:.64rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 2026-06-19:資訊完整優先 —— 移除 ellipsis 截斷;緊湊分隔(N筆·勝N%·最佳+X%)後
+   單行可容於 minmax(150px),仍維持小方格。 */
+.bt-stk-meta{font-size:.64rem;color:var(--muted);white-space:nowrap}
 /* trades 模式 modal 下半:該股全往返表(scrollable)*/
 .art-trades-section{margin-top:.5rem}
 /* 不顯卷軸但仍可滾輪(scrollbar-width:none + ::-webkit-scrollbar 隱藏)*/
