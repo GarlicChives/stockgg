@@ -339,6 +339,8 @@ function btOpenStock(ticker) {
   _artMarkers = { ticker: cur.ticker, trades: cur.ct };
   _renderArtModalBody(cur.ticker, cur.name);
   _lockBodyScroll();
+  // 全螢幕版型:K線拉寬 + K線/表格高度 1:1(只在 trades 模式;ETF 模式維持置中卡)
+  document.getElementById('art-modal').classList.add('art-fullscreen');
   document.getElementById('art-modal').showModal();
 }
 
@@ -1106,6 +1108,7 @@ function showArtModal(ticker, name, evt) {
   }
   _renderArtModalBody(ticker, _artCurrentName);
   _lockBodyScroll();
+  document.getElementById('art-modal').classList.remove('art-fullscreen');  // ETF 模式維持置中卡
   document.getElementById('art-modal').showModal();
 }
 
@@ -2650,6 +2653,7 @@ document.getElementById('art-modal').addEventListener('close', () => {
   _artScopeIdx = -1;
   _artCurrentTicker = null;
   _artScopeContainer = null;
+  document.getElementById('art-modal').classList.remove('art-fullscreen');
   if (_artScopeObserver) { _artScopeObserver.disconnect(); _artScopeObserver = null; }
 });
 

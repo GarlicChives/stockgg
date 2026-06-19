@@ -729,6 +729,23 @@ dialog#art-modal[open]::backdrop{animation:tcBackdropFade .26s ease-out}
   .art-nav{display:none}  /* 手機無側邊空間,藏側邊 nav */
   .art-topbar{padding-left:.8rem}
 }
+/* ── art-modal 全螢幕模式(策略模擬頁 trades 卡開啟;btOpenStock 加 .art-fullscreen)──
+   K線拉寬到滿版、K線與下方逐筆表格高度 1:1。translate 置中改 top/left 全貼,
+   keyframe 衝突直接走 fade。其餘模式(ETF / catalyst / cluster)維持原置中卡。 */
+dialog#art-modal.art-fullscreen{width:100vw;height:100vh;max-height:100vh;
+                                top:0;left:0;transform:none;border-radius:0}
+@keyframes artFsOpen{from{opacity:0}to{opacity:1}}
+dialog#art-modal.art-fullscreen[open]{animation:artFsOpen .2s ease-out}
+.art-fullscreen .art-shell{border-radius:0;border:none}
+/* modal-body 改 flex 直欄,兩半各佔一半;表格自身於下半內部捲動 */
+.art-fullscreen .modal-body{display:flex;flex-direction:column;overflow:hidden;
+                            padding:.7rem 1.1rem}
+.art-fullscreen .art-kline-section{flex:1 1 0;min-height:0;display:flex;
+                                   flex-direction:column;margin-bottom:.6rem}
+.art-fullscreen .art-kline-chart{flex:1 1 0;min-height:0;height:auto}
+.art-fullscreen .art-trades-section{flex:1 1 0;min-height:0;display:flex;
+                                    flex-direction:column}
+.art-fullscreen .bt-stk-tablewrap{flex:1 1 0;min-height:0;max-height:none}
 .modal-hdr{display:flex;align-items:center;gap:.6rem;
             padding:.85rem 1.1rem;border-bottom:1px solid var(--border);
             flex-shrink:0}
