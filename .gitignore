@@ -38,6 +38,8 @@ docs/history.json
 docs/bt_trades_pullback.json
 docs/bt_summary.json
 docs/bt_detail.json
+docs/bt_summary_*.json
+docs/bt_detail_*.json
 
 # 驗證截圖 / 雜項(不准進 public repo)
 *.png

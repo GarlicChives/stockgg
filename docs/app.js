@@ -28,14 +28,8 @@ function showTab(name) {
   if (name === 'risk' && !_riskRendered) _initRiskChart();
   // 🗺️ 產業地圖 tab:lazy-init 蜘蛛網關聯圖(只第一次切過去 init)
   if (name === 'indmap' && !_indmapRendered) _initIndmapGraph();
-  // 📈 策略模擬 tab:lazy-init NAV 三線圖 + 1 年回測曲線(只第一次切過去 init)
-  if (name === 'tradesim' && !_tradesimRendered) _initTradeSimChart();
-  if (name === 'tradesim' && !_tradebtRendered) _initTradeBtChart();
-  // 逐筆交易明細預設展開:首次切入策略頁自動 lazy-fetch(沒進策略頁就不抓 227KB)
-  if (name === 'tradesim' && !_btLoaded && !_btLoading) {
-    const _btBody = document.querySelector('.sim-bt-trades .bt-tr-body');
-    if (_btBody) _btLoadTrades(_btBody);
-  }
+  // 📈 策略模擬 tab:init 當前 active 策略的回測曲線 + lazy-fetch 其逐筆(切策略另載)
+  if (name === 'tradesim') _activateStratData(_activeStrat());
 }
 
 /* ── 🛡️ 風控 tab — lazy-init「依建議部位 vs 買進持有」淨值雙線圖 ──────
@@ -103,15 +97,16 @@ function _initTradeSimChart() {
   }).catch(e => console.error('trade sim chart load failed', e));
 }
 
-/* 📊 1 年回測績效曲線(payload window.IIA_TRADEBT = {dates[], strategy[], twii[],
- * etf981[]},平行陣列、起始=100;ingest 靜態回測檔)。比照即時 NAV 圖樣式。 */
-let _tradebtRendered = false;
-function _initTradeBtChart() {
-  const d = window.IIA_TRADEBT;
+/* 📊 1 年回測績效曲線(per-slug payload window.IIA_TRADEBT_BY[slug] =
+ * {dates[], strategy[], twii[], etf981[]},平行陣列、起始=100)。多策略各自一張圖
+ * (容器 #sim-bt-chart-<slug>),切到該 slug 才 lazy-init。 */
+const _tradebtRenderedBy = {};   // slug -> bool
+function _initTradeBtChart(slug) {
+  const d = (window.IIA_TRADEBT_BY || {})[slug];
   if (!d || !d.dates || !d.dates.length) return;
   _loadLightweightCharts().then(() => {
-    const el = document.getElementById('sim-bt-chart');
-    if (!el) return;
+    const el = document.getElementById('sim-bt-chart-' + slug);
+    if (!el || _tradebtRenderedBy[slug]) return;
     const chart = LightweightCharts.createChart(el, {
       layout: { background: { type: 'solid', color: 'transparent' },
                 textColor: '#7c8290', attributionLogo: false },
@@ -126,11 +121,11 @@ function _initTradeBtChart() {
     const series = (arr) => d.dates
       .map((dt, i) => ({ time: dt, value: arr && arr[i] != null ? arr[i] : null }))
       .filter(p => p.value != null);
-    mk('#60a5fa').setData(series(d.strategy));   // 拉回買策略
+    mk('#60a5fa').setData(series(d.strategy));   // 策略
     mk('#f59e0b').setData(series(d.twii));        // 加權指數
     mk('#10b981').setData(series(d.etf981));      // 00981A
     chart.timeScale().fitContent();
-    _tradebtRendered = true;
+    _tradebtRenderedBy[slug] = true;
   }).catch(e => console.error('trade backtest chart load failed', e));
 }
 
@@ -178,13 +173,15 @@ function simToggle981(btn) {
   simRenderTrades();
 }
 
-/* 多策略 sub-tab 切換(目前僅「拉回買策略」;架構備未來新策略)。
- * 切到某策略 → 顯該 .strat-pane、其餘隱;圖已 render 過則不重畫。 */
+/* 多策略 sub-tab 切換(拉回買 / 突破買 …)。切到某策略 → 顯該 .strat-pane、其餘隱;
+ * 設 active slug,並 lazy-init 該 slug 的回測曲線 + 逐筆(各策略獨立、切到才載/畫)。 */
 function showStrategyTab(key) {
+  _curStrat = key;
   document.querySelectorAll('.strat-tab-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.strat === key));
   document.querySelectorAll('.strat-pane').forEach(p =>
     p.classList.toggle('active', p.id === 'strat-' + key));
+  _activateStratData(key);
 }
 
 /* 📋 1 年回測逐筆交易明細:點開才 lazy-fetch docs/bt_trades_pullback.json
@@ -200,23 +197,37 @@ const _BT_REASON = {
 };
 // by_stock_lazy schema(ingest 03a3cdb..0a2a622)。ct/detail positional 約定:
 // [0]seq [1]entry_date [2]entry_price [3]exit_date [4]exit_price [5]pnl_pct [6]hold_days [7]reason
-let _btSummary = null;   // {nt,ns,stocks:[{tk,nm,tot,best,n,wr,ct:[[...]]}]}(已按 total_pnl 降序 top100)
-let _btDetail = null;    // {<ticker>:[[...全往返...]]}
-let _btLoaded = false, _btLoading = false;
+// 多策略(2026-06-19):每個 slug 各自獨立載入/狀態。_btState[slug] = {summary,detail,loaded,loading}。
+// summary={nt,ns,stocks:[{tk,nm,tot,best,n,wr,ct}]}(降序 top100);detail={<ticker>:[[...全往返...]]}。
+const _btState = {};
+function _bt(slug) {
+  return (_btState[slug] = _btState[slug] || { summary: null, detail: null, loaded: false, loading: false });
+}
+// 當前 active 策略 slug(showStrategyTab 設定;未設時由 .strat-tab-btn.active 推導)。
+let _curStrat = null;
+function _activeStrat() {
+  if (_curStrat) return _curStrat;
+  const b = document.querySelector('.strat-tab-btn.active');
+  _curStrat = (b && b.dataset.strat) || 'pullback';
+  return _curStrat;
+}
 
 function btTradesToggle(btn) {
   const wrap = btn.closest('.sim-bt-trades');
+  const slug = wrap.dataset.slug;
   const body = wrap.querySelector('.bt-tr-body');
   const open = btn.getAttribute('aria-expanded') === 'true';
   btn.setAttribute('aria-expanded', String(!open));
   btn.classList.toggle('open', !open);
   body.hidden = open;
-  if (!open && !_btLoaded && !_btLoading) _btLoadTrades(body);
+  const st = _bt(slug);
+  if (!open && !st.loaded && !st.loading) _btLoadTrades(slug, body);
 }
 
 // 回傳 Promise<bool>(載入成功與否)— 供 simNextOpen 在 lazy 載入完成後再開 modal。
-function _btLoadTrades(body) {
-  _btLoading = true;
+function _btLoadTrades(slug, body) {
+  const st = _bt(slug);
+  st.loading = true;
   const status = body && body.querySelector('.bt-tr-status');
   if (status) { status.hidden = false; status.textContent = '載入逐筆交易中…'; }
   const delays = [0, 2000, 5000, 10000, 20000, 30000];
@@ -229,56 +240,74 @@ function _btLoadTrades(body) {
     for (let i = 0; i < delays.length; i++) {
       if (delays[i]) await new Promise(r => setTimeout(r, delays[i]));
       try {
-        const [sum, det] = await Promise.all([getJson('bt_summary.json'), getJson('bt_detail.json')]);
-        _btSummary = sum || {};
-        _btDetail = (det && det.d) || {};
-        _btLoaded = true; _btLoading = false;
+        const [sum, det] = await Promise.all([
+          getJson('bt_summary_' + slug + '.json'), getJson('bt_detail_' + slug + '.json')]);
+        st.summary = sum || {};
+        st.detail = (det && det.d) || {};
+        st.loaded = true; st.loading = false;
         if (status) status.hidden = true;
-        if (body) _btRenderSection(body);
+        if (body) _btRenderSection(slug, body);
         return true;
       } catch (e) {
-        console.warn('bt load attempt ' + (i + 1) + ' failed: ' + e.message);
+        console.warn('bt load (' + slug + ') attempt ' + (i + 1) + ' failed: ' + e.message);
       }
     }
-    _btLoading = false;
+    st.loading = false;
     if (status) { status.hidden = false; status.textContent = '逐筆交易載入失敗,請稍後重整再試'; }
     return false;
   })();
 }
 
-// 等待進行中的 bt 載入完成(showTab 進 tradesim 時已自動觸發);輪詢到 _btLoaded 或放棄。
-function _btWaitLoaded(timeoutMs) {
+// 等待某 slug 進行中的載入完成;輪詢到 loaded 或放棄。
+function _btWaitLoaded(slug, timeoutMs) {
+  const st = _bt(slug);
   return new Promise(resolve => {
-    if (_btLoaded || !_btLoading) return resolve(_btLoaded);
+    if (st.loaded || !st.loading) return resolve(st.loaded);
     const t0 = Date.now();
     const iv = setInterval(() => {
-      if (_btLoaded || !_btLoading || Date.now() - t0 > (timeoutMs || 35000)) {
-        clearInterval(iv); resolve(_btLoaded);
+      if (st.loaded || !st.loading || Date.now() - t0 > (timeoutMs || 35000)) {
+        clearInterval(iv); resolve(st.loaded);
       }
     }, 120);
   });
+}
+
+// 切到某策略時:init 該 slug 回測曲線(未畫過)+ lazy-load 該 slug 逐筆(未載過)。
+function _activateStratData(slug) {
+  if (!slug) return;
+  if (!_tradebtRenderedBy[slug]) _initTradeBtChart(slug);
+  const st = _bt(slug);
+  if (!st.loaded && !st.loading) {
+    const body = document.querySelector('.sim-bt-trades[data-slug="' + slug + '"] .bt-tr-body');
+    if (body) _btLoadTrades(slug, body);
+  }
 }
 
 /* 明日買進標的卡點擊(generate_html 僅對「在回測 top100」的檔掛此 handler):
    開報酬最強同款 trades modal(K線買賣標 + 全往返表)。bt 為 lazy-load —— 進 tradesim
    tab 通常已自動載;未載入則先載入再開。萬一該檔不在 _btSummary(理論上不會)→
    退回 showArtModal(下半=主動 ETF),與不在 top100 者的現狀一致。 */
-function simNextOpen(tk, nm) {
-  // scope = 明日買進標的(_SIM_NEXT_BT 顯示序)→ 箭頭只在這幾檔輪巡,與報酬最強 100 分開
+function simNextOpen(tk, nm, slug) {
+  slug = slug || _activeStrat();
+  // scope = 該策略的明日買進標的(_SIM_NEXT_BT_BY[slug] 顯示序)→ 箭頭只在這幾檔輪巡,
+  // 與報酬最強 100、與另一策略 都分開。
   const finish = () => {
-    const stocks = (_btSummary && _btSummary.stocks) || [];
+    const st = _bt(slug);
+    const stocks = (st.summary && st.summary.stocks) || [];
     const byTk = {};
     stocks.forEach(s => { byTk[s.tk] = s; });
-    const order = (window._SIM_NEXT_BT && window._SIM_NEXT_BT.length) ? window._SIM_NEXT_BT : [tk];
+    const order = ((window._SIM_NEXT_BT_BY || {})[slug]) || [tk];
     const scope = order.filter(t => byTk[t]).map(t => ({ ticker: t, name: byTk[t].nm || '', ct: byTk[t].ct || [] }));
     const idx = scope.findIndex(x => x.ticker === tk);
     if (idx < 0) { showArtModal(tk, nm || '', null); return; }   // 不在回測範圍 → 維持現狀(ETF modal)
+    _artSlug = slug;
     _openTradesModal(scope, idx);
   };
-  if (_btLoaded) { finish(); return; }
-  const body = document.querySelector('.sim-bt-trades .bt-tr-body');
-  if (!_btLoading && body) { _btLoadTrades(body).then(finish); }
-  else { _btWaitLoaded().then(finish); }
+  const st = _bt(slug);
+  if (st.loaded) { finish(); return; }
+  const body = document.querySelector('.sim-bt-trades[data-slug="' + slug + '"] .bt-tr-body');
+  if (!st.loading && body) { _btLoadTrades(slug, body).then(finish); }
+  else { _btWaitLoaded(slug).then(finish); }
 }
 
 function _btBars(buckets, colored) {
@@ -294,12 +323,13 @@ function _btBars(buckets, colored) {
 }
 
 /* 展開逐筆:統計摘要(全 detail 重算)+ 報酬最強 N 檔股票卡(點開看該股全往返 + K線買賣) */
-function _btRenderSection(body) {
+function _btRenderSection(slug, body) {
   const sum = body.querySelector('.bt-tr-summary');
   if (!sum) return;
+  const st = _bt(slug);
   // 攤平所有往返算統計(detail 全筆)
   const all = [];
-  for (const tk in _btDetail) for (const t of _btDetail[tk]) all.push(t);
+  for (const tk in st.detail) for (const t of st.detail[tk]) all.push(t);
   const closed = all.filter(t => t[7] !== 'open' && t[6] != null);  // 持有天數:排除持有中
   const rets = all.filter(t => typeof t[5] === 'number');            // 報酬:含持有中
   const avgHold = closed.length ? closed.reduce((s, t) => s + t[6], 0) / closed.length : 0;
@@ -321,12 +351,12 @@ function _btRenderSection(body) {
     else if (p <= 20) rb[5].count++; else rb[6].count++;
   });
   // 報酬最強股票卡(summary.stocks 已按 total_pnl_pct 降序 top100)
-  const stocks = (_btSummary && _btSummary.stocks) || [];
+  const stocks = (st.summary && st.summary.stocks) || [];
   const cardsHtml = stocks.map(s => {
     const totCls = (typeof s.tot === 'number') ? (s.tot > 0 ? 'up' : (s.tot < 0 ? 'down' : 'flat')) : 'flat';
     const tot = (typeof s.tot === 'number') ? (s.tot > 0 ? '+' : '') + s.tot.toFixed(1) + '%' : '—';
     const best = (typeof s.best === 'number') ? '+' + s.best.toFixed(1) + '%' : '—';
-    return "<button type='button' class='bt-stk-card' onclick='btOpenStock(" + JSON.stringify(s.tk) + ")'>"
+    return "<button type='button' class='bt-stk-card' onclick='btOpenStock(" + JSON.stringify(slug) + "," + JSON.stringify(s.tk) + ")'>"
       + '<span class="bt-stk-r1"><span class="bt-stk-nm">' + _imEsc(s.nm || '')
       + '</span><span class="bt-stk-tk">' + _imEsc(s.tk || '') + '</span></span>'
       + '<span class="bt-stk-tot ' + totCls + '">' + tot + '</span>'
@@ -379,16 +409,20 @@ function _openTradesModal(scope, idx) {
   document.getElementById('art-modal').showModal();
 }
 
-/* 點報酬最強股票卡 → trades modal,scope = 報酬最強 top100(降序)。 */
-function btOpenStock(ticker) {
-  const stocks = (_btSummary && _btSummary.stocks) || [];
+/* 點報酬最強股票卡 → trades modal,scope = 該策略報酬最強 top100(降序)。 */
+function btOpenStock(slug, ticker) {
+  const st = _bt(slug);
+  const stocks = (st.summary && st.summary.stocks) || [];
   const scope = stocks.map(s => ({ ticker: s.tk, name: s.nm || '', ct: s.ct || [] }));
+  _artSlug = slug;
   _openTradesModal(scope, scope.findIndex(x => x.ticker === ticker));
 }
 
-/* trades 模式 modal 下半:該股全往返表(scrollable)。hover 列 → K線高亮對應買賣 */
+/* trades 模式 modal 下半:該股全往返表(scrollable;用當前 modal 的 _artSlug detail)。
+   hover 列 → K線高亮對應買賣。 */
 function _btStockTableHtml(ticker) {
-  const arr0 = (_btDetail && _btDetail[ticker]) || null;
+  const det = _bt(_artSlug || _activeStrat()).detail || {};
+  const arr0 = det[ticker] || null;
   if (!arr0 || !arr0.length) return '<p class="bt-tr-status">該股逐筆資料載入失敗</p>';
   // 倒序:最近的交易日在最上面(依進場日降序,同日 tie-break 用 seq 降序)。seq/K線標記不變。
   const arr = arr0.slice().sort((a, b) =>
@@ -1063,6 +1097,7 @@ let _artScopeContainer = null;      // DOM ref:來源 container,filter 變動時
 let _artScopeObserver = null;       // MutationObserver:監聽 container 變化自動 refresh
 // art-modal 模式:'etf'(預設,下半=主動式 ETF 持股)| 'trades'(報酬最強股票卡開啟,下半=該股全往返表)。
 let _artMode = 'etf';
+let _artSlug = null;                // trades 模式:當前 modal 所屬策略 slug(_btStockTableHtml 取對應 detail)
 // trades 模式買賣標記;K 線標 chart_trades(≤10)。normal('etf')開啟一律 null。
 let _artMarkers = null;             // {ticker, trades:[[seq,ed,ep,xd,xp,pnl,hold,reason],...]} | null
 let _klineCandleSeries = null;      // 當前 K 線蠟燭 series(hover 高亮 setMarkers 用)
