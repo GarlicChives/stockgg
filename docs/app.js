@@ -1557,20 +1557,16 @@ function sortFsTable(th) {
   rows.forEach(r => tbody.appendChild(r));
 }
 
-/* 交集股篩選:兩種 filter 疊加(AND)——
- *   (1) 「符合條件」鈕(data-cond,多選 AND,比對 row 的 data-matched)
- *   (2) 「品質濾網」鈕(fs-quality-btn,比對 row 的 data-qpass="1",
- *        = 策略模擬器版本 C 候選資格,server 端已算好布林)
- * 兩者各自 toggle .active,共用 _applyFsFilters() 重算顯隱 + 計數 + 動畫。 */
+/* 交集股篩選:「符合條件」鈕(data-cond,多選 AND,比對 row 的 data-matched)。
+ * (2026-06-19 移除「品質濾網」toggle —— 明日買進標的已由真實策略產,雷達頁不再自算
+ * 近似濾網以免與回測不一致。)各鈕 toggle .active,_applyFsFilters() 重算顯隱+計數+動畫。 */
 function _applyFsFilters() {
-  const conds = [...document.querySelectorAll('#fstab-int .fs-filter-btn.active:not(.fs-quality-btn)')]
+  const conds = [...document.querySelectorAll('#fstab-int .fs-filter-btn.active')]
     .map(b => b.dataset.cond);
-  const qOn = !!document.querySelector('#fs-quality-btn.active');
   let visible = 0;
   document.querySelectorAll('#fstab-int .fs-row').forEach(row => {
     const matched = (row.dataset.matched || '').split(',').filter(Boolean);
-    const show = conds.every(c => matched.includes(c))
-              && (!qOn || row.dataset.qpass === '1');
+    const show = conds.every(c => matched.includes(c));
     row.hidden = !show;
     if (show) visible++;
   });
@@ -1586,11 +1582,6 @@ function _applyFsFilters() {
 }
 
 function toggleFsFilter(btn) {
-  btn.classList.toggle('active');
-  _applyFsFilters();
-}
-
-function toggleFsQuality(btn) {
   btn.classList.toggle('active');
   _applyFsFilters();
 }

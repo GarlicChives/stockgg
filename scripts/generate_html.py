@@ -2813,9 +2813,6 @@ def build_focus_stock_page(
         _high120 = max(_c120) if _c120 else None
         off_high = ((today_close / _high120 - 1) * 100) if (today_close and _high120) else None
         vol_mult = (today_tv / avg5_tv) if (today_tv and avg5_tv) else None
-        # 近 6 日漲幅%(run6 = 今日收盤 / 6 個交易日前收盤 − 1);qpass 避雷強化版濾網用
-        # (closes 為不含今日的歷史 asc,closes[-6] = 今日往前數第 6 個交易日)。
-        run6 = ((today_close / closes[-6] - 1) * 100) if (today_close and len(closes) >= 6 and closes[-6]) else None
 
         # 全域過濾:季線以下不做多 — 股價必須站上 60 日均(季線)才列入
         # 焦點股頁任一 sub-tab。MA60 算不出來(close 不足 60 筆)視為未確認
@@ -2942,7 +2939,6 @@ def build_focus_stock_page(
             "vol_mult": vol_mult,
             "ma10": ma10, "ma20": ma20, "ma20_bias": ma20_bias,
             "off_high": off_high,
-            "run6": run6,
             "pe": _f(meta.get("pe_ttm")),
             "peg": _f(meta.get("peg_ratio")),
             "peg_status": meta.get("peg_status"),
@@ -3119,23 +3115,8 @@ def build_focus_stock_page(
             f'data-match="{len(c["matched"])}" '
             f'data-matched="{",".join(_MATCH_KEY.get(m, "") for m in c["matched"])}"'
         )
-        # 品質濾網(交集股):策略模擬器拉回買「避雷強化版」候選資格(2026-06-19 對齊
-        # ingest 0f4882e/26fc3c9 新值)—— 含成長 + 月線乖離 ∈[-5%,+12%) + 當日漲幅 <1.5%
-        # + 不爆量(vol_mult <1.8) + 日成交值 ≥3 億流動性閘 + 近 6 日漲幅 run6 ∈(-12,+20)
-        # (避開剛噴出/剛崩跌的極端動能)六閘全過。server 端先算好布林,前端只做顯隱
-        # (toggleFsQuality);任一欄缺值 → 無法確認通過 → 視為不過(保守)。
-        if mode == "intersect":
-            _chg = (stocks_info.get(tk) or {}).get("change_pct")
-            _r6 = c.get("run6")
-            qpass = (
-                bool(c.get("is_growth"))
-                and bias is not None and -5 <= bias < 12
-                and _chg is not None and _chg < 1.5
-                and vm is not None and vm < 1.8
-                and c.get("today_tv") is not None and c["today_tv"] >= 300_000_000
-                and _r6 is not None and -12 < _r6 < 20
-            )
-            attrs += f' data-qpass="{1 if qpass else 0}"'
+        # (2026-06-19 移除交集股「品質濾網」:明日買進標的已由真實策略產,雷達頁不再
+        # 自算近似濾網以免與回測不一致 —— 改由 🎯 明日買進標的 區塊直接呈現策略實買清單。)
         tds = [
             # 標的 cell:用 _stk_pill(同熱門題材樣式,代號+名稱+股價(漲跌));
             # clickable=False — row 本身 onclick showArtModal 已 handle
@@ -3219,17 +3200,8 @@ def build_focus_stock_page(
     # 交集股條件篩選列(預設全 disabled;多選 AND;順序同 sub-tab;有交集股才顯示)
     # 看高做低不計入交集(2026-06-18)→ 篩選列也移除(留著會永遠篩出 0)
     _filter_conds = [("vol", "出量"), ("pot", "潛力"), ("nh", "新高"), ("gr", "成長"), ("chip", "籌碼")]
-    # 品質濾網 = 策略模擬器(trade_sim 版本 C / v4)候選資格;通過數預先算好放 chip
-    _n_qpass = sum(
-        1 for c in intersect_stocks
-        if bool(c.get("is_growth"))
-        and c.get("ma20_bias") is not None and -5 <= c["ma20_bias"] < 12
-        and (stocks_info.get(c["ticker"]) or {}).get("change_pct") is not None
-        and (stocks_info.get(c["ticker"]) or {}).get("change_pct") < 1.5
-        and c.get("vol_mult") is not None and c["vol_mult"] < 1.8
-        and c.get("today_tv") is not None and c["today_tv"] >= 300_000_000
-        and c.get("run6") is not None and -12 < c["run6"] < 20
-    )
+    # (2026-06-19 移除「品質濾網」toggle:明日買進標的已由真實策略產,雷達頁不再自算
+    # 近似濾網以免與回測不一致 —— 策略實買清單見 📈 策略模擬頁的「🎯 明日買進標的」。)
     _int_filter_bar = ((
         '<div class="fs-filter-bar">'
         '<span class="fs-filter-label">篩選符合條件</span>'
@@ -3238,13 +3210,6 @@ def build_focus_stock_page(
             f'onclick="toggleFsFilter(this)">{lbl}</button>'
             for k, lbl in _filter_conds
         )
-        # 品質濾網 toggle:獨立按鈕,與條件鈕 AND 疊加。tooltip 說明 = 策略候選資格。
-        + '<button type="button" class="fs-filter-btn fs-quality-btn" id="fs-quality-btn" '
-          'onclick="toggleFsQuality(this)" '
-          'title="只顯示策略模擬器(拉回買·避雷強化版)實際會考慮的候選股:'
-          '同時「有成長(月營收/EPS YoY 正)、月線乖離 −5%~+12%(排除深跌弱勢)、當日漲幅 &lt;1.5%、不爆量(量能 &lt;5日均 ×1.8)、日成交值 ≥3 億(流動性)、近 6 日漲幅 −12%~+20%(避開剛噴出/剛崩跌)」。'
-          '回測顯示純交集股不論排序皆跑輸大盤,加這些濾網後才有超額報酬。">'
-          f'🎯 品質濾網 <span class="fs-quality-n">通過 {_n_qpass}/{len(intersect_stocks)}</span></button>'
         + '</div>'
     ) if intersect_stocks else '')
 
