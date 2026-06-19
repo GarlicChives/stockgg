@@ -1302,6 +1302,9 @@ _STRAT_FALLBACK_NAME = {
     "pullback": "拉回買策略",
     "breakout": "突破買策略",
     "lowvol": "低波動慢牛",
+    "rsleader": "相對強度龍頭",
+    "masupport": "均線回踩支撐",
+    "squeeze": "波動壓縮突破",
 }
 
 # 策略名「(深度…)」尾綴一律不顯示(每個策略本就必經深度回測,標註冗餘)。
@@ -4807,7 +4810,7 @@ async def generate():
     # allowlist 同步擴 + redeploy);不帶 slug 會把兩策略撈在一起混顯。
     #   positional 約定:[seq, entry_date, entry_price, exit_date, exit_price,
     #                    pnl_pct, hold_days, reason]
-    STRAT_ORDER = ["pullback", "breakout", "lowvol"]
+    STRAT_ORDER = ["pullback", "breakout", "lowvol", "rsleader", "masupport", "squeeze"]
 
     def _ct_compact(t):
         return [
