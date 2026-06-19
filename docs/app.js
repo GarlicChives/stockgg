@@ -184,6 +184,30 @@ function showStrategyTab(key) {
   _activateStratData(key);
 }
 
+/* 📊 總儀表板「1 年回測績效比較」表頭排序。點某欄表頭 → 依該欄 data-v 數值排序策略列
+ * (benchmark 列 .dash-pf-bm 永遠釘在最底、不參與排序);同欄再點切換升/降序。預設(HTML
+ * 已 server-side 以夏普降序排好,夏普表頭帶 aria-sort="descending")。 */
+function dashSortPerf(th) {
+  const table = th.closest('table');
+  if (!table) return;
+  const idx = [...th.parentNode.children].indexOf(th);
+  const desc = th.getAttribute('aria-sort') !== 'descending';   // 同欄 toggle;首次→降序
+  table.querySelectorAll('th[aria-sort]').forEach(h => h.removeAttribute('aria-sort'));
+  th.setAttribute('aria-sort', desc ? 'descending' : 'ascending');
+  const tbody = table.querySelector('tbody');
+  const rows = [...tbody.querySelectorAll('tr')];
+  const strat = rows.filter(r => !r.classList.contains('dash-pf-bm'));
+  const bench = rows.filter(r => r.classList.contains('dash-pf-bm'));
+  const val = (r) => {
+    const td = r.children[idx];
+    const v = td && td.getAttribute('data-v');
+    return (v === null || v === undefined || v === '') ? -Infinity : parseFloat(v);
+  };
+  strat.sort((a, b) => desc ? val(b) - val(a) : val(a) - val(b));
+  strat.forEach(r => tbody.appendChild(r));   // 重排策略列
+  bench.forEach(r => tbody.appendChild(r));    // benchmark 永遠置底
+}
+
 /* 📋 1 年回測逐筆交易明細:點開才 lazy-fetch docs/bt_trades_pullback.json
  * (定位陣列 [entry_date,exit_date,ticker,name,entry_price,exit_price,
  *  pnl_pct,hold_days,reason]),client-side 建表 + 每 20 筆 DOM 分頁。
@@ -1144,6 +1168,8 @@ const _ART_SCOPE_SELECTORS = [
   '.fs-table tbody',             // 選股雷達 table-style sub-tab(交集股等)
   '.aetf-cp-row',                // ETF 異動列(若 stk-pill chip 在內)
   '.sim-next-list',              // 策略模擬「明日買進標的」5 張卡(左右箭頭切換)
+  '.dash-strat-card',            // 總儀表板:單一策略卡內 watchlist(箭頭輪巡該策略標的)
+  '.dash-cons-list',             // 總儀表板:多策略共識列
 ];
 
 function _detectArtScope(evt) {

@@ -1275,81 +1275,70 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .sim-pending-note{margin:.5rem 0 0;font-size:.74rem;color:#f5a623;line-height:1.5}
 /* 📊 總儀表板(策略模擬頁第一個 sub-tab;聚合所有策略)──────────────── */
 .dash-sec{border-left:3px solid var(--accent)}
-/* ① 共識醒目區塊(被 ≥2 策略共選)*/
-.dash-consensus{margin:.6rem 0 .9rem;padding:.7rem .8rem;border-radius:9px;
-                background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.30)}
-.dash-cons-h{font-size:.84rem;font-weight:700;color:#f5a623;margin-bottom:.5rem}
-.dash-cons-list{display:flex;flex-wrap:wrap;gap:.45rem}
-.dash-cons-pill{display:inline-flex;align-items:baseline;gap:.3rem;font-size:.8rem;
-                padding:.28rem .55rem;border-radius:7px;background:rgba(245,166,35,.14);
-                border:1px solid rgba(245,166,35,.28);white-space:nowrap}
-.dash-cons-pill b{font-weight:800;font-variant-numeric:tabular-nums}
-.dash-cons-n{font-size:.62rem;font-weight:700;color:#f5a623;
-             padding:.04rem .35rem;border-radius:4px;background:rgba(245,166,35,.20)}
-.dash-cons-note{margin:.5rem 0 0;font-size:.68rem;color:var(--muted);line-height:1.5}
+.dash-foot-note{margin:.7rem 0 0;font-size:.68rem;color:var(--muted);line-height:1.5}
+/* 雷達在榜高亮(共識列 / watchlist 列共用):琥珀外框 + ★ 徽章 */
+.dash-hot-badge{margin-left:.3rem;font-size:.66rem;color:#f5a623}
+/* ① 共識精簡列(被 ≥2 策略共選;可點開個股 modal)— 緊湊、不佔大塊 */
+.dash-consensus{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;
+                margin:.55rem 0 .8rem;padding:.45rem .6rem;border-radius:8px;
+                background:rgba(245,166,35,.07);border:1px solid rgba(245,166,35,.25)}
+.dash-cons-h{font-size:.78rem;font-weight:700;color:#f5a623;flex:0 0 auto}
+.dash-cons-list{display:flex;flex-wrap:wrap;gap:.4rem;flex:1 1 auto}
+.dash-cons-pill{font-family:inherit;display:inline-flex;align-items:center;gap:.4rem;
+                font-size:.78rem;color:var(--text);padding:.22rem .5rem;border-radius:7px;
+                background:rgba(245,166,35,.12);border:1px solid rgba(245,166,35,.3);
+                cursor:pointer;transition:.12s}
+.dash-cons-pill:hover{background:rgba(245,166,35,.2);border-color:#f5a623}
+.dash-cons-pill.dash-hot{border-color:#f5a623;box-shadow:0 0 0 1px rgba(245,166,35,.5) inset}
+.dash-cons-tk{font-weight:600;white-space:nowrap}
+.dash-cons-tk b{font-weight:800;font-variant-numeric:tabular-nums}
+.dash-cons-sts{display:inline-flex;flex-wrap:wrap;gap:.2rem}
+.dash-cons-st{font-size:.6rem;font-weight:600;padding:.04rem .35rem;border-radius:4px;
+              background:rgba(245,166,35,.18);color:#f5a623;white-space:nowrap}
 /* ① 各策略明日買進標的(策略卡網格)*/
-.dash-strat-grid{display:grid;gap:.7rem;grid-template-columns:repeat(auto-fill,minmax(248px,1fr))}
+.dash-strat-grid{display:grid;gap:.7rem;grid-template-columns:repeat(auto-fill,minmax(252px,1fr))}
 .dash-strat-card{background:rgba(255,255,255,.02);border:1px solid var(--border);
-                 border-radius:9px;padding:.6rem .65rem}
+                 border-radius:9px;padding:.55rem .6rem}
 .dash-strat-h{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;
-              gap:.3rem;margin-bottom:.45rem;padding-bottom:.4rem;
+              gap:.3rem;margin-bottom:.4rem;padding-bottom:.4rem;
               border-bottom:1px solid rgba(255,255,255,.06)}
 .dash-strat-nm{font-size:.86rem;font-weight:700;color:var(--text)}
 .dash-strat-meta{font-size:.68rem;color:var(--muted);font-variant-numeric:tabular-nums}
-.dash-wl-row{display:flex;align-items:baseline;gap:.4rem;padding:.26rem 0;
-             font-size:.78rem;border-bottom:1px solid rgba(255,255,255,.04)}
+/* watchlist 列:可點開個股 modal;代號名完整顯示(不截斷)、必要時換行;窄欄密排 */
+.dash-wl-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:.3rem .5rem;
+             padding:.3rem .2rem;font-size:.78rem;cursor:pointer;border-radius:5px;
+             border-bottom:1px solid rgba(255,255,255,.04);transition:.12s}
 .dash-wl-row:last-child{border-bottom:none}
-.dash-wl-row.is-cons{background:rgba(245,166,35,.07);border-radius:5px;
-                     margin:0 -.3rem;padding-left:.3rem;padding-right:.3rem}
+.dash-wl-row:hover{background:rgba(124,138,242,.1)}
+.dash-wl-row.is-cons{background:rgba(245,166,35,.07)}
+.dash-wl-row.dash-hot{box-shadow:0 0 0 1px rgba(245,166,35,.4) inset}
 .dash-wl-rk{flex:0 0 1.1rem;text-align:center;font-size:.66rem;font-weight:700;
             color:var(--muted);font-variant-numeric:tabular-nums}
-.dash-wl-tk{flex:1 1 auto;font-weight:600;white-space:nowrap;overflow:hidden;
-            text-overflow:ellipsis}
+.dash-wl-tk{flex:1 1 7rem;font-weight:600;line-height:1.35}
 .dash-wl-cons{margin-left:.25rem;font-size:.7rem}
 .dash-wl-px{flex:0 0 auto;font-variant-numeric:tabular-nums;color:var(--text)}
 .dash-wl-off{flex:0 0 auto;font-size:.68rem;color:var(--muted);
              font-variant-numeric:tabular-nums}
-.dash-wl-chg{flex:0 0 auto;font-weight:700;font-variant-numeric:tabular-nums}
+.dash-wl-chg{flex:0 0 auto;font-weight:700;font-variant-numeric:tabular-nums;margin-left:auto}
 .dash-wl-empty{font-size:.78rem;color:var(--muted);padding:.5rem .2rem}
-/* ② 1 年回測績效比較表 */
+/* ② 1 年回測績效比較表(完整 9 指標、表頭可排序)*/
 .dash-pf-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:.6rem}
 .dash-pf{width:100%;border-collapse:collapse;font-size:.8rem}
 .dash-pf th{font-size:.72rem;color:var(--muted);font-weight:600;text-align:left;
-            padding:.4rem .6rem;border-bottom:1px solid var(--border);white-space:nowrap}
-.dash-pf td{padding:.42rem .6rem;border-bottom:1px solid rgba(255,255,255,.05);
+            padding:.4rem .55rem;border-bottom:1px solid var(--border);white-space:nowrap}
+.dash-pf td{padding:.42rem .55rem;border-bottom:1px solid rgba(255,255,255,.05);
             white-space:nowrap;font-variant-numeric:tabular-nums}
 .dash-pf th.r,.dash-pf td.r{text-align:right}
 .dash-pf tr:last-child td{border-bottom:none}
 .dash-pf-nm{font-weight:600;color:var(--text)}
 .dash-pf-bm .dash-pf-nm{color:var(--muted);font-weight:500}
-.dash-pf-bar{width:34%;min-width:90px}
-.dash-bar{display:block;height:.5rem;border-radius:3px;background:rgba(255,255,255,.05)}
-.dash-bar-fill{display:block;height:100%;border-radius:3px}
-.dash-bar-fill.up{background:var(--up)} .dash-bar-fill.down{background:var(--down)}
-/* ③ 明日最適前 5 */
-.dash-regime{margin:.5rem 0 .2rem;font-size:.82rem;font-weight:600;color:var(--text)}
-.dash-regime b{color:#f5a623}
-.dash-scoring{margin:.45rem 0 .7rem;font-size:.72rem;color:var(--muted);line-height:1.55}
-.dash-tp-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
-.dash-tp{width:100%;border-collapse:collapse;font-size:.8rem}
-.dash-tp th{font-size:.72rem;color:var(--muted);font-weight:600;text-align:left;
-            padding:.4rem .6rem;border-bottom:1px solid var(--border);white-space:nowrap}
-.dash-tp td{padding:.5rem .6rem;border-bottom:1px solid rgba(255,255,255,.05);
-            vertical-align:top}
-.dash-tp th.r,.dash-tp td.r{text-align:right}
-.dash-tp tr:last-child td{border-bottom:none}
-.dash-tp-rk{font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums;
-            text-align:center;width:2.2rem}
-.dash-tp-tk{font-weight:600;white-space:nowrap}
-.dash-tp-tk b{font-weight:800;font-variant-numeric:tabular-nums}
-.dash-tp-sub{display:block;font-size:.66rem;font-weight:400;color:var(--muted);
-             margin-top:.15rem;font-variant-numeric:tabular-nums}
-.dash-tp-n{font-weight:700;font-variant-numeric:tabular-nums}
-.dash-tp-score{font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
-.dash-tp-by{white-space:normal}
-.dash-by-chip{display:inline-block;font-size:.64rem;font-weight:600;margin:.1rem .2rem 0 0;
-              padding:.08rem .4rem;border-radius:4px;background:rgba(124,138,242,.13);
-              color:var(--accent);white-space:nowrap}
+.dash-pf-bm td{border-top:1px solid var(--border)}
+/* 可排序表頭:hover 提示 + 當前排序欄顯示 ▲/▼ */
+.dash-pf-sort{cursor:pointer;user-select:none}
+.dash-pf-sort:hover{color:var(--text)}
+.dash-pf-sort[aria-sort]{color:var(--accent)}
+.dash-pf-sort[aria-sort="descending"]::after{content:" ▾"}
+.dash-pf-sort[aria-sort="ascending"]::after{content:" ▴"}
 /* 💰 融資甜蜜點摺疊區(Track B) */
 .sim-lev{margin-top:.9rem;border:1px solid var(--border);border-radius:8px;
          background:rgba(255,255,255,.02)}
