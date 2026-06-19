@@ -26,7 +26,10 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # generate 需抓「全部策略」資料(Q43–Q47 × N slug)+ 15MB history,隨策略數成長;
+    # 原 5 分鐘 job timeout 在 6 策略時 generate+install 已逼近上限、deploy step 一開始就被
+    # 取消(2026-06-19 真因)。調寬到 12 分鐘給足 headroom。
+    timeout-minutes: 12
 
     steps:
       - uses: actions/checkout@v6
