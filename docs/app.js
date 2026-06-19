@@ -289,25 +289,50 @@ function _activateStratData(slug) {
    退回 showArtModal(下半=主動 ETF),與不在 top100 者的現狀一致。 */
 function simNextOpen(tk, nm, slug) {
   slug = slug || _activeStrat();
-  // scope = 該策略的明日買進標的(_SIM_NEXT_BT_BY[slug] 顯示序)→ 箭頭只在這幾檔輪巡,
-  // 與報酬最強 100、與另一策略 都分開。
+  // scope = 該策略「全部」明日買進標的(_SIM_NEXT_SCOPE_BY[slug] 顯示序)→ 箭頭輪巡全部。
+  // 每項 per-item mode:在回測 top100 → 'trades'(K線買賣標 + 全往返表);否則 → 'etf'
+  // (一般 modal,下半主動 ETF)。與報酬最強 100、與另一策略 都分開。
   const finish = () => {
     const st = _bt(slug);
     const stocks = (st.summary && st.summary.stocks) || [];
     const byTk = {};
     stocks.forEach(s => { byTk[s.tk] = s; });
-    const order = ((window._SIM_NEXT_BT_BY || {})[slug]) || [tk];
-    const scope = order.filter(t => byTk[t]).map(t => ({ ticker: t, name: byTk[t].nm || '', ct: byTk[t].ct || [] }));
-    const idx = scope.findIndex(x => x.ticker === tk);
-    if (idx < 0) { showArtModal(tk, nm || '', null); return; }   // 不在回測範圍 → 維持現狀(ETF modal)
-    _artSlug = slug;
-    _openTradesModal(scope, idx);
+    const order = ((window._SIM_NEXT_SCOPE_BY || {})[slug]) || [{ tk: tk, nm: nm || '' }];
+    const scope = order.map(o => {
+      const s = byTk[o.tk];
+      return s
+        ? { ticker: o.tk, name: o.nm || s.nm || '', mode: 'trades', slug: slug, ct: s.ct || [] }
+        : { ticker: o.tk, name: o.nm || '', mode: 'etf' };
+    });
+    let idx = scope.findIndex(x => x.ticker === tk);
+    if (idx < 0) idx = 0;
+    _openArtScopeAt(scope, idx);
   };
   const st = _bt(slug);
   if (st.loaded) { finish(); return; }
   const body = document.querySelector('.sim-bt-trades[data-slug="' + slug + '"] .bt-tr-body');
   if (!st.loading && body) { _btLoadTrades(slug, body).then(finish); }
   else { _btWaitLoaded(slug).then(finish); }
+}
+
+/* 開啟一個 per-item mode 的 art-modal scope(明日買進標的混合 scope 用):scope 內每項
+   帶 mode('trades'|'etf')/ 可選 slug / ct;依當前項套用模式 + 全螢幕(trades)/置中(etf)。 */
+function _openArtScopeAt(scope, idx) {
+  if (!scope || !scope.length) return;
+  if (_artScopeObserver) { _artScopeObserver.disconnect(); _artScopeObserver = null; }
+  _artScopeContainer = null;
+  _artScope = scope;
+  _artScopeIdx = idx >= 0 ? idx : 0;
+  const cur = _artScope[_artScopeIdx];
+  _artMode = cur.mode || 'etf';
+  if (cur.slug) _artSlug = cur.slug;
+  _artCurrentTicker = cur.ticker;
+  _artCurrentName = cur.name;
+  _artMarkers = (_artMode === 'trades') ? { ticker: cur.ticker, trades: cur.ct || [] } : null;
+  _renderArtModalBody(cur.ticker, cur.name);
+  _lockBodyScroll();
+  document.getElementById('art-modal').classList.toggle('art-fullscreen', _artMode === 'trades');
+  document.getElementById('art-modal').showModal();
 }
 
 function _btBars(buckets, colored) {
@@ -1244,7 +1269,13 @@ function artNavTicker(dir) {
   const cur = _artScope[_artScopeIdx];
   _artCurrentTicker = cur.ticker;
   _artCurrentName = cur.name;
-  if (_artMode === 'trades') _artMarkers = { ticker: cur.ticker, trades: cur.ct || [] };
+  // scope item 可帶 per-item mode(明日買進標的混合 scope:top100→trades / 其餘→etf)→ 切模式
+  if (cur.mode) {
+    _artMode = cur.mode;
+    if (cur.slug) _artSlug = cur.slug;
+    document.getElementById('art-modal').classList.toggle('art-fullscreen', cur.mode === 'trades');
+  }
+  _artMarkers = (_artMode === 'trades') ? { ticker: cur.ticker, trades: cur.ct || [] } : null;
   _renderArtModalBody(cur.ticker, cur.name);
 }
 

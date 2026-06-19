@@ -1339,8 +1339,8 @@ def _build_trade_next_html(next_rows: list[dict] | None,
 
     cards = []        # 一般新訊號卡
     re_cards = []     # 再進場買單卡(換行另起一行,樣式同一般卡)
-    bt_main = []      # 在回測 top100 的明日標的 ticker(顯示序);供 modal 箭頭輪巡用「自己的」scope
-    bt_re = []        # 再進場且在 top100 者(接在 bt_main 後,對齊視覺序)
+    scope_main = []   # 全部明日標的 {tk,nm}(顯示序);modal 箭頭輪巡全部(不分是否在 top100)
+    scope_re = []     # 再進場卡(接在 scope_main 後,對齊視覺序)
     for r in rows:
         tk = str(r.get("ticker") or "")
         nm = str(r.get("name") or "")
@@ -1381,9 +1381,9 @@ def _build_trade_next_html(next_rows: list[dict] | None,
         offh_s = (f'{float(offh):.1f}%' if isinstance(offh, (int, float))
                   else (f'{offh}%' if offh not in (None, "") else '—'))
         # 整合回測 top100 績效(2026-06-19 user):卡片底部補該檔 1 年回測「報酬% · N筆 ·
-        # 勝率 · 最佳」(資料同下方報酬最強卡,源自 Q45 bt_summary)。在 top100 者點擊開
-        # 報酬最強同款 trades modal(K線買賣標 + 全往返表);不在 top100 者維持現狀
-        # showArtModal(下半=主動 ETF)。
+        # 勝率 · 最佳」(資料同下方報酬最強卡,源自 Q45 bt_summary)— 只有在 top100 者顯示。
+        # 點擊一律 simNextOpen(全明日標的統一 scope,箭頭可輪巡全部):在 top100 者開
+        # trades modal(K線買賣標 + 全往返表),不在者開一般 modal(下半=主動 ETF)。
         _bs = bt_stats.get(tk)
         if _bs:
             _tot = _bs.get("tot")
@@ -1399,11 +1399,11 @@ def _build_trade_next_html(next_rows: list[dict] | None,
             bt_html = ('<div class="sim-next-bt">'
                        f'<span class="sim-next-bt-tot {_tot_cls}">{html_lib.escape(_tot_s)}</span>'
                        f'<span class="sim-next-bt-meta">{html_lib.escape(_bt_meta)}</span></div>')
-            onclick = f"simNextOpen({json.dumps(tk)},{json.dumps(nm[:12])},{json.dumps(slug)})"
-            (bt_re if r.get("reentry") else bt_main).append(tk)
         else:
             bt_html = ''
-            onclick = f"showArtModal({json.dumps(tk)},{json.dumps(nm[:12])},event)"
+        onclick = f"simNextOpen({json.dumps(tk)},{json.dumps(nm[:12])},{json.dumps(slug)})"
+        # 全部明日標的(顯示序:一般卡 + 再進場卡)進統一 scope —— modal 箭頭輪巡全部。
+        (scope_re if r.get("reentry") else scope_main).append({"tk": tk, "nm": nm[:12]})
         # 精簡卡(2026-06-18 user):代號名 + 股價(漲跌%) / 距120日高 / 條件 chips,
         # 移除排名圈、進場區間、成交值(資訊過載)。再進場卡進 re_cards(換行另起一行)。
         (re_cards if r.get("reentry") else cards).append(
@@ -1418,10 +1418,10 @@ def _build_trade_next_html(next_rows: list[dict] | None,
             + '</div>'
         )
     return (
-        # 每策略「自己的」modal 輪巡 scope(與報酬最強 100 分開、且兩策略各自獨立)。
-        # 顯示序 = 一般卡 + 再進場卡。掛在 window._SIM_NEXT_BT_BY[slug]。
-        f'<script>(window._SIM_NEXT_BT_BY=window._SIM_NEXT_BT_BY||{{}})'
-        f'[{json.dumps(slug)}]={json.dumps(bt_main + bt_re)};</script>'
+        # 每策略「自己的」modal 輪巡 scope = 全部明日標的(與報酬最強 100 分開、兩策略各自
+        # 獨立)。顯示序 = 一般卡 + 再進場卡;每項 {tk,nm}。掛 window._SIM_NEXT_SCOPE_BY[slug]。
+        f'<script>(window._SIM_NEXT_SCOPE_BY=window._SIM_NEXT_SCOPE_BY||{{}})'
+        f'[{json.dumps(slug)}]={json.dumps(scope_main + scope_re)};</script>'
         '<div class="card sim-next-box"><div class="sec">🎯 明日買進標的'
         f'<span class="sim-daterange">{html_lib.escape(_aod)} 收盤後計算 · '
         f'依距 120 日高最遠取前 {len(rows)} 檔 · 進場區間內掛單</span></div>'
