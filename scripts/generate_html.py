@@ -1298,7 +1298,11 @@ def _sim_perf(vals: list[float]) -> dict:
 
 STRAT_NAME = "拉回買策略"   # 單策略時代遺留;多策略後策略名動態讀 payload.name
 # payload.name 缺時的 slug→中文名 fallback(2026-06-19 多策略)
-_STRAT_FALLBACK_NAME = {"pullback": "拉回買策略", "breakout": "突破買策略"}
+_STRAT_FALLBACK_NAME = {
+    "pullback": "拉回買策略",
+    "breakout": "突破買策略",
+    "lowvol": "低波動慢牛(深度優化冠軍)",
+}
 
 _NEXT_COND = {"vol": "出量", "nh": "新高", "growth": "成長", "chip": "籌碼", "pot": "潛力"}
 
@@ -4796,7 +4800,7 @@ async def generate():
     # allowlist 同步擴 + redeploy);不帶 slug 會把兩策略撈在一起混顯。
     #   positional 約定:[seq, entry_date, entry_price, exit_date, exit_price,
     #                    pnl_pct, hold_days, reason]
-    STRAT_ORDER = ["pullback", "breakout"]
+    STRAT_ORDER = ["pullback", "breakout", "lowvol"]
 
     def _ct_compact(t):
         return [
