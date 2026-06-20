@@ -1294,46 +1294,22 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .dash-foot-note{margin:.7rem 0 0;font-size:.68rem;color:var(--muted);line-height:1.5}
 /* 雷達在榜高亮(共識列 / watchlist 列共用):琥珀外框 + ★ 徽章 */
 .dash-hot-badge{margin-left:.3rem;font-size:.66rem;color:#f5a623}
-/* 區塊 1:各策略共識區(買進共識琥珀 / 賣出共識青);可點開個股 modal */
-/* 共識區三欄(明日買進 / 賣出 / 分歧)水平排列;手機收合單欄 */
-.dash-cons-cols{display:grid;grid-template-columns:repeat(3,1fr);gap:.9rem;margin-top:.5rem}
+/* 區塊 1:各策略買進共識(單欄;2026-06-20 起賣出共識/分歧已移除);可點開個股 modal */
+.dash-cons-cols{margin-top:.5rem}
 .dash-cons-col{min-width:0;background:rgba(255,255,255,.015);border:1px solid var(--border);
                border-radius:9px;padding:.55rem .6rem}
-.dash-cons-h{display:block;font-size:.76rem;font-weight:700;margin-bottom:.45rem}
-.dash-cons-h small{display:block;font-size:.6rem;font-weight:500;color:var(--muted);margin-top:.1rem}
-.dash-cons-h.buy{color:var(--up)} .dash-cons-h.sell{color:var(--down)}
-.dash-cons-h.diverge{color:#f5a623}
-.dash-cons-empty{font-size:.78rem;color:var(--muted);padding:.15rem .1rem}
 .dash-cons-list{display:flex;flex-wrap:wrap;gap:.4rem}
-@media(max-width:760px){.dash-cons-cols{grid-template-columns:1fr;gap:.6rem}}
 .dash-cons-pill{font-family:inherit;display:inline-flex;align-items:center;gap:.4rem;
                 font-size:.78rem;color:var(--text);padding:.22rem .5rem;border-radius:7px;
                 background:rgba(239,83,80,.1);border:1px solid rgba(239,83,80,.3);
                 cursor:pointer;transition:.12s}
 .dash-cons-pill:hover{background:rgba(239,83,80,.2);border-color:var(--up)}
-.dash-cons-pill.sell{background:rgba(38,166,154,.1);border-color:rgba(38,166,154,.3)}
-.dash-cons-pill.sell:hover{background:rgba(38,166,154,.2);border-color:var(--down)}
 .dash-cons-pill.dash-hot{box-shadow:0 0 0 1px rgba(245,166,35,.5) inset}
-/* 分歧 pill:琥珀框,內含買(紅)/賣(青)兩組 chip */
-.dash-cons-pill.diverge{background:rgba(245,166,35,.1);border-color:rgba(245,166,35,.35)}
-.dash-cons-pill.diverge:hover{background:rgba(245,166,35,.2);border-color:#f5a623}
 .dash-cons-tk{font-weight:600;white-space:nowrap}
 .dash-cons-tk b{font-weight:800;font-variant-numeric:tabular-nums}
 .dash-cons-sts{display:inline-flex;flex-wrap:wrap;align-items:center;gap:.2rem}
 .dash-cons-st{font-size:.6rem;font-weight:600;padding:.04rem .35rem;border-radius:4px;
               background:rgba(124,138,242,.16);color:var(--accent);white-space:nowrap}
-.dash-cons-st.buy{background:rgba(239,83,80,.16);color:var(--up)}
-.dash-cons-st.sell{background:rgba(38,166,154,.16);color:var(--down)}
-.dash-div-side{font-size:.58rem;font-weight:800;padding:.04rem .26rem;border-radius:4px;
-               white-space:nowrap}
-.dash-div-side.buy{background:var(--up);color:#fff;margin-left:.1rem}
-.dash-div-side.sell{background:var(--down);color:#fff;margin-left:.25rem}
-/* 區塊 3:賣出列「今日/明日出場」chip(今日=紅急迫 / 明日=灰) */
-.dash-sell-when{font-size:.6rem;font-weight:700;padding:.04rem .3rem;border-radius:4px;
-                white-space:nowrap}
-.dash-sell-when.today{background:rgba(239,83,80,.18);color:var(--up)}
-.dash-sell-when.next{background:rgba(255,255,255,.08);color:var(--muted)}
-.dash-sell-sec{border-left-color:var(--down)}
 /* ① 各策略明日買進標的(策略卡網格)*/
 /* 卡片下限 300px:讓 watchlist 列的固定欄(seq/股價/漲跌/標籤)排完後,1fr 代號名欄
    仍容得下最長名(如 2633 台灣高鐵)不截斷,同時各欄跨列對齊。 */
