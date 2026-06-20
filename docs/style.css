@@ -1296,7 +1296,9 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .dash-cons-st{font-size:.6rem;font-weight:600;padding:.04rem .35rem;border-radius:4px;
               background:rgba(245,166,35,.18);color:#f5a623;white-space:nowrap}
 /* ① 各策略明日買進標的(策略卡網格)*/
-.dash-strat-grid{display:grid;gap:.7rem;grid-template-columns:repeat(auto-fill,minmax(252px,1fr))}
+/* 卡片下限 300px:讓 watchlist 列的固定欄(seq/股價/漲跌/標籤)排完後,1fr 代號名欄
+   仍容得下最長名(如 2633 台灣高鐵)不截斷,同時各欄跨列對齊。 */
+.dash-strat-grid{display:grid;gap:.7rem;grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
 .dash-strat-card{background:rgba(255,255,255,.02);border:1px solid var(--border);
                  border-radius:9px;padding:.55rem .6rem}
 .dash-strat-h{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;
@@ -1304,21 +1306,25 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
               border-bottom:1px solid rgba(255,255,255,.06)}
 .dash-strat-nm{font-size:.86rem;font-weight:700;color:var(--text)}
 .dash-strat-meta{font-size:.68rem;color:var(--muted);font-variant-numeric:tabular-nums}
-/* watchlist 列(2026-06-20 格式):seq 代號名 股價 漲跌%(漲紅跌綠) 標籤 —— 單行密排、
-   可點開個股 modal;代號名完整不截斷。標籤 = 🤝/★/漲跌處 chips,固定靠右。 */
-.dash-wl-row{display:flex;align-items:baseline;gap:.45rem;
-             padding:.3rem .2rem;font-size:.78rem;cursor:pointer;border-radius:5px;
+/* watchlist 列(2026-06-20 格式):seq 代號名 股價 漲跌%(漲紅跌綠) 標籤 —— 用 CSS Grid
+   固定欄寬,所有列同欄對齊(股價/漲跌不因位數或標籤有無而左右跳動);可點開個股 modal。
+   欄:seq(定寬) | 代號名(1fr 左對齊) | 股價(定寬右對齊) | 漲跌%(定寬右對齊) | 標籤(auto)。 */
+/* 固定欄寬(含標籤欄也固定):seq | 代號名(1fr) | 股價 | 漲跌% | 標籤。標籤欄固定才不會
+   因有無徽章而改變 1fr 寬度、害股價/漲跌欄左右跳。 */
+.dash-wl-row{display:grid;grid-template-columns:1.3rem minmax(0,1fr) 3rem 3.6rem 2rem;
+             align-items:baseline;gap:.35rem;padding:.3rem .2rem;font-size:.78rem;
+             cursor:pointer;border-radius:5px;
              border-bottom:1px solid rgba(255,255,255,.04);transition:.12s}
 .dash-wl-row:last-child{border-bottom:none}
 .dash-wl-row:hover{background:rgba(124,138,242,.1)}
 .dash-wl-row.is-cons{background:rgba(245,166,35,.07)}
 .dash-wl-row.dash-hot{box-shadow:0 0 0 1px rgba(245,166,35,.4) inset}
-.dash-wl-rk{flex:0 0 1.1rem;text-align:center;font-size:.66rem;font-weight:700;
+.dash-wl-rk{text-align:center;font-size:.66rem;font-weight:700;
             color:var(--muted);font-variant-numeric:tabular-nums}
-.dash-wl-tk{flex:1 1 auto;font-weight:600;white-space:nowrap}
-.dash-wl-px{flex:0 0 auto;font-variant-numeric:tabular-nums;color:var(--text)}
-.dash-wl-chg{flex:0 0 auto;font-weight:700;font-variant-numeric:tabular-nums}
-.dash-wl-tags{flex:0 0 auto;display:inline-flex;align-items:center;gap:.2rem}
+.dash-wl-tk{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dash-wl-px{text-align:right;font-variant-numeric:tabular-nums;color:var(--text)}
+.dash-wl-chg{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.dash-wl-tags{display:inline-flex;align-items:center;gap:.15rem}
 .dash-wl-empty{font-size:.78rem;color:var(--muted);padding:.5rem .2rem}
 /* ② 1 年回測績效比較表(完整 9 指標、表頭可排序)*/
 .dash-pf-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:.6rem}
