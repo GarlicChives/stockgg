@@ -1698,7 +1698,8 @@ def _build_bt_trades_html(n_trades: int = 0, slug: str = "pullback") -> str:
 
 def _build_dashboard_html(dash: dict | None,
                           strat_data: dict | None = None,
-                          radar_seeds: set[str] | None = None) -> str:
+                          radar_seeds: set[str] | None = None,
+                          stocks_info: dict | None = None) -> str:
     """📊 總儀表板(ingest build_dashboard;strategy_backtest_public slug='dashboard')——
     策略模擬頁第一個 sub-tab、純聚合『所有上架冠軍策略』(新冠軍寫 DB 即自動納入,本檔零改)。
     兩段(由上到下):
@@ -1717,6 +1718,7 @@ def _build_dashboard_html(dash: dict | None,
     esc = html_lib.escape
     strat_data = strat_data or {}
     seeds = radar_seeds or set()
+    sinfo = stocks_info or {}
     strategies = dash.get("strategies") or []
     consensus = dash.get("consensus_picks") or []
     benchmarks = dash.get("benchmarks") or {}
@@ -1736,9 +1738,6 @@ def _build_dashboard_html(dash: dict | None,
             return (f"{float(v):.2f}".rstrip("0").rstrip(".")) if v not in (None, "") else "—"
         except (TypeError, ValueError):
             return "—"
-
-    def _off_s(v):
-        return f"{float(v):.1f}%" if isinstance(v, (int, float)) else "—"
 
     def _click(tk, nm):
         # 點擊 → 一般個股 modal(K 線 + 主動 ETF);名稱走 json.dumps 避免引號嵌套撞 onclick。
@@ -1784,17 +1783,22 @@ def _build_dashboard_html(dash: dict | None,
                 cls = ("dash-wl-row"
                        + (" is-cons" if is_cons else "")
                        + (" dash-hot" if hot else ""))
+                # 格式(2026-06-20 user):seq 代號名 股價 漲跌%(漲紅跌綠) 標籤。
+                # 標籤 = 🤝共選 + ★雷達在榜 + 漲/跌/處 chips(_flag_chips,同站內 _stk_pill;
+                # 來自 stocks_info)。股價/漲跌仍取策略 payload(與單一策略頁一致、不掉價)。
+                _chg_s, _chg_cls = fmt_pct(row.get("chg")
+                                           if isinstance(row.get("chg"), (int, float)) else None)
+                _tags = (('<span class="dash-wl-cons" title="多策略共選">🤝</span>' if is_cons else '')
+                         + _hot_badge(tk)
+                         + _flag_chips(sinfo.get(tk, {})))
                 items.append(
                     f'<div class="{cls}" {_click(tk, nm)}>'
                     f'<span class="dash-wl-rk">{int(row.get("rank") or 0)}</span>'
-                    f'<span class="dash-wl-tk">{esc(tk)} {esc(nm)}'
-                    + ('<span class="dash-wl-cons" title="多策略共選">🤝</span>' if is_cons else '')
-                    + _hot_badge(tk)
-                    + '</span>'
+                    f'<span class="dash-wl-tk">{esc(tk)} {esc(nm)}</span>'
                     f'<span class="dash-wl-px">{esc(_px(row.get("ref_close")))}</span>'
-                    f'<span class="dash-wl-off">距高 {esc(_off_s(row.get("off_high")))}</span>'
-                    f'<span class="dash-wl-chg">{_pct_span(row.get("chg"))}</span>'
-                    '</div>')
+                    f'<span class="dash-wl-chg {_chg_cls}">{esc(_chg_s)}</span>'
+                    + (f'<span class="dash-wl-tags">{_tags}</span>' if _tags else '')
+                    + '</div>')
             rows_html = "".join(items)
         _sh = s.get("sharpe")
         _sh_s = f"{_sh:.2f}" if isinstance(_sh, (int, float)) else "—"
@@ -1889,7 +1893,8 @@ def _build_dashboard_html(dash: dict | None,
 def build_trade_sim_page(strat_data: dict | None = None,
                          strat_order: list[str] | None = None,
                          radar_seeds: set[str] | None = None,
-                         dashboard: dict | None = None) -> str:
+                         dashboard: dict | None = None,
+                         stocks_info: dict | None = None) -> str:
     """📈 策略模擬頁:總儀表板 + 多策略切換(slug-generic;ingest 寫 DB 即自動上架)。
     `dashboard` 非空 → 「📊 總儀表板」做第一個 sub-tab、預設 active(聚合所有策略);
     其後各 slug 一個 strat-pane(內含 🎯 隔日買進標的 + 📊 1 年回測績效 + 📋 逐筆明細),
@@ -1899,7 +1904,8 @@ def build_trade_sim_page(strat_data: dict | None = None,
     esc = html_lib.escape
     strat_data = strat_data or {}
     order = [s for s in (strat_order or list(strat_data.keys())) if s in strat_data]
-    dash_html = _build_dashboard_html(dashboard, strat_data=strat_data, radar_seeds=radar_seeds)
+    dash_html = _build_dashboard_html(dashboard, strat_data=strat_data,
+                                      radar_seeds=radar_seeds, stocks_info=stocks_info)
     if not order and not dash_html:
         return '<div class="sim-page"><p class="muted-note">策略資料準備中。</p></div>'
 
@@ -5200,7 +5206,8 @@ async def generate():
             _radar_seed_set.add(_s.ticker)
     tradesim_html = build_trade_sim_page(
         strat_data=strat_data, strat_order=STRAT_ORDER,
-        radar_seeds=_radar_seed_set, dashboard=dashboard_payload)
+        radar_seeds=_radar_seed_set, dashboard=dashboard_payload,
+        stocks_info=stocks_info)
     indmap_html = build_industry_map_page(indmap_rows, stocks_info, indmap_edges)
 
     # ── 主動式 ETF(2026-05-20 對應 ingest f5faa21)──

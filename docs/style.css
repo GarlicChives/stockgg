@@ -1304,8 +1304,9 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
               border-bottom:1px solid rgba(255,255,255,.06)}
 .dash-strat-nm{font-size:.86rem;font-weight:700;color:var(--text)}
 .dash-strat-meta{font-size:.68rem;color:var(--muted);font-variant-numeric:tabular-nums}
-/* watchlist 列:可點開個股 modal;代號名完整顯示(不截斷)、必要時換行;窄欄密排 */
-.dash-wl-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:.3rem .5rem;
+/* watchlist 列(2026-06-20 格式):seq 代號名 股價 漲跌%(漲紅跌綠) 標籤 —— 單行密排、
+   可點開個股 modal;代號名完整不截斷。標籤 = 🤝/★/漲跌處 chips,固定靠右。 */
+.dash-wl-row{display:flex;align-items:baseline;gap:.45rem;
              padding:.3rem .2rem;font-size:.78rem;cursor:pointer;border-radius:5px;
              border-bottom:1px solid rgba(255,255,255,.04);transition:.12s}
 .dash-wl-row:last-child{border-bottom:none}
@@ -1314,12 +1315,10 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .dash-wl-row.dash-hot{box-shadow:0 0 0 1px rgba(245,166,35,.4) inset}
 .dash-wl-rk{flex:0 0 1.1rem;text-align:center;font-size:.66rem;font-weight:700;
             color:var(--muted);font-variant-numeric:tabular-nums}
-.dash-wl-tk{flex:1 1 7rem;font-weight:600;line-height:1.35}
-.dash-wl-cons{margin-left:.25rem;font-size:.7rem}
+.dash-wl-tk{flex:1 1 auto;font-weight:600;white-space:nowrap}
 .dash-wl-px{flex:0 0 auto;font-variant-numeric:tabular-nums;color:var(--text)}
-.dash-wl-off{flex:0 0 auto;font-size:.68rem;color:var(--muted);
-             font-variant-numeric:tabular-nums}
-.dash-wl-chg{flex:0 0 auto;font-weight:700;font-variant-numeric:tabular-nums;margin-left:auto}
+.dash-wl-chg{flex:0 0 auto;font-weight:700;font-variant-numeric:tabular-nums}
+.dash-wl-tags{flex:0 0 auto;display:inline-flex;align-items:center;gap:.2rem}
 .dash-wl-empty{font-size:.78rem;color:var(--muted);padding:.5rem .2rem}
 /* ② 1 年回測績效比較表(完整 9 指標、表頭可排序)*/
 .dash-pf-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:.6rem}
