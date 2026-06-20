@@ -308,6 +308,23 @@ function _activateStratData(slug) {
     const body = document.querySelector('.sim-bt-trades[data-slug="' + slug + '"] .bt-tr-body');
     if (body) _btLoadTrades(slug, body);
   }
+  // 總儀表板內嵌「共識買回測」(🅰️/🅱️):連帶激活當前 active 子分頁的圖表 + 逐筆。
+  // dashboard 自身無回測元件,故上面的 init 對 'dashboard' 都是 no-op;真正要畫的是子分頁。
+  if (slug === 'dashboard') {
+    const act = document.querySelector('.dash-cbt-pane.active');
+    if (act && act.dataset.slug) _activateStratData(act.dataset.slug);
+  }
+}
+
+/* 總儀表板「共識買回測」子分頁切換(🅰️ 無限資金 / 🅱️ 300 萬資金)。切到某版 →
+   顯該 .dash-cbt-pane、其餘隱;並 lazy-init 該 slug 回測曲線 + 逐筆(切到才畫,避免
+   隱藏 pane 寬度為 0 導致圖表 0 寬)。slug 與冠軍頁同 schema,完全重用 _activateStratData。 */
+function showConsensusBtTab(slug) {
+  document.querySelectorAll('.dash-cbt-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.cbt === slug));
+  document.querySelectorAll('.dash-cbt-pane').forEach(p =>
+    p.classList.toggle('active', p.dataset.slug === slug));
+  _activateStratData(slug);
 }
 
 /* 明日買進標的卡點擊(generate_html 僅對「在回測 top100」的檔掛此 handler):

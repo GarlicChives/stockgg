@@ -2007,7 +2007,39 @@ def _build_dashboard_html(dash: dict | None,
         '<div class="dash-pf-wrap"><table class="dash-pf">'
         f'<thead>{head}</thead><tbody>{perf_rows}</tbody></table></div></div>')
 
-    return sec1 + sec2
+    # ── 段 ③:共識買回測績效(2026-06-20 ingest a5a2336;🅰️ 無限資金 / 🅱️ 300 萬資金)──
+    # 「共識買」= 每日買進被 ≥2 冠軍策略同選的股、統一 ratchet 出場;ingest 把兩種資金假設
+    # 各回測一份寫 DB(slug=consensus_unlimited / consensus_300m,三表 schema 等同冠軍頁)。
+    # 完全重用單一策略頁元件(_build_backtest_html 1 年回測曲線 + _build_bt_trades_html 逐筆),
+    # 資料由主 loop fetch 進 strat_data(含 bt_summary/detail json)。子分頁切換(showConsensusBtTab)。
+    _CBT = [("consensus_unlimited", "🅰️ 無限資金",
+             "信號組合:每日買齊所有共識標的、不受資金與部位限制(衡量訊號本身的純粹報酬)。"),
+            ("consensus_300m", "🅱️ 300 萬資金",
+             "有限資金引擎:300 萬本金、受實際下單與部位上限約束(貼近真實可執行績效)。")]
+    _cbt_avail = [(sl, lbl, sub) for sl, lbl, sub in _CBT
+                  if ((strat_data.get(sl) or {}).get("payload"))]
+    sec3 = ""
+    if _cbt_avail:
+        _cbt_btns, _cbt_panes = [], []
+        for i, (sl, lbl, sub) in enumerate(_cbt_avail):
+            sd = strat_data.get(sl) or {}
+            act = " active" if i == 0 else ""
+            _cbt_btns.append(
+                f'<button type="button" class="dash-cbt-btn{act}" data-cbt="{esc(sl)}" '
+                f'onclick="showConsensusBtTab(\'{esc(sl)}\')">{esc(lbl)}</button>')
+            _cbt_body = (_build_backtest_html(sd.get("payload"), sl)
+                         + _build_bt_trades_html(sd.get("bt_trades_n") or 0, sl))
+            _cbt_panes.append(
+                f'<div class="dash-cbt-pane{act}" data-slug="{esc(sl)}">'
+                f'<p class="dash-cbt-sub">{esc(sub)}</p>{_cbt_body}</div>')
+        sec3 = (
+            '<div class="card dash-sec"><div class="sec">📊 共識買回測績效'
+            '<span class="sim-daterange">每日買進「被 ≥2 冠軍策略同選」的股、統一 ratchet 出場 · '
+            '無限資金 vs 300 萬資金兩版</span></div>'
+            '<div class="dash-cbt-tabs">' + "".join(_cbt_btns) + '</div>'
+            + "".join(_cbt_panes) + '</div>')
+
+    return sec1 + sec2 + sec3
 
 
 def build_trade_sim_page(strat_data: dict | None = None,
@@ -5153,10 +5185,23 @@ async def generate():
         print(f"  ⚠ Q47 策略 slug 清單查詢失敗,fallback 偏好序: {exc}")
         _db_slugs = list(_STRAT_PREFERRED_ORDER)
     _dash_in_db = "dashboard" in _db_slugs
-    # 去重保序、剔除 dashboard;最終 tab 顯示序在抓完 payload 後依夏普重排。
-    _strat_slugs = [s for s in dict.fromkeys(_db_slugs) if s != "dashboard"]
+    # 非「單一冠軍策略」的特殊聚合 slug:不長獨立 tab。
+    #   dashboard            → 總儀表板(純聚合,只讀 payload)
+    #   consensus_unlimited  → 總儀表板內「共識買回測 🅰️ 無限資金」(2026-06-20 ingest a5a2336)
+    #   consensus_300m       → 總儀表板內「共識買回測 🅱️ 300 萬資金」
+    # consensus_* 與冠軍頁同表同 schema → 仍進 fetch loop(撈 Q44/Q45/Q46、寫 bt_summary/detail
+    # json)供 _build_dashboard_html 重用單一策略元件渲染;只是從「tab 清單」剔除。
+    _CONSENSUS_BT_SLUGS = ("consensus_unlimited", "consensus_300m")
+    _NON_TAB_SLUGS = {"dashboard", *_CONSENSUS_BT_SLUGS}
+    _uniq_slugs = list(dict.fromkeys(_db_slugs))
+    # 去重保序、剔除非 tab slug;最終 tab 顯示序在抓完 payload 後依夏普重排。
+    _strat_slugs = [s for s in _uniq_slugs if s not in _NON_TAB_SLUGS]
+    # fetch 清單 = tab 策略 + 在 DB 的 consensus_* 回測(共識買兩版);dashboard 另走純 payload。
+    _fetch_slugs = _strat_slugs + [s for s in _CONSENSUS_BT_SLUGS if s in _uniq_slugs]
     print(f"  策略清單(動態 from strategy_backtest_public): {_strat_slugs}"
-          + ("  + 總儀表板" if _dash_in_db else ""))
+          + ("  + 總儀表板" if _dash_in_db else "")
+          + (f"  + 共識買回測 {[s for s in _CONSENSUS_BT_SLUGS if s in _uniq_slugs]}"
+             if any(s in _uniq_slugs for s in _CONSENSUS_BT_SLUGS) else ""))
 
     def _ct_compact(t):
         return [
@@ -5176,7 +5221,7 @@ async def generate():
             _op.unlink()
 
     strat_data: dict[str, dict] = {}
-    for _slug in _strat_slugs:
+    for _slug in _fetch_slugs:
         _sd = {"payload": None, "sim_next": [], "bt_stats": {}, "bt_trades_n": 0}
         # Q43 — 明日買進標的
         try:
