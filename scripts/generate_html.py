@@ -1448,7 +1448,13 @@ def _build_trade_next_html(next_rows: list[dict] | None,
         '<div class="sim-next-list">' + "".join(cards)
         + (('<div class="sim-next-break"></div>' + "".join(re_cards)) if re_cards else '')
         + '</div>'
-        '<p class="sim-next-note">★ 標記者同時出現在當日選股雷達「熱門題材焦點股」;'
+        # gap 策略專屬(2026-06-20):卡片顯示的 % = 當日「收盤漲幅」,與規則的「開盤跳空
+        # ≤ +9%」是不同的量;不加會被誤讀為自相矛盾(收盤可達漲停)。僅此策略需要。
+        + ('<p class="sim-next-note sim-next-gapclar">⚠ 卡片上的百分比為當日<b>收盤漲幅</b>'
+           '(收盤相對昨收);進場規則的「跳空 ≤ +9%」指的是<b>開盤相對昨收的隔夜跳空</b>,'
+           '兩者為不同數值 —— 一檔可「開盤跳空 +5%、盤中續攻收盤漲停 +10%」,故收盤漲幅'
+           '可達漲停、與規則並不矛盾。</p>' if slug == "gap" else '')
+        + '<p class="sim-next-note">★ 標記者同時出現在當日選股雷達「熱門題材焦點股」;'
         '未標記者為策略宇宙(近一年焦點字典)選出、但當天非熱門題材 —— 策略仍會買,'
         '只是不會出現在選股雷達頁。此為模擬,非投資建議。</p>'
         '</div>'
@@ -1635,8 +1641,14 @@ def _build_backtest_html(payload: dict | None = None, slug: str = "pullback") ->
 
     playbook = d.get("playbook_brief") or []
     pb_html = ("".join(f'<li>{esc(p)}</li>' for p in playbook))
+    # gap 策略專屬釐清(2026-06-20):規則的「跳空」= 開盤相對昨收的隔夜 gap(≤ +9%);
+    # 標的卡顯示的 % = 當日「收盤漲幅」(收盤相對昨收),兩者為不同數值,收盤漲幅可達漲停。
+    _pb_clar = ('<p class="sim-bt-pb-clar">⚠ 規則中的「跳空」指<b>開盤相對昨收的隔夜跳空</b>'
+                '(≤ +9%);上方明日標的卡顯示的百分比為當日<b>收盤漲幅</b>(收盤相對昨收)——'
+                '兩者為不同數值,故收盤漲幅可達漲停而不違反「跳空 ≤ +9%」。</p>'
+                if slug == "gap" else "")
     pb_block = (f'<div class="sim-bt-playbook"><div class="sim-bt-pb-h">策略說明(精簡版)</div>'
-                f'<ol>{pb_html}</ol></div>') if pb_html else ""
+                f'<ol>{pb_html}</ol>{_pb_clar}</div>') if pb_html else ""
 
     caveat = d.get("caveat") or ""
     cost = d.get("cost_note") or ""
@@ -1720,10 +1732,11 @@ def _build_dashboard_html(dash: dict | None,
     seeds = radar_seeds or set()
     sinfo = stocks_info or {}
     strategies = dash.get("strategies") or []
-    consensus = dash.get("consensus_picks") or []
     benchmarks = dash.get("benchmarks") or {}
     _aod = str(dash.get("as_of_date") or "")[:10]
-    consensus_tk = {str(p.get("ticker")) for p in consensus}
+    # 共識三類(2026-06-20 user)全由本檔從各策略 watchlist/sells 推導(不再吃 ingest
+    # consensus_picks),才能同源切出買進/賣出/分歧三欄。consensus_tk(grid 🤝)= 純買進共識。
+    consensus_tk: set[str] = set()
 
     def _sname(obj):
         return esc(_clean_strat_name(obj.get("name"))
@@ -1790,6 +1803,7 @@ def _build_dashboard_html(dash: dict | None,
             + '</div>')
 
     def _cons_pill(p, *, sell: bool):
+        """單向共識 pill(買 or 賣):代號名 + 各策略 chip。"""
         tk = str(p.get("ticker") or "")
         nm = str(p.get("name") or "")
         by_chips = "".join(f'<span class="dash-cons-st">{_sname(b)}</span>'
@@ -1801,7 +1815,35 @@ def _build_dashboard_html(dash: dict | None,
             f'<span class="dash-cons-tk"><b>{esc(tk)}</b> {esc(nm)}{_hot_badge(tk)}</span>'
             f'<span class="dash-cons-sts">{by_chips}</span></button>')
 
-    # 賣出共識(本檔推導):ticker 出現在 ≥2 策略的 sells → 共同出場。
+    def _div_pill(p):
+        """分歧 pill:同一標的「買」與「賣」chip 並陳(買紅、賣青),點開個股 modal。"""
+        tk = str(p.get("ticker") or "")
+        nm = str(p.get("name") or "")
+        buy_chips = "".join(f'<span class="dash-cons-st buy">{_sname(b)}</span>'
+                            for b in (p.get("buy_by") or []))
+        sell_chips = "".join(f'<span class="dash-cons-st sell">{_sname(b)}</span>'
+                             for b in (p.get("sell_by") or []))
+        hot = tk in seeds
+        return (
+            f'<button type="button" class="dash-cons-pill diverge'
+            f'{" dash-hot" if hot else ""}" {_click(tk, nm)}>'
+            f'<span class="dash-cons-tk"><b>{esc(tk)}</b> {esc(nm)}{_hot_badge(tk)}</span>'
+            f'<span class="dash-cons-sts"><span class="dash-div-side buy">買</span>{buy_chips}'
+            f'<span class="dash-div-side sell">賣</span>{sell_chips}</span></button>')
+
+    # 共識三類(本檔同源推導,2026-06-20 user)：
+    #   買進共識 = ≥2 策略 watchlist 共選 且 無任一策略賣出
+    #   賣出共識 = ≥2 策略 sells 同步出場 且 無任一策略買進
+    #   分歧     = 同一標的同時被「任一策略買進 + 任一策略賣出」(訊號衝突,獨立成欄)
+    # 分歧優先:落入分歧的 ticker 不再進買進/賣出共識(避免同檔跨欄重複)。
+    _buy_by: dict[str, dict] = {}
+    for s in strategies:
+        for row in (s.get("watchlist") or []):
+            tk = str(row.get("ticker") or "")
+            if not tk:
+                continue
+            e = _buy_by.setdefault(tk, {"ticker": tk, "name": row.get("name"), "by": []})
+            e["by"].append({"slug": s.get("slug"), "name": s.get("name")})
     _sell_by: dict[str, dict] = {}
     for s in strategies:
         for row in (s.get("sells") or []):
@@ -1810,27 +1852,40 @@ def _build_dashboard_html(dash: dict | None,
                 continue
             e = _sell_by.setdefault(tk, {"ticker": tk, "name": row.get("name"), "by": []})
             e["by"].append({"slug": s.get("slug"), "name": s.get("name")})
-    consensus_sells = [v for v in _sell_by.values() if len(v["by"]) >= 2]
+    _buy_tks, _sell_tks = set(_buy_by), set(_sell_by)
+    _div_tks = _buy_tks & _sell_tks
     any_sells = any(s.get("sells") for s in strategies)
 
-    # ── 區塊 1:各策略共識區(買進共識 + 賣出共識)──
-    _cons_parts = []
-    if consensus:
-        _cons_parts.append(
-            '<div class="dash-cons-grp"><span class="dash-cons-h buy">📈 明日買進('
-            '≥2 策略共選)</span><div class="dash-cons-list">'
-            + "".join(_cons_pill(p, sell=False) for p in consensus) + '</div></div>')
-    if consensus_sells:
-        _cons_parts.append(
-            '<div class="dash-cons-grp"><span class="dash-cons-h sell">📉 明日賣出('
-            '≥2 策略同步出場)</span><div class="dash-cons-list">'
-            + "".join(_cons_pill(p, sell=True) for p in consensus_sells) + '</div></div>')
+    buy_consensus = [v for tk, v in _buy_by.items()
+                     if len(v["by"]) >= 2 and tk not in _div_tks]
+    consensus_sells = [v for tk, v in _sell_by.items()
+                       if len(v["by"]) >= 2 and tk not in _div_tks]
+    divergence = [
+        {"ticker": tk, "name": _buy_by[tk].get("name") or _sell_by[tk].get("name"),
+         "buy_by": _buy_by[tk]["by"], "sell_by": _sell_by[tk]["by"]}
+        for tk in sorted(_div_tks)]
+    consensus_tk = {v["ticker"] for v in buy_consensus}   # grid 🤝 = 純買進共識
+
+    # ── 區塊 1:各策略共識區(明日買進 / 明日賣出 / 明日分歧 三欄水平)──
+    def _cons_col(h_cls, icon, title, sub, pills_html):
+        body = pills_html or '<div class="dash-cons-empty">—</div>'
+        return (f'<div class="dash-cons-col"><span class="dash-cons-h {h_cls}">{icon} {title}'
+                f'<small>{sub}</small></span><div class="dash-cons-list">{body}</div></div>')
     sec_consensus = ""
-    if _cons_parts:
+    if buy_consensus or consensus_sells or divergence:
+        _col_buy = _cons_col(
+            "buy", "📈", "明日買進", "≥2 策略共選、無賣出",
+            "".join(_cons_pill(p, sell=False) for p in buy_consensus))
+        _col_sell = _cons_col(
+            "sell", "📉", "明日賣出", "≥2 策略同步出場",
+            "".join(_cons_pill(p, sell=True) for p in consensus_sells))
+        _col_div = _cons_col(
+            "diverge", "⚖️", "明日分歧", "有買有賣、訊號衝突",
+            "".join(_div_pill(p) for p in divergence))
         sec_consensus = (
             '<div class="card dash-sec"><div class="sec">🤝 各策略共識'
             '<span class="sim-daterange">跨方法一致 = 相對高信賴</span></div>'
-            + "".join(_cons_parts) + '</div>')
+            '<div class="dash-cons-cols">' + _col_buy + _col_sell + _col_div + '</div></div>')
 
     # ── 區塊 2:各策略明日買進標的(移除內嵌共識,已上移共識區)──
     buy_cards = []
