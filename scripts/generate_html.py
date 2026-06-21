@@ -1811,38 +1811,26 @@ def _build_dashboard_html(dash: dict | None,
             + _theme_html(tk)   # 所屬題材列(grid-column:2/-1,與代號名對齊;無題材則不輸出)
             + '</div>')
 
-    def _cons_pill(p):
-        """買進共識 pill:第一列 代號名 + 各策略 chip;第二列 共識題材(所屬焦點題材)。"""
-        tk = str(p.get("ticker") or "")
-        nm = str(p.get("name") or "")
-        by_chips = "".join(f'<span class="dash-cons-st">{_sname(b)}</span>'
-                           for b in (p.get("by") or []))
-        hot = tk in seeds
-        _th = _theme_html(tk)
-        return (
-            f'<button type="button" class="dash-cons-pill{" dash-hot" if hot else ""}" {_click(tk, nm)}>'
-            f'<span class="dash-cons-r1">'
-            f'<span class="dash-cons-tk"><b>{esc(tk)}</b> {esc(nm)}{_hot_badge(tk)}</span>'
-            f'<span class="dash-cons-sts">{by_chips}</span></span>'
-            + (f'<span class="dash-cons-th">{_th}</span>' if _th else '')
-            + '</button>')
-
     # 買進共識 = ≥2 策略 watchlist 共選(賣出/分歧已於 2026-06-20 移除,不再參與排除)。
+    # tk_by:全 watchlist ticker → 買進它的策略 slug 序(共識矩陣 cell 填值用);tk_nm:tk→名。
     _buy_by: dict[str, dict] = {}
+    tk_by: dict[str, list] = {}
+    tk_nm: dict[str, str] = {}
     for s in strategies:
         for row in (s.get("watchlist") or []):
             tk = str(row.get("ticker") or "")
             if not tk:
                 continue
+            tk_nm[tk] = str(row.get("name") or tk)
+            tk_by.setdefault(tk, []).append(s.get("slug"))
             e = _buy_by.setdefault(tk, {"ticker": tk, "name": row.get("name"), "by": []})
             e["by"].append({"slug": s.get("slug"), "name": s.get("name")})
     buy_consensus = [v for v in _buy_by.values() if len(v["by"]) >= 2]
-    consensus_tk = {v["ticker"] for v in buy_consensus}   # grid 🤝 = 買進共識
+    consensus_tk = {v["ticker"] for v in buy_consensus}   # 買進列 🤝 = 共識個股
 
     # 共識題材(2026-06-21 user):≥2 不同策略各自買進「同一焦點題材」的標的(標的可不同)→
     # 題材層級共識(例:記憶體模組)。同一組標的常對應多個近義題材前綴(DRAM/HBM/記憶體模組…),
     # 故以「標的集合」群組去重、每組留一個代表(優先今日焦點題材,其餘列 title)避免近義刷屏。
-    _slug_obj = {s.get("slug"): s for s in strategies}
     _th_strats: dict[str, set] = {}     # 題材前綴 → {slug}
     _th_tks: dict[str, dict] = {}       # 題材前綴 → {ticker: name}(保插入序)
     for s in strategies:
@@ -1874,45 +1862,46 @@ def _build_dashboard_html(dash: dict | None,
     consensus_themes.sort(key=lambda c: (c["theme"] not in hot_th, -len(c["strats"]),
                                          -len(c["tks"]), c["theme"]))
 
-    def _cth_row(c):
-        rep = c["theme"]
-        title = ("亦屬:" + "、".join(c["alts"])) if c["alts"] else ""
-        strat_chips = "".join(
-            f'<span class="dash-cons-st">{_sname(_slug_obj.get(sl, {"slug": sl}))}</span>'
-            for sl in c["strats"])
-        tk_pills = "".join(
-            f'<button type="button" class="dash-cth-tk" {_click(tk, nm)}>'
-            f'<b>{esc(tk)}</b> {esc(nm)}{_hot_badge(tk)}</button>'
-            for tk, nm in c["tks"].items())
-        return (
-            f'<div class="dash-cth-row"{f" title={json.dumps(title)}" if title else ""}>'
-            f'<span class="dash-cth-name{" hot" if rep in hot_th else ""}">{esc(rep)}</span>'
-            f'<span class="dash-cth-strats">{strat_chips}</span>'
-            f'<span class="dash-cth-tks">{tk_pills}</span>'
-            '</div>')
-
-    # ── 區塊 1:各策略買進共識(共識題材 + 共識個股;賣出/分歧已移除)──
+    # ── 區塊 1:各策略買進共識「矩陣」(2026-06-21 user:欄=各策略、列=共識個股(首列)+
+    #    各共識題材;標的填入對應 (列 × 策略) 格。橫向可捲動,首欄列標籤 sticky)──
     sec_consensus = ""
     if consensus_themes or buy_consensus:
-        _parts = []
-        if consensus_themes:
-            _rows = "".join(_cth_row(c) for c in consensus_themes)
-            _parts.append(
-                '<div class="dash-cth"><div class="dash-cth-hd">🎯 共識題材'
-                '<span class="dash-cth-sub">≥2 策略各自買進同題材標的(標的可不同)· '
-                '今日焦點題材以色塊標示</span></div>'
-                f'<div class="dash-cth-list">{_rows}</div></div>')
-        if buy_consensus:
-            _pills = "".join(_cons_pill(p) for p in buy_consensus)
-            _parts.append(
-                '<div class="dash-cons-block"><div class="dash-cth-hd">🔁 共識個股'
-                '<span class="dash-cth-sub">≥2 策略買進同一檔</span></div>'
-                f'<div class="dash-cons-cols"><div class="dash-cons-col">'
-                f'<div class="dash-cons-list">{_pills}</div></div></div></div>')
+        cols = [(s.get("slug"), _sname(s)) for s in strategies]    # 欄 = 策略(夏普序)
+
+        def _cell(tks_in_row, slug):
+            """該 (列, 策略欄) 格:tks_in_row 中由該 slug 買進的標的 pill(可多檔縱排)。"""
+            pills = "".join(
+                f'<button type="button" class="dash-cmx-tk" {_click(tk, tk_nm.get(tk, tk))}>'
+                f'<b>{esc(tk)}</b> {esc(tk_nm.get(tk, tk))}{_hot_badge(tk)}</button>'
+                for tk in tks_in_row if slug in (tk_by.get(tk) or []))
+            return (f'<td class="dash-cmx-cell">{pills}</td>' if pills
+                    else '<td class="dash-cmx-cell dash-cmx-empty"></td>')
+
+        thead = ('<tr><th class="dash-cmx-corner"></th>'
+                 + "".join(f'<th>{nm}</th>' for _, nm in cols) + '</tr>')
+        body_rows = []
+        if consensus_tk:   # 首列:共識個股(≥2 策略買同一檔)
+            _stk = [v["ticker"] for v in buy_consensus]
+            body_rows.append(
+                '<tr class="dash-cmx-stockrow"><th class="dash-cmx-rh" '
+                'title="≥2 策略買進同一檔">🔁 共識個股</th>'
+                + "".join(_cell(_stk, sl) for sl, _ in cols) + '</tr>')
+        for c in consensus_themes:   # 其後每列:一個共識題材
+            rep = c["theme"]
+            _tks = list(c["tks"].keys())
+            _title = ("亦屬:" + "、".join(c["alts"])) if c["alts"] else ""
+            _hot = rep in hot_th
+            body_rows.append(
+                f'<tr class="{"dash-cmx-hot" if _hot else ""}">'
+                f'<th class="dash-cmx-rh{" hot" if _hot else ""}"'
+                f'{f" title={json.dumps(_title)}" if _title else ""}>{esc(rep)}</th>'
+                + "".join(_cell(_tks, sl) for sl, _ in cols) + '</tr>')
         sec_consensus = (
             '<div class="card dash-sec"><div class="sec">🤝 各策略買進共識'
-            '<span class="sim-daterange">跨方法一致 = 相對高信賴</span></div>'
-            + "".join(_parts) + '</div>')
+            '<span class="sim-daterange">欄=策略 · 列=共識個股/共識題材 · '
+            '格內為該策略買進的標的 · 今日焦點題材以色塊標示</span></div>'
+            '<div class="dash-cmx-wrap"><table class="dash-cmx">'
+            f'<thead>{thead}</thead><tbody>{"".join(body_rows)}</tbody></table></div></div>')
 
     # ── 區塊 2:各策略明日買進標的(移除內嵌共識,已上移共識區)──
     buy_cards = []
