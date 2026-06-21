@@ -1327,6 +1327,27 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
          background:rgba(255,255,255,.05);border-radius:4px;padding:.01rem .32rem;
          white-space:nowrap}
 .dash-th.hot{color:var(--accent);background:rgba(124,138,242,.16)}
+/* 🎯 共識題材(≥2 策略各自買進同題材標的;題材層級共識,置於共識個股之上) */
+.dash-cth{margin-top:.5rem}
+.dash-cth-hd{font-size:.78rem;font-weight:700;color:var(--text);display:flex;
+             align-items:baseline;flex-wrap:wrap;gap:.4rem;margin-bottom:.4rem}
+.dash-cth-sub{font-size:.64rem;font-weight:400;color:var(--muted)}
+.dash-cth-list{display:flex;flex-direction:column;gap:.3rem}
+.dash-cth-row{display:flex;align-items:center;flex-wrap:wrap;gap:.4rem;
+              padding:.32rem .5rem;border-radius:7px;
+              background:rgba(255,255,255,.02);border:1px solid var(--border)}
+.dash-cth-name{font-size:.82rem;font-weight:700;color:var(--text);white-space:nowrap}
+.dash-cth-name.hot{color:var(--accent)}
+.dash-cth-strats{display:inline-flex;flex-wrap:wrap;gap:.2rem}
+.dash-cth-tks{display:inline-flex;flex-wrap:wrap;gap:.3rem}
+.dash-cth-tk{font-family:inherit;font-size:.72rem;color:var(--text);cursor:pointer;
+             padding:.12rem .4rem;border-radius:6px;white-space:nowrap;
+             background:rgba(239,83,80,.1);border:1px solid rgba(239,83,80,.28);transition:.12s}
+.dash-cth-tk:hover{background:rgba(239,83,80,.2);border-color:var(--up)}
+.dash-cth-tk b{font-weight:800;font-variant-numeric:tabular-nums}
+.dash-cons-block{margin-top:.7rem}
+/* 各策略 tab 明日買進卡:所屬題材列(複用 .dash-th chip) */
+.sim-next-themes{display:flex;flex-wrap:wrap;gap:.25rem;margin-top:.35rem}
 /* ① 各策略明日買進標的(策略卡網格)*/
 /* 卡片下限 300px:讓 watchlist 列的固定欄(seq/股價/漲跌/標籤)排完後,1fr 代號名欄
    仍容得下最長名(如 2633 台灣高鐵)不截斷,同時各欄跨列對齊。 */
