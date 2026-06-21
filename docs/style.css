@@ -1311,19 +1311,33 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .sim-next-themes{display:flex;flex-wrap:wrap;gap:.25rem;margin-top:.35rem}
 /* 區塊 1:各策略買進共識「矩陣」(2026-06-21 user:欄=策略、列=共識個股(首列)+各共識題材;
    標的填入對應格。橫向可捲動,首欄(列標籤)sticky-left 釘住,捲動時題材名不消失)。 */
-.dash-cmx-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:.5rem;
-               border:1px solid var(--border);border-radius:9px}
-.dash-cmx{border-collapse:collapse;font-size:.76rem;width:max-content;min-width:100%}
+/* 2026-06-22 user:① 表頭凍結(thead sticky 釘在站台 header 下方,--cmx-head-top 由 JS 量測)
+   ② X 軸不要捲軸 → table-layout:fixed + width:100%,標的 tile 在窄格內折行、同類元素等寬高
+   ③ 首欄(題材/個股列標籤)欄寬可拖曳調整(--cmx-label-w,corner 右緣 resizer 控制) */
+.dash-cmx-wrap{margin-top:.5rem;border:1px solid var(--border);border-radius:9px;
+               overflow:visible;position:relative}
+.dash-cmx{border-collapse:collapse;font-size:.74rem;width:100%;table-layout:fixed;
+          --cmx-label-w:116px}
+.dash-cmx-lcol{width:var(--cmx-label-w)}
 .dash-cmx th,.dash-cmx td{border:1px solid rgba(255,255,255,.07);padding:.3rem .4rem;
                           vertical-align:top}
-.dash-cmx thead th{background:#161a26;font-size:.7rem;font-weight:700;color:var(--muted);
-                   text-align:center;white-space:normal;min-width:140px;max-width:164px;
-                   line-height:1.3}
-.dash-cmx-corner{position:sticky;left:0;z-index:2;background:#161a26 !important;min-width:108px}
-/* 列標籤(Y 軸:共識個股 / 共識題材):sticky-left、可點 → 開題材走勢 modal */
-.dash-cmx-rh{position:sticky;left:0;z-index:1;background:var(--card);text-align:left;
-             white-space:nowrap;font-size:.78rem;font-weight:700;color:var(--text);
-             min-width:108px;cursor:pointer;transition:.12s}
+.dash-cmx thead th{position:sticky;top:var(--cmx-head-top,54px);z-index:3;
+                   background:#161a26;font-size:.7rem;font-weight:700;color:var(--muted);
+                   text-align:center;white-space:normal;line-height:1.3;
+                   overflow-wrap:anywhere}
+.dash-cmx-corner{position:sticky;top:var(--cmx-head-top,54px);z-index:4;
+                 background:#161a26 !important}
+/* 首欄列標籤右緣的拖曳把手(縮放 --cmx-label-w) */
+.dash-cmx-resizer{position:absolute;top:0;right:-4px;width:9px;height:100%;
+                  cursor:col-resize;z-index:6;touch-action:none}
+.dash-cmx-resizer::after{content:"";position:absolute;right:4px;top:18%;height:64%;width:2px;
+                         border-radius:2px;background:rgba(255,255,255,.22);transition:.12s}
+.dash-cmx-resizer:hover::after,.dash-cmx-resizing .dash-cmx-resizer::after{
+                         background:var(--accent)}
+/* 列標籤(Y 軸:共識個股 / 共識題材):可點 → 開題材走勢 modal;窄欄時換行 */
+.dash-cmx-rh{text-align:left;white-space:normal;overflow-wrap:anywhere;
+             font-size:.76rem;font-weight:700;color:var(--text);
+             cursor:pointer;transition:.12s}
 .dash-cmx-rh:hover{color:var(--accent)}
 .dash-cmx-rh-go{margin-left:.3rem;font-size:.66rem;color:var(--muted);opacity:.55}
 .dash-cmx-rh:hover .dash-cmx-rh-go{color:var(--accent);opacity:1}
@@ -1334,7 +1348,6 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .dash-cmx-rh.dash-cmx-rh-stk .dash-cmx-rh-go{color:#ffd24d;opacity:.8}
 .dash-cmx-stockrow .dash-cmx-tk{background:rgba(245,191,36,.22);border-color:rgba(245,191,36,.55)}
 .dash-cmx-stockrow .dash-cmx-tk:hover{background:rgba(245,191,36,.34);border-color:#ffd24d}
-.dash-cmx-cell{min-width:140px}
 .dash-cmx-cell>.dash-cmx-tk+.dash-cmx-tk{margin-top:.25rem}
 .dash-cmx-empty{background:rgba(255,255,255,.012)}
 /* 格內 pill:左=代號名、右=股價(漲跌%)(漲紅跌綠);窄格時換行 */
@@ -1343,7 +1356,7 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
              color:var(--text);cursor:pointer;padding:.18rem .45rem;border-radius:6px;
              background:rgba(239,83,80,.1);border:1px solid rgba(239,83,80,.28);transition:.12s}
 .dash-cmx-tk:hover{background:rgba(239,83,80,.2);border-color:var(--up)}
-.dash-cmx-tkn{white-space:nowrap}
+.dash-cmx-tkn{white-space:normal;overflow-wrap:anywhere}
 .dash-cmx-tk b{font-weight:800;font-variant-numeric:tabular-nums}
 .dash-cmx-pc{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
 /* 可投入金額輸入(區塊標題列右側)+ 每檔可買張數 + 買不到反灰(2026-06-21 user) */

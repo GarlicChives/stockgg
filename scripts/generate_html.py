@@ -1999,7 +1999,14 @@ def _build_dashboard_html(dash: dict | None,
                     f"onclick='openThemeChart({json.dumps(cid)},{{minimal:true}})'{_t}>"
                     f'{esc(label)}<span class="dash-cmx-rh-go">↗</span></th>')
 
-        thead = ('<tr><th class="dash-cmx-corner"></th>'
+        # colgroup:首欄(列標籤)寬度吃 --cmx-label-w(可拖曳),其餘策略欄 table-layout:fixed 均分。
+        colgroup = (f'<colgroup><col class="dash-cmx-lcol">'
+                    f'<col span="{len(cols)}"></colgroup>')
+        # corner 內含拖曳把手:onmousedown/ontouchstart 啟動欄寬縮放(dashCmxResize, app.js)。
+        thead = ('<tr><th class="dash-cmx-corner">'
+                 '<span class="dash-cmx-resizer" title="拖曳調整欄寬" '
+                 'onmousedown="dashCmxResize(event)" ontouchstart="dashCmxResize(event)"></span>'
+                 '</th>'
                  + "".join(f'<th>{nm}</th>' for _, nm in cols) + '</tr>')
         body_rows = []
         if consensus_tk:   # 首列:共識個股(≥2 策略買同一檔)— 亮色強調列
@@ -2027,7 +2034,7 @@ def _build_dashboard_html(dash: dict | None,
             '<span class="dash-cmx-budget-unit">萬元</span>'
             '<span class="dash-cmx-budget-hint">現股 / 融資2.5倍 可買張數</span></span></div>'
             '<div class="dash-cmx-wrap"><table class="dash-cmx">'
-            f'<thead>{thead}</thead><tbody>{"".join(body_rows)}</tbody></table></div>'
+            f'{colgroup}<thead>{thead}</thead><tbody>{"".join(body_rows)}</tbody></table></div>'
             f'<script>(window.IIA_CLUSTERS=window.IIA_CLUSTERS||{{}}).cons={_cons_json};</script>'
             '</div>')
 

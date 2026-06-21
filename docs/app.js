@@ -215,6 +215,48 @@ function dashCalcBudget(input) {
   });
 }
 
+/* 共識矩陣首欄欄寬拖曳(2026-06-22 user):拖 corner 右緣把手 → 改 table 的 --cmx-label-w。
+ * mouse + touch 都支援;範圍夾在 [64,300]px。 */
+function dashCmxResize(ev) {
+  ev.preventDefault();
+  const handle = ev.currentTarget;
+  const table = handle.closest('table');
+  if (!table) return;
+  const touch = ev.touches && ev.touches[0];
+  const startX = touch ? touch.clientX : ev.clientX;
+  const cur = parseFloat(getComputedStyle(table).getPropertyValue('--cmx-label-w'));
+  const startW = isFinite(cur) ? cur : (handle.closest('th') || {}).offsetWidth || 116;
+  table.classList.add('dash-cmx-resizing');
+  document.body.style.userSelect = 'none';
+  const move = (e) => {
+    const t = e.touches && e.touches[0];
+    const x = t ? t.clientX : e.clientX;
+    const w = Math.max(64, Math.min(300, startW + (x - startX)));
+    table.style.setProperty('--cmx-label-w', w + 'px');
+  };
+  const up = () => {
+    document.removeEventListener('mousemove', move);
+    document.removeEventListener('mouseup', up);
+    document.removeEventListener('touchmove', move);
+    document.removeEventListener('touchend', up);
+    table.classList.remove('dash-cmx-resizing');
+    document.body.style.userSelect = '';
+  };
+  document.addEventListener('mousemove', move);
+  document.addEventListener('mouseup', up);
+  document.addEventListener('touchmove', move, { passive: false });
+  document.addEventListener('touchend', up);
+}
+
+/* 共識矩陣表頭凍結:thead sticky 需釘在站台 sticky header 正下方;header 高度隨 RWD 變動
+ * (手機換行會變高),故量測後寫進 --cmx-head-top,thead/corner 的 top 吃這個變數。 */
+function dashCmxStickyTop() {
+  const h = document.querySelector('header');
+  if (h) document.documentElement.style.setProperty('--cmx-head-top', h.offsetHeight + 'px');
+}
+window.addEventListener('load', dashCmxStickyTop);
+window.addEventListener('resize', dashCmxStickyTop);
+
 function dashSortPerf(th) {
   const table = th.closest('table');
   if (!table) return;
