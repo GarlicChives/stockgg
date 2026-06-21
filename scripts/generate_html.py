@@ -1711,7 +1711,9 @@ def _build_bt_trades_html(n_trades: int = 0, slug: str = "pullback") -> str:
 def _build_dashboard_html(dash: dict | None,
                           strat_data: dict | None = None,
                           radar_seeds: set[str] | None = None,
-                          stocks_info: dict | None = None) -> str:
+                          stocks_info: dict | None = None,
+                          theme_map: dict[str, list[str]] | None = None,
+                          hot_themes: set[str] | None = None) -> str:
     """📊 總儀表板(ingest build_dashboard;strategy_backtest_public slug='dashboard')——
     策略模擬頁第一個 sub-tab、純聚合『所有上架冠軍策略』(新冠軍寫 DB 即自動納入,本檔零改)。
     兩段(由上到下):
@@ -1731,6 +1733,18 @@ def _build_dashboard_html(dash: dict | None,
     strat_data = strat_data or {}
     seeds = radar_seeds or set()
     sinfo = stocks_info or {}
+    themes = theme_map or {}        # ticker → 焦點題材前綴(已去重保序、今日焦點在前)
+    hot_th = hot_themes or set()    # 今日焦點題材前綴(chip accent 高亮)
+
+    def _theme_html(tk: str) -> str:
+        """所屬焦點題材 chip 列(完整列出;今日焦點題材以 accent 高亮)。無題材回空字串。"""
+        prefs = themes.get(str(tk)) or []
+        if not prefs:
+            return ''
+        chips = "".join(
+            f'<span class="dash-th{" hot" if p in hot_th else ""}">{esc(p)}</span>'
+            for p in prefs)
+        return f'<span class="dash-th-row">{chips}</span>'
     strategies = dash.get("strategies") or []
     benchmarks = dash.get("benchmarks") or {}
     _aod = str(dash.get("as_of_date") or "")[:10]
@@ -1783,19 +1797,24 @@ def _build_dashboard_html(dash: dict | None,
             f'<span class="dash-wl-px">{esc(_px(row.get("ref_close")))}</span>'
             f'<span class="dash-wl-chg {_chg_cls}">{esc(_chg_s)}</span>'
             + (f'<span class="dash-wl-tags">{tags}</span>' if tags else '<span class="dash-wl-tags"></span>')
+            + _theme_html(tk)   # 所屬題材列(grid-column:2/-1,與代號名對齊;無題材則不輸出)
             + '</div>')
 
     def _cons_pill(p):
-        """買進共識 pill:代號名 + 各策略 chip。"""
+        """買進共識 pill:第一列 代號名 + 各策略 chip;第二列 共識題材(所屬焦點題材)。"""
         tk = str(p.get("ticker") or "")
         nm = str(p.get("name") or "")
         by_chips = "".join(f'<span class="dash-cons-st">{_sname(b)}</span>'
                            for b in (p.get("by") or []))
         hot = tk in seeds
+        _th = _theme_html(tk)
         return (
             f'<button type="button" class="dash-cons-pill{" dash-hot" if hot else ""}" {_click(tk, nm)}>'
+            f'<span class="dash-cons-r1">'
             f'<span class="dash-cons-tk"><b>{esc(tk)}</b> {esc(nm)}{_hot_badge(tk)}</span>'
-            f'<span class="dash-cons-sts">{by_chips}</span></button>')
+            f'<span class="dash-cons-sts">{by_chips}</span></span>'
+            + (f'<span class="dash-cons-th">{_th}</span>' if _th else '')
+            + '</button>')
 
     # 買進共識 = ≥2 策略 watchlist 共選(賣出/分歧已於 2026-06-20 移除,不再參與排除)。
     _buy_by: dict[str, dict] = {}
@@ -1958,7 +1977,9 @@ def build_trade_sim_page(strat_data: dict | None = None,
                          strat_order: list[str] | None = None,
                          radar_seeds: set[str] | None = None,
                          dashboard: dict | None = None,
-                         stocks_info: dict | None = None) -> str:
+                         stocks_info: dict | None = None,
+                         theme_map: dict[str, list[str]] | None = None,
+                         hot_themes: set[str] | None = None) -> str:
     """📈 策略模擬頁:總儀表板 + 多策略切換(slug-generic;ingest 寫 DB 即自動上架)。
     `dashboard` 非空 → 「📊 總儀表板」做第一個 sub-tab、預設 active(聚合所有策略);
     其後各 slug 一個 strat-pane(內含 🎯 隔日買進標的 + 📊 1 年回測績效 + 📋 逐筆明細),
@@ -1969,7 +1990,8 @@ def build_trade_sim_page(strat_data: dict | None = None,
     strat_data = strat_data or {}
     order = [s for s in (strat_order or list(strat_data.keys())) if s in strat_data]
     dash_html = _build_dashboard_html(dashboard, strat_data=strat_data,
-                                      radar_seeds=radar_seeds, stocks_info=stocks_info)
+                                      radar_seeds=radar_seeds, stocks_info=stocks_info,
+                                      theme_map=theme_map, hot_themes=hot_themes)
     if not order and not dash_html:
         return '<div class="sim-page"><p class="muted-note">策略資料準備中。</p></div>'
 
@@ -5281,10 +5303,27 @@ async def generate():
             _radar_seed_set.add(_s.ticker)
         for _s in (_c.sentinel or []):
             _radar_seed_set.add(_s.ticker)
+    # ticker → 所屬焦點題材(「近一年焦點」sub 前綴,去重保序)。highlight_subs 覆蓋全策略
+    # 宇宙故每檔買進/共識標的都查得到題材。_hot_theme_set = 今日焦點題材前綴(focus_hl_clusters
+    # 蒸餾後當日呈現者)→ 總儀表板題材 chip 中排最前並以 accent 高亮(「此題材今日為焦點」)。
+    _hot_theme_set: set[str] = {str(_c.name).split("·")[0].strip()
+                                for _c in (focus_hl_clusters or [])
+                                if str(_c.name).split("·")[0].strip()}
+    _theme_map: dict[str, list[str]] = {}
+    for _sub, _tks in (highlight_subs or {}).items():
+        _pref = str(_sub).split("·")[0].strip()
+        if not _pref:
+            continue
+        for _tk, _ in _tks:
+            _lst = _theme_map.setdefault(_tk, [])
+            if _pref not in _lst:
+                _lst.append(_pref)
+    for _lst in _theme_map.values():
+        _lst.sort(key=lambda p: p not in _hot_theme_set)   # 穩定排序:今日焦點題材在前
     tradesim_html = build_trade_sim_page(
         strat_data=strat_data, strat_order=STRAT_ORDER,
         radar_seeds=_radar_seed_set, dashboard=dashboard_payload,
-        stocks_info=stocks_info)
+        stocks_info=stocks_info, theme_map=_theme_map, hot_themes=_hot_theme_set)
     indmap_html = build_industry_map_page(indmap_rows, stocks_info, indmap_edges)
 
     # ── 主動式 ETF(2026-05-20 對應 ingest f5faa21)──

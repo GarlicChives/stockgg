@@ -1305,17 +1305,28 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .dash-cons-col{min-width:0;background:rgba(255,255,255,.015);border:1px solid var(--border);
                border-radius:9px;padding:.55rem .6rem}
 .dash-cons-list{display:flex;flex-wrap:wrap;gap:.4rem}
-.dash-cons-pill{font-family:inherit;display:inline-flex;align-items:center;gap:.4rem;
-                font-size:.78rem;color:var(--text);padding:.22rem .5rem;border-radius:7px;
+.dash-cons-pill{font-family:inherit;display:inline-flex;flex-direction:column;
+                align-items:flex-start;gap:.25rem;text-align:left;
+                font-size:.78rem;color:var(--text);padding:.3rem .55rem;border-radius:7px;
                 background:rgba(239,83,80,.1);border:1px solid rgba(239,83,80,.3);
                 cursor:pointer;transition:.12s}
 .dash-cons-pill:hover{background:rgba(239,83,80,.2);border-color:var(--up)}
 .dash-cons-pill.dash-hot{box-shadow:0 0 0 1px rgba(245,166,35,.5) inset}
+.dash-cons-r1{display:flex;align-items:center;flex-wrap:wrap;gap:.4rem}
 .dash-cons-tk{font-weight:600;white-space:nowrap}
 .dash-cons-tk b{font-weight:800;font-variant-numeric:tabular-nums}
 .dash-cons-sts{display:inline-flex;flex-wrap:wrap;align-items:center;gap:.2rem}
 .dash-cons-st{font-size:.6rem;font-weight:600;padding:.04rem .35rem;border-radius:4px;
               background:rgba(124,138,242,.16);color:var(--accent);white-space:nowrap}
+/* 共識 pill 第二列:共識題材(所屬焦點題材) */
+.dash-cons-th{display:flex;width:100%}
+/* 所屬題材 chip 列(買進列第二行 + 共識 pill 第二列共用)。買進列內為 grid item:
+   span col2→-1 與「代號名」對齊;共識 pill 內為一般 flex 子元素(grid-column 被忽略)。 */
+.dash-th-row{grid-column:2/-1;display:flex;flex-wrap:wrap;gap:.25rem;min-width:0}
+.dash-th{font-size:.6rem;font-weight:600;line-height:1.5;color:var(--muted);
+         background:rgba(255,255,255,.05);border-radius:4px;padding:.01rem .32rem;
+         white-space:nowrap}
+.dash-th.hot{color:var(--accent);background:rgba(124,138,242,.16)}
 /* ① 各策略明日買進標的(策略卡網格)*/
 /* 卡片下限 300px:讓 watchlist 列的固定欄(seq/股價/漲跌/標籤)排完後,1fr 代號名欄
    仍容得下最長名(如 2633 台灣高鐵)不截斷,同時各欄跨列對齊。 */
