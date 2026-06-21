@@ -14,6 +14,7 @@ import collections
 import hashlib
 import html as html_lib
 import json
+import math
 import re
 import sys
 from datetime import date, datetime, timedelta, timezone
@@ -1335,6 +1336,95 @@ def _theme_chips_html(tk, theme_map: dict | None, hot_themes: set | None) -> str
                    for p in prefs)
 
 
+def _trade_entry_gap(ticker, entry_date, entry_price, tc_full: dict):
+    """進場跳空% = (隔日開盤進場價 − 前一交易日收盤)/前一交易日收盤 × 100。
+    進場方式比照回測:選到標的後隔日開盤進場(entry_price = 進場日開盤)。
+    tc_full = ticker_close_full(Q13;{tk:[{d,c},...]} date asc),取 entry_date 前最後一筆收盤。"""
+    if not isinstance(entry_price, (int, float)) or not entry_date:
+        return None
+    prev = None
+    for r in (tc_full.get(str(ticker)) or []):
+        d = r.get("d")
+        if not d:
+            continue
+        if d < entry_date:
+            c = r.get("c")
+            if isinstance(c, (int, float)):
+                prev = c
+        else:
+            break
+    if isinstance(prev, (int, float)) and prev > 0:
+        return (entry_price - prev) / prev * 100.0
+    return None
+
+
+def _entry_pairs_from_detail(by_ticker: dict, tc_full: dict) -> list:
+    """攤平 detail by_ticker → [(進場跳空%, pnl_pct), ...](逐筆;兩值皆有效才收)。"""
+    pairs = []
+    for tk, arr in (by_ticker or {}).items():
+        for t in (arr or []):
+            g = _trade_entry_gap(tk, t.get("entry_date"), t.get("entry_price"), tc_full)
+            p = t.get("pnl_pct")
+            if g is not None and isinstance(p, (int, float)):
+                pairs.append((round(g, 4), p))
+    return pairs
+
+
+def _build_entry_dist_html(pairs: list | None, scope_label: str) -> str:
+    """📊 進場跳空 % 分布:3 圖(全部 / 最強20%贏家 / 最爛20%輸家),以 1% 為一格。
+    贏家/輸家 = 全體『逐筆交易』依 pnl_pct 排序的前/後 20%(非個股累積)。
+    pairs=[(進場跳空%, pnl_pct)];三圖共用同一 x 軸區間以便對比。"""
+    pairs = [(g, p) for g, p in (pairs or [])
+             if isinstance(g, (int, float)) and isinstance(p, (int, float))]
+    n = len(pairs)
+    if n < 10:
+        return ""
+    srt = sorted(pairs, key=lambda x: x[1])
+    k = max(1, round(n * 0.2))
+    losers = [g for g, _ in srt[:k]]
+    winners = [g for g, _ in srt[-k:]]
+    allg = [g for g, _ in pairs]
+    lo = max(int(math.floor(min(allg))), -15)
+    hi = min(int(math.ceil(max(allg))), 15)
+    if hi <= lo:
+        hi = lo + 1
+    edges = list(range(lo, hi + 1))          # 整數 % 邊界;bin i = [edges[i], edges[i+1])
+    nb = len(edges) - 1
+
+    def _hist(vals):
+        c = [0] * nb
+        for v in vals:
+            idx = min(max(int(math.floor(v)) - lo, 0), nb - 1)
+            c[idx] += 1
+        return c
+
+    def _panel(title, vals, cls):
+        counts = _hist(vals)
+        mx = max(counts) or 1
+        bars = "".join(
+            f'<span class="ed-bar {"ed-pos" if edges[i] >= 0 else "ed-neg"}" '
+            f'style="height:{round(ct / mx * 100)}%" '
+            f'title="{edges[i]}~{edges[i + 1]}%:{ct} 筆"></span>'
+            for i, ct in enumerate(counts))
+        return (
+            f'<div class="ed-chart {cls}"><div class="ed-h">{html_lib.escape(title)}'
+            f'<span class="ed-n">{len(vals)} 筆</span></div>'
+            f'<div class="ed-bars">{bars}</div>'
+            f'<div class="ed-axis"><span>{lo}%</span><span>0</span><span>+{hi}%</span></div>'
+            '</div>')
+
+    return (
+        '<div class="card sim-ed"><div class="sec">📊 進場跳空 % 分布'
+        f'<span class="sim-daterange">{html_lib.escape(scope_label)} · 進場(隔日開盤)'
+        '相對前一交易日收盤的跳空幅度 · 每 1% 一格 · 紅=跳空上漲/綠=跳空下跌 · '
+        '贏/輸家=全逐筆依報酬前/後 20%</span></div>'
+        '<div class="ed-grid">'
+        + _panel("全部交易", allg, "ed-all")
+        + _panel("最強 20% 贏家", winners, "ed-win")
+        + _panel("最爛 20% 輸家", losers, "ed-lose")
+        + '</div></div>')
+
+
 def _build_trade_next_html(next_rows: list[dict] | None,
                            radar_seeds: set[str] | None,
                            bt_stats: dict | None = None,
@@ -2073,7 +2163,13 @@ def _build_dashboard_html(dash: dict | None,
             '<div class="dash-cbt-tabs">' + "".join(_cbt_btns) + '</div>'
             + "".join(_cbt_panes) + '</div>')
 
-    return sec1 + sec2 + sec3
+    # ── 段 ②.5:進場跳空 % 分布(全策略合併逐筆交易;全部 / 最強20% / 最爛20%)──
+    _agg_pairs = []
+    for s in strategies:
+        _agg_pairs += (strat_data.get(s.get("slug")) or {}).get("entry_pairs") or []
+    sec_ed = _build_entry_dist_html(_agg_pairs, "全策略合併逐筆交易")
+
+    return sec1 + sec2 + sec_ed + sec3
 
 
 def build_trade_sim_page(strat_data: dict | None = None,
@@ -2119,6 +2215,7 @@ def build_trade_sim_page(strat_data: dict | None = None,
         body = (_build_trade_next_html(sd.get("sim_next"), radar_seeds, sd.get("bt_stats"), slug,
                                        theme_map=theme_map, hot_themes=hot_themes)
                 + _build_backtest_html(sd.get("payload"), slug)
+                + _build_entry_dist_html(sd.get("entry_pairs"), "本策略全部逐筆交易")
                 + _build_bt_trades_html(sd.get("bt_trades_n") or 0, slug))
         if not body.strip():
             body = ('<p class="muted-note">策略資料準備中'
@@ -5260,7 +5357,7 @@ async def generate():
 
     strat_data: dict[str, dict] = {}
     for _slug in _fetch_slugs:
-        _sd = {"payload": None, "sim_next": [], "bt_stats": {}, "bt_trades_n": 0}
+        _sd = {"payload": None, "sim_next": [], "bt_stats": {}, "bt_trades_n": 0, "entry_pairs": []}
         # Q43 — 明日買進標的
         try:
             _sn = [dict(r) for r in await conn.fetch(
@@ -5330,6 +5427,8 @@ async def generate():
                     _det = json.loads(_draw) if isinstance(_draw, str) else dict(_draw)
                 _by = (_det or {}).get("by_ticker") or {}
                 if _by:
+                    # 進場跳空%分布(逐筆)— 用全往返 + ticker_close_full 算 (進場跳空%, pnl%)
+                    _sd["entry_pairs"] = _entry_pairs_from_detail(_by, ticker_close_full)
                     _dcompact = {tk: [_ct_compact(t) for t in (arr or [])] for tk, arr in _by.items()}
                     _det_path.write_text(json.dumps(
                         {"b": _bt_stamp, "d": _dcompact},

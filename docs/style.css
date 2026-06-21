@@ -1362,6 +1362,24 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .dash-cmx-lots[hidden]{display:none}
 .dash-cmx-tk.dash-cmx-dim{opacity:.3;filter:grayscale(.75)}
 .dash-cmx-tk.dash-cmx-dim:hover{opacity:.5}
+/* 📊 進場跳空 % 分布(3 圖:全部/最強20%/最爛20%;1% 一格) */
+.sim-ed{border-left:3px solid var(--accent)}
+.ed-grid{display:grid;gap:.9rem;grid-template-columns:repeat(auto-fit,minmax(258px,1fr));margin-top:.6rem}
+.ed-chart{background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:9px;
+          padding:.55rem .65rem}
+.ed-h{font-size:.8rem;font-weight:700;color:var(--text);display:flex;align-items:baseline;
+      justify-content:space-between;gap:.4rem;margin-bottom:.5rem}
+.ed-win .ed-h{color:var(--up)}
+.ed-lose .ed-h{color:var(--down)}
+.ed-n{font-size:.66rem;font-weight:600;color:var(--muted)}
+.ed-bars{display:flex;align-items:flex-end;gap:1px;height:96px}
+.ed-bar{flex:1;min-width:0;min-height:1px;border-radius:2px 2px 0 0;
+        background:var(--accent);opacity:.55;transition:.1s}
+.ed-bar.ed-pos{background:var(--up);opacity:.8}
+.ed-bar.ed-neg{background:var(--down);opacity:.8}
+.ed-bar:hover{opacity:1}
+.ed-axis{display:flex;justify-content:space-between;margin-top:.25rem;font-size:.6rem;
+         color:var(--muted);font-variant-numeric:tabular-nums}
 /* ① 各策略明日買進標的(策略卡網格)*/
 /* 卡片下限 300px:讓 watchlist 列的固定欄(seq/股價/漲跌/標籤)排完後,1fr 代號名欄
    仍容得下最長名(如 2633 台灣高鐵)不截斷,同時各欄跨列對齊。 */
