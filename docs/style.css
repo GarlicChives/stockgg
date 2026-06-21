@@ -525,8 +525,8 @@ dialog#theme-chart-dialog::backdrop{background:rgba(0,0,0,.35)}
 .tc-minimal .tc-counter{display:none}
 .tc-minimal .tc-nav{display:none}
 @media(max-width:680px){
-  dialog#theme-chart-dialog[open]{align-items:flex-end}
-  .tc-shell{width:100vw;height:92vh;border-radius:14px 14px 0 0;border-bottom:none}
+  dialog#theme-chart-dialog[open]{align-items:stretch}  /* 手機全螢幕,撐滿 */
+  .tc-shell{width:100vw;height:100vh;height:100dvh;border-radius:0;border:none}
   .tc-nav{display:none}  /* 手機無側邊空間,隱藏側欄(排序長條保留) */
   .tc-topbar{padding-left:.8rem}  /* 無側欄 → 不必對齊 panel,padding 復原 */
 }
@@ -723,17 +723,23 @@ dialog#art-modal[open]::backdrop{animation:tcBackdropFade .26s ease-out}
 .art-nav-arrow:disabled{opacity:.3;cursor:not-allowed}
 .art-nav-arrow:disabled:hover{border-color:var(--border);background:rgba(15,17,23,.6);color:var(--text)}
 @media(max-width:680px){
-  dialog#art-modal{width:100vw;height:92vh;top:auto;bottom:0;left:0;
-                   transform:translate(0,0)}
+  /* 手機一律全螢幕。必須同時覆寫 UA dialog:modal 的
+     max-width/max-height: calc(100% - 6px - 2em) —— 否則 width:100vw 會被裁掉
+     ~38px,加上 left:0 把裁掉的空白全擠到右側 → 視覺上「偏左」(2026-06-21 真因)。 */
+  dialog#art-modal{width:100vw;max-width:100vw;height:100vh;max-height:100vh;
+                   height:100dvh;max-height:100dvh;
+                   top:0;left:0;right:auto;bottom:auto;
+                   transform:none;border-radius:0}
   dialog#art-modal[open]{animation:none}  /* 手機 transform 跟 keyframe 衝突,直接關動畫 */
+  .art-shell{border-radius:0;border:none}
   .art-nav{display:none}  /* 手機無側邊空間,藏側邊 nav */
   .art-topbar{padding-left:.8rem}
 }
 /* ── art-modal 全螢幕模式(策略模擬頁 trades 卡開啟;btOpenStock 加 .art-fullscreen)──
    K線拉寬到滿版、K線與下方逐筆表格高度 1:1。translate 置中改 top/left 全貼,
    keyframe 衝突直接走 fade。其餘模式(ETF / catalyst / cluster)維持原置中卡。 */
-dialog#art-modal.art-fullscreen{width:100vw;height:100vh;max-height:100vh;
-                                top:0;left:0;transform:none;border-radius:0}
+dialog#art-modal.art-fullscreen{width:100vw;max-width:100vw;height:100vh;max-height:100vh;
+                                top:0;left:0;right:auto;bottom:auto;transform:none;border-radius:0}
 @keyframes artFsOpen{from{opacity:0}to{opacity:1}}
 dialog#art-modal.art-fullscreen[open]{animation:artFsOpen .2s ease-out}
 .art-fullscreen .art-shell{border-radius:0;border:none}
@@ -1708,6 +1714,11 @@ dialog#im-modal::backdrop{background:rgba(0,0,0,.6)}
 .im-mc-hint{margin-top:.5rem;font-size:.74rem;color:var(--muted)}
 .im-mc-hint b{color:var(--accent)}
 @media(max-width:720px){
+  /* 手機全螢幕(與 art-modal / theme-chart 一致);覆寫 UA dialog:modal max-* 防右側裁切 */
+  dialog#im-modal{width:100vw;max-width:100vw;height:100vh;max-height:100vh;
+                  height:100dvh;max-height:100dvh;
+                  top:0;left:0;right:auto;bottom:auto;transform:none;border-radius:0;border:none}
+  dialog#im-modal[open]{animation:none}
   .im-mc-body{flex-direction:column}
   /* 行高對齊 pill 高度(約 2.1rem/列):卡在 2.5 列會出現「半截 pill」 */
   .im-mc-side{flex:none;max-height:9.6rem;flex-direction:row;flex-wrap:wrap;gap:.25rem}
