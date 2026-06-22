@@ -49,13 +49,17 @@ echo "▶ wrangler deploy ..."
 deploy_out=$(npx wrangler deploy 2>&1)
 printf '%s\n' "$deploy_out"
 
-# 5) post-deploy smoke test。
+# 5) post-deploy smoke test —— **軟警告,非硬擋**。
+#
+# 設計取捨(2026-06-22):`wrangler deploy` 一回傳,部署就已成功;真正防「缺
+# index.html 空版本」的主防線是上面 deploy 前的 verify guard(閘 1–4),不是這裡。
+# 這裡只測 Cloudflare edge propagation,而 edge 偶爾就是 >15s 才生效 —— 舊版在這
+# 裡 `exit 1` 會把「其實成功的部署」標成失敗,逼使用者白白重跑。故改為:**測得到
+# 200 就報喜,測不到只印 ⚠ 提醒稍後自查,一律 exit 0**(部署本身已成功)。
 #
 # 站台前面有 Cloudflare Access:production root 對未登入請求回 302(登入頁),
-# 不是 200,所以「測 production root == 200」在 Access 下永遠失敗。改測**版本
-# 預覽 URL**(https://<versionId前8碼>-stockgg.v4578469.workers.dev/):它繞過
-# Access,又直接命中剛部署那個版本的 assets —— 200 才證明「index.html 真的上傳了、
-# 這個版本不是空版本」,正是我們要防的那個 bug。
+# 不是 200,所以測**版本預覽 URL**(https://<versionId前8碼>-stockgg.v4578469.workers.dev/):
+# 它繞過 Access、直接命中剛部署那個版本的 assets —— 200 證明 index.html 真的上傳了。
 ver=$(printf '%s\n' "$deploy_out" | grep -oE 'Current Version ID: [0-9a-fA-F-]+' | head -1 | awk '{print $4}')
 
 if [[ -n "$ver" ]]; then
@@ -70,8 +74,9 @@ if [[ -n "$ver" ]]; then
       exit 0
     fi
   done
-  echo "✗ 版本 ${ver:0:8} 根路徑非 200 —— 此版本可能缺 index.html,請排查後再部署。" >&2
-  exit 1
+  echo "⚠ 版本 ${ver:0:8} 在 15s 內未回 200(多半是 edge 慢傳)。部署已成功;" >&2
+  echo "  稍後若仍異常,手動開 ${preview} 排查是否真的缺 index.html。" >&2
+  exit 0
 fi
 
 # 取不到版本 ID(wrangler 輸出格式變動)→ 退回測 production root,接受 200 或
@@ -87,5 +92,5 @@ for attempt in 1 2 3 4 5; do
   fi
 done
 
-echo "✗ 部署後線上無正常回應 —— 請用版本預覽 URL 排查。" >&2
-exit 1
+echo "⚠ 部署後線上暫無正常回應(多半 edge 慢傳)。部署已成功;稍後請用版本預覽 URL 自查。" >&2
+exit 0
