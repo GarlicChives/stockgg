@@ -1830,8 +1830,9 @@ def _build_dashboard_html(dash: dict | None,
          獲利因子/交易筆數,9 指標來自各 slug 自己的 Q44 `payload.metrics`,經 strat_data join)
          + 加權指數 / 00981A benchmark;**表頭可排序、預設夏普由高到低**(benchmark 列固定置底
          不參與排序)。
-    payload 缺(舊資料)→ 回 ''(呼叫端據此整個 tab 隱藏)。大盤月線下 watchlist 為空陣列 →
-    顯「明日無進場(大盤月線下)」。% 欄(ret/chg/recent20)為百分比數(12.3=12.3%)、sharpe/
+    payload 缺(舊資料)→ 回 ''(呼叫端據此整個 tab 隱藏)。watchlist 為空陣列 → 顯「明日無進場
+    (<真因>)」,真因讀 dashboard payload 的 `market_below_ma20`(True=月線下停新倉;否則=當日無標的
+    過濾網);缺旗標不臆測月線(2026-06-22 大盤新高卻空、誤報月線下教訓)。% 欄(ret/chg/recent20)為百分比數(12.3=12.3%)、sharpe/
     calmar 為比值、mdd 為回撤百分比量;與 Q44 payload 同慣例。"""
     if not isinstance(dash, dict) or not dash:
         return ""
@@ -2043,7 +2044,14 @@ def _build_dashboard_html(dash: dict | None,
     for s in strategies:
         wl = s.get("watchlist") or []
         if not wl:
-            rows_html = '<div class="dash-wl-empty">明日無進場(大盤月線下)</div>'
+            # 空 watchlist 的真因由 ingest 權威提供(dashboard payload 的 market_below_ma20):
+            # True=大盤確實跌破月線(停新倉);否則=該日無標的通過進場濾網。**絕不再無條件
+            # 寫死「月線下」**——2026-06-22 大盤創新高卻因 ingest radar 快取競態 watchlist 全空、
+            # 舊碼誤報月線下(真因=回測快取 radar 缺當日;見 ingest build_backtest_cache 守門)。
+            # 缺旗標(舊 payload / 競態)→ 不臆測,用中性語。
+            _below = dash.get("market_below_ma20")
+            _reason = "大盤月線下" if _below else "今日無標的符合進場條件"
+            rows_html = f'<div class="dash-wl-empty">明日無進場({_reason})</div>'
         else:
             rows_html = "".join(
                 _stock_row(row, is_cons=str(row.get("ticker") or "") in consensus_tk)
