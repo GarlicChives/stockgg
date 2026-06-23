@@ -187,6 +187,33 @@ function showStrategyTab(key) {
 /* 📊 總儀表板「1 年回測績效比較」表頭排序。點某欄表頭 → 依該欄 data-v 數值排序策略列
  * (benchmark 列 .dash-pf-bm 永遠釘在最底、不參與排序);同欄再點切換升/降序。預設(HTML
  * 已 server-side 以夏普降序排好,夏普表頭帶 aria-sort="descending")。 */
+/* 各策略買進共識「可投入金額」即時換算(2026-06-23 user):輸入金額(**台幣元**,免按 Enter)
+ * → 每檔共識個股算現股 / 融資(2.5 倍)各可買幾張(1 張 = 1000 股);連融資都買不到 1 張
+ * → pill 反灰(.dash-cons-dim)。清空(或非正數)→ 全部復原。 */
+function dashCalcBudget(input) {
+  const raw = ((input && input.value) || '').trim();
+  const budget = parseFloat(raw);                    // 單位 = 元(非萬元)
+  const pills = document.querySelectorAll('.dash-cons-pill[data-px]');
+  const reset = !raw || !isFinite(budget) || budget <= 0;
+  pills.forEach(p => {
+    const lots = p.querySelector('.dash-cons-lots');
+    const px = parseFloat(p.dataset.px);
+    if (reset || !isFinite(px) || px <= 0) {
+      p.classList.remove('dash-cons-dim');
+      if (lots) { lots.hidden = true; lots.textContent = ''; }
+      return;
+    }
+    const perLot = px * 1000;                          // 1 張成本(元)
+    const cash = Math.floor(budget / perLot);          // 現股可買張數
+    const margin = Math.floor(budget * 2.5 / perLot);  // 融資 2.5 倍可買張數
+    if (lots) {
+      lots.hidden = false;
+      lots.textContent = `現 ${cash} / 融 ${margin} 張`;
+    }
+    p.classList.toggle('dash-cons-dim', margin < 1);   // 連融資都買不到 1 張 → 反灰
+  });
+}
+
 function dashSortPerf(th) {
   const table = th.closest('table');
   if (!table) return;

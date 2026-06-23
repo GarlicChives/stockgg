@@ -1326,6 +1326,22 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .dash-cons-sts{display:inline-flex;flex-wrap:wrap;align-items:center;gap:.2rem}
 .dash-cons-st{font-size:.6rem;font-weight:600;padding:.04rem .35rem;border-radius:4px;
               background:rgba(124,138,242,.16);color:var(--accent);white-space:nowrap}
+/* 可投入金額輸入(標題列右側,單位=台幣元)+ 每檔可買張數 + 買不到反灰(2026-06-23 user) */
+.dash-cons-sechd{display:flex;align-items:center;flex-wrap:wrap;gap:.4rem .6rem}
+.dash-cons-sectitle{color:var(--accent)}
+.dash-cons-budget-wrap{margin-left:auto;display:inline-flex;align-items:center;gap:.35rem;
+                       font-size:.74rem;font-weight:600;color:var(--text);letter-spacing:0}
+.dash-cons-budget{width:7.5rem;font-family:inherit;font-size:.82rem;font-weight:700;
+                  padding:.26rem .5rem;border-radius:7px;border:1px solid var(--border);
+                  background:rgba(255,255,255,.05);color:var(--text);text-align:right}
+.dash-cons-budget:focus{outline:none;border-color:var(--accent);background:rgba(124,138,242,.08)}
+.dash-cons-budget-unit{color:var(--muted);font-weight:600}
+.dash-cons-budget-hint{font-size:.64rem;font-weight:400;color:var(--muted);letter-spacing:0}
+.dash-cons-lots{font-size:.66rem;font-weight:700;color:#8fe0b0;
+                font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.dash-cons-lots[hidden]{display:none}
+.dash-cons-pill.dash-cons-dim{opacity:.3;filter:grayscale(.75)}
+.dash-cons-pill.dash-cons-dim:hover{opacity:.5}
 /* 📊 進場跳空 % 分布(3 圖:全部/最強20%/最爛20%;1% 一格) */
 .sim-ed{border-left:3px solid var(--accent)}
 .ed-grid{display:grid;gap:.9rem;grid-template-columns:repeat(auto-fit,minmax(258px,1fr));margin-top:.6rem}

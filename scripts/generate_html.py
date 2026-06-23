@@ -1929,21 +1929,31 @@ def _build_dashboard_html(dash: dict | None,
             nm = str(p.get("name") or tk)
             _cg = tk_chg.get(tk)
             _cg_s, _cg_cls = fmt_pct(_cg if isinstance(_cg, (int, float)) else None)
+            _pxv = tk_px.get(tk)
+            # data-px 帶收盤價(元),供「可投入金額」即時換算現股/融資可買張數(dashCalcBudget)。
+            _pxattr = f' data-px="{float(_pxv)}"' if isinstance(_pxv, (int, float)) else ''
             by_chips = "".join(f'<span class="dash-cons-st">{_sname(b)}</span>'
                                for b in (p.get("by") or []))
             return (
-                f'<button type="button" class="dash-cons-pill{" dash-hot" if tk in seeds else ""}" '
-                f'{_click(tk, nm)}>'
+                f'<button type="button" class="dash-cons-pill{" dash-hot" if tk in seeds else ""}"'
+                f'{_pxattr} {_click(tk, nm)}>'
                 f'<span class="dash-cons-r1">'
                 f'<span class="dash-cons-tk"><b>{esc(tk)}</b> {esc(nm)}{_hot_badge(tk)}</span>'
-                f'<span class="dash-cons-px {_cg_cls}">{esc(_px(tk_px.get(tk)))}({esc(_cg_s)})</span>'
+                f'<span class="dash-cons-px {_cg_cls}">{esc(_px(_pxv))}({esc(_cg_s)})</span>'
                 '</span>'
                 f'<span class="dash-cons-sts">{by_chips}</span>'
+                '<span class="dash-cons-lots" hidden></span>'
                 '</button>')
         _pills = "".join(_cons_pill(p) for p in buy_consensus)
         sec_consensus = (
-            '<div class="card dash-sec"><div class="sec">🤝 各策略買進共識'
-            '<span class="sim-daterange">≥2 策略買進同一檔 · 跨方法一致 = 相對高信賴</span></div>'
+            '<div class="card dash-sec">'
+            '<div class="sec dash-cons-sechd"><span class="dash-cons-sectitle">🤝 各策略買進共識'
+            '<span class="sim-daterange">≥2 策略買進同一檔 · 跨方法一致 = 相對高信賴</span></span>'
+            '<span class="dash-cons-budget-wrap">💰 可投入'
+            '<input type="number" inputmode="numeric" min="0" step="1000" class="dash-cons-budget" '
+            'placeholder="金額" aria-label="可投入金額(台幣元)" oninput="dashCalcBudget(this)">'
+            '<span class="dash-cons-budget-unit">元</span>'
+            '<span class="dash-cons-budget-hint">現股 / 融資2.5倍 可買張數</span></span></div>'
             f'<div class="dash-cons-list">{_pills}</div></div>')
 
     # ── 區塊 2:各策略明日買進標的(移除內嵌共識,已上移共識區)──
