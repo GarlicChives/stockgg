@@ -25,6 +25,7 @@ companion repo `StockGG-ingest`(本機 `~/Desktop/StockGG-ingest`,私有)跑。
 
 - **公開站永遠不空、永遠呈現最新完整交易日**(rank_date 查詢必帶 `AND rank IS NOT NULL`)。
 - **漲跌% NULL 一律顯「—」**(neutral),絕不 fallback 成 0% 或當平盤(平盤 0 是另一回事)。
+- **漲跌% 單一真實來源 = `stocks_info`(=`trading_rankings.change_pct`)**。策略模擬頁(`_build_dashboard_html` 的明日買進列/買進共識 pill、`_build_trade_next_html` 各策略明日卡)**不得直接信回測 payload 自算的 `chg`**(連續收盤相減、沒扣除權息 → 除權息日尤其上櫃會與排行榜/券商不一致)。tk 在 `stocks_info` 內時一律以其 `change_pct` 為準(`_canon_chg` helper;None→「—」),不在才退回 payload。〔2026-06-24:3374 精材除權息日 payload 顯 +2.8%(基準=昨原始收盤)、券商顯 +3.65%(基準=除權息參考價)、排行榜顯「—」三方打架,根因=漲跌%無單一來源 + 上櫃除權息參考價無修正路徑;治本待 ingest 擴 `ex_rights._fetch_tpex` 回上櫃參考價〕。
 - **部署**:`git push` **不會**觸發 CI;hot-fix 後要 `gh workflow run "Publish daily site"`。
   本機手動部署**只能走 `bash scripts/deploy_site.sh`**(部署前斷言 index.html 完整、部署後 smoke-test
   線上 200)——**嚴禁裸跑 `wrangler deploy`**:index.html 是 gitignored 生成檔,沒先 generate 就部署

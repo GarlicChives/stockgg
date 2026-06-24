@@ -1430,14 +1430,19 @@ def _build_trade_next_html(next_rows: list[dict] | None,
                            bt_stats: dict | None = None,
                            slug: str = "pullback",
                            theme_map: dict | None = None,
-                           hot_themes: set | None = None) -> str:
+                           hot_themes: set | None = None,
+                           stocks_info: dict | None = None) -> str:
     """🎯 隔日買進標的(trade_sim_next):策略每日實際要買的短清單(回測宇宙挑出、
     依距 120 日高最遠排序的前 N 檔)。放策略模擬頁最上方。同時出現在當日選股雷達
-    熱門題材種子(radar_seeds)者加 `.sim-next-hot` 高亮外框。"""
+    熱門題材種子(radar_seeds)者加 `.sim-next-hot` 高亮外框。
+    漲跌%對齊全站唯一真實來源:tk 在 stocks_info(=trading_rankings)內時一律以其
+    change_pct 為準(回測 payload 自算的 chg 沒扣除權息,除權息日會與排行榜/券商不一致;
+    None→「—」與排行榜同步),不在才退回 payload chg。"""
     rows = next_rows or []
     if not rows:
         return ''
     seeds = radar_seeds or set()
+    sinfo = stocks_info or {}
     bt_stats = bt_stats or {}   # ticker → {tot,n,wr,best}(回測 top100;整合進卡 + 決定點擊行為)
     _aod = str(rows[0].get("as_of_date") or "")[:10]
 
@@ -1469,7 +1474,8 @@ def _build_trade_next_html(next_rows: list[dict] | None,
         tk = str(r.get("ticker") or "")
         nm = str(r.get("name") or "")
         offh = r.get("off_high")
-        chg = r.get("chg")
+        # 漲跌%以 stocks_info(trading_rankings)canonical 值為準;tk 不在才退回 payload chg
+        chg = sinfo[tk].get("change_pct") if tk in sinfo else r.get("chg")
         try:
             chg = float(chg) if chg not in (None, "") else None  # DB 可能回字串
         except (TypeError, ValueError):
@@ -1877,6 +1883,13 @@ def _build_dashboard_html(dash: dict | None,
         return ('<span class="dash-hot-badge" title="同時出現在當日選股雷達熱門題材">★</span>'
                 if tk in seeds else '')
 
+    def _canon_chg(tk, fallback):
+        """漲跌%對齊全站唯一真實來源(stocks_info=trading_rankings)。回測 payload 自算的
+        chg 是連續收盤相減、沒扣除權息(除權息日尤其上櫃會與券商/排行榜不一致,如 3374
+        精材除權息日 payload 顯 +2.8% 但排行榜顯「—」)。tk 在 stocks_info 內時一律以其
+        change_pct 為準(None→「—」,與排行榜同步),不在才退回 payload。"""
+        return sinfo[tk].get("change_pct") if tk in sinfo else fallback
+
     # ════ 段 ① 兩區塊(2026-06-20 user):各策略買進共識 / 各策略明日買進 ════
     # 2026-06-20 user 決議:總儀表板「明日賣出標的」(含共識賣出、分歧)不論出場分類一律
     # 完全移除——總儀表板只呈現「買進」面。故不再讀 strategies[].sells、不做賣出/分歧推導,
@@ -1886,8 +1899,8 @@ def _build_dashboard_html(dash: dict | None,
         tk = str(row.get("ticker") or "")
         nm = str(row.get("name") or "")
         hot = tk in seeds
-        _chg_s, _chg_cls = fmt_pct(row.get("chg")
-                                   if isinstance(row.get("chg"), (int, float)) else None)
+        _cv = _canon_chg(tk, row.get("chg"))
+        _chg_s, _chg_cls = fmt_pct(_cv if isinstance(_cv, (int, float)) else None)
         cls = "dash-wl-row" + (" is-cons" if is_cons else "") + (" dash-hot" if hot else "")
         seq = int(row.get("rank") or 0)
         tags = (('<span class="dash-wl-cons" title="多策略共選">🤝</span>' if is_cons else '')
@@ -1913,7 +1926,7 @@ def _build_dashboard_html(dash: dict | None,
             if not tk:
                 continue
             tk_px.setdefault(tk, row.get("ref_close"))
-            tk_chg.setdefault(tk, row.get("chg"))
+            tk_chg.setdefault(tk, _canon_chg(tk, row.get("chg")))
             e = _buy_by.setdefault(tk, {"ticker": tk, "name": row.get("name"), "by": []})
             e["by"].append({"slug": s.get("slug"), "name": s.get("name")})
     buy_consensus = [v for v in _buy_by.values() if len(v["by"]) >= 2]
@@ -2145,7 +2158,8 @@ def build_trade_sim_page(strat_data: dict | None = None,
             f'<button class="strat-tab-btn{active}" type="button" data-strat="{esc(slug)}" '
             f'onclick="showStrategyTab(\'{esc(slug)}\')">{esc(_name(slug))}</button>')
         body = (_build_trade_next_html(sd.get("sim_next"), radar_seeds, sd.get("bt_stats"), slug,
-                                       theme_map=theme_map, hot_themes=hot_themes)
+                                       theme_map=theme_map, hot_themes=hot_themes,
+                                       stocks_info=stocks_info)
                 + _build_backtest_html(sd.get("payload"), slug)
                 + _build_entry_dist_html(sd.get("entry_pairs"), "本策略全部逐筆交易")
                 + _build_bt_trades_html(sd.get("bt_trades_n") or 0, slug))
