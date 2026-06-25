@@ -1939,7 +1939,12 @@ def _build_dashboard_html(dash: dict | None,
     _ro = dash.get("risk_off") or {}
     _ro_banner = ""
     if _ro.get("active") and _ro.get("message"):
-        _ro_by = "、".join(b.get("name", "") for b in (_ro.get("by_strategies") or []))
+        # 觸發策略以 watchlist 為單一真實來源(同下方共識推導):ingest payload 的 by_strategies
+        # 曾誤含「watchlist 根本沒選到 canary」的策略(2026-06-25:中華電僅 dualcross 選到,
+        # 但 by_strategies 多列了 first_red),故優先取 _buy_by[canary] 的買進策略,缺才退回 payload。
+        _canary = str(_ro.get("canary") or "")
+        _ro_src = (_buy_by.get(_canary, {}) or {}).get("by") or (_ro.get("by_strategies") or [])
+        _ro_by = "、".join(b.get("name", "") for b in _ro_src)
         _ro_banner = (
             '<div class="dash-cons-riskoff">'
             f'<span class="dash-cons-riskoff-msg">{esc(_ro["message"])}</span>'
