@@ -1935,8 +1935,18 @@ def _build_dashboard_html(dash: dict | None,
     # ── 區塊 1:各策略買進共識(個股列表)──
     # 2026-06-23 user:還原「表格化以前」樣式 + 移除共識題材(連同矩陣/可投入金額/題材走勢
     # 列標籤一併下架)。每檔 pill:代號名 + 股價(漲跌%) + 買它的策略 chip,不含任何題材字樣。
+    # risk_off 警示:任一冠軍選到中華電 → 資金轉避險、停新倉(與 ingest 共識買回測風險閘同源)
+    _ro = dash.get("risk_off") or {}
+    _ro_banner = ""
+    if _ro.get("active") and _ro.get("message"):
+        _ro_by = "、".join(b.get("name", "") for b in (_ro.get("by_strategies") or []))
+        _ro_banner = (
+            '<div class="dash-cons-riskoff">'
+            f'<span class="dash-cons-riskoff-msg">{esc(_ro["message"])}</span>'
+            + (f'<span class="dash-cons-riskoff-by">觸發策略:{esc(_ro_by)}</span>' if _ro_by else "")
+            + '</div>')
     sec_consensus = ""
-    if buy_consensus:
+    if buy_consensus or _ro_banner:
         def _cons_pill(p):
             tk = str(p.get("ticker") or "")
             nm = str(p.get("name") or tk)
@@ -1967,7 +1977,9 @@ def _build_dashboard_html(dash: dict | None,
             'placeholder="金額" aria-label="可投入金額(台幣元)" oninput="dashCalcBudget(this)">'
             '<span class="dash-cons-budget-unit">元</span>'
             '<span class="dash-cons-budget-hint">現股 / 融資2.5倍 可買張數</span></span></div>'
-            f'<div class="dash-cons-list">{_pills}</div></div>')
+            + _ro_banner
+            + (f'<div class="dash-cons-list">{_pills}</div>' if buy_consensus else '')
+            + '</div>')
 
     # ── 區塊 2:各策略明日買進標的(移除內嵌共識,已上移共識區)──
     buy_cards = []

@@ -1311,6 +1311,11 @@ footer .meta{text-align:center;padding-top:.6rem;border-top:1px dashed var(--bor
 .sim-next-themes{display:flex;flex-wrap:wrap;gap:.25rem;margin-top:.35rem}
 /* 區塊 1:各策略買進共識(個股列表;2026-06-23 user 還原表格化前樣式 + 移除共識題材)。
    每檔 pill 一格:第一列=代號名 + 股價(漲跌%);第二列=買它的策略 chip。可點開個股 modal。 */
+.dash-cons-riskoff{display:flex;flex-direction:column;gap:2px;margin:.5rem 0;padding:.5rem .75rem;
+  border-radius:8px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.45);
+  color:#fcd34d;font-size:.81rem;line-height:1.5}
+.dash-cons-riskoff-msg{font-weight:600}
+.dash-cons-riskoff-by{font-size:.75rem;opacity:.85}
 .dash-cons-list{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.5rem}
 .dash-cons-pill{font-family:inherit;display:inline-flex;flex-direction:column;
                 align-items:flex-start;gap:.25rem;text-align:left;font-size:.78rem;
