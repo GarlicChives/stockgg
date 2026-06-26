@@ -61,6 +61,7 @@ companion repo `StockGG-ingest`(本機 `~/Desktop/StockGG-ingest`,私有)跑。
 - `data/pullback_public.json` — 拉回買 1 年回測 **fallback 靜態檔**(主來源已改 DB Q44 `strategy_backtest_public`)。
 - `.github/workflows/market_briefing.yml` — render + deploy workflow(cron 07:30/18:15/23:15 TW;push 不觸發)。
 - `wrangler.jsonc` — Workers 靜態資產服務(`assets.directory: docs`);`not_found_handling:"single-page-application"`(根 404 護欄,**勿移除**)。
+- `docs/_headers` — Cloudflare Workers Static Assets 標頭設定(非生成檔、要 commit,**勿刪**)。`/` 與 `/index.html` 設 `Cache-Control: no-cache` → 每次載入用 ETag revalidate(沒變回 304、變了抓新版),根治「策略資料已更新卻看到舊版 index.html」(2026-06-26:策略頁五天看似沒更新真因=缺此檔、瀏覽器/CF 快取住舊 index.html)。content-hash 過的 app.js/style.css(`?v=`)與 fetch `no-cache` 的 JSON(history/kline/bt_*)不在規則內、保留長快取,**勿加 `/*` 規則**否則大檔白白每次 revalidate。
 - 生成輸出 / lazy payload(全 gitignore、CI 上傳不 commit):`docs/index.html`、`docs/history.json`(~15MB)、`docs/kline.json`(~8MB,個股日 K)、`docs/bt_summary_<slug>.json`(回測 by_stock 100 檔卡+chart_trades)、`docs/bt_detail_<slug>.json`(by_ticker 全往返,點某檔開 modal 用)—— **per-slug**(pullback / breakout),前端切到該策略才 lazy-fetch 對應檔。
 
 > **需要這些的細節就讀 `ARCHITECTURE.md`**:每個 Q 的 SQL 與設計根因、精選閘公式(`_distill_daily_clusters`)、crash/rally banner、kline「今日根錨定」、history/kline 的 cache-bust 踩坑、404 排查法全文、主動式 ETF 頁、產業地圖蜘蛛網、策略模擬頁(Q40–Q45 演進)、選股雷達 5 條件 / 潛力股 / 看高做低 / 品質濾網 / chip 系統 / 前哨 section、📈 趨勢頁 risk chip。
