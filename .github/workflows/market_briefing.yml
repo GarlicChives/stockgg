@@ -44,6 +44,18 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
+      # 歷史大表增量讀取快取(Disk IO 治本 B):跨 CI run 持久化 .cache/ 目錄
+      # (kline / net_inst / theme_history 昨天以前的列)。key 用滾動 run_id +
+      # restore-keys 前綴 → 每次 run 存新 key、還原靠前綴抓最近一次(ephemeral
+      # runner 持久化標準作法)。缺快取 / 每週全量重建時 generate_html 自動走全量。
+      - name: Restore history read-cache
+        uses: actions/cache@v4
+        with:
+          path: .cache
+          key: site-histcache-${{ github.run_id }}
+          restore-keys: |
+            site-histcache-
+
       - name: Generate HTML page
         run: uv run scripts/generate_html.py
         env:

@@ -24,6 +24,9 @@ data/search_cache.json
 !.dev.vars.example
 !.env.example
 
+# 歷史大表增量讀取快取(Disk IO 治本 B;CI 由 actions/cache 持久化,本機亦落地)
+.cache/
+
 # macOS
 .DS_Store
 

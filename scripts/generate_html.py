@@ -23,6 +23,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.utils import db
+from src.utils import hist_cache
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -4680,10 +4681,34 @@ async def generate():
     except Exception as exc:
         print(f"  ⚠ catalyst_events query failed: {exc}")
 
-    # Theme history (Q11) — 過去 180 天 per (main, sub) per day 的 focal
+    # 今天(UTC)—— 增量快取 cutoff 與「每週全量重建」安全網共用的基準日曆日。
+    # 用日曆今天(≈ Postgres current_date)而非最新交易日;±OVERLAP 窗吸收 tz 偏差。
+    _today_date = datetime.now(timezone.utc).date()
+
+    # 增量查詢容錯層(去掉「code 先上、proxy 沒 redeploy」的部署順序風險):
+    #   * full / 首跑 / 每週全量重建(days_back >= WINDOW)→ 一律走「舊全量查詢」
+    #     (原 400 天固定式,永遠在 allowlist)→ 每日 deploy 永不因 proxy 落後而 403。
+    #   * 只有「增量」那段(days_back < WINDOW)走新的 $2 days-back 參數化查詢;
+    #     若 proxy 尚未含該變體而 403(或 Supabase function store 暫時 deploy 失敗),
+    #     本 run 自動退回全量讀取,站台照常、僅當次無 IO 節省;proxy 更新後自動恢復。
+    _hist_incr_ok = [True]
+
+    async def _hist_try(days_back, incr_call, legacy_call, label):
+        if days_back < hist_cache.WINDOW_DAYS and _hist_incr_ok[0]:
+            try:
+                return await incr_call()
+            except Exception as exc:
+                _hist_incr_ok[0] = False
+                print(f"  ⚠ {label}: 增量查詢失敗({type(exc).__name__})→ 退回全量讀取"
+                      f"(proxy 尚未含 $2 變體 / function store 異常?)")
+        return await legacy_call()
+
+    # Theme history (Q11) — 過去 400 天 per (main, sub) per day 的 focal
     # breakdown,供 cluster 卡片 sparkline + 點擊彈出大圖使用。資料由
     # StockGG-ingest 端 src/analysis/theme_history.py 寫入。若 table 還沒
     # 建立(ingest 還沒 deploy),靜默回退到「無 chart」狀態,公開站照常運作。
+    # **增量讀取(Disk IO 治本 B)**:昨天以前的列快取在 .cache/theme_history.json,
+    # 每次 deploy 只向 DB 撈比快取最新日更新的列(每週全量重建當回溯改寫安全網)。
     theme_history_rows: list = []
     _hist_keys_set: set[str] = {f"{m}||{s}" for c in sub_clusters for m, s in c.members}
     # 加上 hl_sub cluster 焦點股的「其他 main」分類 (m, s) keys:讓 theme_history
@@ -4714,17 +4739,54 @@ async def generate():
                     _hist_keys_set.add(f"{m}||{s}")
     _hist_keys = list(_hist_keys_set)
     if _hist_keys:
+        # 增量讀取 SQL:date 下限參數化為 $2 days-back(沿用 allowlist Q37
+        # `(current_date - $N::int)` 寫法),full 與 incremental 共用同一條、
+        # 只換 $2 值 → allowlist 只需一條新 entry。
+        _Q11_SQL = (
+            "select rank_date, main_industry, sub_industry, focal_count, "
+            "focal_breakdown, total_tv, avg_chg_pct from theme_history "
+            "where main_industry || '||' || sub_industry = any($1::text[]) "
+            "and rank_date >= (current_date - $2::int) "
+            "order by main_industry, sub_industry, rank_date")
+        _Q11_LEGACY_SQL = (
+            "SELECT rank_date, main_industry, sub_industry, focal_count, "
+            "focal_breakdown, total_tv, avg_chg_pct FROM theme_history "
+            "WHERE main_industry || '||' || sub_industry = ANY($1::text[]) "
+            "AND rank_date >= current_date - INTERVAL '400 days' "
+            "ORDER BY main_industry, sub_industry, rank_date")
+
+        async def _th_fetch(keys: list[str], days_back: int) -> dict:
+            grouped: dict[str, list] = {}
+            rows = await _hist_try(
+                days_back,
+                lambda: conn.fetch(_Q11_SQL, keys, days_back),
+                lambda: conn.fetch(_Q11_LEGACY_SQL, keys),
+                "Q11 theme_history")
+            for r in rows:
+                _d = r["rank_date"]
+                d_str = _d.strftime("%Y-%m-%d") if hasattr(_d, "strftime") else str(_d)[:10]
+                key = f"{r['main_industry']}||{r['sub_industry']}"
+                grouped.setdefault(key, []).append({
+                    "rank_date": d_str,
+                    "main_industry": r["main_industry"],
+                    "sub_industry": r["sub_industry"],
+                    "focal_count": r["focal_count"],
+                    "focal_breakdown": r["focal_breakdown"],
+                    "total_tv": r["total_tv"],
+                    "avg_chg_pct": r["avg_chg_pct"],
+                })
+            return grouped
+
         try:
-            theme_history_rows = [dict(r) for r in await conn.fetch(
-                """SELECT rank_date, main_industry, sub_industry,
-                          focal_count, focal_breakdown, total_tv, avg_chg_pct
-                   FROM theme_history
-                   WHERE main_industry || '||' || sub_industry = ANY($1::text[])
-                     AND rank_date >= CURRENT_DATE - INTERVAL '400 days'
-                   ORDER BY main_industry, sub_industry, rank_date""",
-                _hist_keys,
-            )]
-            print(f"  Theme history: {len(theme_history_rows)} rows for {len(_hist_keys)} (main,sub) keys")
+            _th_rows, _th_stats = await hist_cache.incremental_load(
+                "theme_history", _hist_keys, date_key="rank_date",
+                today=_today_date, fetch_rows=_th_fetch)
+            for k in _hist_keys:
+                theme_history_rows.extend(_th_rows.get(k, []))
+            print(f"  Theme history: {len(theme_history_rows)} rows for "
+                  f"{len(_hist_keys)} (main,sub) keys "
+                  f"[{_th_stats['mode']}: DB read {_th_stats['rows_read']} rows, "
+                  f"full={_th_stats['full_entities']}/incr={_th_stats['incr_entities']} keys]")
         except Exception as exc:
             print(f"  ⚠ theme_history query failed (table not yet populated?): {exc}")
 
@@ -4894,16 +4956,17 @@ async def generate():
 
     async def _fetch_ticker_batched(sql: str, tickers: list[str], *,
                                      batch_size: int = 60, retries: int = 2,
-                                     label: str) -> list:
+                                     label: str, extra_params: tuple = ()) -> list:
         """分批 fetch 避免 Supabase Edge 單次 timeout / 6MB 上限(已踩過 546)。
-        每 batch 失敗 retry,全 retry 都掛才放棄該 batch 並 raise。"""
+        每 batch 失敗 retry,全 retry 都掛才放棄該 batch 並 raise。
+        `extra_params` 接在 ticker chunk($1)之後(如增量讀取的 $2 days-back)。"""
         out = []
         for i in range(0, len(tickers), batch_size):
             chunk = tickers[i:i + batch_size]
             last_exc = None
             for attempt in range(retries + 1):
                 try:
-                    rows = await conn.fetch(sql, chunk)
+                    rows = await conn.fetch(sql, chunk, *extra_params)
                     out.extend(rows)
                     last_exc = None
                     break
@@ -4920,37 +4983,61 @@ async def generate():
 
     if _hist_tickers:
         try:
-            tch_rows = await _fetch_ticker_batched(
-                "SELECT ticker, rank_date, close, shares_out, volume, high, open, low FROM ticker_close_history "
-                "WHERE ticker = ANY($1::text[]) "
+            # 增量讀取(Disk IO 治本 B):昨天以前的 K 棒快取在 .cache/kline.json,
+            # 每次 deploy 只向 DB 撈比快取最新日更新的列。date 下限 $2 days-back
+            # 參數化(沿用 Q37 `(current_date - $N::int)`),full/incr 共用同一條。
+            _Q13_SQL = (
+                "select ticker, rank_date, close, shares_out, volume, high, open, low "
+                "from ticker_close_history where ticker = any($1::text[]) "
+                "and rank_date >= (current_date - $2::int) "
+                "order by ticker, rank_date")
+            _Q13_LEGACY_SQL = (
+                "SELECT ticker, rank_date, close, shares_out, volume, high, open, low "
+                "FROM ticker_close_history WHERE ticker = ANY($1::text[]) "
                 "AND rank_date >= current_date - INTERVAL '400 days' "
-                "ORDER BY ticker, rank_date",
-                _hist_tickers,
-                label="Q13 ticker_close_history",
-            )
-            for r in tch_rows:
-                # rank_date 是 timestamp(asyncpg → datetime),取 YYYY-MM-DD
-                # 跟 theme_history payload 的 d 欄(YYYY-MM-DD)對齊,
-                # _computeClusterSeries 的 dateSet union 才會 match
-                _d = r["rank_date"]
-                d_str = _d.strftime("%Y-%m-%d") if hasattr(_d, "strftime") else str(_d)[:10]
-                # _jc 壓數值精度:價格 round(2) 去 float32 雜訊(=真實 tick 價),
-                # 股數/成交股數取整 —— history.json / kline.json 體積減半的關鍵
-                _close = _jc(r["close"], 2)
-                _shares = _jc(r["shares_out"])
-                _vol = _jc(r["volume"])
-                _high = _jc(r["high"], 2)
-                _open = _jc(r["open"], 2)
-                _low  = _jc(r["low"], 2)
-                ticker_close_payload.setdefault(r["ticker"], []).append({
-                    "d": d_str, "c": _close, "s": _shares,
-                })
-                ticker_close_full.setdefault(r["ticker"], []).append({
-                    "d": d_str, "c": _close, "s": _shares, "v": _vol,
-                    "high": _high, "open": _open, "low": _low,
-                })
-            print(f"  ticker_close_history: {len(tch_rows)} rows for "
-                  f"{len(ticker_close_payload)}/{len(_hist_tickers)} tickers")
+                "ORDER BY ticker, rank_date")
+
+            async def _kline_fetch(tickers: list[str], days_back: int) -> dict:
+                grouped: dict[str, list] = {}
+                rows = await _hist_try(
+                    days_back,
+                    lambda: _fetch_ticker_batched(
+                        _Q13_SQL, tickers, label="Q13 ticker_close_history (incr)",
+                        extra_params=(days_back,), retries=0),
+                    lambda: _fetch_ticker_batched(
+                        _Q13_LEGACY_SQL, tickers, label="Q13 ticker_close_history"),
+                    "Q13 ticker_close_history")
+                for r in rows:
+                    # rank_date 是 timestamp(asyncpg → datetime),取 YYYY-MM-DD
+                    # 跟 theme_history payload 的 d 欄對齊,_computeClusterSeries
+                    # 的 dateSet union 才會 match。
+                    _d = r["rank_date"]
+                    d_str = _d.strftime("%Y-%m-%d") if hasattr(_d, "strftime") else str(_d)[:10]
+                    # _jc 壓數值精度:價格 round(2) 去 float32 雜訊(=真實 tick 價),
+                    # 股數/成交股數取整 —— history.json / kline.json 體積減半的關鍵
+                    grouped.setdefault(r["ticker"], []).append({
+                        "d": d_str, "c": _jc(r["close"], 2), "s": _jc(r["shares_out"]),
+                        "v": _jc(r["volume"]), "high": _jc(r["high"], 2),
+                        "open": _jc(r["open"], 2), "low": _jc(r["low"], 2),
+                    })
+                return grouped
+
+            _kc_rows, _kc_stats = await hist_cache.incremental_load(
+                "kline", _hist_tickers, date_key="d",
+                today=_today_date, fetch_rows=_kline_fetch)
+            # 從合併後的快取重建下游結構,只取本次需要的 ticker(輸出範圍與全量一致)。
+            for tk in _hist_tickers:
+                for r in _kc_rows.get(tk, []):
+                    ticker_close_payload.setdefault(tk, []).append({
+                        "d": r["d"], "c": r["c"], "s": r["s"],
+                    })
+                    ticker_close_full.setdefault(tk, []).append({
+                        "d": r["d"], "c": r["c"], "s": r["s"], "v": r["v"],
+                        "high": r["high"], "open": r["open"], "low": r["low"],
+                    })
+            print(f"  ticker_close_history: {len(ticker_close_payload)}/{len(_hist_tickers)} tickers "
+                  f"[{_kc_stats['mode']}: DB read {_kc_stats['rows_read']} rows, "
+                  f"full={_kc_stats['full_entities']}/incr={_kc_stats['incr_entities']} tickers]")
             # 個股 modal 日 K 線(P2):per-ticker JSON 寫到 docs/kline/
             # <ticker>.json,lazy fetch,免暴露 anon key 給 client。
             # 格式:[[d,o,h,l,c,v], ...](compact array,~60 bytes/row)。
@@ -5064,25 +5151,49 @@ async def generate():
     # 範圍 fetch,pan_sub focal 若不在字典內 Q17 回 0 row 無影響。
     ticker_net_inst: dict[str, dict[str, float]] = {}  # ticker -> {date_str: net_inst (NTD)}
     if _hist_tickers:
-        try:
-            tni_rows = await _fetch_ticker_batched(
-                "SELECT ticker, rank_date, net_inst FROM ticker_net_inst_history "
-                "WHERE ticker = ANY($1::text[]) "
-                "AND rank_date >= current_date - INTERVAL '400 days' "
-                "ORDER BY ticker, rank_date",
-                _hist_tickers,
-                label="Q17 ticker_net_inst_history",
-            )
-            for r in tni_rows:
-                _d = r["rank_date"]
-                d_str = _d.strftime("%Y-%m-%d") if hasattr(_d, "strftime") else str(_d)[:10]
+        # 增量讀取(Disk IO 治本 B):快取在 .cache/net_inst.json;date 下限 $2
+        # days-back 參數化,full/incr 共用同一條 allowlist entry。
+        _Q17_SQL = (
+            "select ticker, rank_date, net_inst from ticker_net_inst_history "
+            "where ticker = any($1::text[]) "
+            "and rank_date >= (current_date - $2::int) "
+            "order by ticker, rank_date")
+        _Q17_LEGACY_SQL = (
+            "SELECT ticker, rank_date, net_inst FROM ticker_net_inst_history "
+            "WHERE ticker = ANY($1::text[]) "
+            "AND rank_date >= current_date - INTERVAL '400 days' "
+            "ORDER BY ticker, rank_date")
+
+        async def _ni_fetch(tickers: list[str], days_back: int) -> dict:
+            grouped: dict[str, list] = {}
+            rows = await _hist_try(
+                days_back,
+                lambda: _fetch_ticker_batched(
+                    _Q17_SQL, tickers, label="Q17 ticker_net_inst_history (incr)",
+                    extra_params=(days_back,), retries=0),
+                lambda: _fetch_ticker_batched(
+                    _Q17_LEGACY_SQL, tickers, label="Q17 ticker_net_inst_history"),
+                "Q17 ticker_net_inst_history")
+            for r in rows:
                 ni = r["net_inst"]
                 if ni is None:
                     continue
+                _d = r["rank_date"]
+                d_str = _d.strftime("%Y-%m-%d") if hasattr(_d, "strftime") else str(_d)[:10]
                 # 取整(NTD;小數分毫無意義,payload 每值省 3 字元)
-                ticker_net_inst.setdefault(r["ticker"], {})[d_str] = _jc(ni)
-            print(f"  ticker_net_inst_history: {len(tni_rows)} rows for "
-                  f"{len(ticker_net_inst)}/{len(_hist_tickers)} tickers")
+                grouped.setdefault(r["ticker"], []).append({"d": d_str, "ni": _jc(ni)})
+            return grouped
+
+        try:
+            _ni_rows, _ni_stats = await hist_cache.incremental_load(
+                "net_inst", _hist_tickers, date_key="d",
+                today=_today_date, fetch_rows=_ni_fetch)
+            for tk in _hist_tickers:
+                for r in _ni_rows.get(tk, []):
+                    ticker_net_inst.setdefault(tk, {})[r["d"]] = r["ni"]
+            print(f"  ticker_net_inst_history: {len(ticker_net_inst)}/{len(_hist_tickers)} tickers "
+                  f"[{_ni_stats['mode']}: DB read {_ni_stats['rows_read']} rows, "
+                  f"full={_ni_stats['full_entities']}/incr={_ni_stats['incr_entities']} tickers]")
         except Exception as exc:
             print(f"  ⚠ ticker_net_inst_history query failed (Q17 not deployed?): {exc}")
 

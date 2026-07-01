@@ -265,6 +265,17 @@ const ALLOWED: Set<string> = new Set([
   //   strategy_backtest_public 現有全部 slug = 策略模擬頁切換器的權威來源;ingest 寫 DB
   //   後公開站日更即自動帶上新策略,generate_html 不需 hardcode slug 清單。
   "select slug from strategy_backtest_public order by slug",
+
+  // Q13i / Q17i / Q11i — Q13 / Q17 / Q11 的「增量讀取」變體(2026-07-01 Disk IO
+  //   治本 B)。generate_html 改用 GitHub Actions cache 跨 run 持久化歷史大表,
+  //   每次 deploy 只撈「比快取最新日更新的列」。與原查詢唯一差異 = 把固定的
+  //   `rank_date >= current_date - interval '400 days'` 換成參數化下限
+  //   `rank_date >= (current_date - $N::int)`(sql 文字固定 → 單一 allowlist entry;
+  //   full 重建傳 $N=400、增量傳小值,同一條共用,沿用 Q37 的 int days-back 寫法)。
+  //   原 Q13/Q17/Q11 保留(向下相容,首跑/回退仍可用)。
+  "select ticker, rank_date, close, shares_out, volume, high, open, low from ticker_close_history where ticker = any($1::text[]) and rank_date >= (current_date - $2::int) order by ticker, rank_date",
+  "select ticker, rank_date, net_inst from ticker_net_inst_history where ticker = any($1::text[]) and rank_date >= (current_date - $2::int) order by ticker, rank_date",
+  "select rank_date, main_industry, sub_industry, focal_count, focal_breakdown, total_tv, avg_chg_pct from theme_history where main_industry || '||' || sub_industry = any($1::text[]) and rank_date >= (current_date - $2::int) order by main_industry, sub_industry, rank_date",
 ])
 
 function normalize(q: string): string {
